@@ -70,21 +70,22 @@ animation = &"Idle"
 [node name="Camera2D" type="Camera2D" parent="Node2D/Player"]
 zoom = Vector2(4.935, 4.935)
 
-[node name="UI" type="Control" parent="Node2D/Player/Camera2D" node_paths=PackedStringArray("inventoryManager")]
+[node name="UI" type="Control" parent="Node2D/Player/Camera2D" node_paths=PackedStringArray("inventoryManager", "item_grid")]
+texture_filter = 1
 layout_mode = 3
 anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
 script = ExtResource("10_72nuh")
 inventoryManager = NodePath("../../../InventoryManager")
+item_grid = NodePath("PanelContainer/GridContainer")
 
 [node name="Panel" type="Panel" parent="Node2D/Player/Camera2D/UI"]
+visible = false
 z_index = 785
 layout_mode = 0
 offset_left = -106.0
 offset_top = 42.0
 offset_right = 89.0
-offset_bottom = 64.0
+offset_bottom = 63.91
 
 [node name="GridContainer" type="GridContainer" parent="Node2D/Player/Camera2D/UI/Panel"]
 texture_filter = 1
@@ -99,6 +100,18 @@ offset_right = 193.0
 offset_bottom = 11.0
 grow_vertical = 2
 columns = 4
+
+[node name="PanelContainer" type="PanelContainer" parent="Node2D/Player/Camera2D/UI"]
+texture_filter = 1
+layout_mode = 0
+offset_left = -109.0
+offset_top = 39.0
+offset_right = 26.395
+offset_bottom = 55.0
+
+[node name="GridContainer" type="GridContainer" parent="Node2D/Player/Camera2D/UI/PanelContainer"]
+layout_mode = 2
+columns = 7
 
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager")]
 script = ExtResource("6_rsems")

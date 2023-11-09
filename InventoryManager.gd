@@ -1,7 +1,7 @@
 extends Node
 class_name InventoryManager
 
-var inventory = {}
+var inventory = []
 @export var ui: UI
 
 # Called when the node enters the scene tree for the first time.
@@ -15,10 +15,14 @@ func f_process(delta):
 		print(inventory[key])
 		
 func AddItem(item: Item, count: int = 0):
-	if not inventory.has(item):
-		inventory[item] = 0
-
-	inventory[item] += count
+	var inventoryItem = InventorySlot.new(item, count)
+	var found = false
+	for i in range(inventory.size()):
+		if inventory[i].item == inventoryItem.item:
+			inventory[i].count += inventoryItem.count
+			found = true
+	if found == false:
+		inventory.append(inventoryItem)
 	
 	ui.add_item()
 
