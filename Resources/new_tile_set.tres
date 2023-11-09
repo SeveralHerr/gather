@@ -1,0 +1,49 @@
+[gd_resource type="TileSet" load_steps=4 format=3 uid="uid://2hnc5oivl1li"]
+
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_fu67e"]
+
+[sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
+tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_iq1uv"]
+texture = ExtResource("1_fu67e")
+0:0/0 = 0
+0:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+0:0/0/physics_layer_0/angular_velocity = 0.0
+0:0/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+0:0/0/physics_layer_1/angular_velocity = 0.0
+1:0/size_in_atlas = Vector2i(1, 2)
+1:0/next_alternative_id = 4
+1:0/0 = 0
+1:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:0/0/physics_layer_0/angular_velocity = 0.0
+1:0/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+1:0/0/physics_layer_1/angular_velocity = 0.0
+1:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-4.375, 5.25, 4.25, 5.375, 4.24264, 14.1421, -4.25, 13.875)
+1:0/1 = 1
+1:0/1/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:0/1/physics_layer_0/angular_velocity = 0.0
+1:0/1/physics_layer_1/linear_velocity = Vector2(0, 0)
+1:0/1/physics_layer_1/angular_velocity = 0.0
+1:0/2 = 2
+1:0/2/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:0/2/physics_layer_0/angular_velocity = 0.0
+1:0/2/physics_layer_1/linear_velocity = Vector2(0, 0)
+1:0/2/physics_layer_1/angular_velocity = 0.0
+1:0/3 = 3
+1:0/3/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:0/3/physics_layer_0/angular_velocity = 0.0
+1:0/3/physics_layer_1/linear_velocity = Vector2(0, 0)
+1:0/3/physics_layer_1/angular_velocity = 0.0
+2:1/0 = 0
+2:1/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+2:1/0/physics_layer_0/angular_velocity = 0.0
+2:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3.5625, 0, 4.8125, 0.125, 5.3125, 6, -4.25, 6.125)
+2:1/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+2:1/0/physics_layer_1/angular_velocity = 0.0
+
+[resource]
+physics_layer_0/collision_layer = 1
+physics_layer_1/collision_layer = 1
+sources/0 = SubResource("TileSetAtlasSource_iq1uv")
+pattern_0 = SubResource("TileMapPattern_7ewrd")

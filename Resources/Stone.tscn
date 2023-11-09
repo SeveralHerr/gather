@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cw0a0ns7kyg1r"]
+
+[ext_resource type="Texture2D" uid="uid://c70etuntf57uf" path="res://Resources/Stone.png" id="1_q2wkx"]
+
+[node name="Stone" type="Sprite2D"]
+texture_filter = 1
+texture = ExtResource("1_q2wkx")
+offset = Vector2(0.58, -4.345)
