@@ -1,0 +1,30 @@
+[gd_scene load_steps=4 format=3 uid="uid://dw1xovihw6lj4"]
+
+[ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="1_3243k"]
+[ext_resource type="Script" path="res://Sawmill.gd" id="2_bwr50"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rd8io"]
+size = Vector2(12, 7)
+
+[node name="Sprite2D" type="Sprite2D"]
+y_sort_enabled = true
+texture_filter = 1
+texture = ExtResource("1_3243k")
+script = ExtResource("2_bwr50")
+
+[node name="Button" type="Button" parent="."]
+modulate = Color(1, 1, 1, 0)
+offset_left = -6.0
+offset_top = -4.0
+offset_right = 6.0
+offset_bottom = 7.0
+
+[node name="Area2D" type="Area2D" parent="."]
+z_index = 1
+y_sort_enabled = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+position = Vector2(0, 3.5)
+shape = SubResource("RectangleShape2D_rd8io")
+
+[connection signal="pressed" from="Button" to="." method="_on_button_pressed"]

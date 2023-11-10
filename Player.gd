@@ -5,6 +5,7 @@ const SPEED = 300.0
 const JUMP_VELOCITY = -400.0
 
 @export var tilemap: TileMapHandler
+@export var selectedItemManager: SelectedItemManager
 
 # Get the gravity from the project settings to be synced with RigidBody nodes.
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -20,6 +21,11 @@ func _physics_process(delta):
 		v.y += 1
 	if Input.is_action_pressed(&"move_up"):
 		v.y -= 1
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		selectedItemManager.ClearSelection()
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		#selectedItemManager.Place()
+		pass
 	if Input.is_action_just_pressed("gather"):
 		$AnimatedSprite2D.play("Gathering")
 		tilemap.RemoveNearestResourceToPlayer()

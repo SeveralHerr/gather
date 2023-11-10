@@ -1,6 +1,7 @@
-[gd_resource type="TileSet" load_steps=4 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=6 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_fu67e"]
+[ext_resource type="PackedScene" uid="uid://dw1xovihw6lj4" path="res://Sawmill.tscn" id="2_d4cf1"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -42,8 +43,12 @@ texture = ExtResource("1_fu67e")
 2:1/0/physics_layer_1/linear_velocity = Vector2(0, 0)
 2:1/0/physics_layer_1/angular_velocity = 0.0
 
+[sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_60m0n"]
+scenes/1/scene = ExtResource("2_d4cf1")
+
 [resource]
 physics_layer_0/collision_layer = 1
 physics_layer_1/collision_layer = 1
 sources/0 = SubResource("TileSetAtlasSource_iq1uv")
+sources/2 = SubResource("TileSetScenesCollectionSource_60m0n")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

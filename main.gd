@@ -50,6 +50,9 @@ func get_random_tile():
 		tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
 
 	return Vector2(random_x, random_y)
+	
+func IsTileOccupied(tilePosition):
+	return false
 
 func RemoveNearestResourceToPlayer():
 	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
