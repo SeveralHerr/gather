@@ -33,7 +33,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items") groups=["Items", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items") groups=["Buttons", "Items", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")

@@ -11,6 +11,8 @@ var selectedTexture = TextureRect.new()
 	
 
 func _ready():
+	selectedTexture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inventoryManager.add_child(selectedTexture)
 	add_to_group("UI")
 	for child in item_grid.get_children():
 		child.queue_free()
@@ -32,13 +34,15 @@ func _physics_process(delta):
 func add_item():
 	update_ui()
 
+
 func remove_item(item):
 	update_ui()
 
 func update_ui():
+
 	for i in inventoryManager.inventory.size():
 		var button = item_grid.get_child(i).get_child(0).get_child(1)
-		#button.connect("pressed", Callable(self, "_on_Button_pressed"))
+		button.connect("pressed", Callable(button, "_on_Button_pressed"))
 
 		item_grid.get_child(i).get_child(0).get_child(0).texture = inventoryManager.inventory[i].item.icon
 		item_grid.get_child(i).get_child(1).text = str(inventoryManager.inventory[i].count)
@@ -46,14 +50,16 @@ func update_ui():
 		var slotButton = item_grid.get_child(i)
 		if slotButton is SlotButton:
 			slotButton.item = inventoryManager.inventory[i].item
-
+			slotButton.slot_clicked.connect(_on_Button_pressed)
 func SelectItem():
 	if selectedItem == null:
 		return
 
 	selectedTexture.texture = selectedItem.icon
-	tileMapHandler.add_child(selectedTexture)
-
+	inventoryManager.add_child(selectedTexture)
+func _on_Button_pressed(item: Item):
+	selectedTexture.texture = item.icon
+	selectedItem = item
 func fupdate_ui():
 	# Clear the existing UI
 	for child in $Panel/GridContainer.get_children():
