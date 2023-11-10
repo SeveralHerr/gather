@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=14 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
 [ext_resource type="Script" path="res://Items.gd" id="9_ctkxo"]
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
+[ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nb1ju"]
 size = Vector2(6, 5)
@@ -70,14 +71,16 @@ animation = &"Idle"
 [node name="Camera2D" type="Camera2D" parent="Node2D/Player"]
 zoom = Vector2(4.935, 4.935)
 
-[node name="UI" type="Control" parent="Node2D/Player/Camera2D" node_paths=PackedStringArray("inventoryManager", "item_grid", "tileMapHandler")]
+[node name="UI" type="Control" parent="Node2D/Player/Camera2D" node_paths=PackedStringArray("tileMapHandler", "selectedItemManager", "inventoryManager", "item_grid")]
+z_index = 1580
 texture_filter = 1
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("10_72nuh")
+tileMapHandler = NodePath("../../../..")
+selectedItemManager = NodePath("../../../SelectedItemManager")
 inventoryManager = NodePath("../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
-tileMapHandler = NodePath("../../../..")
 
 [node name="PanelContainer" type="PanelContainer" parent="Node2D/Player/Camera2D/UI"]
 texture_filter = 1
@@ -103,5 +106,11 @@ ui = NodePath("../Player/Camera2D/UI")
 
 [node name="Items" type="Node" parent="Node2D"]
 script = ExtResource("9_ctkxo")
+
+[node name="SelectedItemManager" type="Control" parent="Node2D" node_paths=PackedStringArray("tileMapHandler")]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("11_3m4gl")
+tileMapHandler = NodePath("../..")
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]

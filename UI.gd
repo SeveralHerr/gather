@@ -1,18 +1,14 @@
 extends Control
 class_name UI
 var inventory
+@export var tileMapHandler: TileMapHandler
+@export var selectedItemManager: SelectedItemManager
 @export var inventoryManager: InventoryManager
 @export var Slot = preload("res://Slot.tscn")
 @export var item_grid: GridContainer
-@export var tileMapHandler: TileMapHandler
-var selectedItem
-var selectedTexture = TextureRect.new()
 
-	
 
 func _ready():
-	selectedTexture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inventoryManager.add_child(selectedTexture)
 	add_to_group("UI")
 	for child in item_grid.get_children():
 		child.queue_free()
@@ -21,16 +17,6 @@ func _ready():
 		var slot = Slot.instantiate()
 		item_grid.add_child(slot)
 		
-func _physics_process(delta):
-	if selectedTexture != null:
-		var mouse_pos = get_global_mouse_position()
-		var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
-		var clamped_world_pos = tileMapHandler.tileMap.map_to_local(tile_pos)
-		clamped_world_pos -= Vector2(16, 16) / 2
-
-		# Set the object's position to the clamped position
-		selectedTexture.position = clamped_world_pos
-
 func add_item():
 	update_ui()
 
@@ -51,37 +37,6 @@ func update_ui():
 		if slotButton is SlotButton:
 			slotButton.item = inventoryManager.inventory[i].item
 			slotButton.slot_clicked.connect(_on_Button_pressed)
-func SelectItem():
-	if selectedItem == null:
-		return
-
-	selectedTexture.texture = selectedItem.icon
-	inventoryManager.add_child(selectedTexture)
+			
 func _on_Button_pressed(item: Item):
-	selectedTexture.texture = item.icon
-	selectedItem = item
-func fupdate_ui():
-	# Clear the existing UI
-	for child in $Panel/GridContainer.get_children():
-		child.queue_free()
-	
-	print(inventoryManager.inventory)
-	for item in inventoryManager.inventory.keys():
-		var button = Button.new()
-		$Panel/GridContainer.add_child(button)
-				
-		var item_icon = TextureRect.new()
-		item_icon.texture = item.icon # Assuming each item has an 'icon' property
-		$Panel/GridContainer.get_child(0).add_child(item_icon)
-		
-
-
-
-
-		button.connect("pressed", Callable(self, "_on_Button_pressed"))
-		
-		var label = Label.new()
-		label.text = str(inventoryManager.inventory[item])
-		label.scale *= 0.3
-		$Panel/GridContainer.add_child(label)
-		
+	selectedItemManager.SetSelectedItem(item)

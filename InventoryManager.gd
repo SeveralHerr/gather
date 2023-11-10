@@ -8,11 +8,6 @@ var inventory = []
 func _ready():
 	pass # Replace with function body.
 
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func f_process(delta):
-	for key in inventory.keys():
-		print(inventory[key])
 		
 func AddItem(item: Item, count: int = 0):
 	var inventoryItem = InventorySlot.new(item, count)
@@ -25,15 +20,3 @@ func AddItem(item: Item, count: int = 0):
 		inventory.append(inventoryItem)
 	
 	ui.add_item()
-
-
-func fAddItem(item: Item, count: int = 1):
-	var found = false
-	for key in inventory.keys(): 
-		if key.name == item.name:
-			inventory[key] += 1
-			found = true
-
-	if found == false:
-		inventory[item] = count
-		ui.add_item()

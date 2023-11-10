@@ -15,17 +15,3 @@ func _ready():
 
 func _on_button_pressed():
 	slot_clicked.emit(item)
-func test():
-	print(get_index())
-	print("index")
-	for i in ui: 
-		if i is UI:
-			print("fdsa")
-			i.selectedItem = item
-			i.SelectItem()
-
-
-func _on_gui_input(event: InputEvent):
-	print("T")
-	if event is InputEventMouseButton and (event.button_index == MOUSE_BUTTON_LEFT):
-		print("test")

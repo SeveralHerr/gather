@@ -30,7 +30,6 @@ func GetRandomResource():
 	if items.items.size() == 0:
 		return
 	var random_index = randi() % items.items.size()
-	print(random_index)
 	return items.items[random_index]
 
 func get_random_tile():
