@@ -85,3 +85,4 @@ func RemoveNearestResourceToPlayer():
 	
 func GetPlayerPosition():
 	return tileMap.local_to_map(player.global_position)
+
