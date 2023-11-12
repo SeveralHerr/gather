@@ -17,6 +17,9 @@ func _process(delta):
 func SetResource(location, resource):
 	tileMap.set_cell(1, location, 0, resource)
 	
+func SetTest2():
+	tileMap.set_cell(1, Vector2i(1,1), 2, Vector2i(0,0), 1)
+	
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
 	
@@ -29,8 +32,12 @@ func AddRandomResource():
 func GetRandomResource():
 	if items.items.size() == 0:
 		return
-	var random_index = randi() % items.items.size()
-	return items.items[random_index]
+	var resources = []
+	for i in items.items.size():
+		if items.items[i].atlas_location != Vector2i.ZERO:
+			resources.append(items.items[i])
+	var random_index = randi() % resources.size()
+	return resources[random_index]
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed

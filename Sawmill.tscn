@@ -1,15 +1,21 @@
-[gd_scene load_steps=4 format=3 uid="uid://dw1xovihw6lj4"]
+[gd_scene load_steps=5 format=3 uid="uid://1ka6xlmaapop"]
 
-[ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="1_3243k"]
 [ext_resource type="Script" path="res://Sawmill.gd" id="2_bwr50"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_7rsi8"]
+load_path = "res://.godot/imported/Tiles.png-8423d93cbb036e79b880338e78fbb12c.ctex"
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4pvxu"]
+atlas = SubResource("CompressedTexture2D_7rsi8")
+region = Rect2(0, 32, 16, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_rd8io"]
 size = Vector2(12, 7)
 
-[node name="Sprite2D" type="Sprite2D"]
+[node name="Sawmill" type="Sprite2D"]
 y_sort_enabled = true
 texture_filter = 1
-texture = ExtResource("1_3243k")
+texture = SubResource("AtlasTexture_4pvxu")
 script = ExtResource("2_bwr50")
 
 [node name="Button" type="Button" parent="."]
@@ -19,11 +25,9 @@ offset_top = -4.0
 offset_right = 6.0
 offset_bottom = 7.0
 
-[node name="Area2D" type="Area2D" parent="."]
-z_index = 1
-y_sort_enabled = true
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
 position = Vector2(0, 3.5)
 shape = SubResource("RectangleShape2D_rd8io")
 

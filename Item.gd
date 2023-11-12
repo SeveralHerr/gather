@@ -10,6 +10,7 @@ class_name Item
 @export var icon: Texture
 
 
+
 func _init(atlas_location: Vector2i = Vector2i(), scene: PackedScene = null, name: String = "", icon: Texture = null):
 	self.atlas_location = atlas_location
 	self.scene = scene

@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=19 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -13,6 +13,8 @@
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
 [ext_resource type="PackedScene" uid="uid://1ka6xlmaapop" path="res://Sawmill.tscn" id="12_00q82"]
+[ext_resource type="Script" path="res://GameItem.gd" id="14_bta3x"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="15_bf8xl"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nb1ju"]
 size = Vector2(6, 5)
@@ -35,6 +37,9 @@ animations = [{
 "name": &"Idle",
 "speed": 5.0
 }]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hc33n"]
+atlas = ExtResource("15_bf8xl")
 
 [node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items") groups=["Buttons", "Items", "Sawmills", "UI"]]
 script = ExtResource("1_j4hlh")
@@ -138,6 +143,8 @@ visible = false
 position = Vector2(34, 0)
 
 [node name="ResourceManager" type="Node" parent="."]
+script = ExtResource("14_bta3x")
+texture = SubResource("AtlasTexture_hc33n")
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/Player/Camera2D/UI/SawmillUI" method="_on_resource_timer_timeout"]

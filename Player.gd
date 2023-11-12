@@ -24,7 +24,7 @@ func _physics_process(delta):
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		selectedItemManager.ClearSelection()
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		#selectedItemManager.Place()
+		tilemap.SetTest2()
 		pass
 	if Input.is_action_just_pressed("gather"):
 		$AnimatedSprite2D.play("Gathering")

@@ -6,9 +6,10 @@ var inventory
 @export var inventoryManager: InventoryManager
 @export var Slot = preload("res://Slot.tscn")
 @export var item_grid: GridContainer
-
+@export var test: Node
 
 func _ready():
+	test = $SawmillUI
 	add_to_group("UI")
 	for child in item_grid.get_children():
 		child.queue_free()

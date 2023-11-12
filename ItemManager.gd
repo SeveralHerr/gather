@@ -1,7 +1,7 @@
 extends Node
 class_name ItemManager
 
-var itemsInWorld = {}
+@export var itemsInWorld: Array[WorldItem] = []
 @export var player: Player
 @export var items: Items
 @export var inventoryManager: InventoryManager
@@ -18,25 +18,29 @@ func _process(delta):
 	
 	if itemsInWorld.size() > 0:
 	
-		for key in itemsInWorld.keys():
-			var direction = player.global_position - itemsInWorld[key].global_position
+		for i in itemsInWorld.size():
+			var playerPos = player.global_position - Vector2(8,8)
+			var direction = playerPos - itemsInWorld[i].instance.global_position
 			var distance = direction.length()
 
 			if distance < activation_distance and distance >= 0:
 				direction = direction.normalized()
-				itemsInWorld[key].global_position += direction * move_speed * delta
+				itemsInWorld[i].instance.global_position += direction * move_speed * delta
 				
-			if int(itemsInWorld[key].global_position.x) == int(player.global_position.x) and  int(itemsInWorld[key].global_position.y) == int(player.global_position.y) :
-				inventoryManager.AddItem(key, 1)
-				itemsInWorld[key].queue_free()
+			if int(itemsInWorld[i].instance.global_position.x) == int(playerPos.x) and  int(itemsInWorld[i].instance.global_position.y) == int(playerPos.y) :
+				inventoryManager.AddItem(itemsInWorld[i].item, 1)
+				itemsInWorld[i].instance.queue_free()
+				itemsInWorld.erase(itemsInWorld[i])
 
-				itemsInWorld.erase(key)
 
-
-func AddItemToWorld(position, item):
-	var instance = items.GetItemByName(item).scene.instantiate()
+func AddItemToWorld(position, item: Item):
+	var instance = TextureRect.new()
+	instance.texture = item.icon
+	instance.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(instance)
 	add_to_group("Items")
 	instance.position = position
-	itemsInWorld[item] = instance
+	itemsInWorld.append(WorldItem.new(item, instance))
+	
+	
 	

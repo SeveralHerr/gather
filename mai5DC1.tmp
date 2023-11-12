@@ -126,7 +126,6 @@ ui = NodePath("../Player/Camera2D/UI")
 script = ExtResource("9_ctkxo")
 
 [node name="SelectedItemManager" type="Control" parent="Node2D" node_paths=PackedStringArray("tileMapHandler")]
-visible = false
 texture_filter = 1
 layout_mode = 3
 anchors_preset = 0
@@ -134,10 +133,7 @@ script = ExtResource("11_3m4gl")
 tileMapHandler = NodePath("../..")
 
 [node name="Sprite2D" parent="Node2D" instance=ExtResource("12_00q82")]
-visible = false
 position = Vector2(34, 0)
-
-[node name="ResourceManager" type="Node" parent="."]
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/Player/Camera2D/UI/SawmillUI" method="_on_resource_timer_timeout"]

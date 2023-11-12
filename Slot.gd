@@ -15,3 +15,5 @@ func _ready():
 
 func _on_button_pressed():
 	slot_clicked.emit(item)
+
+
