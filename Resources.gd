@@ -1,22 +1,32 @@
 extends Node
 class_name Resources
 
+@export var items: Items
 
 var resources: Dictionary = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	gameItems[GameItem.Type.Stone] = GameItem.new(Vector2i(1, 2), 4, GameItem.Type.Stone)
-	gameItems[GameItem.Type.Wood] = GameItem.new(Vector2i(2, 2), 4, GameItem.Type.Wood)
-	gameItems[GameItem.Type.Plank] = GameItem.new(Vector2i(3, 2), 4, GameItem.Type.Plank)
-	gameItems[GameItem.Type.Sawmill] = GameItem.new(Vector2i(0, 0), 2, GameItem.Type.Sawmill)
-	
-	resources[Resource.]
-
-func GetItemByName(name):
-	for item in items:
-		if item.name == name: 
-			return item
+	resources[GameResource.Type.Tree] = GameResource.new(Vector2i(1, 0), 4, items.Get(GameItem.Type.Wood), GameResource.Type.Tree)
+	resources[GameResource.Type.Stone] = GameResource.new(Vector2i(2, 1), 4, items.Get(GameItem.Type.Stone), GameResource.Type.Stone)
 			
-func Get(type: GameItem.Type) -> GameItem:
-	return gameItems[type]
+func Get(type: GameResource.Type) -> GameResource:
+	return resources[type]
+	
+func GetAllTypes():
+	var types = []
+	for key in resources:
+		print(key)
+		types.append(key)
+	return types
+	
+func get_random():
+	var key = get_random_key()
+	return resources[key]
+
+func get_random_key() -> Variant:
+	var keys = resources.keys()
+	if keys.size() == 0:
+		return null  # Return null or handle the empty dictionary case as appropriate for your game
+	var random_index = randi() % keys.size()
+	return keys[random_index]

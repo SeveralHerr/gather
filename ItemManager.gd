@@ -10,37 +10,50 @@ class_name ItemManager
 func _ready():
 	pass # Replace with function body.
 
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func f_process(delta):
 	var activation_distance = 30.0
 	var move_speed = 20.0
-	
-	if itemsInWorld.size() > 0:
-	
-		for i in itemsInWorld.size():
-			var playerPos = player.global_position - Vector2(8,8)
-			var direction = playerPos - itemsInWorld[i].instance.global_position
-			var distance = direction.length()
+	var playerPos = player.global_position - Vector2(8,8)
 
-			if distance < activation_distance and distance >= 0:
-				direction = direction.normalized()
-				itemsInWorld[i].instance.global_position += direction * move_speed * delta
-				
-			if int(itemsInWorld[i].instance.global_position.x) == int(playerPos.x) and  int(itemsInWorld[i].instance.global_position.y) == int(playerPos.y) :
-				inventoryManager.AddItem(itemsInWorld[i].item, 1)
-				itemsInWorld[i].instance.queue_free()
-				itemsInWorld.erase(itemsInWorld[i])
+	# Use an index-based loop backwards if you plan to remove items from the list
+	for i in range(itemsInWorld.size() - 1, -1, -1):
+		var item_instance = itemsInWorld[i].instance
+		var direction = playerPos - item_instance.global_position
+		var distance = direction.length()
+
+		if distance > 0 and distance < activation_distance:
+			direction = direction.normalized()
+			item_instance.global_position += direction * move_speed * delta
+
+		# Check if the item is close enough to consider as "reached"
+		if distance < move_speed * delta:
+			# Assuming inventoryManager.AddItem() doesn't depend on the state of itemsInWorld
+			#inventoryManager.AddItem(itemsInWorld[i].item, 1)
+			item_instance.queue_free()
+			itemsInWorld.erase(i)
 
 
-func AddItemToWorld(position, item: Item):
+func AddItemToWorld(position, resource: GameResource):
+	var node = Node2D.new()
+
 	var instance = TextureRect.new()
-	instance.texture = item.icon
+	var location = Rect2(resource.drop.atlas_location.x*16, resource.drop.atlas_location.y*16, 16, 16)
+	
+	var atlas_texture = AtlasTexture.new()
+	atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
+	atlas_texture.region = location
+
+	instance.texture = atlas_texture
 	instance.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(instance)
+	add_child(node)
+	instance.set_script("res://WorldItem.gd")
+	if instance is WorldItem:
+		instance._init(resource.drop, instance, player)
+	
+	node.add_child(instance)
 	add_to_group("Items")
 	instance.position = position
-	itemsInWorld.append(WorldItem.new(item, instance))
+	#itemsInWorld.append()
 	
 	
 	
