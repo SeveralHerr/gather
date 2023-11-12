@@ -17,6 +17,9 @@ func _process(delta):
 func SetResource(location, resource):
 	tileMap.set_cell(1, location, 0, resource)
 	
+func SetGameItem(location: Vector2i, tile_source_id: int, atlas_location: Vector2i):
+	tileMap.set_cell(1,location, tile_source_id, atlas_location)
+	
 func SetTest2():
 	tileMap.set_cell(1, Vector2i(1,1), 2, Vector2i(0,0), 1)
 	

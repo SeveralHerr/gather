@@ -1,20 +1,17 @@
 extends Node
-class_name Items
+class_name Resources
 
-@export var items: Array[Item] = []
-var gameItems: Dictionary = {}
+
+var resources: Dictionary = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	items = []
-	items.append(Item.new(Vector2i(1, 0), preload("res://Resources/Tree.tscn"), "Tree", preload("res://Resources/Wood.png")))
-	items.append(Item.new(Vector2i(2, 1), preload("res://Resources/Stone.tscn"), "Stone", preload("res://Resources/Stone.png")))
-	items.append(Item.new(Vector2i.ZERO, null, "Plank", preload("res://Resources/Plank.png")))
-
 	gameItems[GameItem.Type.Stone] = GameItem.new(Vector2i(1, 2), 4, GameItem.Type.Stone)
 	gameItems[GameItem.Type.Wood] = GameItem.new(Vector2i(2, 2), 4, GameItem.Type.Wood)
 	gameItems[GameItem.Type.Plank] = GameItem.new(Vector2i(3, 2), 4, GameItem.Type.Plank)
 	gameItems[GameItem.Type.Sawmill] = GameItem.new(Vector2i(0, 0), 2, GameItem.Type.Sawmill)
+	
+	resources[Resource.]
 
 func GetItemByName(name):
 	for item in items:
