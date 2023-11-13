@@ -34,6 +34,17 @@ func SetGameResource(location: Vector2i, tile_source_id: int, atlas_location: Ve
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
 
+func get_random_position_within_rect(rect):
+	var random_x = randi() % rect.size.x + rect.position.x
+	var random_y = randi() % rect.size.y + rect.position.y
+	return Vector2(random_x, random_y)
+
+func is_special_tile(pos, special_tiles):
+	for special_tile in special_tiles:
+		if Vector2i(pos) == special_tile:
+			return true
+	return false
+
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed
 	var used_rect = tileMap.get_used_rect()
@@ -43,24 +54,20 @@ func get_random_tile():
 	var random_y = randi() % used_rect.size.y + used_rect.position.y
 
 	# Get the tile index at the random position
-	var tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
+	var tile_index 
+	if not is_special_tile(Vector2(random_x, random_y), specialTiles):
+		tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
 	
-	for i in range(specialTiles.size()):
-		if specialTiles[i] == Vector2i(random_x, random_y):
-			print("Special tile")
-			tile_index == null
+	tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
 
 	# Optionally, if you want to keep trying random positions until you find a non-empty tile
 	while tile_index:
 		random_x = randi() % used_rect.size.x + used_rect.position.x
 		random_y = randi() % used_rect.size.y + used_rect.position.y
 		
-		tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
+		if not is_special_tile(Vector2(random_x, random_y), specialTiles):
+			tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
 
-		for i in range(specialTiles.size()):
-			if specialTiles[i] == Vector2i(random_x, random_y):
-				print("Special tile")
-				tile_index == null
 				
 	return Vector2(random_x, random_y)
 

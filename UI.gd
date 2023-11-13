@@ -30,24 +30,27 @@ func update_ui():
 		item_grid.get_child(i).get_child(0).get_child(0).texture = null
 		item_grid.get_child(i).get_child(1).text = ""
 
-	for i in range(inventoryManager.inventory.size()):
+	var i = 0
+	for key in inventoryManager.inventory.keys():
 		var button = item_grid.get_child(i).get_child(0).get_child(1)
 		button.connect("pressed", Callable(button, "_on_Button_pressed"))
 
 		var instance = TextureRect.new()
-		var location = Rect2(inventoryManager.inventory[i].item.atlas_location.x*16, inventoryManager.inventory[i].item.atlas_location.y*16, 16, 16)
+		var location = Rect2(inventoryManager.inventory[key].item.atlas_location.x*16, inventoryManager.inventory[key].item.atlas_location.y*16, 16, 16)
 		
 		var atlas_texture = AtlasTexture.new()
 		atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
 		atlas_texture.region = location
 	
 		item_grid.get_child(i).get_child(0).get_child(0).texture = atlas_texture
-		item_grid.get_child(i).get_child(1).text = str(inventoryManager.inventory[i].count)
+		item_grid.get_child(i).get_child(1).text = str(inventoryManager.inventory[key].count)
 		
 		var slotButton = item_grid.get_child(i)
 		if slotButton is SlotButton:
-			slotButton.item = inventoryManager.inventory[i].item
+			slotButton.item = inventoryManager.inventory[key].item
 			slotButton.slot_clicked.connect(_on_Button_pressed)
+			
+		i += 1
 			
 func _on_Button_pressed(item: Item):
 	selectedItemManager.SetSelectedItem(item)
