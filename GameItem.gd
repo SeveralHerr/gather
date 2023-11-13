@@ -7,6 +7,8 @@ class_name GameItem
 
 @export var layer: int
 
+@export var isPlaceable: bool
+
 @export var type: Type
 
 enum Type {
@@ -18,8 +20,9 @@ enum Type {
 }
 
 
-func _init(atlas_location: Vector2i, tile_source_id:, type: Type = Type.Stone, layer: int = 1):
+func _init(atlas_location: Vector2i, tile_source_id:, type: Type = Type.Stone, layer: int = 1, isPlaceable: bool = false):
 	self.atlas_location = atlas_location
 	self.tile_source_id = tile_source_id
 	self.type = type
 	self.layer = layer
+	self.isPlaceable = isPlaceable

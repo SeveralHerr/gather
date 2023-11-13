@@ -18,7 +18,7 @@ func SetGameItem(location: Vector2i, tile_source_id: int, atlas_location: Vector
 	tileMap.set_cell(layer,location, tile_source_id, atlas_location)
 	
 	if layer == 2:
-		specialTiles.append(location)
+		AddSpecialTile(location)
 		
 func AddSpecialTile(location):
 	for tile in specialTiles:
@@ -26,7 +26,17 @@ func AddSpecialTile(location):
 			return
 	
 	specialTiles.append(location)
+	
+func IsTileOccupied(tilePos: Vector2i)-> bool:
+	if is_special_tile(tilePos, specialTiles):
+		return true
+	
+	var tile = tileMap.get_cell_tile_data(1, tilePos)
+	if tile != null:
+		return true
 
+	return false
+	
 	
 func SetGameItemScene(location: Vector2i, tile_source_id: int, atlas_location: Vector2i):
 
@@ -53,7 +63,7 @@ func get_random_position_within_rect(rect):
 func is_special_tile(pos, special_tiles):
 	for special_tile in special_tiles:
 		if pos == special_tile:
-			print("found special")
+
 			return true
 	return false
 
