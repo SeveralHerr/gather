@@ -18,7 +18,7 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nb1ju"]
 size = Vector2(6, 5)
 
-[sub_resource type="SpriteFrames" id="SpriteFrames_ls7ny"]
+[sub_resource type="SpriteFrames" id="SpriteFrames_pamq7"]
 animations = [{
 "frames": [{
 "duration": 1.0,
@@ -80,8 +80,8 @@ shape = SubResource("RectangleShape2D_nb1ju")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Node2D/Player"]
 y_sort_enabled = true
 texture_filter = 1
-sprite_frames = SubResource("SpriteFrames_ls7ny")
-animation = &"Idle"
+sprite_frames = SubResource("SpriteFrames_pamq7")
+animation = &"Gathering"
 
 [node name="Camera2D" type="Camera2D" parent="Node2D/Player"]
 zoom = Vector2(4.935, 4.935)
