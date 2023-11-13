@@ -7,6 +7,12 @@
 [node name="SawmillUi" type="TextureRect"]
 script = ExtResource("1_hxyun")
 
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0, 0, 0, 0.196078)
+
 [node name="QuantityLabel" type="Label" parent="."]
 layout_mode = 0
 offset_left = 6.0

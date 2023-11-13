@@ -51,7 +51,7 @@ func RemoveNearestResourceToPlayer():
 		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
 		for key in resources.GetAllTypes():
 			if resources.Get(key).atlas_location == tile:
-				itemManager.AddItemToWorld( tileMap.map_to_local(nearestPos), resources.Get(key))
+				itemManager.AddItemToWorld( tileMap.map_to_local(nearestPos), resources.Get(key).drop)
 		
 		RemoveResource(nearestPos)
 	

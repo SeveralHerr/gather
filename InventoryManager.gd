@@ -1,7 +1,7 @@
 extends Node
 class_name InventoryManager
 
-var inventory = []
+@export var inventory = []
 @export var ui: UI
 
 # Called when the node enters the scene tree for the first time.
@@ -9,7 +9,7 @@ func _ready():
 	pass # Replace with function body.
 
 		
-func AddItem(item: Item, count: int = 0):
+func AddItem(item: GameItem, count: int = 0):
 	var inventoryItem = InventorySlot.new(item, count)
 	var found = false
 	for i in range(inventory.size()):
@@ -20,3 +20,20 @@ func AddItem(item: Item, count: int = 0):
 		inventory.append(inventoryItem)
 	
 	ui.add_item()
+	
+func HasItem(type: GameItem.Type) -> bool:
+	for i in range(inventory.size()):
+		if inventory[i].item.type == type:
+			return true
+	return false;
+	
+	
+func RemoveItem(type: GameItem.Type):
+	for i in range(inventory.size()):
+		if inventory[i].item.type == type:
+			inventory[i].count -= 1
+			
+			if inventory[i].count <= 0:
+				inventory.remove_at(i)
+			
+	ui.update_ui()

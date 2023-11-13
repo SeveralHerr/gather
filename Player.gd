@@ -24,6 +24,7 @@ func _physics_process(delta):
 		v.y -= 1
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		selectedItemManager.ClearSelection()
+		tilemap.SetGameItemScene(Vector2i(1,1), 2, Vector2i(0,0))
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		pass
 	if Input.is_action_just_pressed("gather"):
