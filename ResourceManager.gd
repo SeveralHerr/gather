@@ -15,7 +15,13 @@ func AddRandomResource():
 	var randomTile = tileMapHandler.get_random_tile()
 	var randomResource = resources.get_random()
 	
+	if randomTile == null:
+		return
+	
 	SetResource(randomTile, randomResource)
+	
+func f_ready():
+	SetResource(Vector2i(-2,-2), resources.Get(GameResource.Type.Tree))
 
 func SetResource(location, resource: GameResource):
 	tileMapHandler.SetGameResource(location, resource.tile_source_id, resource.atlas_location)

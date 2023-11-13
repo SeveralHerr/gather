@@ -1,8 +1,18 @@
-[gd_scene load_steps=4 format=3 uid="uid://bv82nvjovxcuu"]
+[gd_scene load_steps=6 format=3 uid="uid://bv82nvjovxcuu"]
 
 [ext_resource type="Script" path="res://SawmillUi.gd" id="1_hxyun"]
-[ext_resource type="Texture2D" uid="uid://eh0ab3qm5anl" path="res://Resources/Plank.png" id="2_xvlnx"]
 [ext_resource type="Texture2D" uid="uid://b3gf1b2q3ybik" path="res://Resources/Wood.png" id="3_gyfuq"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_h3rf5"]
+load_path = "res://.godot/imported/Tiles.png-8423d93cbb036e79b880338e78fbb12c.ctex"
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0engj"]
+atlas = SubResource("CompressedTexture2D_h3rf5")
+region = Rect2(48, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ho50v"]
+atlas = SubResource("CompressedTexture2D_h3rf5")
+region = Rect2(64, 32, 16, 16)
 
 [node name="SawmillUi" type="TextureRect"]
 script = ExtResource("1_hxyun")
@@ -27,6 +37,28 @@ offset_right = 8.0
 offset_bottom = 8.0
 scale = Vector2(0.24, 0.24)
 text = "+"
+
+[node name="ProducePlanksButton" type="Button" parent="."]
+self_modulate = Color(0, 0, 0, 0.439216)
+layout_mode = 0
+offset_left = 19.0
+offset_top = 8.0
+offset_right = 44.0
+offset_bottom = 50.0
+scale = Vector2(0.24, 0.24)
+toggle_mode = true
+
+[node name="ProduceWoodFloorButton" type="Button" parent="."]
+texture_filter = 1
+layout_mode = 0
+offset_left = 26.0
+offset_top = 8.0
+offset_right = 68.0
+offset_bottom = 50.0
+scale = Vector2(0.24, 0.24)
+toggle_mode = true
+icon_alignment = 1
+expand_icon = true
 
 [node name="ExitButton" type="Button" parent="."]
 layout_mode = 0
@@ -62,7 +94,19 @@ offset_top = 9.0
 offset_right = 58.0
 offset_bottom = 49.0
 scale = Vector2(0.195, 0.195)
-texture = ExtResource("2_xvlnx")
+mouse_filter = 2
+texture = SubResource("AtlasTexture_0engj")
+
+[node name="ProducesTexture2" type="TextureRect" parent="."]
+texture_filter = 1
+layout_mode = 0
+offset_left = 27.0
+offset_top = 9.0
+offset_right = 67.0
+offset_bottom = 49.0
+scale = Vector2(0.195, 0.195)
+mouse_filter = 2
+texture = SubResource("AtlasTexture_ho50v")
 
 [node name="CostTexture" type="TextureRect" parent="."]
 texture_filter = 1

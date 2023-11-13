@@ -3,6 +3,8 @@ class_name SawmillData
 
 @export var sawmill: Node
 
+@export var selectedProduction: GameItem.Type
+
 @export var count: int
 
 @export var timer: Timer

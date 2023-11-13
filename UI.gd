@@ -49,8 +49,9 @@ func update_ui():
 		if slotButton is SlotButton:
 			slotButton.item = inventoryManager.inventory[key].item
 			slotButton.slot_clicked.connect(_on_Button_pressed)
+			#selectedItemManager.SetSelectedItem(inventoryManager.inventory[key].item)
 			
 		i += 1
 			
-func _on_Button_pressed(item: Item):
+func _on_Button_pressed(item: GameItem):
 	selectedItemManager.SetSelectedItem(item)

@@ -12,7 +12,22 @@ var timer
 func _ready():
 	$AddButton.connect("pressed", Callable(self, "_add"))
 	$ExitButton.connect("pressed", Callable(self, "_close"))
+	$ProducePlanksButton.connect("pressed", Callable(self, "_select_planks"))
+	$ProduceWoodFloorButton.connect("pressed", Callable(self, "_select_floor"))
 
+func _select_planks():
+	var sawmill = GetCurrentSawmillData()
+	sawmill.selectedProduction = GameItem.Type.Plank
+	$ProducePlanksButton.modulate = Color(0, 0, 0, 200)
+	$ProduceWoodFloorButton.modulate = Color(0, 0, 0, 0)
+	pass
+	
+func _select_floor():
+	var sawmill = GetCurrentSawmillData()
+	sawmill.selectedProduction = GameItem.Type.WoodFloor
+	$ProducePlanksButton.modulate = Color(0, 0, 0, 0)
+	$ProduceWoodFloorButton.modulate = Color(0, 0, 0, 200)
+	pass
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -34,15 +49,16 @@ func AddInstance(data: SawmillData):
 		add_child(timer)
 		timer.connect("timeout", Callable(self, "_on_timeout"))
 		data.timer = timer
+		data.selectedProduction = GameItem.Type.Plank
 		sawmills.append(data)
 
 
 func _on_timeout():
-	for sawmill in sawmills: 
-		if sawmill.count > 0:
-			itemManager.AddItemToWorld(sawmill.sawmill.position, items.Get(GameItem.Type.Plank))
-			sawmill.count -= 1
-			$QuantityLabel.text = "Qty " + str(sawmills[0].count)
+	var sawmill = GetCurrentSawmillData()
+	if sawmill.count > 0:
+		itemManager.AddItemToWorld(sawmill.sawmill.position, items.Get(sawmill.selectedProduction))
+		sawmill.count -= 1
+		$QuantityLabel.text = "Qty " + str(sawmills[0].count)
 
 func _add():
 	var currentSawmill = GetCurrentSawmillData()

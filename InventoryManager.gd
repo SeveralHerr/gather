@@ -29,7 +29,6 @@ func RemoveItem(type: GameItem.Type):
 		inventory[type].count -= 1
 		
 	if inventory[type].count <= 0:
-		print("purge")
 		inventory.erase(type)
 			
 	ui.update_ui()

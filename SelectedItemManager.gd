@@ -13,9 +13,16 @@ func _ready():
 #func _process(delta):
 	
 	
-func SetSelectedItem(item: Item):
+func SetSelectedItem(item: GameItem):
 	selectedItem = item
-	selectedTexture.texture = item.icon
+	
+	var location = Rect2(item.atlas_location.x*16, item.atlas_location.y*16, 16, 16)
+	
+	var atlas_texture = AtlasTexture.new()
+	atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
+	atlas_texture.region = location
+	
+	selectedTexture.texture = atlas_texture
 	add_child(selectedTexture)
 	
 func ClearSelection():
