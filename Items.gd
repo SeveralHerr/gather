@@ -23,6 +23,21 @@ func _ready():
 
 
 
+func get_enum_name_from_value(value):
+	print(value)
+	if value == GameItem.Type.CoalOre:
+		return "Coal Ore"
+	if value == GameItem.Type.IronBar:
+		return "Iron Bar"
+	if value == GameItem.Type.IronOre:
+		return "Iron Ore"
+	if value == GameItem.Type.Plank:
+		return "Plank"
+	if value == GameItem.Type.WoodFloor:
+		return "Wood Floor"
+	if value == GameItem.Type.Wood:
+		return "Wood"
+	return ""
 
 
 

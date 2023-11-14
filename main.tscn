@@ -223,7 +223,6 @@ items = NodePath("../../../../../Items")
 inventoryManager = NodePath("../../../../InventoryManager")
 
 [node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("items", "inventory_manager")]
-visible = false
 layout_mode = 0
 offset_left = -64.0
 offset_top = -57.0
@@ -242,7 +241,6 @@ offset_right = 126.0
 offset_bottom = 313.0
 scale = Vector2(0.37, 0.37)
 theme_override_font_sizes/font_size = 14
-max_columns = 2
 icon_scale = 1.35
 
 [node name="SelectedCraftable" type="TextureRect" parent="Node2D/Player/Camera2D/UI/CraftingUI"]

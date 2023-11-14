@@ -37,7 +37,7 @@ func _on_item_selected(index):
 		
 func _get_recipe_by_name(value):
 	for recipe in craftingStation.recipe_list:
-		if value == get_enum_name_from_value(recipe.product):
+		if value == items.get_enum_name_from_value(recipe.product):
 			return recipe
 
 func load_crafting_station(craftingStation):
@@ -55,7 +55,7 @@ func load_crafting_station(craftingStation):
 		var atlas_texture = get_atlas(item.atlas_location)
 		#add_child(instance)
 
-		$Craftables.add_item( get_enum_name_from_value(recipe.product), atlas_texture)
+		$Craftables.add_item( items.get_enum_name_from_value(recipe.product), atlas_texture)
 		
 	var item = items.Get(craftingStation.selected_recipe.product)			
 	var atlas_texture = get_atlas(item.atlas_location)
@@ -74,7 +74,7 @@ func load_crafting_station(craftingStation):
 		var catlas_texture = get_atlas(citem.atlas_location)
 		newCostRow.texture = catlas_texture
 		
-		var text = get_enum_name_from_value(costItemType) + " "+ str(amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var text = items.get_enum_name_from_value(costItemType) + " "+ str(amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 	
 func get_atlas(atlas_location: Vector2i):
@@ -84,16 +84,6 @@ func get_atlas(atlas_location: Vector2i):
 	atlas_texture.region = location
 
 	return atlas_texture
-
-func get_enum_name_from_value(value):
-	print(value)
-	if value == GameItem.Type.CoalOre:
-		return "Coal Ore"
-	if value == GameItem.Type.IronBar:
-		return "Iron Bar"
-	if value == GameItem.Type.IronOre:
-		return "Iron Ore"
-	return ""
 	
 func _add():
 	var hasRequiredItems = []
@@ -106,7 +96,7 @@ func _add():
 			
 	var i = 0
 	for costItemType in craftingStation.selected_recipe.cost_list.keys():		
-		var text = get_enum_name_from_value(costItemType) + " "+ str(amountToCraft+1) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var text = items.get_enum_name_from_value(costItemType) + " "+ str(amountToCraft+1) + "/" + str(inventory_manager.get_quantity(costItemType))
 		$CostList.get_child(i).get_child(0).text = text
 		i += 1
 			
