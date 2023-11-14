@@ -6,7 +6,7 @@ const JUMP_VELOCITY = -400.0
 
 @export var tilemap: TileMapHandler
 @export var selectedItemManager: SelectedItemManager
-@export var resourceManager: ResourceManager
+@export var resourceManager: ResourceManager2
 @export var items: Items
 
 # Get the gravity from the project settings to be synced with RigidBody nodes.
@@ -36,7 +36,10 @@ func _physics_process(delta):
 		pass
 	if Input.is_action_just_pressed("gather"):
 		$AnimatedSprite2D.play("Gathering")
-		resourceManager.RemoveNearestResourceToPlayer()
+		resourceManager.start_removing_resource()
+	elif Input.is_action_just_released("gather"):
+		resourceManager.stop_removing_resource()
+		$AnimatedSprite2D.play("Idle")
 	else: 
 		$AnimatedSprite2D.play("Idle")
 		

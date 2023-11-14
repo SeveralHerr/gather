@@ -1,7 +1,20 @@
-[gd_scene load_steps=6 format=3 uid="uid://b1x1rdpco4veu"]
+[gd_scene load_steps=8 format=3 uid="uid://b1x1rdpco4veu"]
 
+[ext_resource type="Shader" path="res://FurnaceUi.gdshader" id="1_0nwny"]
 [ext_resource type="Script" path="res://SawmillUi.gd" id="1_heilm"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_hrdkl"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_c1hls"]
+shader = ExtResource("1_0nwny")
+shader_parameter/speed = 1.0
+shader_parameter/minStrength = 0.05
+shader_parameter/maxStrength = 0.01
+shader_parameter/strengthScale = 100.0
+shader_parameter/interval = 3.5
+shader_parameter/detail = 1.0
+shader_parameter/distortion = null
+shader_parameter/heightOffset = null
+shader_parameter/offset = 0.0
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_te3y4"]
 atlas = ExtResource("2_hrdkl")
@@ -16,6 +29,7 @@ atlas = ExtResource("2_hrdkl")
 region = Rect2(96, 32, 16, 16)
 
 [node name="FurnaceUi" type="TextureRect"]
+material = SubResource("ShaderMaterial_c1hls")
 script = ExtResource("1_heilm")
 
 [node name="ColorRect" type="ColorRect" parent="."]

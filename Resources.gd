@@ -7,9 +7,9 @@ var resources: Dictionary = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	resources[GameResource.Type.Tree] = GameResource.new(Vector2i(1, 0), 4, items.Get(GameItem.Type.Wood), GameResource.Type.Tree)
+	resources[GameResource.Type.Tree] = GameResource.new(Vector2i(1, 0), 4, items.Get(GameItem.Type.Wood), GameResource.Type.Tree, Vector2i(4, 3))
 	resources[GameResource.Type.Stone] = GameResource.new(Vector2i(2, 1), 4, items.Get(GameItem.Type.Stone), GameResource.Type.Stone)
-	resources[GameResource.Type.Iron] = GameResource.new(Vector2i(4, 1), 4, items.Get(GameItem.Type.IronOre), GameResource.Type.Iron)
+	resources[GameResource.Type.Iron] = GameResource.new(Vector2i(4, 1), 4, items.Get(GameItem.Type.IronOre), GameResource.Type.Iron, Vector2i(8, 1))
 	resources[GameResource.Type.Coal] = GameResource.new(Vector2i(3, 1), 4, items.Get(GameItem.Type.CoalOre), GameResource.Type.Coal)
 
 

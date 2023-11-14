@@ -47,8 +47,8 @@ func RemoveNearestResourceToPlayer():
 			nearestDistance = distance
 			nearestPos = tilePos
 		
-	if nearestPos == Vector2i(-1,-1):
-		return
+	#if nearestPos == Vector2i(-1,-1):
+		#return
 	var direction = player.global_position - tileMap.map_to_local(nearestPos)
 	var distance = direction.length()
 	var activation_distance = 20

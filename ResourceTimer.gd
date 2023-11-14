@@ -1,6 +1,6 @@
 extends Timer
 @export var tileMapHandler: TileMapHandler
-@export var resourceManager: ResourceManager
+@export var resourceManager: ResourceManager2
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -13,4 +13,4 @@ func _process(delta):
 
 
 func _on_timeout():
-	resourceManager.AddRandomResource()
+	resourceManager.add_random_resource()

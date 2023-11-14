@@ -1,15 +1,56 @@
 extends Node
 class_name TileMapHandler
-var resources = {}
+
+signal resource_found(resource, location)  
+
 @export var player: Player
 @export var itemManager: ItemManager
 @export var tileMap: TileMap
 @export var items: Items
 @export var specialTiles = []
+@export var resource_manager: ResourceManager2
+@export var resources: Resources
+@export var sound_manager: SoundManager
+
+var crack = preload("res://Crack.tres")
+func _ready():
+	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
+	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
+	resource_manager.connect("resource_removing", Callable(self, "_on_resource_removing"))
+	resource_manager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	GetPlayerPosition()
+	
+func _on_resource_added(location: Vector2i, resource: GameResource):
+	SetResource(location, resource.atlas_location)
+
+func _on_resource_removed(location: Vector2i, resource: GameResource):
+	if resource.type == GameResource.Type.Stone:
+		sound_manager.play_sound(SoundManager.SoundType.STONE)
+	
+	clear_tile(tileMap.local_to_map(location))
+
+func _on_resource_removing(location: Vector2i, resource: GameResource):
+	# Add highlight
+	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
+	
+	if resource.gathering_atlas_location != Vector2i.ZERO:
+		tileMap.set_cell(1, tileMap.local_to_map(location), 4, resource.gathering_atlas_location)
+	
+func _on_resource_removing_stop(location: Vector2i, resource: GameResource):
+	# Remove highlight
+	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+	
+	if resource.gathering_atlas_location != Vector2i.ZERO:
+		tileMap.set_cell(1, tileMap.local_to_map(location), 4, resource.atlas_location)
+
+func clear_tile(location: Vector2i):
+	# Remove highlight
+	tileMap.set_cell(3, location, -1)
+	tileMap.set_cell(1, location, -1)
+	
 
 func SetResource(location, resource):
 	tileMap.set_cell(1, location, 4, resource)
@@ -66,6 +107,73 @@ func is_special_tile(pos, special_tiles):
 
 			return true
 	return false
+	
+func _find_nearest_tile_and_resource(location: Vector2):
+	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
+	var nearestDistance = 1000000
+	var nearestPos = null
+
+	for neighbor in neighbors:
+		var tilePos = tileMap.local_to_map(location) + neighbor
+		var tile = tileMap.get_cell_atlas_coords(1, tilePos)
+		if tile == Vector2i(-1,-1):
+			continue
+		
+		var direction = player.global_position - tileMap.map_to_local(tilePos)
+		var distance = direction.length()
+		if distance < nearestDistance:
+			nearestDistance = distance
+			nearestPos = tilePos
+			
+	if nearestPos == null:
+		return
+			
+	var direction = location - tileMap.map_to_local(nearestPos)
+	var distance = direction.length()
+	var activation_distance = 20
+	
+	if distance < activation_distance and distance > 0:
+		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
+		for key in resources.GetAllTypes():
+			if resources.Get(key).atlas_location == tile:
+				return resources.Get(key)
+				
+func find_nearest_resource_to_location(location: Vector2):
+	var nearest_resource_info = get_location_of_nearby_resource(location)
+	if nearest_resource_info:
+		emit_signal("resource_found", nearest_resource_info.resource, nearest_resource_info.location)
+
+			
+func get_location_of_nearby_resource(location):
+	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
+	var nearestDistance = 1000000
+	var nearestPos = null
+	
+	for neighbor in neighbors:
+		var tilePos = tileMap.local_to_map(location) + neighbor
+		var tile = tileMap.get_cell_atlas_coords(1, tilePos)
+		if tile == Vector2i(-1,-1):
+			continue
+		
+		var direction = player.global_position - tileMap.map_to_local(tilePos)
+		var distance = direction.length()
+		if distance < nearestDistance:
+			nearestDistance = distance
+			nearestPos = tilePos
+			
+	if nearestPos == null:
+		return
+			
+	var direction = location - tileMap.map_to_local(nearestPos)
+	var distance = direction.length()
+	var activation_distance = 20
+	
+	if distance < activation_distance and distance > 0:
+		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
+		for key in resources.GetAllTypes():
+			if resources.Get(key).atlas_location == tile:
+
+				return { "resource": resources.Get(key),  "location": tileMap.map_to_local(nearestPos) }
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed

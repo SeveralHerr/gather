@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://eskadr4vy65p"]
+
+[ext_resource type="Shader" path="res://Crack.gdshader" id="1_8ayp4"]
+[ext_resource type="Texture2D" uid="uid://cqst5c015jkd4" path="res://Resources/crack.png" id="2_oiani"]
+
+[resource]
+shader = ExtResource("1_8ayp4")
+shader_parameter/threshold = 0.2
+shader_parameter/crack_texture = ExtResource("2_oiani")
