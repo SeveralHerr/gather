@@ -22,6 +22,10 @@ func _ready():
 	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 1, GameItem.Type.Furnace, 1, true)
 
 
+func get_item_by_data(atlas_location, source_id):
+	for key in gameItems.keys():
+		if gameItems[key].atlas_location == atlas_location and gameItems[key].tile_source_id == source_id :
+			return gameItems[key]
 
 func get_enum_name_from_value(value):
 	if value == GameItem.Type.CoalOre:

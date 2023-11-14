@@ -12,8 +12,12 @@ signal resource_found(resource, location)
 @export var resources: Resources
 @export var sound_manager: SoundManager
 
+@export var save_data2 = {}
+
 var crack = preload("res://Crack.tres")
 func _ready():
+	AddSpecialTile(Vector2i(123123,12312))
+	add_to_group("SaveLoad")
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
 	resource_manager.connect("resource_removing", Callable(self, "_on_resource_removing"))
@@ -220,4 +224,110 @@ func gfet_random_tile():
 
 func GetPlayerPosition():
 	return tileMap.local_to_map(player.global_position)
+	
+func saveObject() -> Dictionary:
+	var tileLayers = []
+	var save_data1 = {}
+	save_data2 = {}
 
+	for cell in tileMap.get_used_cells(0):
+		var tile_data = {}
+		var atlas_location = tileMap.get_cell_atlas_coords(2, cell)
+		var source_id = tileMap.get_cell_source_id(2, cell)
+		var item = items.get_item_by_data(atlas_location, source_id)
+		#var layer = tileMap.get
+		#tile_data[cell] = item
+		# You can also save other relevant information, such as collision data, metadata, etc.
+		var json = {}
+		if item == null:
+			json =  {
+				"x": cell.x,
+				"y": cell.y,
+				"layer": 2,
+				}
+		else:
+			json = {
+				"atlas_location_x": item.atlas_location.x,
+				"atlas_location_y": item.atlas_location.y,
+				"layer": 2,
+				"source_id": item.tile_source_id, 
+				"x": cell.x,
+				"y": cell.y
+			}
+		save_data1[cell] = JSON.stringify(json)
+	
+	#resources
+	for cell in tileMap.get_used_cells(0):
+		var tile_data = {}
+		var atlas_location = tileMap.get_cell_atlas_coords(1, cell)
+		var source_id = tileMap.get_cell_source_id(1, cell)
+		var item = resources.get_item_by_data(atlas_location, source_id)
+		#var layer = tileMap.get
+		#tile_data[cell] = item
+		# You can also save other relevant information, such as collision data, metadata, etc.
+		var json = {}
+		if item == null:
+			json =  {
+				"x": cell.x,
+				"y": cell.y,
+				"layer": 1,
+				}
+		else:
+			json = {
+				"atlas_location_x": item.atlas_location.x,
+				"atlas_location_y": item.atlas_location.y,
+				"layer": 1,
+				"source_id": item.tile_source_id, 
+				"x": cell.x,
+				"y": cell.y
+			}
+		save_data2[cell] = JSON.stringify(json)
+		
+		tileLayers = [save_data2, save_data1]
+	
+	var dict := {
+		"filepath": get_path(),
+		"save_data2": tileLayers
+	}
+	return dict
+	
+func loadObject(loadedDict: Dictionary) -> void:
+	
+	print(loadedDict.save_data2[0])
+	for cell in loadedDict.save_data2[0].keys():
+		print(cell)
+		#var cell_vector = Vector2(int(cell.split(",")[0]), int(cell.split(",")[1]))
+		var item = loadedDict.save_data2[0][cell]
+		var json = JSON.new()
+		json.parse(item)
+		var node = json.get_data()
+		if not node.has("source_id"):
+
+			
+			tileMap.set_cell(3, Vector2i(node["x"], node["y"]), -1)
+			tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+			continue
+
+
+
+		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), node["source_id"],Vector2i( node["atlas_location_x"], node["atlas_location_y"] ))
+		# Restore any other tile properties you saved previously.
+		
+	for cell in loadedDict.save_data2[1].keys():
+		#var cell_vector = Vector2(int(cell.split(",")[0]), int(cell.split(",")[1]))
+		var item = loadedDict.save_data2[1][cell]
+		var json = JSON.new()
+		json.parse(item)
+		var node = json.get_data()
+		if not node.has("source_id"):
+
+			
+			tileMap.set_cell(3, Vector2i(node["x"], node["y"]), -1)
+			tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+			continue
+
+
+
+		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), node["source_id"],Vector2i( node["atlas_location_x"], node["atlas_location_y"] ))
+		# Restore any other tile properties you saved previously.
+		

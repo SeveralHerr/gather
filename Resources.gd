@@ -12,7 +12,10 @@ func _ready():
 	resources[GameResource.Type.Iron] = GameResource.new(Vector2i(4, 1), 4, items.Get(GameItem.Type.IronOre), GameResource.Type.Iron, Vector2i(8, 1))
 	resources[GameResource.Type.Coal] = GameResource.new(Vector2i(3, 1), 4, items.Get(GameItem.Type.CoalOre), GameResource.Type.Coal)
 
-
+func get_item_by_data(atlas_location, source_id):
+	for key in resources.keys():
+		if resources[key].atlas_location == atlas_location and resources[key].tile_source_id == source_id:
+			return resources[key]
 			
 func Get(type: GameResource.Type) -> GameResource:
 	return resources[type]

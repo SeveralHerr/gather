@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=28 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -20,6 +20,7 @@
 [ext_resource type="Script" path="res://ResourceManager2.gd" id="14_and3l"]
 [ext_resource type="Script" path="res://Resources.gd" id="14_cuov0"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
+[ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 
 [sub_resource type="Animation" id="Animation_jlada"]
 resource_name = "Gather"
@@ -133,7 +134,7 @@ layer_2/modulate = Color(1, 1, 1, 1)
 layer_2/y_sort_enabled = false
 layer_2/y_sort_origin = 0
 layer_2/z_index = 0
-layer_2/tile_data = PackedInt32Array()
+layer_2/tile_data = PackedInt32Array(5, 4, 8, 3, 65540, 7, 65539, 4, 8, 131075, 4, 8, 4, 4, 8, 131076, 4, 7, 65540, 65540, 7, -65533, 65540, 7, -65534, 4, 7, 2, 4, 8, -131074, 65540, 7, -131075, 65540, 7, -131076, 4, 7, 131068, 4, 7, 196604, 4, 7, -65540, 4, 8, -4, 4, 7, 65532, 4, 7)
 layer_3/name = "Highlight"
 layer_3/enabled = true
 layer_3/modulate = Color(1, 1, 1, 1)
@@ -332,4 +333,30 @@ items = NodePath("../Items")
 [node name="SoundManager" type="Node" parent="."]
 script = ExtResource("17_dy3qn")
 
+[node name="SaveLoad" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("21_p1f0h")
+
+[node name="SaveButton" type="Button" parent="SaveLoad"]
+layout_mode = 0
+offset_left = 47.0
+offset_top = 7.0
+offset_right = 91.0
+offset_bottom = 38.0
+text = "Save"
+
+[node name="LoadButton" type="Button" parent="SaveLoad"]
+layout_mode = 0
+offset_left = 47.0
+offset_top = 46.0
+offset_right = 93.0
+offset_bottom = 77.0
+text = "Load
+"
+
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
+[connection signal="pressed" from="SaveLoad/SaveButton" to="SaveLoad" method="_on_save_pressed"]
+[connection signal="pressed" from="SaveLoad/LoadButton" to="SaveLoad" method="_on_load_pressed"]
