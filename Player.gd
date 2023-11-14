@@ -35,11 +35,17 @@ func _physics_process(delta):
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		pass
 	if Input.is_action_just_pressed("gather"):
-		$AnimatedSprite2D.play("Gathering")
+		$Gather.visible = true
+		#$AnimatedSprite2D.play("Gathering")
+		if not $AnimatedSprite2D.flip_h:
+			$AnimationPlayer.play("Gather")
+		else:
+			$AnimationPlayer.play("Gather_left")
 		resourceManager.start_removing_resource()
 	elif Input.is_action_just_released("gather"):
 		resourceManager.stop_removing_resource()
 		$AnimatedSprite2D.play("Idle")
+		$Gather.visible=false
 	else: 
 		$AnimatedSprite2D.play("Idle")
 		

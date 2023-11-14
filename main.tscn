@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=27 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://ResourceTimer.gd" id="3_mmo0e"]
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
 [ext_resource type="Texture2D" uid="uid://b8ymgmwuk7qbi" path="res://Resources/Player.png" id="5_8tjkj"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
 [ext_resource type="Script" path="res://ItemManager.gd" id="6_rsems"]
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
 [ext_resource type="PackedScene" uid="uid://bv82nvjovxcuu" path="res://SawmilUi.tscn" id="8_8ls0b"]
@@ -14,9 +15,79 @@
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
 [ext_resource type="Script" path="res://FurnaceUi.gd" id="10_fdb3x"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
+[ext_resource type="Script" path="res://CraftingUI.gd" id="12_bqf2j"]
+[ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://ResourceManager2.gd" id="14_and3l"]
 [ext_resource type="Script" path="res://Resources.gd" id="14_cuov0"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
+
+[sub_resource type="Animation" id="Animation_jlada"]
+resource_name = "Gather"
+length = 0.2
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Gather:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0.0, 1.5708]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Gather:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, -1), Vector2(5, 2)]
+}
+
+[sub_resource type="Animation" id="Animation_h6uyy"]
+resource_name = "Gather_left"
+length = 0.2
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Gather:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0.0, -1.5708]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Gather:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, -1), Vector2(-5, 2)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_kjuyc"]
+_data = {
+"Gather": SubResource("Animation_jlada"),
+"Gather_left": SubResource("Animation_h6uyy")
+}
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_03pye"]
+atlas = ExtResource("5_ba3bd")
+region = Rect2(96, 16, 16, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nb1ju"]
 size = Vector2(6, 5)
@@ -40,7 +111,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Items", "Sawmills", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "CraftingStations", "CraftingUi", "Items", "Sawmills", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -85,6 +156,19 @@ tilemap = NodePath("../..")
 selectedItemManager = NodePath("../SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 items = NodePath("../../Items")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Node2D/Player"]
+libraries = {
+"": SubResource("AnimationLibrary_kjuyc")
+}
+
+[node name="Gather" type="Sprite2D" parent="Node2D/Player"]
+visible = false
+z_index = -1
+texture_filter = 1
+position = Vector2(5, 2)
+rotation = 1.5708
+texture = SubResource("AtlasTexture_03pye")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player"]
 position = Vector2(0, 4.5)
@@ -137,6 +221,84 @@ furnaces = Array[Resource("res://SawmillData.gd")]([])
 itemManager = NodePath("../../../../ItemManager")
 items = NodePath("../../../../../Items")
 inventoryManager = NodePath("../../../../InventoryManager")
+
+[node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("items")]
+layout_mode = 0
+offset_left = -64.0
+offset_top = -57.0
+offset_right = 66.0
+offset_bottom = 65.0
+color = Color(0, 0, 0, 0.701961)
+script = ExtResource("12_bqf2j")
+items = NodePath("../../../../../Items")
+
+[node name="Craftables" type="ItemList" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 5.0
+offset_right = 126.0
+offset_bottom = 313.0
+scale = Vector2(0.37, 0.37)
+theme_override_font_sizes/font_size = 14
+item_count = 2
+icon_scale = 1.35
+item_0/text = "fd"
+item_0/icon = ExtResource("12_u5akt")
+item_1/text = "fd"
+
+[node name="SelectedCraftable" type="TextureRect" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 68.0
+offset_top = 7.0
+offset_right = 108.0
+offset_bottom = 47.0
+texture = ExtResource("12_u5akt")
+
+[node name="CostList" type="GridContainer" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+texture_filter = 1
+layout_mode = 0
+offset_left = 50.0
+offset_top = 47.0
+offset_right = 362.0
+offset_bottom = 215.0
+scale = Vector2(0.25, 0.25)
+
+[node name="CraftButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 73.0
+offset_top = 109.0
+offset_right = 130.0
+offset_bottom = 140.0
+scale = Vector2(0.385, 0.385)
+text = "CRAFT"
+
+[node name="QuantityLabel" type="Label" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 98.0
+offset_top = 94.0
+offset_right = 199.0
+offset_bottom = 147.0
+scale = Vector2(0.26, 0.26)
+theme_override_font_sizes/font_size = 36
+text = "Qty. 1"
+
+[node name="AddButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 53.0
+offset_top = 95.0
+offset_right = 82.0
+offset_bottom = 126.0
+scale = Vector2(0.53, 0.53)
+text = "+"
+
+[node name="ExitButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+layout_mode = 0
+offset_left = 111.0
+offset_top = 3.99998
+offset_right = 140.0
+offset_bottom = 35.0
+scale = Vector2(0.53, 0.53)
+text = "X"
 
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager", "resource_manager")]
 script = ExtResource("6_rsems")
