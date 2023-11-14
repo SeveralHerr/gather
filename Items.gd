@@ -24,7 +24,6 @@ func _ready():
 
 
 func get_enum_name_from_value(value):
-	print(value)
 	if value == GameItem.Type.CoalOre:
 		return "Coal Ore"
 	if value == GameItem.Type.IronBar:
@@ -39,7 +38,20 @@ func get_enum_name_from_value(value):
 		return "Wood"
 	return ""
 
-
+func get_enum_from_name_test(value):
+	if value == "Coal Ore":
+		return GameItem.Type.CoalOre
+	if value == "Iron Bar":
+		return  GameItem.Type.IronBar
+	if value == "Iron Ore":
+		return GameItem.Type.IronOre
+	if value == "Plank":
+		return GameItem.Type.Plank
+	if value == "Wood Floor":
+		return GameItem.Type.WoodFloor
+	if value == "Wood":
+		return GameItem.Type.Wood
+	return ""
 
 func GetItemByName(name):
 	for item in items:

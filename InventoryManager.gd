@@ -30,7 +30,7 @@ func HasItems(type: GameItem.Type, count: int) -> bool:
 	
 func get_quantity(type: GameItem.Type):
 	if not inventory.has(type):
-		return "0"
+		return 0
 	
 	return inventory[type].count
 	

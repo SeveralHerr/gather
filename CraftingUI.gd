@@ -4,7 +4,7 @@ class_name CraftingUi
 @export var craftingStation: CraftingStation
 @export var items: Items
 @export var inventory_manager: InventoryManager
-var amountToCraft = 0
+var amountToCraft = 1
 
 
 var atlas_file = load("res://Resources/game_items_atlas.tres")
@@ -34,10 +34,30 @@ func _on_item_selected(index):
 	var selectedText = $Craftables.get_item_text(index)
 
 	craftingStation.selected_recipe = _get_recipe_by_name(selectedText)
+	var item = items.Get(craftingStation.selected_recipe.product)			
+	var atlas_texture = get_atlas(item.atlas_location)
+	$SelectedCraftable.texture = atlas_texture
+	
+	for child in $CostList.get_children():
+		child.queue_free()
+			
+
+	
+	for costItemType in craftingStation.selected_recipe.cost_list.keys():
+		var newCostRow = costRow.instantiate()
+		$CostList.add_child(newCostRow)
+		
+		var citem = items.Get(costItemType)				
+		var catlas_texture = get_atlas(citem.atlas_location)
+		newCostRow.texture = catlas_texture
+		
+		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		newCostRow.get_child(0).text = text
 		
 func _get_recipe_by_name(value):
 	for recipe in craftingStation.recipe_list:
-		if value == items.get_enum_name_from_value(recipe.product):
+		var item = items.get_enum_from_name_test(value)
+		if item == recipe.product:
 			return recipe
 
 func load_crafting_station(craftingStation):
@@ -74,7 +94,8 @@ func load_crafting_station(craftingStation):
 		var catlas_texture = get_atlas(citem.atlas_location)
 		newCostRow.texture = catlas_texture
 		
-		var text = items.get_enum_name_from_value(costItemType) + " "+ str(amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		
+		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 	
 func get_atlas(atlas_location: Vector2i):
@@ -96,7 +117,7 @@ func _add():
 			
 	var i = 0
 	for costItemType in craftingStation.selected_recipe.cost_list.keys():		
-		var text = items.get_enum_name_from_value(costItemType) + " "+ str(amountToCraft+1) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(inventory_manager.get_quantity(costItemType))
 		$CostList.get_child(i).get_child(0).text = text
 		i += 1
 			
