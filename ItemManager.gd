@@ -9,6 +9,7 @@ class_name ItemManager
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	add_to_group("ItemManager")
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
 	pass # Replace with function body.
 	
@@ -21,6 +22,11 @@ func _on_resource_removed(position: Vector2i, resource: GameResource):
 	position = position - Vector2i(8,8)
 	AddItemToWorld(position, resource.drop)
 	
+func AddItemToWorldByType(position, type: GameItem.Type):
+	position = Vector2i(position.x, position.y) - Vector2i(8,8)
+	var item = items.Get(type)
+	AddItemToWorld(position, item)
+	
 
 func AddItemToWorld(position, item: GameItem):
 	var instance = TextureRect.new()
@@ -32,6 +38,7 @@ func AddItemToWorld(position, item: GameItem):
 
 	instance.texture = atlas_texture
 	instance.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	instance.z_index = 4
 	
 	add_child(instance)
 	add_to_group("Items")

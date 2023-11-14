@@ -23,6 +23,17 @@ func AddItem(item: GameItem, count: int = 0):
 func HasItem(type: GameItem.Type) -> bool:
 	return inventory.has(type)
 	
+func HasItems(type: GameItem.Type, count: int) -> bool:
+	var qty = get_quantity(type)
+	
+	return qty == count
+	
+func get_quantity(type: GameItem.Type):
+	if not inventory.has(type):
+		return
+	
+	return inventory[type].count
+	
 	
 func RemoveItem(type: GameItem.Type):
 	if inventory.has(type):
