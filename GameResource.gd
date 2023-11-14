@@ -11,7 +11,9 @@ class_name GameResource
 
 enum Type {
 	Stone,
-	Tree
+	Tree,
+	Iron,
+	Coal
 }
 
 

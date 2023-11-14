@@ -1,0 +1,107 @@
+[gd_scene load_steps=6 format=3 uid="uid://b1x1rdpco4veu"]
+
+[ext_resource type="Script" path="res://SawmillUi.gd" id="1_heilm"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_hrdkl"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_te3y4"]
+atlas = ExtResource("2_hrdkl")
+region = Rect2(112, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2xrea"]
+atlas = ExtResource("2_hrdkl")
+region = Rect2(80, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pwsrs"]
+atlas = ExtResource("2_hrdkl")
+region = Rect2(96, 32, 16, 16)
+
+[node name="FurnaceUi" type="TextureRect"]
+script = ExtResource("1_heilm")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0, 0, 0, 0.196078)
+
+[node name="QuantityLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 6.0
+offset_right = 42.0
+offset_bottom = 26.0
+scale = Vector2(0.3, 0.3)
+text = "Qty"
+
+[node name="AddButton" type="Button" parent="."]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+scale = Vector2(0.24, 0.24)
+text = "+"
+
+[node name="ProducePlanksButton" type="Button" parent="."]
+self_modulate = Color(0, 0, 0, 0.439216)
+layout_mode = 0
+offset_left = 19.0
+offset_top = 8.0
+offset_right = 44.0
+offset_bottom = 50.0
+scale = Vector2(0.24, 0.24)
+toggle_mode = true
+
+[node name="ExitButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 24.0
+offset_right = 55.0
+offset_bottom = 31.0
+scale = Vector2(0.16, 0.16)
+text = "x"
+
+[node name="ProducesLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 1.0
+offset_top = 10.0
+offset_right = 77.0
+offset_bottom = 36.0
+scale = Vector2(0.215, 0.215)
+text = "Produces:"
+
+[node name="CostLabel" type="Label" parent="."]
+layout_mode = 0
+offset_left = 1.0
+offset_top = 17.0
+offset_right = 77.0
+offset_bottom = 43.0
+scale = Vector2(0.215, 0.215)
+text = "Cost:"
+
+[node name="ProducesTexture" type="TextureRect" parent="."]
+texture_filter = 1
+layout_mode = 0
+offset_left = 18.0
+offset_top = 9.0
+offset_right = 58.0
+offset_bottom = 49.0
+scale = Vector2(0.195, 0.195)
+mouse_filter = 2
+texture = SubResource("AtlasTexture_te3y4")
+
+[node name="CostTexture" type="TextureRect" parent="."]
+texture_filter = 1
+layout_mode = 0
+offset_left = 10.0
+offset_top = 15.0
+offset_right = 50.0
+offset_bottom = 55.0
+scale = Vector2(0.195, 0.195)
+texture = SubResource("AtlasTexture_2xrea")
+
+[node name="CostTexture2" type="TextureRect" parent="."]
+texture_filter = 1
+layout_mode = 0
+offset_left = 10.0
+offset_top = 22.0
+offset_right = 50.0
+offset_bottom = 62.0
+scale = Vector2(0.195, 0.195)
+texture = SubResource("AtlasTexture_pwsrs")

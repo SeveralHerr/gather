@@ -16,7 +16,11 @@ enum Type {
 	Wood,
 	Plank,
 	Sawmill,
-	WoodFloor
+	WoodFloor,
+	CoalOre,
+	IronOre,
+	IronBar,
+	Furnace
 }
 
 

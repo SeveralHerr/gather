@@ -1,0 +1,63 @@
+[gd_scene load_steps=8 format=3 uid="uid://b1mdvathrf7rl"]
+
+[ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="1_q5n2t"]
+[ext_resource type="Script" path="res://Furnace.gd" id="2_8cyp6"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8gyjt"]
+atlas = ExtResource("1_q5n2t")
+region = Rect2(0, 80, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_85j8t"]
+atlas = ExtResource("1_q5n2t")
+region = Rect2(0, 48, 16, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_qbyi6"]
+atlas = ExtResource("1_q5n2t")
+region = Rect2(16, 48, 16, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_mtk6o"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8gyjt")
+}],
+"loop": true,
+"name": &"Off",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_85j8t")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_qbyi6")
+}],
+"loop": true,
+"name": &"On",
+"speed": 5.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_c61d2"]
+size = Vector2(14, 17)
+
+[node name="Furnace" type="AnimatedSprite2D"]
+z_index = 1
+y_sort_enabled = true
+texture_filter = 1
+sprite_frames = SubResource("SpriteFrames_mtk6o")
+animation = &"On"
+offset = Vector2(0, -8)
+script = ExtResource("2_8cyp6")
+
+[node name="Button" type="Button" parent="."]
+modulate = Color(1, 1, 1, 0)
+offset_left = -8.0
+offset_top = -16.0
+offset_right = 8.0
+offset_bottom = 16.0
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+position = Vector2(0, -1)
+shape = SubResource("RectangleShape2D_c61d2")

@@ -1,7 +1,8 @@
-[gd_resource type="TileSet" load_steps=8 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=10 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_fu67e"]
 [ext_resource type="PackedScene" uid="uid://1ka6xlmaapop" path="res://Sawmill.tscn" id="2_d4cf1"]
+[ext_resource type="PackedScene" uid="uid://b1mdvathrf7rl" path="res://Furnace.tscn" id="2_p3vak"]
 [ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="3_njwm6"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
@@ -195,10 +196,14 @@ texture = ExtResource("3_njwm6")
 0:8/0/physics_layer_1/linear_velocity = Vector2(0, 0)
 0:8/0/physics_layer_1/angular_velocity = 0.0
 
+[sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_n7wq6"]
+scenes/1/scene = ExtResource("2_p3vak")
+
 [resource]
 physics_layer_0/collision_layer = 1
 physics_layer_1/collision_layer = 1
 sources/0 = SubResource("TileSetAtlasSource_iq1uv")
 sources/2 = SubResource("TileSetScenesCollectionSource_60m0n")
 sources/4 = SubResource("TileSetAtlasSource_k56ax")
+sources/5 = SubResource("TileSetScenesCollectionSource_n7wq6")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

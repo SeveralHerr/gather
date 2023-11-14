@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=19 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -10,7 +10,9 @@
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
 [ext_resource type="PackedScene" uid="uid://bv82nvjovxcuu" path="res://SawmilUi.tscn" id="8_8ls0b"]
 [ext_resource type="Script" path="res://Items.gd" id="9_ctkxo"]
+[ext_resource type="PackedScene" uid="uid://b1x1rdpco4veu" path="res://FurnaceUi.tscn" id="9_wll6q"]
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
+[ext_resource type="Script" path="res://FurnaceUi.gd" id="10_fdb3x"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
 [ext_resource type="Script" path="res://ResourceManager.gd" id="13_ethx5"]
 [ext_resource type="Script" path="res://Resources.gd" id="14_cuov0"]
@@ -49,7 +51,7 @@ y_sort_enabled = true
 
 [node name="TileMap" parent="Node2D" instance=ExtResource("1_83yt6")]
 layer_0/z_index = -1
-layer_0/tile_data = PackedInt32Array(2, 0, 0, -65534, 0, 0, -65535, 0, 0, -65536, 0, 0, -1, 0, 0, -2, 0, 0, -131076, 0, 0, -131075, 0, 0, -131074, 0, 0, -131073, 0, 0, -196608, 0, 0, -196607, 0, 0, -196606, 0, 0, -196605, 0, 0, -196604, 0, 0, -131068, 0, 0, -131069, 0, 0, -131070, 0, 0, -131071, 0, 0, -131072, 0, 0, -65537, 0, 0, -65538, 0, 0, -65539, 0, 0, -65540, 0, 0, -4, 0, 0, -3, 0, 0, -65533, 0, 0, -65532, 0, 0, -65531, 0, 0, 4, 0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 65535, 0, 0, 65534, 0, 0, 65533, 0, 0, 65532, 0, 0, 65531, 0, 0, -196603, 0, 0, 5, 0, 0, -131067, 0, 0, -131077, 0, 0, -65541, 0, 0, -5, 0, 0, 131067, 0, 0, 131068, 0, 0, 131069, 0, 0, 131070, 0, 0, 131071, 0, 0, 65538, 0, 0, 65539, 0, 0, 65540, 0, 0, 65541, 0, 0, 131077, 0, 0, 131076, 0, 0, 131075, 0, 0, 131074, 0, 0, 131073, 0, 0, 131072, 0, 0, 196607, 0, 0, 196606, 0, 0, 196605, 0, 0, 196604, 0, 0, 196603, 0, 0, 262139, 0, 0, 262140, 0, 0, 262141, 0, 0, 262142, 0, 0, 262143, 0, 0, 196608, 0, 0, 196609, 0, 0, 196610, 0, 0, 196611, 0, 0, 196612, 0, 0, 196613, 0, 0, 262149, 0, 0, 262148, 0, 0, 262147, 0, 0, 262146, 0, 0, 262145, 0, 0, 262144, 0, 0, 327679, 0, 0, 327678, 0, 0, 327677, 0, 0, 327676, 0, 0, 327675, 0, 0, 65537, 0, 0, 65536, 0, 0)
+layer_0/tile_data = PackedInt32Array(2, 0, 0, -65534, 0, 0, -65535, 0, 0, -65536, 0, 0, -1, 0, 0, -2, 0, 0, -131076, 0, 0, -131075, 0, 0, -131074, 0, 0, -131073, 0, 0, -196608, 0, 0, -196607, 0, 0, -196606, 0, 0, -196605, 0, 0, -196604, 0, 0, -131068, 0, 0, -131069, 0, 0, -131070, 0, 0, -131071, 0, 0, -131072, 0, 0, -65537, 0, 0, -65538, 0, 0, -65539, 0, 0, -65540, 0, 0, -4, 0, 0, -3, 0, 0, -65533, 0, 0, -65532, 0, 0, -65531, 0, 0, 4, 0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0, 65535, 0, 0, 65534, 0, 0, 65533, 0, 0, 65532, 0, 0, 65531, 0, 0, -196603, 0, 0, 5, 0, 0, -131067, 0, 0, -131077, 0, 0, -65541, 0, 0, -5, 0, 0, 131067, 0, 0, 131068, 0, 0, 131069, 0, 0, 131070, 0, 0, 131071, 0, 0, 65538, 0, 0, 65539, 0, 0, 65540, 0, 0, 65541, 0, 0, 131074, 0, 0, 131073, 0, 0, 131072, 0, 0, 196607, 0, 0, 196606, 0, 0, 196605, 0, 0, 196604, 0, 0, 196603, 0, 0, 262139, 0, 0, 262140, 0, 0, 262141, 0, 0, 262142, 0, 0, 262143, 0, 0, 196608, 0, 0, 196609, 0, 0, 196610, 0, 0, 196611, 0, 0, 196612, 0, 0, 196613, 0, 0, 262149, 0, 0, 262148, 0, 0, 262147, 0, 0, 262146, 0, 0, 262145, 0, 0, 262144, 0, 0, 327679, 0, 0, 327678, 0, 0, 327677, 0, 0, 327676, 0, 0, 327675, 0, 0, 65537, 0, 0, 65536, 0, 0, 131077, 0, 0, 131076, 0, 0, 131075, 0, 0)
 layer_2/name = "Floor"
 layer_2/enabled = true
 layer_2/modulate = Color(1, 1, 1, 1)
@@ -115,6 +117,15 @@ offset_bottom = 55.0
 [node name="GridContainer" type="GridContainer" parent="Node2D/Player/Camera2D/UI/PanelContainer"]
 layout_mode = 2
 columns = 7
+
+[node name="FurnaceUi" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("itemManager", "items", "inventoryManager") instance=ExtResource("9_wll6q")]
+visible = false
+layout_mode = 0
+script = ExtResource("10_fdb3x")
+furnaces = Array[Resource("res://SawmillData.gd")]([])
+itemManager = NodePath("../../../../ItemManager")
+items = NodePath("../../../../../Items")
+inventoryManager = NodePath("../../../../InventoryManager")
 
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager")]
 script = ExtResource("6_rsems")

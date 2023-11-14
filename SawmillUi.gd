@@ -1,7 +1,7 @@
 extends TextureRect
 class_name SawmillUi
 
-@export var sawmills= []
+@export var sawmills: Array[CraftingStationData]= []
 @export var selectedSawmill: Node
 @export var itemManager: ItemManager
 @export var items: Items
@@ -36,10 +36,10 @@ func _process(delta):
 func test():
 	print("test")
 	
-func AddInstance(data: SawmillData):
+func AddInstance(data: CraftingStationData):
 	var found = false
 	for i in range(sawmills.size()):
-		if sawmills[i].sawmill == data.sawmill:
+		if sawmills[i].craftingStation == data.craftingStation:
 			found = true
 			
 	if found == false:
@@ -56,7 +56,7 @@ func AddInstance(data: SawmillData):
 func _on_timeout():
 	var sawmill = GetCurrentSawmillData()
 	if sawmill.count > 0:
-		itemManager.AddItemToWorld(sawmill.sawmill.position, items.Get(sawmill.selectedProduction))
+		itemManager.AddItemToWorld(sawmill.craftingStation.position, items.Get(sawmill.selectedProduction))
 		sawmill.count -= 1
 		$QuantityLabel.text = "Qty " + str(sawmills[0].count)
 
@@ -68,9 +68,9 @@ func _add():
 		currentSawmill.count += 1
 		$QuantityLabel.text = "Qty " + str(currentSawmill.count)
 			
-func GetCurrentSawmillData() -> SawmillData:
+func GetCurrentSawmillData() -> CraftingStationData:
 	for i in range(sawmills.size()):
-		if sawmills[i].sawmill == selectedSawmill:
+		if sawmills[i].craftingStation == selectedSawmill:
 			return sawmills[i]
 			
 	return null

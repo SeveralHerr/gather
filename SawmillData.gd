@@ -1,7 +1,7 @@
 extends Resource
-class_name SawmillData
+class_name CraftingStationData
 
-@export var sawmill: Node
+@export var craftingStation: Node
 
 @export var selectedProduction: GameItem.Type
 
@@ -9,6 +9,6 @@ class_name SawmillData
 
 @export var timer: Timer
 
-func _init(sawmill, count: int):
-	self.sawmill = sawmill
+func _init(craftingStation, count: int):
+	self.craftingStation = craftingStation
 	self.count = count

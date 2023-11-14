@@ -16,6 +16,15 @@ func _ready():
 	gameItems[GameItem.Type.Plank] = GameItem.new(Vector2i(3, 2), 4, GameItem.Type.Plank, 1, false)
 	gameItems[GameItem.Type.Sawmill] = GameItem.new(Vector2i(0, 0), 2, GameItem.Type.Sawmill, 1, true)
 	gameItems[GameItem.Type.WoodFloor] = GameItem.new(Vector2i(4, 2), 4, GameItem.Type.WoodFloor, 2, true)
+	gameItems[GameItem.Type.CoalOre] = GameItem.new(Vector2i(5, 2), 4, GameItem.Type.CoalOre, 1, false)
+	gameItems[GameItem.Type.IronOre] = GameItem.new(Vector2i(6, 2), 4, GameItem.Type.IronOre, 1, false)
+	gameItems[GameItem.Type.IronBar] = GameItem.new(Vector2i(7, 2), 4, GameItem.Type.IronBar, 1, false)
+	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 1, GameItem.Type.Furnace, 1, true)
+
+
+
+
+
 
 func GetItemByName(name):
 	for item in items:

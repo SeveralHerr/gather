@@ -9,6 +9,10 @@ var resources: Dictionary = {}
 func _ready():
 	resources[GameResource.Type.Tree] = GameResource.new(Vector2i(1, 0), 4, items.Get(GameItem.Type.Wood), GameResource.Type.Tree)
 	resources[GameResource.Type.Stone] = GameResource.new(Vector2i(2, 1), 4, items.Get(GameItem.Type.Stone), GameResource.Type.Stone)
+	resources[GameResource.Type.Iron] = GameResource.new(Vector2i(4, 1), 4, items.Get(GameItem.Type.IronOre), GameResource.Type.Iron)
+	resources[GameResource.Type.Coal] = GameResource.new(Vector2i(3, 1), 4, items.Get(GameItem.Type.CoalOre), GameResource.Type.Coal)
+
+
 			
 func Get(type: GameResource.Type) -> GameResource:
 	return resources[type]
@@ -16,7 +20,6 @@ func Get(type: GameResource.Type) -> GameResource:
 func GetAllTypes():
 	var types = []
 	for key in resources:
-		print(key)
 		types.append(key)
 	return types
 	

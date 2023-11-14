@@ -29,7 +29,8 @@ func _physics_process(delta):
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 	
 		selectedItemManager.ClearSelection()
-		tilemap.SetGameItemScene(Vector2i(2, 2), 2, Vector2i(0,0))
+		tilemap.SetGameItemScene(Vector2i(2, 2), 5, Vector2i(0,0))
+		tilemap.SetGameItemScene(Vector2i(3, 2), 2, Vector2i(0,0))
 		pass
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		pass
