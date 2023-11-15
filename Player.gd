@@ -12,8 +12,8 @@ const JUMP_VELOCITY = -400.0
 # Get the gravity from the project settings to be synced with RigidBody nodes.
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
-func f_ready():
-	selectedItemManager.SetSelectedItem(items.Get(GameItem.Type.WoodFloor))
+func _ready():
+	add_to_group("SaveLoad")
 
 
 func _physics_process(delta):
@@ -58,3 +58,28 @@ func _physics_process(delta):
 	if velocity.x != 0:
 		$AnimatedSprite2D.flip_v = false
 		$AnimatedSprite2D.flip_h = velocity.x < 0
+
+
+func saveObject() -> Dictionary:
+	var data 
+
+	var json = {
+		"x": position.x,
+		"y": position.y
+	}
+		
+	data = JSON.stringify(json)
+	
+	var dict := {
+		"filepath": get_path(),
+		"pos": data
+	}
+	return dict
+	
+func loadObject(loadedDict: Dictionary) -> void:
+	var data = loadedDict.pos
+	var json = JSON.new()
+	json.parse(data)
+	var node = json.get_data()
+	position = Vector2(node["x"], node["y"])
+	

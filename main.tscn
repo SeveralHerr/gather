@@ -142,6 +142,13 @@ layer_3/y_sort_enabled = false
 layer_3/y_sort_origin = 0
 layer_3/z_index = 5
 layer_3/tile_data = PackedInt32Array()
+layer_4/name = "Crafting"
+layer_4/enabled = true
+layer_4/modulate = Color(1, 1, 1, 1)
+layer_4/y_sort_enabled = true
+layer_4/y_sort_origin = 0
+layer_4/z_index = 1
+layer_4/tile_data = PackedInt32Array()
 
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
 autostart = true
@@ -192,15 +199,39 @@ anchors_preset = 0
 script = ExtResource("10_72nuh")
 tileMapHandler = NodePath("../../../..")
 selectedItemManager = NodePath("../../../SelectedItemManager")
-inventoryManager = NodePath("../../../InventoryManager")
+inventoryManager = NodePath("../../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
+
+[node name="SaveLoad" type="Control" parent="Node2D/Player/Camera2D/UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("21_p1f0h")
+
+[node name="SaveButton" type="Button" parent="Node2D/Player/Camera2D/UI/SaveLoad"]
+layout_mode = 0
+offset_left = 47.0
+offset_top = 7.0
+offset_right = 91.0
+offset_bottom = 38.0
+text = "Save"
+
+[node name="LoadButton" type="Button" parent="Node2D/Player/Camera2D/UI/SaveLoad"]
+layout_mode = 0
+offset_left = 47.0
+offset_top = 46.0
+offset_right = 93.0
+offset_bottom = 77.0
+text = "Load
+"
 
 [node name="SawmillUI" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("itemManager", "items", "inventoryManager") instance=ExtResource("8_8ls0b")]
 visible = false
 layout_mode = 0
 itemManager = NodePath("../../../../ItemManager")
 items = NodePath("../../../../../Items")
-inventoryManager = NodePath("../../../../InventoryManager")
+inventoryManager = NodePath("../../../../../InventoryManager")
 
 [node name="PanelContainer" type="PanelContainer" parent="Node2D/Player/Camera2D/UI"]
 texture_filter = 1
@@ -221,7 +252,7 @@ script = ExtResource("10_fdb3x")
 furnaces = Array[Resource("res://SawmillData.gd")]([])
 itemManager = NodePath("../../../../ItemManager")
 items = NodePath("../../../../../Items")
-inventoryManager = NodePath("../../../../InventoryManager")
+inventoryManager = NodePath("../../../../../InventoryManager")
 
 [node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("items", "inventory_manager")]
 visible = false
@@ -233,7 +264,7 @@ offset_bottom = 65.0
 color = Color(0, 0, 0, 0.701961)
 script = ExtResource("12_bqf2j")
 items = NodePath("../../../../../Items")
-inventory_manager = NodePath("../../../../InventoryManager")
+inventory_manager = NodePath("../../../../../InventoryManager")
 
 [node name="Craftables" type="ItemList" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
 layout_mode = 0
@@ -303,12 +334,8 @@ text = "X"
 script = ExtResource("6_rsems")
 player = NodePath("../Player")
 items = NodePath("../../Items")
-inventoryManager = NodePath("../InventoryManager")
+inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
-
-[node name="InventoryManager" type="Node" parent="Node2D" node_paths=PackedStringArray("ui")]
-script = ExtResource("8_5am1m")
-ui = NodePath("../Player/Camera2D/UI")
 
 [node name="SelectedItemManager" type="Control" parent="Node2D" node_paths=PackedStringArray("tileMapHandler")]
 texture_filter = 1
@@ -326,6 +353,11 @@ player = NodePath("../Node2D/Player")
 [node name="Items" type="Node" parent="."]
 script = ExtResource("9_ctkxo")
 
+[node name="InventoryManager" type="Node" parent="." node_paths=PackedStringArray("items", "ui")]
+script = ExtResource("8_5am1m")
+items = NodePath("../Items")
+ui = NodePath("../Node2D/Player/Camera2D/UI")
+
 [node name="Resources" type="Node" parent="." node_paths=PackedStringArray("items")]
 script = ExtResource("14_cuov0")
 items = NodePath("../Items")
@@ -333,30 +365,6 @@ items = NodePath("../Items")
 [node name="SoundManager" type="Node" parent="."]
 script = ExtResource("17_dy3qn")
 
-[node name="SaveLoad" type="Control" parent="."]
-layout_mode = 3
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-script = ExtResource("21_p1f0h")
-
-[node name="SaveButton" type="Button" parent="SaveLoad"]
-layout_mode = 0
-offset_left = 47.0
-offset_top = 7.0
-offset_right = 91.0
-offset_bottom = 38.0
-text = "Save"
-
-[node name="LoadButton" type="Button" parent="SaveLoad"]
-layout_mode = 0
-offset_left = 47.0
-offset_top = 46.0
-offset_right = 93.0
-offset_bottom = 77.0
-text = "Load
-"
-
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
-[connection signal="pressed" from="SaveLoad/SaveButton" to="SaveLoad" method="_on_save_pressed"]
-[connection signal="pressed" from="SaveLoad/LoadButton" to="SaveLoad" method="_on_load_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]

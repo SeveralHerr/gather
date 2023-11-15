@@ -6,13 +6,15 @@ class_name WorldItem
 @export var instance: TextureRect
 var player: Player
 var inventoryManager: InventoryManager
+var item_manager: ItemManager
 
 
-func _init(item: GameItem, instance: TextureRect, player: Player, inventoryManager: InventoryManager):
+func _init(item: GameItem, instance: TextureRect, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager):
 	self.item = item
 	self.instance = instance
 	self.player = player
 	self.inventoryManager = inventoryManager
+	self.item_manager = item_manager
 	
 func Process(delta) -> bool:
 	var activation_distance = 30.0
@@ -36,6 +38,11 @@ func Process(delta) -> bool:
 	if distance < move_speed * delta:
 		# Assuming inventoryManager.AddItem() doesn't depend on the state of itemsInWorld
 		inventoryManager.AddItem(item, 1)
+		
+		for i in item_manager.itemsInWorld:
+			if i.instance == instance:
+				item_manager.itemsInWorld.erase(i)
+		
 		item_instance.queue_free()
 		return true
 	return false

@@ -110,11 +110,13 @@ func _add():
 	var hasRequiredItems = []
 	for item in craftingStation.selected_recipe.cost_list:
 		hasRequiredItems.append(inventory_manager.HasItems(item, amountToCraft+1))
+
 		
 	for item in hasRequiredItems:
 		if item == false:
 			return
 			
+	
 	var i = 0
 	for costItemType in craftingStation.selected_recipe.cost_list.keys():		
 		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(inventory_manager.get_quantity(costItemType))

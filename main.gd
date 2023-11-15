@@ -92,6 +92,7 @@ func SetGameItemScene(location: Vector2i, tile_source_id: int, atlas_location: V
 			
 	if found == false:
 		specialTiles.append(location)
+		print(specialTiles)
 		tileMap.set_cell(1,location, tile_source_id, atlas_location, 1) 
 		
 func SetGameResource(location: Vector2i, tile_source_id: int, atlas_location: Vector2i):
@@ -228,6 +229,7 @@ func GetPlayerPosition():
 func saveObject() -> Dictionary:
 	var tileLayers = []
 	var save_data1 = {}
+	var special_tile_data = {}
 	save_data2 = {}
 
 	for cell in tileMap.get_used_cells(0):
@@ -271,7 +273,7 @@ func saveObject() -> Dictionary:
 				"x": cell.x,
 				"y": cell.y,
 				"layer": 1,
-				}
+					}
 		else:
 			json = {
 				"atlas_location_x": item.atlas_location.x,
@@ -283,7 +285,34 @@ func saveObject() -> Dictionary:
 			}
 		save_data2[cell] = JSON.stringify(json)
 		
-		tileLayers = [save_data2, save_data1]
+	# specials
+	for cell in tileMap.get_used_cells(0):
+		var tile_data = {}
+		var atlas_location = tileMap.get_cell_atlas_coords(1, cell)
+		var source_id = tileMap.get_cell_source_id(1, cell)
+		var item = items.get_item_by_data(atlas_location, source_id)
+		
+		if source_id ==  5 or source_id == 2:			
+			var json = {}
+			if item == null:
+				json =  {
+					"x": cell.x,
+					"y": cell.y,
+					"layer": 1,
+						}
+			else:
+				json = {
+					"atlas_location_x": item.atlas_location.x,
+					"atlas_location_y": item.atlas_location.y,
+					"layer": 1,
+					"source_id": item.tile_source_id, 
+					"x": cell.x,
+					"y": cell.y
+				}
+			special_tile_data[cell] = JSON.stringify(json)
+
+		
+		tileLayers = [save_data2, save_data1, special_tile_data]
 	
 	var dict := {
 		"filepath": get_path(),
@@ -292,10 +321,8 @@ func saveObject() -> Dictionary:
 	return dict
 	
 func loadObject(loadedDict: Dictionary) -> void:
-	
-	print(loadedDict.save_data2[0])
 	for cell in loadedDict.save_data2[0].keys():
-		print(cell)
+
 		#var cell_vector = Vector2(int(cell.split(",")[0]), int(cell.split(",")[1]))
 		var item = loadedDict.save_data2[0][cell]
 		var json = JSON.new()
@@ -307,7 +334,6 @@ func loadObject(loadedDict: Dictionary) -> void:
 			tileMap.set_cell(3, Vector2i(node["x"], node["y"]), -1)
 			tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
 			continue
-
 
 
 		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), node["source_id"],Vector2i( node["atlas_location_x"], node["atlas_location_y"] ))
@@ -328,6 +354,29 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 
 
+
 		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), node["source_id"],Vector2i( node["atlas_location_x"], node["atlas_location_y"] ))
 		# Restore any other tile properties you saved previously.
 		
+	# Special 
+	specialTiles = []
+	specialTiles.append(Vector2i(3243,2343))
+
+	for cell in loadedDict.save_data2[2].keys():
+
+		#var cell_vector = Vector2(int(cell.split(",")[0]), int(cell.split(",")[1]))
+		var item = loadedDict.save_data2[2][cell]
+		var json = JSON.new()
+		json.parse(item)
+		var node = json.get_data()
+		if not node.has("source_id"):
+
+			
+			tileMap.set_cell(3, Vector2i(node["x"], node["y"]), -1)
+			tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+			continue
+		#tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+		SetGameItemScene(Vector2i(node["x"], node["y"]), node["source_id"], Vector2i( 0,0 ))
+
+

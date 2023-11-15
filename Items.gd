@@ -19,7 +19,7 @@ func _ready():
 	gameItems[GameItem.Type.CoalOre] = GameItem.new(Vector2i(5, 2), 4, GameItem.Type.CoalOre, 1, false)
 	gameItems[GameItem.Type.IronOre] = GameItem.new(Vector2i(6, 2), 4, GameItem.Type.IronOre, 1, false)
 	gameItems[GameItem.Type.IronBar] = GameItem.new(Vector2i(7, 2), 4, GameItem.Type.IronBar, 1, false)
-	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 1, GameItem.Type.Furnace, 1, true)
+	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 5, GameItem.Type.Furnace, 1, true)
 
 
 func get_item_by_data(atlas_location, source_id):
