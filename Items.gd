@@ -19,6 +19,7 @@ func _ready():
 	gameItems[GameItem.Type.CoalOre] = GameItem.new(Vector2i(5, 2), 4, GameItem.Type.CoalOre, 1, false)
 	gameItems[GameItem.Type.IronOre] = GameItem.new(Vector2i(6, 2), 4, GameItem.Type.IronOre, 1, false)
 	gameItems[GameItem.Type.IronBar] = GameItem.new(Vector2i(7, 2), 4, GameItem.Type.IronBar, 1, false)
+	gameItems[GameItem.Type.WoodWall] = GameItem.new(Vector2i(0, 11), 4, GameItem.Type.WoodWall, 1, true)
 	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 5, GameItem.Type.Furnace, 1, true)
 
 
@@ -40,6 +41,8 @@ func get_enum_name_from_value(value):
 		return "Wood Floor"
 	if value == GameItem.Type.Wood:
 		return "Wood"
+	if value == GameItem.Type.WoodWall:
+		return "Wood Wall"
 	return ""
 
 func get_enum_from_name_test(value):
@@ -55,6 +58,8 @@ func get_enum_from_name_test(value):
 		return GameItem.Type.WoodFloor
 	if value == "Wood":
 		return GameItem.Type.Wood
+	if value == "Wood Wall":
+		return GameItem.Type.WoodWall
 	return ""
 
 func GetItemByName(name):

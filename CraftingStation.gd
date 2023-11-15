@@ -41,6 +41,10 @@ func _ready():
 		wood_floor_costs[GameItem.Type.Wood] = 1
 		recipe_list.append(CraftingRecipe.new(GameItem.Type.WoodFloor, wood_floor_costs))
 		
+		var wood_wall_costs = {}
+		wood_wall_costs[GameItem.Type.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(GameItem.Type.WoodWall, wood_wall_costs))
+		
 		selected_recipe = recipe_list[0]
 	
 func _process(delta):

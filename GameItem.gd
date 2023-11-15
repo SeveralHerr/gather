@@ -22,7 +22,8 @@ enum Type {
 	CoalOre,
 	IronOre,
 	IronBar,
-	Furnace
+	Furnace,
+	WoodWall
 }
 
 

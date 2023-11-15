@@ -8,6 +8,7 @@ signal resource_found(resource, location)
 @export var tileMap: TileMap
 @export var items: Items
 @export var specialTiles = []
+var wallTiles = []
 @export var resource_manager: ResourceManager2
 @export var resources: Resources
 @export var sound_manager: SoundManager
@@ -60,10 +61,16 @@ func SetResource(location, resource):
 	tileMap.set_cell(1, location, 4, resource)
 	
 func SetGameItem(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int):
-	tileMap.set_cell(layer,location, tile_source_id, atlas_location)
-	
-	if layer == 2:
-		AddSpecialTile(location)
+	if atlas_location == Vector2i(0, 11):
+		wallTiles.append(location)
+		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
+	else:
+		
+		
+		tileMap.set_cell(layer,location, tile_source_id, atlas_location)
+		
+		if layer == 2:
+			AddSpecialTile(location)
 		
 func AddSpecialTile(location):
 	for tile in specialTiles:
@@ -179,6 +186,16 @@ func get_location_of_nearby_resource(location):
 			if resources.Get(key).atlas_location == tile:
 
 				return { "resource": resources.Get(key),  "location": tileMap.map_to_local(nearestPos) }
+
+func place_auto_tile( atlas_location):
+	# Set the tile at the specified cell position.
+	tileMap.set_cell(3, Vector2i(1, 1), 4, atlas_location) 
+	tileMap.set_cell(3, Vector2i(1, 2), 4, atlas_location ) 
+	tileMap.set_cell(3, Vector2i(0, 2), 4, atlas_location) 
+	# Update the bitmasks to apply auto-tiling rules.
+	#tileMap.bitma(cell_position - Vector2(1, 1), cell_position + Vector2(1, 1))
+	tileMap.set_cells_terrain_connect(3, wallTiles, 0, 0 )
+
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed
