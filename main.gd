@@ -56,6 +56,11 @@ func clear_tile(location: Vector2i):
 	tileMap.set_cell(3, location, -1)
 	tileMap.set_cell(1, location, -1)
 	
+func GetNav():
+
+	var m = tileMap.get_navigation_map(1)
+
+	return m
 
 func SetResource(location, resource):
 	tileMap.set_cell(1, location, 4, resource)
