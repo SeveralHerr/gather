@@ -37,6 +37,14 @@ func get_quantity(type: Types.Item):
 	
 	return inventory[type].count
 	
+func remove_all_of_item(type: Types.Item):
+	if not inventory.has(type):
+		return
+		
+	inventory.erase(type)
+			
+	ui.update_ui()
+	
 	
 func RemoveItem(type: Types.Item):
 	if inventory.has(type):

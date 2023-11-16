@@ -6,9 +6,14 @@ signal move_left
 signal move_down
 signal move_up
 signal mouse_button_right
-signal mouse_button_left
+signal mouse_button_left(isUiOpen: bool)
 signal gather_input_press
 signal gather_input_release
+
+var isUiOpen = false
+
+func _ready():
+	add_to_group("InputManager")
 
 func _physics_process(delta):
 	if Input.is_action_pressed(&"move_right"):
@@ -26,7 +31,7 @@ func _input(event):
 		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			mouse_button_right.emit()
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			mouse_button_left.emit()
+			mouse_button_left.emit(isUiOpen)
 	if Input.is_action_just_pressed("gather"):
 		gather_input_press.emit()
 

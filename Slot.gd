@@ -1,9 +1,9 @@
 extends Panel
 class_name SlotButton
 
-signal slot_clicked(item: GameItem)
+signal slot_clicked(inventory_slot_item: InventorySlot)
 
-var item: GameItem
+var inventory_slot_item: InventorySlot
 @export var button: Button
 @onready var ui = get_tree().get_nodes_in_group("UI")
 
@@ -14,6 +14,7 @@ func _ready():
 
 
 func _on_button_pressed():
-	slot_clicked.emit(item)
+	print("click")
+	slot_clicked.emit(inventory_slot_item)
 
 

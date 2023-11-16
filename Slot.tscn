@@ -48,5 +48,4 @@ offset_bottom = 28.0
 scale = Vector2(0.41, 0.41)
 horizontal_alignment = 2
 
-[connection signal="gui_input" from="." to="." method="_on_gui_input"]
 [connection signal="pressed" from="MarginContainer/Button" to="." method="_on_button_pressed"]

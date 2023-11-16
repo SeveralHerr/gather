@@ -41,7 +41,7 @@ func _gather_input_release():
 	$AnimatedSprite2D.play("Idle")
 	$Gather.visible=false
 
-func _mouse_button_left():
+func _mouse_button_left(test: bool):
 	pass
 
 func _mouse_button_right():
