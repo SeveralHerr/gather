@@ -242,4 +242,5 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var location = Vector2i(node["x"], node["y"])
 		
 		tileMap.set_cell(item.layer, location, item.tile_source_id, item.atlas_location, item.is_scene_tile)
-
+	print("finished tilemap load")
+	print(has_node("/root/Main/Node2D/TileMap/Chest"))

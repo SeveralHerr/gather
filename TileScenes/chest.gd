@@ -8,12 +8,14 @@ var chest_inventory = {}
 func _ready():
 	add_to_group("Chests")
 	add_to_group("SaveLoad")
+	print("added")
 	$Button.connect("pressed", Callable(self, "_on_button_open_chest"))
 	pass # Replace with function body.
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	print(has_node("/root/Main/Node2D/TileMap/Chest"))
 	pass
 	
 
@@ -31,15 +33,16 @@ func _on_button_open_chest():
 			node.set_chest(self)
 			
 func saveObject() -> Dictionary:
+	
 	var inventory_data = {}
 	for item in chest_inventory.keys():
 		var json = {
 			"itemType": item,
 			"count": chest_inventory.get(item).count
 		}
-		
+
 		inventory_data[item] = JSON.stringify(json)
-	
+	print("saving")
 	var dict := {
 		"filepath": get_path(),
 		"inventory": inventory_data
@@ -48,6 +51,7 @@ func saveObject() -> Dictionary:
 	
 func loadObject(loadedDict: Dictionary) -> void:
 	chest_inventory = {}
+	print("load")
 	for item in loadedDict.inventory.keys():
 		var x = loadedDict.inventory.get(item)
 		var json = JSON.new()
@@ -58,8 +62,8 @@ func loadObject(loadedDict: Dictionary) -> void:
 		for n in nodes:
 			if n is Items:
 				itemm = n.get_item(node["itemType"])
-		
-		chest_inventory[node["itemType"]] = InventorySlot.new(itemm, node["count"])
+
+				chest_inventory[node["itemType"]] = InventorySlot.new(itemm, node["count"])
 	
 		
 		

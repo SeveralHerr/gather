@@ -35,6 +35,8 @@ func _load() -> void:
 		print("Error, no Save File to load.")
 		return
 		
+	_load_tilemap()
+		
 	var save_file = FileAccess.open("saveFile", FileAccess.READ) # Open File
 	
 	while save_file.get_position() < save_file.get_length():
@@ -44,7 +46,34 @@ func _load() -> void:
 		
 		# Get the Data
 		var node_data = json.get_data()
-		if has_node(node_data["filepath"]):
+		print(has_node("/root/Main/Node2D/TileMap/Chest"))
+		if has_node(node_data["filepath"]) and not node_data["filepath"] == "/root/Main":
+
+			get_node(node_data["filepath"]).loadObject(node_data)
+			print(has_node("/root/Main/Node2D/TileMap/Chest"))
+			print("test")
+			
+	save_file.close() # Close File
+	print(has_node("/root/Main/Node2D/TileMap/Chest"))
+
+func _load_tilemap() -> void:
+	# Check if the SaveFile exists
+	if !FileAccess.file_exists("saveFile"):
+		print("Error, no Save File to load.")
+		return
+		
+	var save_file = FileAccess.open("saveFile", FileAccess.READ) # Open File
+	
+	while save_file.get_position() < save_file.get_length():
+		# Get the saved dictionary from the next line in the save file
+		var json = JSON.new()
+		json.parse(save_file.get_line())
+		
+		# Get the Data
+		var node_data = json.get_data()
+		print(node_data)
+		if has_node(node_data["filepath"]) and node_data["filepath"] == "/root/Main":
+			print("loading tilemap")
 			get_node(node_data["filepath"]).loadObject(node_data)
 			
 	save_file.close() # Close File
