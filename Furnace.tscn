@@ -48,7 +48,7 @@ sprite_frames = SubResource("SpriteFrames_mtk6o")
 animation = &"Off"
 offset = Vector2(0, -8)
 script = ExtResource("2_hekx0")
-type = 8
+type = 12
 
 [node name="Button" type="Button" parent="."]
 modulate = Color(1, 1, 1, 0)

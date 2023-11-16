@@ -46,9 +46,8 @@ func _mouse_button_left():
 
 func _mouse_button_right():
 	selectedItemManager.ClearSelection()
-	tilemap.SetGameItemScene(Vector2i(2, 2), 5, Vector2i(0,0))
-	tilemap.SetGameItemScene(Vector2i(3, 2), 2, Vector2i(0,0))
-	tilemap.place_auto_tile( Vector2(0, 10))
+	tilemap.set_tile(Vector2i(2, 2), 5, Vector2i(0,0), 1, true)
+	tilemap.set_tile(Vector2i(3, 2), 2, Vector2i(0,0), 1, true)
 
 func _move_down():
 	v.y += 1

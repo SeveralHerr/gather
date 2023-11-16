@@ -1,7 +1,7 @@
 extends Resource
 class_name InventorySlot
 
-@export var item: GameItem
+var item: GameItem
 @export var count: int
 
 

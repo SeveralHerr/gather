@@ -1,76 +1,33 @@
 extends Node
 class_name Items
 
-@export var items: Array[Item] = []
-var gameItems: Dictionary = {}
+var item_list: Dictionary = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	items = []
-	items.append(Item.new(Vector2i(1, 0), preload("res://Resources/Tree.tscn"), "Tree", preload("res://Resources/Wood.png")))
-	items.append(Item.new(Vector2i(2, 1), preload("res://Resources/Stone.tscn"), "Stone", preload("res://Resources/Stone.png")))
-	items.append(Item.new(Vector2i.ZERO, null, "Plank", preload("res://Resources/Plank.png")))
-
-	gameItems[GameItem.Type.Stone] = GameItem.new(Vector2i(1, 2), 4, GameItem.Type.Stone, 1, false)
-	gameItems[GameItem.Type.Wood] = GameItem.new(Vector2i(2, 2), 4, GameItem.Type.Wood, 1, false)
-	gameItems[GameItem.Type.Plank] = GameItem.new(Vector2i(3, 2), 4, GameItem.Type.Plank, 1, false)
-	gameItems[GameItem.Type.Sawmill] = GameItem.new(Vector2i(0, 0), 2, GameItem.Type.Sawmill, 1, true)
-	gameItems[GameItem.Type.WoodFloor] = GameItem.new(Vector2i(4, 2), 4, GameItem.Type.WoodFloor, 2, true)
-	gameItems[GameItem.Type.CoalOre] = GameItem.new(Vector2i(5, 2), 4, GameItem.Type.CoalOre, 1, false)
-	gameItems[GameItem.Type.IronOre] = GameItem.new(Vector2i(6, 2), 4, GameItem.Type.IronOre, 1, false)
-	gameItems[GameItem.Type.IronBar] = GameItem.new(Vector2i(7, 2), 4, GameItem.Type.IronBar, 1, false)
-	gameItems[GameItem.Type.WoodWall] = GameItem.new(Vector2i(0, 11), 4, GameItem.Type.WoodWall, 1, true)
-	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 5, GameItem.Type.Furnace, 1, true)
-	gameItems[GameItem.Type.WoodDoor] = GameItem.new(Vector2i(0,0), 1, GameItem.Type.WoodDoor, 1, true, Vector2i(0, 13))
+	item_list[Types.Item.Stone] = GameItem.new(Vector2i(1, 2), 4, Types.Item.Stone, 1, false, "Stone", Vector2i.ZERO)
+	item_list[Types.Item.Wood] = GameItem.new(Vector2i(2, 2), 4, Types.Item.Wood, 1, false, "Wood", Vector2i.ZERO)
+	item_list[Types.Item.Plank] = GameItem.new(Vector2i(3, 2), 4, Types.Item.Plank, 1, false, "Plank", Vector2i.ZERO)
+	item_list[Types.Item.Sawmill] = GameItem.new(Vector2i(0, 0), 2, Types.Item.Sawmill, 1, true, "Sawmill", Vector2i.ZERO, true)
+	item_list[Types.Item.WoodFloor] = GameItem.new(Vector2i(4, 2), 4, Types.Item.WoodFloor, 2, true, "Wood Floor", Vector2i.ZERO)
+	item_list[Types.Item.CoalOre] = GameItem.new(Vector2i(5, 2), 4, Types.Item.CoalOre, 1, false, "Coal Ore", Vector2i.ZERO)
+	item_list[Types.Item.IronOre] = GameItem.new(Vector2i(6, 2), 4, Types.Item.IronOre, 1, false, "Iron Ore", Vector2i.ZERO)
+	item_list[Types.Item.IronBar] = GameItem.new(Vector2i(7, 2), 4, Types.Item.IronBar, 1, false, "Iron Bar", Vector2i.ZERO)
+	item_list[Types.Item.WoodWall] = GameItem.new(Vector2i(0, 11), 4, Types.Item.WoodWall, 1, true, "Wood Wall", Vector2i.ZERO)
+	item_list[Types.Item.Furnace] = GameItem.new(Vector2i(0, 0), 5, Types.Item.Furnace, 1, true, "Furnace", Vector2i.ZERO, true)
+	item_list[Types.Item.WoodDoor] = GameItem.new(Vector2i(0,0), 1, Types.Item.WoodDoor, 1, true, "Wood Door", Vector2i(0, 13), true)
 
 
 func get_item_by_data(atlas_location, source_id):
-	for key in gameItems.keys():
-		if gameItems[key].atlas_location == atlas_location and gameItems[key].tile_source_id == source_id :
-			return gameItems[key]
-
-func get_enum_name_from_value(value):
-	if value == GameItem.Type.CoalOre:
-		return "Coal Ore"
-	if value == GameItem.Type.IronBar:
-		return "Iron Bar"
-	if value == GameItem.Type.IronOre:
-		return "Iron Ore"
-	if value == GameItem.Type.Plank:
-		return "Plank"
-	if value == GameItem.Type.WoodFloor:
-		return "Wood Floor"
-	if value == GameItem.Type.Wood:
-		return "Wood"
-	if value == GameItem.Type.WoodWall:
-		return "Wood Wall"
-	if value == GameItem.Type.WoodDoor:
-		return "Wood Door"
-	return ""
-
-func get_enum_from_name_test(value):
-	if value == "Coal Ore":
-		return GameItem.Type.CoalOre
-	if value == "Iron Bar":
-		return  GameItem.Type.IronBar
-	if value == "Iron Ore":
-		return GameItem.Type.IronOre
-	if value == "Plank":
-		return GameItem.Type.Plank
-	if value == "Wood Floor":
-		return GameItem.Type.WoodFloor
-	if value == "Wood":
-		return GameItem.Type.Wood
-	if value == "Wood Wall":
-		return GameItem.Type.WoodWall
-	if value == "Wood Door":
-		return GameItem.Type.WoodDoor
-	return ""
-
-func GetItemByName(name):
-	for item in items:
-		if item.name == name: 
-			return item
+	for key in item_list.keys():
+		if item_list[key].atlas_location == atlas_location and item_list[key].tile_source_id == source_id :
+			return item_list[key]
 			
-func Get(type: GameItem.Type) -> GameItem:
-	return gameItems[type]
+func get_item(type: Types.Item) -> GameItem:
+	return item_list[type]
+
+func get_type(name):
+	for key in item_list.keys():
+		if item_list[key].name == name:
+			return item_list[key].type
+	

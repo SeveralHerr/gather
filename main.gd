@@ -17,7 +17,6 @@ var wallTiles = []
 
 var crack = preload("res://Crack.tres")
 func _ready():
-	AddSpecialTile(Vector2i(123123,12312))
 	add_to_group("SaveLoad")
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
@@ -29,10 +28,10 @@ func _process(delta):
 	GetPlayerPosition()
 	
 func _on_resource_added(location: Vector2i, resource: GameResource):
-	SetResource(location, resource.atlas_location)
+	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer)
 
 func _on_resource_removed(location: Vector2i, resource: GameResource):
-	if resource.type == GameResource.Type.Stone:
+	if resource.type == Types.Item.Stone:
 		sound_manager.play_sound(SoundManager.SoundType.STONE)
 	
 	clear_tile(tileMap.local_to_map(location))
@@ -56,62 +55,26 @@ func clear_tile(location: Vector2i):
 	tileMap.set_cell(3, location, -1)
 	tileMap.set_cell(1, location, -1)
 	
-func GetNav():
-
-	var m = tileMap.get_navigation_map(1)
-
-	return m
-
-func SetResource(location, resource):
-	tileMap.set_cell(1, location, 4, resource)
+func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
+	tileMap.set_cell(layer, location, tile_source_id, atlas_location, is_scene)
 	
-func SetGameItem(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int):
 	if atlas_location == Vector2i(0, 11):
 		wallTiles.append(location)
 		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
-	else:
-		if tile_source_id == 5 or tile_source_id == 1 or tile_source_id == 2:
-			SetGameItemScene(location, tile_source_id, atlas_location)
-		else:
-			tileMap.set_cell(layer,location, tile_source_id, atlas_location)
-			
-			if layer == 2:
-				AddSpecialTile(location)
-
-		
-func AddSpecialTile(location):
-	for tile in specialTiles:
-		if tile == location:
-			return
 	
-	specialTiles.append(location)
-	
-func IsTileOccupied(tilePos: Vector2i)-> bool:
-	if is_special_tile(tilePos, specialTiles):
-		return true
+func is_occupied(tilePos: Vector2i)-> bool:
+	var is_occupied = false
 	
 	var tile = tileMap.get_cell_tile_data(1, tilePos)
 	if tile != null:
-		return true
-
-	return false
-	
-	
-func SetGameItemScene(location: Vector2i, tile_source_id: int, atlas_location: Vector2i):
-
-	var found = false
-	for i in range(specialTiles.size()):
-		if specialTiles[i] == location:
-			found = true
-			
-	if found == false:
-		specialTiles.append(location)
-		print(specialTiles)
-		tileMap.set_cell(1,location, tile_source_id, atlas_location, 1) 
+		is_occupied = true
 		
-func SetGameResource(location: Vector2i, tile_source_id: int, atlas_location: Vector2i):
-	tileMap.set_cell(1,location, tile_source_id, atlas_location)
-	
+	tile = tileMap.get_cell_tile_data(2, tilePos)
+	if tile != null:
+		is_occupied = true
+
+	return is_occupied
+		
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
 
@@ -119,13 +82,6 @@ func get_random_position_within_rect(rect):
 	var random_x = randi() % rect.size.x + rect.position.x
 	var random_y = randi() % rect.size.y + rect.position.y
 	return Vector2(random_x, random_y)
-
-func is_special_tile(pos, special_tiles):
-	for special_tile in special_tiles:
-		if pos == special_tile:
-
-			return true
-	return false
 	
 func _find_nearest_tile_and_resource(location: Vector2):
 	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
@@ -218,39 +174,41 @@ func get_random_tile():
 		random_x = randi() % used_rect.size.x + used_rect.position.x
 		random_y = randi() % used_rect.size.y + used_rect.position.y
 		
-		if is_special_tile(Vector2i(random_x, random_y), specialTiles):
-			continue
-			
-		var tile = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
-		if tile != null:
+		if is_occupied(Vector2i(random_x, random_y)):
 			continue
 			
 		try += 1
 		return Vector2i(random_x, random_y)
 	return null
-	
-func gfet_random_tile():
-	var used_rect = tileMap.get_used_rect()
-	var tile_index
-	var random_x
-	var random_y
-
-	while true:
-		random_x = randi() % used_rect.size.x + used_rect.position.x
-		random_y = randi() % used_rect.size.y + used_rect.position.y
-		tile_index = tileMap.get_cell_tile_data(1, Vector2(random_x, random_y))
-
-		if tile_index != null and not is_special_tile(Vector2i(random_x, random_y), specialTiles):
-			# If it's a valid tile and not a special tile, break the loop
-			break
-
-	# At this point, random_pos is a valid position, so we return it
-	return Vector2(random_x, random_y)
 
 func GetPlayerPosition():
 	return tileMap.local_to_map(player.global_position)
 	
 func saveObject() -> Dictionary:
+	var tileLayers = []
+	var layers = tileMap.get_layers_count()
+	var tileGrid = tileMap.get_used_cells(0)
+	
+	for layer in layers:
+		for cell in tileGrid:
+			var tile_data = {}
+			var atlas_location = tileMap.get_cell_atlas_coords(2, cell)
+			var source_id = tileMap.get_cell_source_id (2, cell)
+			var item = items.get_item_by_data(atlas_location, source_id)
+			
+			if item == null:
+				continue
+				
+			var json = {
+				"item": item.type,
+				"x": cell.x,
+				"y": cell.y
+			}
+		
+			tileLayers.append(JSON.stringify(json))
+			
+	
+func ssaveObject() -> Dictionary:
 	var tileLayers = []
 	var save_data1 = {}
 	var special_tile_data = {}
@@ -259,7 +217,7 @@ func saveObject() -> Dictionary:
 	for cell in tileMap.get_used_cells(0):
 		var tile_data = {}
 		var atlas_location = tileMap.get_cell_atlas_coords(2, cell)
-		var source_id = tileMap.get_cell_source_id(2, cell)
+		var source_id = tileMap.get_cell_source_id (2, cell)
 		var item = items.get_item_by_data(atlas_location, source_id)
 		#var layer = tileMap.get
 		#tile_data[cell] = item
@@ -400,7 +358,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 			tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
 			continue
 		#tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
-		tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
-		SetGameItemScene(Vector2i(node["x"], node["y"]), node["source_id"], Vector2i( 0,0 ))
+		#tileMap.set_cell(node["layer"], Vector2i(node["x"], node["y"]), -1)
+		set_tile(Vector2i(node["x"], node["y"]), node["source_id"], Vector2i( 0,0 ), node["layer"])
 
 

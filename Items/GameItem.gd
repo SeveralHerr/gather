@@ -1,6 +1,4 @@
-extends Resource
 class_name GameItem
-
 
 @export var atlas_location: Vector2i
 
@@ -10,38 +8,35 @@ class_name GameItem
 
 @export var layer: int
 
-@export var isPlaceable: bool
+@export var is_placeable: bool
 
-@export var type: Type
+@export var type: Types.Item
 
-enum Type {
-	Stone,
-	Wood,
-	Plank,
-	Sawmill,
-	WoodFloor,
-	CoalOre,
-	IronOre,
-	IronBar,
-	Furnace,
-	WoodWall,
-	WoodDoor
-}
+@export var name: String
 
 
 func _init(atlas_location: Vector2i, 
 		tile_source_id: int, 
-		type: Type, layer: int, 
-		isPlaceable: bool, 
+		type: Types.Item,
+		layer: int, 
+		is_placeable: bool, 
+		name: String,
 		tile_atlas_location: Vector2i = Vector2i.ZERO,
 		isSceneTile: bool = false
 	):
 	self.atlas_location = atlas_location
 	self.tile_source_id = tile_source_id
-	self.type = type
 	self.layer = layer
-	self.isPlaceable = isPlaceable
+	self.is_placeable = is_placeable
 	self.tile_atlas_location = tile_atlas_location
+	self.type = type
+	self.name = name
+	
+func equal_type(incomingType: Types.Item):
+	return type == incomingType
+	
+func equals(incoming_atlas_location, incoming_tile_source_id):
+	return incoming_atlas_location == atlas_location and incoming_tile_source_id == tile_source_id
 	
 func get_atlas():
 	var location

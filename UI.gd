@@ -52,5 +52,5 @@ func update_ui():
 		i += 1
 			
 func _on_Button_pressed(item: GameItem):
-	if item.isPlaceable == true:
+	if item.is_placeable == true:
 		selectedItemManager.SetSelectedItem(item)

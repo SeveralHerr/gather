@@ -117,11 +117,9 @@ player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
 tileMap = NodePath("Node2D/TileMap")
 items = NodePath("Items")
-specialTiles = null
 resource_manager = NodePath("ResourceManager")
 resources = NodePath("Resources")
 sound_manager = NodePath("SoundManager")
-save_data2 = null
 
 [node name="Node2D" type="Node2D" parent="."]
 y_sort_enabled = true

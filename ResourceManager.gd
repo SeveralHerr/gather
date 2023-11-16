@@ -19,9 +19,6 @@ func AddRandomResource():
 		return
 	
 	SetResource(randomTile, randomResource)
-	
-func f_ready():
-	SetResource(Vector2i(-2,-2), resources.Get(GameResource.Type.Tree))
 
 func SetResource(location, resource: GameResource):
 	tileMapHandler.SetGameResource(location, resource.tile_source_id, resource.atlas_location)
@@ -47,8 +44,6 @@ func RemoveNearestResourceToPlayer():
 			nearestDistance = distance
 			nearestPos = tilePos
 		
-	#if nearestPos == Vector2i(-1,-1):
-		#return
 	var direction = player.global_position - tileMap.map_to_local(nearestPos)
 	var distance = direction.length()
 	var activation_distance = 20
@@ -57,7 +52,7 @@ func RemoveNearestResourceToPlayer():
 		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
 		for key in resources.GetAllTypes():
 			if resources.Get(key).atlas_location == tile:
-				itemManager.AddItemToWorld( tileMap.map_to_local(nearestPos), resources.Get(key).drop)
+				itemManager.AddItemToWorld( tileMap.map_to_local(nearestPos), items.Get(resources.Get(key).drop))
 		
 		RemoveResource(nearestPos)
 	

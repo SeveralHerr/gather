@@ -8,7 +8,7 @@ class_name InventoryManager
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	add_to_group("SaveLoad")
-	AddItem(items.Get(GameItem.Type.Wood), 100)
+	AddItem(items.get_item(Types.Item.Wood), 100)
 	pass # Replace with function body.
 
 		
@@ -23,22 +23,22 @@ func AddItem(item: GameItem, count: int = 0):
 	
 	ui.add_item()
 	
-func HasItem(type: GameItem.Type) -> bool:
+func HasItem(type: Types.Item) -> bool:
 	return inventory.has(type)
 	
-func HasItems(type: GameItem.Type, count: int) -> bool:
+func HasItems(type: Types.Item, count: int) -> bool:
 	var qty = get_quantity(type)
 
 	return qty >= count
 	
-func get_quantity(type: GameItem.Type):
+func get_quantity(type: Types.Item):
 	if not inventory.has(type):
 		return 0
 	
 	return inventory[type].count
 	
 	
-func RemoveItem(type: GameItem.Type):
+func RemoveItem(type: Types.Item):
 	if inventory.has(type):
 		inventory[type].count -= 1
 		
@@ -68,7 +68,7 @@ func saveObject() -> Dictionary:
 func loadObject(loadedDict: Dictionary) -> void:
 	inventory = {}
 	for item in loadedDict.inventory.keys():
-		var x = loadedDict.inventory[item]
+		var x = loadedDict.inventory.get(item)
 		var json = JSON.new()
 		json.parse(x)
 		var node = json.get_data()

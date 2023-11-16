@@ -18,7 +18,7 @@ y_sort_enabled = true
 texture_filter = 1
 texture = SubResource("AtlasTexture_4pvxu")
 script = ExtResource("1_f0v4y")
-type = 3
+type = 7
 
 [node name="Button" type="Button" parent="."]
 modulate = Color(1, 1, 1, 0)

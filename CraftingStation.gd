@@ -1,12 +1,12 @@
 extends Node2D
 class_name CraftingStation
 
-signal crafted_item(item: GameItem.Type, location: Vector2i)
+signal crafted_item(item: Types.Item, location: Vector2i)
 
 @export var recipe_list = []
 @export var selected_recipe: CraftingRecipe
 @export var count: int
-@export var type: GameItem.Type
+@export var type: Types.Item
 @export var timer: Timer
 @export var item_mamager: ItemManager
 
@@ -24,30 +24,30 @@ func _ready():
 		if node is ItemManager:
 			item_mamager = node
 	
-	if type == GameItem.Type.Furnace:
+	if type == Types.Item.Furnace:
 		var iron_bar_costs = {}
-		iron_bar_costs[GameItem.Type.CoalOre] = 1
-		iron_bar_costs[GameItem.Type.IronOre] = 1
-		recipe_list.append(CraftingRecipe.new(GameItem.Type.IronBar, iron_bar_costs))
+		iron_bar_costs[Types.Item.CoalOre] = 1
+		iron_bar_costs[Types.Item.IronOre] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.IronBar, iron_bar_costs))
 		
 		selected_recipe = recipe_list[0]
 		
-	if type == GameItem.Type.Sawmill:
+	if type == Types.Item.Sawmill:
 		var plank_costs = {}
-		plank_costs[GameItem.Type.Wood] = 1
-		recipe_list.append(CraftingRecipe.new(GameItem.Type.Plank, plank_costs))
+		plank_costs[Types.Item.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.Plank, plank_costs))
 		
 		var wood_floor_costs = {}
-		wood_floor_costs[GameItem.Type.Wood] = 1
-		recipe_list.append(CraftingRecipe.new(GameItem.Type.WoodFloor, wood_floor_costs))
+		wood_floor_costs[Types.Item.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
 		
 		var wood_wall_costs = {}
-		wood_wall_costs[GameItem.Type.Wood] = 1
-		recipe_list.append(CraftingRecipe.new(GameItem.Type.WoodWall, wood_wall_costs))
+		wood_wall_costs[Types.Item.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.WoodWall, wood_wall_costs))
 		
 		var wood_door_costs = {}
-		wood_door_costs[GameItem.Type.Wood] = 1
-		recipe_list.append(CraftingRecipe.new(GameItem.Type.WoodDoor, wood_door_costs))
+		wood_door_costs[Types.Item.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
 				
 		selected_recipe = recipe_list[0]
 	

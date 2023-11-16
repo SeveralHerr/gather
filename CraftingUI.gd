@@ -4,7 +4,7 @@ class_name CraftingUi
 @export var craftingStation: CraftingStation
 @export var items: Items
 @export var inventory_manager: InventoryManager
-var amountToCraft = 1
+var amountToCraft = 0
 
 
 var atlas_file = load("res://Resources/game_items_atlas.tres")
@@ -34,7 +34,7 @@ func _on_item_selected(index):
 	var selectedText = $Craftables.get_item_text(index)
 
 	craftingStation.selected_recipe = _get_recipe_by_name(selectedText)
-	var item = items.Get(craftingStation.selected_recipe.product)			
+	var item = items.get_item(craftingStation.selected_recipe.product)			
 	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
@@ -47,16 +47,16 @@ func _on_item_selected(index):
 		var newCostRow = costRow.instantiate()
 		$CostList.add_child(newCostRow)
 		
-		var citem = items.Get(costItemType)				
+		var citem = items.get_item(costItemType)				
 		var catlas_texture = citem.get_atlas()
 		newCostRow.texture = catlas_texture
 		
-		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 		
 func _get_recipe_by_name(value):
 	for recipe in craftingStation.recipe_list:
-		var item = items.get_enum_from_name_test(value)
+		var item = items.get_type(value)
 		if item == recipe.product:
 			return recipe
 
@@ -68,16 +68,16 @@ func load_crafting_station(craftingStation):
 		child.queue_free()
 		
 	$Craftables.clear()
-
-	
+	print("Test")
+	print(items.get_item(Types.Item.IronBar).name)
 	for recipe in craftingStation.recipe_list:
-		var item = items.Get(recipe.product)		
+		var item = items.get_item(recipe.product)		
 		var atlas_texture = item.get_atlas()
 		#add_child(instance)
-
-		$Craftables.add_item( items.get_enum_name_from_value(recipe.product), atlas_texture)
+		print(items.get_item(recipe.product).name)
+		$Craftables.add_item( items.get_item(recipe.product).name, atlas_texture)
 		
-	var item = items.Get(craftingStation.selected_recipe.product)			
+	var item = items.get_item(craftingStation.selected_recipe.product)			
 	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
@@ -90,12 +90,12 @@ func load_crafting_station(craftingStation):
 		var newCostRow = costRow.instantiate()
 		$CostList.add_child(newCostRow)
 		
-		var citem = items.Get(costItemType)				
+		var citem = items.get_item(costItemType)				
 		var catlas_texture = item.get_atlas()
 		newCostRow.texture = catlas_texture
 		
 		
-		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 	
 
@@ -112,8 +112,9 @@ func _add():
 			
 	
 	var i = 0
-	for costItemType in craftingStation.selected_recipe.cost_list.keys():		
-		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(inventory_manager.get_quantity(costItemType))
+	for costItemType in craftingStation.selected_recipe.cost_list.keys():	
+		var item = items.get_item(costItemType)	
+		var text = item.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(inventory_manager.get_quantity(costItemType))
 		$CostList.get_child(i).get_child(0).text = text
 		i += 1
 			

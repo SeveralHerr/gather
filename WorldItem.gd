@@ -1,7 +1,7 @@
 extends Node2D
 class_name WorldItem
 
-@export var item: GameItem
+var item: GameItem
 
 @export var instance: TextureRect
 var player: Player

@@ -3,7 +3,7 @@ class_name SlotButton
 
 signal slot_clicked(item: GameItem)
 
-@export var item: GameItem
+var item: GameItem
 @export var button: Button
 @onready var ui = get_tree().get_nodes_in_group("UI")
 

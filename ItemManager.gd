@@ -21,11 +21,11 @@ func _physics_process(delta):
 
 func _on_resource_removed(position: Vector2i, resource: GameResource):
 	position = position - Vector2i(8,8)
-	AddItemToWorld(position, resource.drop)
+	AddItemToWorld(position, items.get_item(resource.drop))
 	
-func AddItemToWorldByType(position, type: GameItem.Type):
+func AddItemToWorldByType(position, type: Types.Item):
 	position = Vector2i(position.x, position.y) - Vector2i(8,8)
-	var item = items.Get(type)
+	var item = items.get_item(type)
 	AddItemToWorld(position, item)
 	
 
@@ -73,6 +73,6 @@ func loadObject(loadedDict: Dictionary) -> void:
 		json.parse(x)
 		var node = json.get_data()
 		var pos = Vector2i(node["x"], node["y"])
-		var newItem = items.Get(node["itemType"])
+		var newItem = items.get_item(node["itemType"])
 		
 		AddItemToWorld(pos, newItem)
