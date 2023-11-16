@@ -10,13 +10,13 @@ var inventory
 @export var furnaceUi: Node
 
 func _ready():
-	test = $SawmillUI
-	furnaceUi = $FurnaceUi
+	#test = $SawmillUI
+	#furnaceUi = $FurnaceUi
 	add_to_group("UI")
 	for child in item_grid.get_children():
 		child.queue_free()
 		
-	for item in range(8):
+	for item in range(21):
 		var slot = Slot.instantiate()
 		item_grid.add_child(slot)
 		
@@ -28,24 +28,20 @@ func remove_item(item):
 	update_ui()
 
 func update_ui():
-	for i in range(8):
-		item_grid.get_child(i).get_child(0).get_child(0).texture = null
-		item_grid.get_child(i).get_child(1).text = ""
+	for i in range(21):
+		item_grid.get_child(i).get_child(1).get_child(0).texture = null
+		item_grid.get_child(i).get_child(2).text = ""
 
 	var i = 0
 	for key in inventoryManager.inventory.keys():
-		var button = item_grid.get_child(i).get_child(0).get_child(1)
+		var button = item_grid.get_child(i).get_child(1).get_child(1)
 		button.connect("pressed", Callable(button, "_on_Button_pressed"))
 
-		var instance = TextureRect.new()
-		var location = Rect2(inventoryManager.inventory[key].item.atlas_location.x*16, inventoryManager.inventory[key].item.atlas_location.y*16, 16, 16)
-		
-		var atlas_texture = AtlasTexture.new()
-		atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
-		atlas_texture.region = location
+		var atlas = inventoryManager.inventory[key].item.get_atlas()
+
 	
-		item_grid.get_child(i).get_child(0).get_child(0).texture = atlas_texture
-		item_grid.get_child(i).get_child(1).text = str(inventoryManager.inventory[key].count)
+		item_grid.get_child(i).get_child(1).get_child(0).texture = atlas
+		item_grid.get_child(i).get_child(2).text = str(inventoryManager.inventory[key].count)
 		
 		var slotButton = item_grid.get_child(i)
 		if slotButton is SlotButton:

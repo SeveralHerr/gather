@@ -31,13 +31,8 @@ func AddItemToWorldByType(position, type: GameItem.Type):
 
 func AddItemToWorld(position, item: GameItem):
 	var instance = TextureRect.new()
-	var location = Rect2(item.atlas_location.x*16, item.atlas_location.y*16, 16, 16)
-	
-	var atlas_texture = AtlasTexture.new()
-	atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
-	atlas_texture.region = location
 
-	instance.texture = atlas_texture
+	instance.texture = item.get_atlas()
 	instance.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	instance.z_index = 4
 	

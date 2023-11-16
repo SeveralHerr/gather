@@ -35,7 +35,7 @@ func _on_item_selected(index):
 
 	craftingStation.selected_recipe = _get_recipe_by_name(selectedText)
 	var item = items.Get(craftingStation.selected_recipe.product)			
-	var atlas_texture = get_atlas(item.atlas_location)
+	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
 	for child in $CostList.get_children():
@@ -48,7 +48,7 @@ func _on_item_selected(index):
 		$CostList.add_child(newCostRow)
 		
 		var citem = items.Get(costItemType)				
-		var catlas_texture = get_atlas(citem.atlas_location)
+		var catlas_texture = citem.get_atlas()
 		newCostRow.texture = catlas_texture
 		
 		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
@@ -72,13 +72,13 @@ func load_crafting_station(craftingStation):
 	
 	for recipe in craftingStation.recipe_list:
 		var item = items.Get(recipe.product)		
-		var atlas_texture = get_atlas(item.atlas_location)
+		var atlas_texture = item.get_atlas()
 		#add_child(instance)
 
 		$Craftables.add_item( items.get_enum_name_from_value(recipe.product), atlas_texture)
 		
 	var item = items.Get(craftingStation.selected_recipe.product)			
-	var atlas_texture = get_atlas(item.atlas_location)
+	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
 	for child in $CostList.get_children():
@@ -91,20 +91,14 @@ func load_crafting_station(craftingStation):
 		$CostList.add_child(newCostRow)
 		
 		var citem = items.Get(costItemType)				
-		var catlas_texture = get_atlas(citem.atlas_location)
+		var catlas_texture = item.get_atlas()
 		newCostRow.texture = catlas_texture
 		
 		
 		var text = items.get_enum_name_from_value(costItemType) + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 	
-func get_atlas(atlas_location: Vector2i):
-	var location = Rect2(atlas_location.x*16, atlas_location.y*16, 16, 16)
-	var atlas_texture = AtlasTexture.new()
-	atlas_texture.atlas = atlas_file
-	atlas_texture.region = location
 
-	return atlas_texture
 	
 func _add():
 	var hasRequiredItems = []

@@ -70,12 +70,14 @@ func SetGameItem(location: Vector2i, tile_source_id: int, atlas_location: Vector
 		wallTiles.append(location)
 		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
 	else:
-		
-		
-		tileMap.set_cell(layer,location, tile_source_id, atlas_location)
-		
-		if layer == 2:
-			AddSpecialTile(location)
+		if tile_source_id == 5 or tile_source_id == 1 or tile_source_id == 2:
+			SetGameItemScene(location, tile_source_id, atlas_location)
+		else:
+			tileMap.set_cell(layer,location, tile_source_id, atlas_location)
+			
+			if layer == 2:
+				AddSpecialTile(location)
+
 		
 func AddSpecialTile(location):
 	for tile in specialTiles:
@@ -314,7 +316,7 @@ func saveObject() -> Dictionary:
 		var source_id = tileMap.get_cell_source_id(1, cell)
 		var item = items.get_item_by_data(atlas_location, source_id)
 		
-		if source_id ==  5 or source_id == 2:			
+		if source_id ==  5 or source_id == 2 or source_id == 1:			
 			var json = {}
 			if item == null:
 				json =  {

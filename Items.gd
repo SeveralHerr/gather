@@ -21,6 +21,7 @@ func _ready():
 	gameItems[GameItem.Type.IronBar] = GameItem.new(Vector2i(7, 2), 4, GameItem.Type.IronBar, 1, false)
 	gameItems[GameItem.Type.WoodWall] = GameItem.new(Vector2i(0, 11), 4, GameItem.Type.WoodWall, 1, true)
 	gameItems[GameItem.Type.Furnace] = GameItem.new(Vector2i(0, 0), 5, GameItem.Type.Furnace, 1, true)
+	gameItems[GameItem.Type.WoodDoor] = GameItem.new(Vector2i(0,0), 1, GameItem.Type.WoodDoor, 1, true, Vector2i(0, 13))
 
 
 func get_item_by_data(atlas_location, source_id):
@@ -43,6 +44,8 @@ func get_enum_name_from_value(value):
 		return "Wood"
 	if value == GameItem.Type.WoodWall:
 		return "Wood Wall"
+	if value == GameItem.Type.WoodDoor:
+		return "Wood Door"
 	return ""
 
 func get_enum_from_name_test(value):
@@ -60,6 +63,8 @@ func get_enum_from_name_test(value):
 		return GameItem.Type.Wood
 	if value == "Wood Wall":
 		return GameItem.Type.WoodWall
+	if value == "Wood Door":
+		return GameItem.Type.WoodDoor
 	return ""
 
 func GetItemByName(name):

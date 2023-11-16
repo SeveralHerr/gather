@@ -1,8 +1,9 @@
-[gd_resource type="TileSet" load_steps=24 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=26 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_fu67e"]
+[ext_resource type="PackedScene" uid="uid://2m4ylcr6bkcn" path="res://TileScenes/Door.tscn" id="2_cujkm"]
 [ext_resource type="PackedScene" uid="uid://1ka6xlmaapop" path="res://Sawmill.tscn" id="2_d4cf1"]
-[ext_resource type="PackedScene" uid="uid://b1mdvathrf7rl" path="res://Furnace.tscn" id="2_p3vak"]
+[ext_resource type="PackedScene" uid="uid://dk6uxq2qtyy8b" path="res://Furnace.tscn" id="2_p3vak"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -63,6 +64,9 @@ texture = ExtResource("1_fu67e")
 3:2/0/physics_layer_0/angular_velocity = 0.0
 3:2/0/physics_layer_1/linear_velocity = Vector2(0, 0)
 3:2/0/physics_layer_1/angular_velocity = 0.0
+
+[sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_626bs"]
+scenes/1/scene = ExtResource("2_cujkm")
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_60m0n"]
 scenes/1/scene = ExtResource("2_d4cf1")
@@ -934,6 +938,16 @@ texture = ExtResource("1_fu67e")
 3:11/0/physics_layer_1/angular_velocity = 0.0
 3:11/0/terrains_peering_bit/left_side = 0
 3:11/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_5x72v")
+0:13/0 = 0
+0:13/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+0:13/0/physics_layer_0/angular_velocity = 0.0
+0:13/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+0:13/0/physics_layer_1/angular_velocity = 0.0
+1:13/0 = 0
+1:13/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:13/0/physics_layer_0/angular_velocity = 0.0
+1:13/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+1:13/0/physics_layer_1/angular_velocity = 0.0
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_n7wq6"]
 scenes/1/scene = ExtResource("2_p3vak")
@@ -949,4 +963,5 @@ sources/0 = SubResource("TileSetAtlasSource_iq1uv")
 sources/2 = SubResource("TileSetScenesCollectionSource_60m0n")
 sources/4 = SubResource("TileSetAtlasSource_k56ax")
 sources/5 = SubResource("TileSetScenesCollectionSource_n7wq6")
+sources/1 = SubResource("TileSetScenesCollectionSource_626bs")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

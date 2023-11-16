@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://b1mdvathrf7rl"]
+[gd_scene load_steps=8 format=3 uid="uid://dk6uxq2qtyy8b"]
 
 [ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="1_q5n2t"]
 [ext_resource type="Script" path="res://CraftingStation.gd" id="2_hekx0"]
@@ -45,7 +45,7 @@ z_index = 1
 y_sort_enabled = true
 texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_mtk6o")
-animation = &"On"
+animation = &"Off"
 offset = Vector2(0, -8)
 script = ExtResource("2_hekx0")
 type = 8

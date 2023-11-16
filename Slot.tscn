@@ -1,33 +1,51 @@
-[gd_scene load_steps=2 format=3 uid="uid://b3gs00pjmjv3v"]
+[gd_scene load_steps=3 format=3 uid="uid://b3gs00pjmjv3v"]
 
 [ext_resource type="Script" path="res://Slot.gd" id="1_o7o1f"]
+[ext_resource type="Texture2D" uid="uid://c7v74gceupcyj" path="res://Resources/slot.png" id="2_sg0i8"]
 
 [node name="Slot" type="Panel" node_paths=PackedStringArray("button")]
-custom_minimum_size = Vector2(16, 16)
+self_modulate = Color(1, 1, 1, 0)
+custom_minimum_size = Vector2(25, 25)
 offset_right = 16.0
 offset_bottom = 16.0
 script = ExtResource("1_o7o1f")
 button = NodePath("MarginContainer/Button")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="TextureRect" type="TextureRect" parent="."]
+texture_filter = 1
 layout_mode = 0
-offset_right = 16.0
-offset_bottom = 16.0
+offset_right = 40.0
+offset_bottom = 40.0
+scale = Vector2(0.68, 0.68)
+mouse_filter = 2
+texture = ExtResource("2_sg0i8")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+custom_minimum_size = Vector2(25, 25)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 27.0
+offset_bottom = 27.0
 
 [node name="TextureRect" type="TextureRect" parent="MarginContainer"]
+custom_minimum_size = Vector2(25, 25)
 layout_mode = 2
 
 [node name="Button" type="Button" parent="MarginContainer"]
+modulate = Color(1, 1, 1, 0)
+custom_minimum_size = Vector2(25, 25)
 layout_mode = 2
 action_mode = 0
 
 [node name="QuantityLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(25, 25)
 layout_mode = 0
-offset_left = 10.0
-offset_top = 1.0
-offset_right = 38.0
-offset_bottom = 27.0
-scale = Vector2(0.18, 0.18)
+offset_left = 13.0
+offset_top = 2.0
+offset_right = 41.0
+offset_bottom = 28.0
+scale = Vector2(0.41, 0.41)
 horizontal_alignment = 2
 
 [connection signal="gui_input" from="." to="." method="_on_gui_input"]

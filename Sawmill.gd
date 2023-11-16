@@ -22,6 +22,6 @@ func _on_button_pressed():
 			node.test.visible = true
 			
 			if node.test is SawmillUi:
-				node.test.AddInstance(CraftingStationData.new(self, 0))
+				#node.test.AddInstance(CraftingStationData.new(self, 0))
 				node.test.selectedSawmill = self
 	#add_child(instance)

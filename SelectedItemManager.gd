@@ -15,14 +15,7 @@ func _ready():
 	
 func SetSelectedItem(item: GameItem):
 	selectedItem = item
-	
-	var location = Rect2(item.atlas_location.x*16, item.atlas_location.y*16, 16, 16)
-	
-	var atlas_texture = AtlasTexture.new()
-	atlas_texture.atlas = load("res://Resources/game_items_atlas.tres")
-	atlas_texture.region = location
-	
-	selectedTexture.texture = atlas_texture
+	selectedTexture.texture = item.get_atlas()
 	add_child(selectedTexture)
 	
 func ClearSelection():
@@ -48,7 +41,7 @@ func _physics_process(delta):
 			selectedTexture.modulate = Color(1, 0, 0, 140)
 		else:
 			selectedTexture.modulate = Color(1, 1, 1, 1)
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			tileMapHandler.SetGameItem(tile_pos, selectedItem.tile_source_id, selectedItem.atlas_location, selectedItem.layer)
+			if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				tileMapHandler.SetGameItem(tile_pos, selectedItem.tile_source_id, selectedItem.atlas_location, selectedItem.layer)
 		
 		
