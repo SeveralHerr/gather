@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=28 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -20,9 +20,7 @@
 [ext_resource type="Script" path="res://ResourceManager2.gd" id="14_and3l"]
 [ext_resource type="Script" path="res://Resources.gd" id="14_cuov0"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
-[ext_resource type="Texture2D" uid="uid://b3gf1b2q3ybik" path="res://Resources/Wood.png" id="18_6tl3x"]
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
-[ext_resource type="Script" path="res://Test.gd" id="22_cujb6"]
 
 [sub_resource type="Animation" id="Animation_jlada"]
 resource_name = "Gather"
@@ -113,9 +111,6 @@ animations = [{
 "name": &"Idle",
 "speed": 5.0
 }]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_dm8ub"]
-size = Vector2(12, 6)
 
 [node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "CraftingStations", "CraftingUi", "ItemManager", "Items", "Sawmills", "UI"]]
 script = ExtResource("1_j4hlh")
@@ -349,29 +344,6 @@ anchors_preset = 0
 script = ExtResource("11_3m4gl")
 tileMapHandler = NodePath("../..")
 
-[node name="Sprite2D" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("navigation_agent", "tile_map_handler", "player")]
-visible = false
-script = ExtResource("22_cujb6")
-navigation_agent = NodePath("NavigationAgent2D")
-tile_map_handler = NodePath("../..")
-player = NodePath("../Player")
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Node2D/Sprite2D"]
-navigation_layers = 7
-avoidance_enabled = true
-max_speed = 1.0
-debug_enabled = true
-
-[node name="Timer" type="Timer" parent="Node2D/Sprite2D"]
-autostart = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Sprite2D"]
-position = Vector2(0, 3)
-shape = SubResource("RectangleShape2D_dm8ub")
-
-[node name="Sprite2D" type="Sprite2D" parent="Node2D/Sprite2D"]
-texture = ExtResource("18_6tl3x")
-
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("14_and3l")
 resources = NodePath("../Resources")
@@ -396,5 +368,3 @@ script = ExtResource("17_dy3qn")
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]
-[connection signal="velocity_computed" from="Node2D/Sprite2D/NavigationAgent2D" to="Node2D/Sprite2D" method="_on_navigation_agent_2d_velocity_computed"]
-[connection signal="timeout" from="Node2D/Sprite2D/Timer" to="Node2D/Sprite2D" method="_on_timer_timeout"]
