@@ -1,4 +1,7 @@
 extends Control
+class_name SaveLoad
+
+var loads = []
 
 func _on_save_pressed() -> void:
 	_save()
@@ -8,6 +11,22 @@ func _on_save_pressed() -> void:
 func _on_load_pressed() -> void:
 	_load()
 	print("GAME LOADED")
+	
+func late_load():
+	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
+	for chunk in chunk_nodes:
+		if !chunk.has_method("load"):
+			print("Node '%s' is missing a save function, skipped" % chunk.name)
+			continue
+			
+		for i in loads.size():
+			var dict = loads[i]	
+			print(dict["y"] , chunk.position.y)
+			if dict["x"] == chunk.position.x and dict["y"] == chunk.position.y:
+				chunk.call("load", dict)
+
+	
+	pass
 
 func _save() -> void:
 	var save_file = FileAccess.open("saveFile", FileAccess.WRITE) # Open File
@@ -26,6 +45,14 @@ func _save() -> void:
 		# Store the save dictionary as a new line in the save file.
 		print(JSON.stringify(node_data))
 		save_file.store_line(JSON.stringify(node_data))
+		
+	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
+	for chunk in chunk_nodes:
+		if !chunk.has_method("save"):
+			print("Node '%s' is missing a save function, skipped" % chunk.name)
+			continue
+		var chunk_data = chunk.call("save")
+		save_file.store_line(JSON.stringify(chunk_data))
 	
 	save_file.close() # Close File
 
@@ -34,8 +61,7 @@ func _load() -> void:
 	if !FileAccess.file_exists("saveFile"):
 		print("Error, no Save File to load.")
 		return
-		
-	_load_tilemap()
+	
 		
 	var save_file = FileAccess.open("saveFile", FileAccess.READ) # Open File
 	
@@ -46,15 +72,15 @@ func _load() -> void:
 		
 		# Get the Data
 		var node_data = json.get_data()
-		print(has_node("/root/Main/Node2D/TileMap/Chest"))
-		if has_node(node_data["filepath"]) and not node_data["filepath"] == "/root/Main":
+		if node_data.has("x") and node_data.has("y"):
+			loads.append(node_data)
+			
+		
+		elif has_node(node_data["filepath"]) :
 
 			get_node(node_data["filepath"]).loadObject(node_data)
-			print(has_node("/root/Main/Node2D/TileMap/Chest"))
-			print("test")
 			
 	save_file.close() # Close File
-	print(has_node("/root/Main/Node2D/TileMap/Chest"))
 
 func _load_tilemap() -> void:
 	# Check if the SaveFile exists

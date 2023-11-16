@@ -13,6 +13,9 @@ var wallTiles = []
 @export var resources: Resources
 @export var sound_manager: SoundManager
 @onready var input_manager = $InputManager
+@onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
+
+var late_load = false
 
 var disableSetTile = false
 @export var save_data2 = {}
@@ -28,6 +31,12 @@ func _ready():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	if late_load == true:
+		print(has_node("/root/Main/Node2D/TileMap/Chest"))
+		save_load.late_load()
+		late_load = false
+	
+	
 	GetPlayerPosition()
 	
 func _on_mouse_left(isUiOpen: bool):
@@ -242,5 +251,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var location = Vector2i(node["x"], node["y"])
 		
 		tileMap.set_cell(item.layer, location, item.tile_source_id, item.atlas_location, item.is_scene_tile)
+		
+		late_load = true
 	print("finished tilemap load")
 	print(has_node("/root/Main/Node2D/TileMap/Chest"))

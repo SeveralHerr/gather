@@ -112,7 +112,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "SaveLoad", "Sawmills", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "SaveChunks", "SaveLoad", "Sawmills", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -128,7 +128,7 @@ y_sort_enabled = true
 [node name="TileMap" parent="Node2D" instance=ExtResource("1_83yt6")]
 layer_0/z_index = -1
 layer_0/tile_data = PackedInt32Array(2, 4, 0, -65534, 4, 0, -65535, 4, 0, -65536, 4, 0, -1, 4, 0, -2, 4, 0, -131076, 4, 0, -131075, 4, 0, -131074, 4, 0, -131073, 4, 0, -196608, 4, 0, -196607, 4, 0, -196606, 4, 0, -196605, 4, 0, -196604, 4, 0, -131068, 4, 0, -131069, 4, 0, -131070, 4, 0, -131071, 4, 0, -131072, 4, 0, -65537, 4, 0, -65538, 4, 0, -65539, 4, 0, -65540, 4, 0, -3, 4, 0, -65533, 4, 0, -65532, 4, 0, -65531, 4, 0, 4, 4, 0, 3, 4, 0, 1, 4, 0, 0, 4, 0, 65535, 4, 0, 65534, 4, 0, 65533, 4, 0, 65532, 4, 0, 65531, 4, 0, -196603, 4, 0, 5, 4, 0, -131067, 4, 0, -131077, 4, 0, -65541, 4, 0, -5, 4, 0, 131067, 4, 0, 131068, 4, 0, 131069, 4, 0, 131070, 4, 0, 131071, 4, 0, 65538, 4, 0, 65539, 4, 0, 65540, 4, 0, 65541, 4, 0, 131074, 4, 0, 131073, 4, 0, 131072, 4, 0, 196607, 4, 0, 196606, 4, 0, 196605, 4, 0, 196604, 4, 0, 196603, 4, 0, 262139, 4, 0, 262140, 4, 0, 262141, 4, 0, 262142, 4, 0, 262143, 4, 0, 196608, 4, 0, 196609, 4, 0, 196610, 4, 0, 196611, 4, 0, 196612, 4, 0, 196613, 4, 0, 262149, 4, 0, 262148, 4, 0, 262147, 4, 0, 262146, 4, 0, 262145, 4, 0, 262144, 4, 0, 327679, 4, 0, 327678, 4, 0, 327677, 4, 0, 327676, 4, 0, 327675, 4, 0, 65537, 4, 0, 65536, 4, 0, 131077, 4, 0, 131076, 4, 0, 131075, 4, 0, -4, 4, 0)
-layer_1/tile_data = PackedInt32Array(-1, 1, 65536)
+layer_1/tile_data = PackedInt32Array(-1, 1, 65536, -65541, 3, 65536)
 layer_2/name = "Floor"
 layer_2/enabled = true
 layer_2/modulate = Color(1, 1, 1, 1)
@@ -214,6 +214,7 @@ offset_right = 113.0
 offset_bottom = 85.0
 scale = Vector2(0.23, 0.23)
 script = ExtResource("21_p1f0h")
+metadata/_edit_use_anchors_ = true
 
 [node name="SaveButton" type="Button" parent="Node2D/Player/Camera2D/UI/SaveLoad"]
 layout_mode = 0

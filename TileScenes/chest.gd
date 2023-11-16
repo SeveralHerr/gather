@@ -8,6 +8,7 @@ var chest_inventory = {}
 func _ready():
 	add_to_group("Chests")
 	add_to_group("SaveLoad")
+	add_to_group("SaveChunks")
 	print("added")
 	$Button.connect("pressed", Callable(self, "_on_button_open_chest"))
 	pass # Replace with function body.
@@ -15,7 +16,7 @@ func _ready():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
-	print(has_node("/root/Main/Node2D/TileMap/Chest"))
+	
 	pass
 	
 
@@ -48,6 +49,27 @@ func saveObject() -> Dictionary:
 		"inventory": inventory_data
 	}
 	return dict
+	
+func save():
+	var inventory_data = {}
+	for item in chest_inventory.keys():
+		var json = {
+			"itemType": item,
+			"count": chest_inventory.get(item).count
+		}
+		inventory_data.append(JSON.stringify(json))
+	
+	var dict = {
+		"x": position.x,
+		"y": position.y,
+		"data": inventory_data,
+		"filepath": "343"
+	}
+	print("dict ",dict)
+	return dict
+	
+func load(dict):
+	print(dict)
 	
 func loadObject(loadedDict: Dictionary) -> void:
 	chest_inventory = {}
