@@ -12,7 +12,7 @@ func _init(atlas_location: Vector2i,
 		is_placeable: bool, 
 		name: String,
 		tile_atlas_location: Vector2i,
-		isSceneTile: bool,
+		is_scene_tile: bool,
 		drop: Types.Item, 
 		gathering_atlas_location: Vector2i = Vector2i.ZERO
 	):

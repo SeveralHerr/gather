@@ -148,12 +148,6 @@ outlines = Array[PackedVector2Array]([PackedVector2Array(-8, -8, 8, -8, 8, 8, -8
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_k56ax"]
 texture = ExtResource("1_fu67e")
-0:0/0 = 0
-0:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
-0:0/0/physics_layer_0/angular_velocity = 0.0
-0:0/0/physics_layer_1/linear_velocity = Vector2(0, 0)
-0:0/0/physics_layer_1/angular_velocity = 0.0
-0:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
 1:0/size_in_atlas = Vector2i(1, 2)
 1:0/0 = 0
 1:0/0/texture_origin = Vector2i(0, 8)
@@ -948,6 +942,11 @@ texture = ExtResource("1_fu67e")
 1:13/0/physics_layer_0/angular_velocity = 0.0
 1:13/0/physics_layer_1/linear_velocity = Vector2(0, 0)
 1:13/0/physics_layer_1/angular_velocity = 0.0
+0:0/0 = 0
+0:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+0:0/0/physics_layer_0/angular_velocity = 0.0
+0:0/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+0:0/0/physics_layer_1/angular_velocity = 0.0
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_n7wq6"]
 scenes/1/scene = ExtResource("2_p3vak")

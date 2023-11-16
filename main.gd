@@ -185,29 +185,53 @@ func GetPlayerPosition():
 	return tileMap.local_to_map(player.global_position)
 	
 func saveObject() -> Dictionary:
-	var tileLayers = []
+	var tile_layers = []
 	var layers = tileMap.get_layers_count()
-	var tileGrid = tileMap.get_used_cells(0)
+	var tile_grid = tileMap.get_used_cells(0)
 	
 	for layer in layers:
-		for cell in tileGrid:
-			var tile_data = {}
-			var atlas_location = tileMap.get_cell_atlas_coords(2, cell)
-			var source_id = tileMap.get_cell_source_id (2, cell)
-			var item = items.get_item_by_data(atlas_location, source_id)
+		for cell in tile_grid:
+			var atlas_location = tileMap.get_cell_atlas_coords(layer, cell)
+			var source_id = tileMap.get_cell_source_id (layer, cell)
+			var item = resources.get_item_or_resource(atlas_location, source_id)
 			
 			if item == null:
 				continue
-				
+
 			var json = {
-				"item": item.type,
+				"type": item.type,
 				"x": cell.x,
 				"y": cell.y
 			}
-		
-			tileLayers.append(JSON.stringify(json))
+
+			tile_layers.append(JSON.stringify(json))
 			
+	var dict := {
+		"filepath": get_path(),
+		"tiles": tile_layers
+	}
 	
+	return dict
+			
+func loadObject(loadedDict: Dictionary) -> void:	
+	var layers = tileMap.get_layers_count()
+	var tile_grid = tileMap.get_used_cells(0)
+	
+	for layer in layers:
+		for cell in tile_grid:
+			tileMap.set_cell(layer, cell, -1)
+	
+	for i in loadedDict.tiles.size():
+		var saved_info = loadedDict.tiles[i]
+		var json = JSON.new()
+		json.parse(saved_info)
+		var node = json.get_data()
+
+		var item = resources.get_item_or_resource_by_type(node["type"])
+		var location = Vector2i(node["x"], node["y"])
+		
+		tileMap.set_cell(item.layer, location, item.tile_source_id, item.atlas_location, item.is_scene_tile)
+
 func ssaveObject() -> Dictionary:
 	var tileLayers = []
 	var save_data1 = {}
@@ -302,7 +326,7 @@ func ssaveObject() -> Dictionary:
 	}
 	return dict
 	
-func loadObject(loadedDict: Dictionary) -> void:
+func floadObject(loadedDict: Dictionary) -> void:
 	for cell in loadedDict.save_data2[0].keys():
 
 		#var cell_vector = Vector2(int(cell.split(",")[0]), int(cell.split(",")[1]))

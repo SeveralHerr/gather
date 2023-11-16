@@ -16,6 +16,7 @@ func _ready():
 	item_list[Types.Item.WoodWall] = GameItem.new(Vector2i(0, 11), 4, Types.Item.WoodWall, 1, true, "Wood Wall", Vector2i.ZERO)
 	item_list[Types.Item.Furnace] = GameItem.new(Vector2i(0, 0), 5, Types.Item.Furnace, 1, true, "Furnace", Vector2i.ZERO, true)
 	item_list[Types.Item.WoodDoor] = GameItem.new(Vector2i(0,0), 1, Types.Item.WoodDoor, 1, true, "Wood Door", Vector2i(0, 13), true)
+	item_list[Types.Item.Grass] = GameItem.new(Vector2i(0,0), 4, Types.Item.Grass, 0, false, "Grass", Vector2i.ZERO)
 
 
 func get_item_by_data(atlas_location, source_id):

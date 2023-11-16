@@ -14,6 +14,8 @@ class_name GameItem
 
 @export var name: String
 
+@export var is_scene_tile: bool
+
 
 func _init(atlas_location: Vector2i, 
 		tile_source_id: int, 
@@ -22,7 +24,7 @@ func _init(atlas_location: Vector2i,
 		is_placeable: bool, 
 		name: String,
 		tile_atlas_location: Vector2i = Vector2i.ZERO,
-		isSceneTile: bool = false
+		is_scene_tile: bool = false
 	):
 	self.atlas_location = atlas_location
 	self.tile_source_id = tile_source_id
@@ -31,6 +33,7 @@ func _init(atlas_location: Vector2i,
 	self.tile_atlas_location = tile_atlas_location
 	self.type = type
 	self.name = name
+	self.is_scene_tile = is_scene_tile
 	
 func equal_type(incomingType: Types.Item):
 	return type == incomingType

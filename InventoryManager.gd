@@ -72,6 +72,6 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var json = JSON.new()
 		json.parse(x)
 		var node = json.get_data()
-		AddItem(items.Get( node["itemType"]), node["count"] )
+		AddItem(items.get_item( node["itemType"]), node["count"] )
 		
 	ui.update_ui()

@@ -16,5 +16,6 @@ enum Item {
 	IronBar,
 	Furnace,
 	WoodWall,
-	WoodDoor
+	WoodDoor,
+	Grass
 }
