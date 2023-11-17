@@ -1,7 +1,7 @@
 extends Control
 class_name SaveLoad
 
-var loads = []
+var loads = [] 
 
 func _on_save_pressed() -> void:
 	_save()

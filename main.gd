@@ -35,7 +35,7 @@ func _process(delta):
 		print(has_node("/root/Main/Node2D/TileMap/Chest"))
 		save_load.late_load()
 		late_load = false
-	
+	print(is_occupied(Vector2i(-3,0)))
 	
 	GetPlayerPosition()
 	
@@ -91,6 +91,14 @@ func is_occupied(tilePos: Vector2i)-> bool:
 	tile = tileMap.get_cell_tile_data(2, tilePos)
 	if tile != null:
 		is_occupied = true
+	
+	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
+	var source_id = tileMap.get_cell_source_id (1, tilePos)
+	var item = resources.get_item_or_resource(atlas_location, source_id)
+	
+	if item != null and item.is_scene_tile:
+		is_occupied = true
+			
 
 	return is_occupied
 		
