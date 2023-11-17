@@ -10,12 +10,13 @@ signal mouse_button_left(isUiOpen: bool)
 signal gather_input_press
 signal gather_input_release
 
-var isUiOpen = false
+@export var isUiOpen = false
 
 func _ready():
 	add_to_group("InputManager")
 
 func _physics_process(delta):
+
 	if Input.is_action_pressed(&"move_right"):
 		move_right.emit()
 	if Input.is_action_pressed(&"move_left"):

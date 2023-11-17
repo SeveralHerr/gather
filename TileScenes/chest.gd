@@ -9,7 +9,6 @@ func _ready():
 	add_to_group("Chests")
 	add_to_group("SaveLoad")
 	add_to_group("SaveChunks")
-	print("added")
 	$Button.connect("pressed", Callable(self, "_on_button_open_chest"))
 	pass # Replace with function body.
 
@@ -27,14 +26,12 @@ func _on_button_open_chest():
 			var inputNodes = get_tree().get_nodes_in_group("InputManager")
 			for inputNode in inputNodes:
 				if inputNode is InputManager:
-					print("open")
 					inputNode.isUiOpen = true
 			
 			node.visible = true
 			node.set_chest(self)
 			
 func saveObject() -> Dictionary:
-	
 	var inventory_data = {}
 	for item in chest_inventory.keys():
 		var json = {
@@ -43,7 +40,7 @@ func saveObject() -> Dictionary:
 		}
 
 		inventory_data[item] = JSON.stringify(json)
-	print("saving")
+
 	var dict := {
 		"filepath": get_path(),
 		"inventory": inventory_data
@@ -65,7 +62,7 @@ func save():
 		"data": inventory_data,
 		"filepath": "343"
 	}
-	print("dict ",dict)
+
 	return dict
 	
 func load(dict):
@@ -97,7 +94,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 			if n is Items:
 				itemm = n.get_item(node["itemType"])
 
-				chest_inventory[node["itemType"]] = InventorySlot.new(itemm, node["count"])
+				chest_inventory[int(node["itemType"])] = InventorySlot.new(itemm, node["count"])
 	
 		
 		

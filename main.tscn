@@ -162,7 +162,7 @@ z_index = 1
 y_sort_enabled = true
 script = ExtResource("3_i35uo")
 tilemap = NodePath("../..")
-selectedItemManager = NodePath("../SelectedItemManager")
+selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 items = NodePath("../../Items")
 input_manager = NodePath("../../InputManager")
@@ -201,7 +201,7 @@ anchors_preset = 0
 mouse_filter = 1
 script = ExtResource("10_72nuh")
 tileMapHandler = NodePath("../../../..")
-selected_item_manager = NodePath("../../../SelectedItemManager")
+selected_item_manager = NodePath("SelectedItemManager")
 inventory_manager = NodePath("../../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
 
@@ -334,6 +334,14 @@ offset_bottom = 35.0
 scale = Vector2(0.53, 0.53)
 text = "X"
 
+[node name="SelectedItemManager" type="Control" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("tileMapHandler")]
+texture_filter = 1
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("11_3m4gl")
+tileMapHandler = NodePath("../../../../..")
+
 [node name="ChestInventory" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("selected_item_manager") instance=ExtResource("11_m2bd2")]
 visible = false
 offset_left = -114.0
@@ -341,7 +349,7 @@ offset_top = -61.0
 offset_right = -114.0
 offset_bottom = -61.0
 mouse_filter = 1
-selected_item_manager = NodePath("../../../../SelectedItemManager")
+selected_item_manager = NodePath("../SelectedItemManager")
 
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager", "resource_manager")]
 script = ExtResource("6_rsems")
@@ -349,14 +357,6 @@ player = NodePath("../Player")
 items = NodePath("../../Items")
 inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
-
-[node name="SelectedItemManager" type="Control" parent="Node2D" node_paths=PackedStringArray("tileMapHandler")]
-texture_filter = 1
-layout_mode = 3
-anchors_preset = 0
-mouse_filter = 2
-script = ExtResource("11_3m4gl")
-tileMapHandler = NodePath("../..")
 
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("14_and3l")

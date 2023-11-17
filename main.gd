@@ -32,10 +32,8 @@ func _ready():
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if late_load == true:
-		print(has_node("/root/Main/Node2D/TileMap/Chest"))
 		save_load.late_load()
 		late_load = false
-	print(is_occupied(Vector2i(-3,0)))
 	
 	GetPlayerPosition()
 	
