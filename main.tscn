@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=34 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -18,6 +18,7 @@
 [ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://ResourceManager2.gd" id="14_and3l"]
 [ext_resource type="Script" path="res://Resources.gd" id="14_cuov0"]
+[ext_resource type="Script" path="res://Enemy.gd" id="16_3rpif"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
 [ext_resource type="Script" path="res://InputManager.gd" id="20_ylgbb"]
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
@@ -188,6 +189,9 @@ animations = [{
 "name": &"Idle",
 "speed": 5.0
 }]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fymkc"]
+size = Vector2(6, 9)
 
 [node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "SaveLoad", "Sawmills", "UI"]]
 script = ExtResource("1_j4hlh")
@@ -449,6 +453,26 @@ items = NodePath("../../Items")
 inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
 
+[node name="Enemy" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("target")]
+texture_filter = 1
+position = Vector2(-39, -11)
+script = ExtResource("16_3rpif")
+target = NodePath("../Player")
+
+[node name="Sprite2D" type="Sprite2D" parent="Node2D/Enemy"]
+texture = ExtResource("5_8tjkj")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Node2D/Enemy"]
+debug_enabled = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Enemy"]
+position = Vector2(0, 1.5)
+shape = SubResource("RectangleShape2D_fymkc")
+
+[node name="Timer" type="Timer" parent="Node2D/Enemy"]
+wait_time = 0.11
+autostart = true
+
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("14_and3l")
 resources = NodePath("../Resources")
@@ -476,3 +500,4 @@ script = ExtResource("20_ylgbb")
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]
+[connection signal="timeout" from="Node2D/Enemy/Timer" to="Node2D/Enemy" method="_on_timer_timeout"]
