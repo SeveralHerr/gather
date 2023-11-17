@@ -9,6 +9,7 @@ signal mouse_button_right
 signal mouse_button_left(isUiOpen: bool)
 signal gather_input_press
 signal gather_input_release
+signal attack
 
 @export var isUiOpen = false
 
@@ -35,7 +36,8 @@ func _input(event):
 			mouse_button_left.emit(isUiOpen)
 	if Input.is_action_just_pressed("gather"):
 		gather_input_press.emit()
-
+	if Input.is_action_just_pressed("attack"):
+		attack.emit()
 	if Input.is_action_just_released("gather"):
 		gather_input_release.emit()
 

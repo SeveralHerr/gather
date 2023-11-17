@@ -48,6 +48,10 @@ func _ready():
 		var wood_door_costs = {}
 		wood_door_costs[Types.Item.Wood] = 1
 		recipe_list.append(CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
+		
+		var chest_costs = {}
+		chest_costs[Types.Item.Wood] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.Chest, chest_costs))
 				
 		selected_recipe = recipe_list[0]
 	

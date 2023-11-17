@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=32 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -80,11 +80,88 @@ tracks/1/keys = {
 "values": [Vector2(0, -1), Vector2(-5, 2)]
 }
 
+[sub_resource type="Animation" id="Animation_y0to0"]
+resource_name = "Attack"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(-1, 1), Vector2(3, 3)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [-2.0944, 0.349066]
+}
+
+[sub_resource type="Animation" id="Animation_uuk1w"]
+resource_name = "Attack_Left"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(-4, -3), Vector2(-1, 9)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5.23599, 2.36841]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Attack:scale")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(),
+"transitions": PackedFloat32Array(),
+"update": 0,
+"values": []
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_kjuyc"]
 _data = {
+"Attack": SubResource("Animation_y0to0"),
+"Attack_Left": SubResource("Animation_uuk1w"),
 "Gather": SubResource("Animation_jlada"),
 "Gather_left": SubResource("Animation_h6uyy")
 }
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jcd13"]
+atlas = ExtResource("5_ba3bd")
+region = Rect2(96, 0, 16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_v1j1r"]
+size = Vector2(9, 5)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_03pye"]
 atlas = ExtResource("5_ba3bd")
@@ -172,12 +249,26 @@ libraries = {
 "": SubResource("AnimationLibrary_kjuyc")
 }
 
+[node name="Attack" type="Area2D" parent="Node2D/Player"]
+z_index = -1
+position = Vector2(-1, 9)
+rotation = 2.36841
+
+[node name="Sprite" type="Sprite2D" parent="Node2D/Player/Attack"]
+texture_filter = 1
+position = Vector2(6, 4)
+rotation = 1.5708
+texture = SubResource("AtlasTexture_jcd13")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/Attack"]
+position = Vector2(6.5, 4.5)
+shape = SubResource("RectangleShape2D_v1j1r")
+
 [node name="Gather" type="Sprite2D" parent="Node2D/Player"]
 visible = false
 z_index = -1
 texture_filter = 1
-position = Vector2(5, 2)
-rotation = 1.5708
+position = Vector2(0, -1)
 texture = SubResource("AtlasTexture_03pye")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player"]

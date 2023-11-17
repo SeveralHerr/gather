@@ -26,7 +26,16 @@ func _ready():
 	input_manager.connect("mouse_button_right", Callable(self, "_mouse_button_right"))
 	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
+	input_manager.connect("attack", Callable(self, "_attack"))
 	
+	
+func _attack():
+	$Attack.visible = true
+	if not $AnimatedSprite2D.flip_h:
+		$AnimationPlayer.play("Attack")
+	else:
+		$AnimationPlayer.play("Attack_Left")
+	pass
 func _gather_input_press():
 	$Gather.visible = true
 	#$AnimatedSprite2D.play("Gathering")
@@ -70,6 +79,9 @@ func _physics_process(delta):
 	#$AnimatedSprite2D.play("Idle")
 		
 	_process_movement()
+	
+	if not $AnimationPlayer.is_playing():
+		$Attack.visible = false
 
 	if velocity.x != 0:
 		$AnimatedSprite2D.flip_v = false
