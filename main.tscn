@@ -234,6 +234,7 @@ layer_4/z_index = 1
 layer_4/tile_data = PackedInt32Array()
 
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
+wait_time = 5.914
 autostart = true
 script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")
@@ -268,6 +269,7 @@ visible = false
 [node name="Attack" type="Area2D" parent="Node2D/Player"]
 visible = false
 z_index = -1
+y_sort_enabled = true
 position = Vector2(-1, 1)
 rotation = -2.0944
 collision_layer = 0
@@ -286,6 +288,7 @@ shape = SubResource("RectangleShape2D_v1j1r")
 [node name="Gather" type="Sprite2D" parent="Node2D/Player"]
 visible = false
 z_index = -1
+y_sort_enabled = true
 texture_filter = 1
 position = Vector2(0, -1)
 texture = SubResource("AtlasTexture_03pye")

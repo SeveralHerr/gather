@@ -14,6 +14,7 @@ const JUMP_VELOCITY = -400.0
 @onready var animated_sprite_2d = $AnimatedSprite2D
 @onready var sound_manager: SoundManager = $"../../SoundManager"
 var sound_player: AudioStreamPlayer
+var sound_player_mining: AudioStreamPlayer
 
 
 var v = Vector2.ZERO
@@ -24,6 +25,8 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 func _ready():
 	sound_player = AudioStreamPlayer.new()
 	add_child(sound_player)
+	sound_player_mining = AudioStreamPlayer.new()
+	add_child(sound_player_mining)
 	add_to_group("SaveLoad")
 	add_to_group("Player")
 	$AnimatedSprite2D.play("Idle")
@@ -36,8 +39,19 @@ func _ready():
 	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
+	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
+	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
 	
+func _on_resource_removing(location: Vector2i, resource):
+	sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
+	pass
+	
+func _on_resource_removing_stop(location: Vector2i, resource):
+	sound_player_mining.stop()
+	pass
+		
+
 func add_central_force(force: Vector2):
 	velocity += force
 	move_and_slide()
@@ -65,6 +79,8 @@ func _gather_input_press():
 		$AnimationPlayer.play("Gather")
 	else:
 		$AnimationPlayer.play("Gather_left")
+		
+
 	resourceManager.start_removing_resource()
 	
 func _gather_input_release():

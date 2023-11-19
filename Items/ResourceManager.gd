@@ -21,6 +21,9 @@ func AddRandomResource():
 	SetResource(randomTile, randomResource)
 
 func SetResource(location, resource: GameResource):
+	if tileMapHandler.is_occupied(location):
+		return
+		
 	tileMapHandler.set_tile(location, resource.tile_source_id, resource.atlas_location, resource.layer, resource.is_scene_tile)
 
 	

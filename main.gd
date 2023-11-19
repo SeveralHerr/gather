@@ -95,16 +95,16 @@ func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2
 	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
-func is_occupied(tilePos: Vector2i)-> bool:
+func is_occupied(tilePos: Vector2i, include_resources = false)-> bool:
 	var is_occupied = false
 	
 	var tile = tileMap.get_cell_tile_data(1, tilePos)
 	if tile != null:
 		is_occupied = true
 		
-	#tile = tileMap.get_cell_tile_data(2, tilePos)
-	#if tile != null:
-		#is_occupied = true
+	tile = tileMap.get_cell_tile_data(2, tilePos)
+	if tile != null and include_resources == true:
+		is_occupied = true
 	
 	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
 	var source_id = tileMap.get_cell_source_id (1, tilePos)
@@ -168,7 +168,16 @@ func get_location_of_nearby_resource(location):
 	for neighbor in neighbors:
 		var tilePos = tileMap.local_to_map(location) + neighbor
 		var tile = tileMap.get_cell_atlas_coords(1, tilePos)
+		
 		if tile == Vector2i(-1,-1):
+			continue
+			
+		var found = false
+		for key in resources.GetAllTypes():
+			if resources.Get(key).atlas_location == tile:
+				found = true
+		
+		if found == false:
 			continue
 		
 		var direction = player.global_position - tileMap.map_to_local(tilePos)
@@ -215,7 +224,7 @@ func get_random_tile():
 		random_x = randi() % used_rect.size.x + used_rect.position.x
 		random_y = randi() % used_rect.size.y + used_rect.position.y
 		
-		if is_occupied(Vector2i(random_x, random_y)):
+		if is_occupied(Vector2i(random_x, random_y), true):
 			continue
 			
 		try += 1

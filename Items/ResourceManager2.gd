@@ -54,7 +54,7 @@ func stop_removing_resource():
 		emit_signal("resource_removing_stop", removing_info.location, removing_info.resource)
 	
 func _on_hold_timer_timeout():
-	if is_holding_e:
+	if is_holding_e and removing_info != null:
 		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
 		remove_resource(removing_info.location, removing_info.resource)
 		removing_info = null

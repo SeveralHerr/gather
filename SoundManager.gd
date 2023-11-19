@@ -7,7 +7,8 @@ enum SoundType {
 	HIT,
 	WALKING,
 	DOOR_ACTION,
-	WOOD_PLACE
+	WOOD_PLACE,
+	MINING
 	}
 
 # Store your sounds as AudioStreamPlayer nodes or references to AudioStream resources
@@ -16,7 +17,8 @@ var sound_library = {
 	SoundType.HIT: preload("res://Resources/Sounds/hit.wav"),
 	SoundType.WALKING: preload("res://Resources/Sounds/walking.wav"),
 	SoundType.DOOR_ACTION: preload("res://Resources/Sounds/door_open.wav"),
-	SoundType.WOOD_PLACE: preload("res://Resources/Sounds/wood_place.wav")
+	SoundType.WOOD_PLACE: preload("res://Resources/Sounds/wood_place.wav"),
+	SoundType.MINING: preload("res://Resources/Sounds/mining.wav")
 }
 
 func _ready():
