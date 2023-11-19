@@ -8,7 +8,7 @@ var amountToCraft = 0
 
 
 var atlas_file = load("res://Resources/game_items_atlas.tres")
-var costRow = preload("res://CostRow.tscn")
+var costRow = preload("res://Crafting/CostRow.tscn")
 
 
 # Called when the node enters the scene tree for the first time.

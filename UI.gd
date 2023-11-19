@@ -53,13 +53,14 @@ func update_ui():
 			
 func _on_Button_pressed(inventory_slot: InventorySlot):
 	if selected_item_manager.selected_inventory_slot_item != null:
-		inventory_manager.AddItem(selected_item_manager.selected_inventory_slot_item.item, 
-		selected_item_manager.selected_inventory_slot_item.count)
-		
-		chest_inventory.remove_all_of_item(selected_item_manager.selected_inventory_slot_item.item.type)
-		selected_item_manager.ClearSelection()
-		
-		update_ui()
+		if selected_item_manager.type == selected_item_manager.Type.Chest:
+			inventory_manager.AddItem(selected_item_manager.selected_inventory_slot_item.item, 
+			selected_item_manager.selected_inventory_slot_item.count)
+			
+			chest_inventory.remove_all_of_item(selected_item_manager.selected_inventory_slot_item.item.type)
+			selected_item_manager.ClearSelection()
+			
+			update_ui()
 	else: 
-		selected_item_manager.SetSelectedItem(inventory_slot)
+		selected_item_manager.SetSelectedItem(inventory_slot, selected_item_manager.Type.Inventory)
 	

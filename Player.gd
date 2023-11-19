@@ -9,6 +9,9 @@ const JUMP_VELOCITY = -400.0
 @export var resourceManager: ResourceManager2
 @export var items: Items
 @export var input_manager: InputManager
+@onready var animation_player = $AnimationPlayer
+@onready var attack = $Attack
+@onready var animated_sprite_2d = $AnimatedSprite2D
 
 var v = Vector2.ZERO
 
@@ -17,6 +20,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
 	add_to_group("SaveLoad")
+	add_to_group("Player")
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
 	input_manager.connect("move_up", Callable(self, "_move_up"))
@@ -27,10 +31,22 @@ func _ready():
 	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
+	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
 	
+func add_central_force(force: Vector2):
+	velocity += force
+	move_and_slide()
+	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
+	await get_tree().create_timer(0.1).timeout
+	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 0)
+
+func _on_body_entered_attack(body: Node2D):
+	if body is Enemy:
+		var direction = (body.global_position - global_position).normalized()
+		body.add_central_force(direction * 1040)
 	
 func _attack():
-	$Attack.visible = true
+	attack.visible = true
 	if not $AnimatedSprite2D.flip_h:
 		$AnimationPlayer.play("Attack")
 	else:

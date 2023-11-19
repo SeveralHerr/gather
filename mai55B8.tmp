@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=36 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -7,7 +7,6 @@
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
 [ext_resource type="Texture2D" uid="uid://b8ymgmwuk7qbi" path="res://Resources/Player.png" id="5_8tjkj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
-[ext_resource type="Shader" path="res://solid_color.gdshader" id="6_t1wx5"]
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
 [ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="10_s3ge4"]
@@ -172,10 +171,6 @@ size = Vector2(9, 5)
 atlas = ExtResource("5_ba3bd")
 region = Rect2(96, 16, 16, 16)
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_106sc"]
-shader = ExtResource("6_t1wx5")
-shader_parameter/flash_intensity = null
-
 [sub_resource type="SpriteFrames" id="SpriteFrames_pamq7"]
 animations = [{
 "frames": [{
@@ -195,19 +190,11 @@ animations = [{
 "speed": 5.0
 }]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
-shader = ExtResource("6_t1wx5")
-shader_parameter/flash_intensity = null
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_gv4vc"]
-shader = ExtResource("6_t1wx5")
-shader_parameter/flash_intensity = null
-
 [sub_resource type="CircleShape2D" id="CircleShape2D_87llr"]
 radius = 69.5216
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_fymkc"]
-size = Vector2(6, 4)
+size = Vector2(6, 9)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_4vhux"]
 
@@ -283,12 +270,9 @@ shape = SubResource("RectangleShape2D_nb1ju")
 visible = false
 
 [node name="Attack" type="Area2D" parent="Node2D/Player"]
-visible = false
 z_index = -1
 position = Vector2(-1, 1)
 rotation = -2.0944
-collision_layer = 0
-collision_mask = 2097152
 
 [node name="Sprite" type="Sprite2D" parent="Node2D/Player/Attack"]
 texture_filter = 1
@@ -314,7 +298,6 @@ shape = SubResource("RectangleShape2D_nb1ju")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Node2D/Player"]
 y_sort_enabled = true
 texture_filter = 1
-material = SubResource("ShaderMaterial_106sc")
 sprite_frames = SubResource("SpriteFrames_pamq7")
 animation = &"Gathering"
 
@@ -486,18 +469,14 @@ items = NodePath("../../Items")
 inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
 
-[node name="Enemy" type="CharacterBody2D" parent="Node2D"]
-z_index = 1
-y_sort_enabled = true
+[node name="Enemy" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("target")]
 texture_filter = 1
-material = SubResource("ShaderMaterial_nbo6t")
 position = Vector2(-39, -11)
-collision_layer = 2097153
 floor_max_angle = 0.0
 script = ExtResource("16_3rpif")
+target = NodePath("../Player")
 
 [node name="Sprite2D" type="Sprite2D" parent="Node2D/Enemy"]
-material = SubResource("ShaderMaterial_gv4vc")
 texture = ExtResource("5_8tjkj")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="Node2D/Enemy"]
@@ -518,7 +497,7 @@ position = Vector2(-39, -9.5)
 shape = SubResource("CircleShape2D_87llr")
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="Node2D/Enemy"]
-position = Vector2(0, 4)
+position = Vector2(0, 1.5)
 shape = SubResource("RectangleShape2D_fymkc")
 
 [node name="AttackRange" type="Area2D" parent="Node2D/Enemy"]

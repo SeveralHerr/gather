@@ -70,12 +70,13 @@ func remove_all_of_item(type: Types.Item):
 
 func _on_Button_pressed(inventory_slot: InventorySlot):
 	if selected_item_manager.selected_inventory_slot_item != null:
-		inventory_manager.remove_all_of_item(selected_item_manager.selected_inventory_slot_item.item.type)
-		chest_inventory.chest_inventory[selected_item_manager.selected_inventory_slot_item.item.type] = selected_item_manager.selected_inventory_slot_item
-		selected_item_manager.ClearSelection()
-		
-		update_ui()
+		if selected_item_manager.type == selected_item_manager.Type.Inventory:
+			inventory_manager.remove_all_of_item(selected_item_manager.selected_inventory_slot_item.item.type)
+			chest_inventory.chest_inventory[selected_item_manager.selected_inventory_slot_item.item.type] = selected_item_manager.selected_inventory_slot_item
+			selected_item_manager.ClearSelection()
+			
+			update_ui()
 	else: 
-		selected_item_manager.SetSelectedItem(inventory_slot)
+		selected_item_manager.SetSelectedItem(inventory_slot, selected_item_manager.Type.Chest)
 	
 

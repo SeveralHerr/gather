@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3 uid="uid://b1x1rdpco4veu"]
 
 [ext_resource type="Shader" path="res://FurnaceUi.gdshader" id="1_0nwny"]
-[ext_resource type="Script" path="res://SawmillUi.gd" id="1_heilm"]
+[ext_resource type="Script" path="res://Crafting/SawmillUi.gd" id="1_heilm"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_hrdkl"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_c1hls"]

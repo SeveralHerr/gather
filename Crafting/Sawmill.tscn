@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://1ka6xlmaapop"]
 
-[ext_resource type="Script" path="res://CraftingStation.gd" id="1_f0v4y"]
+[ext_resource type="Script" path="res://Crafting/CraftingStation.gd" id="1_i51o1"]
 
 [sub_resource type="CompressedTexture2D" id="CompressedTexture2D_7rsi8"]
 load_path = "res://.godot/imported/Tiles.png-8423d93cbb036e79b880338e78fbb12c.ctex"
@@ -17,7 +17,7 @@ z_index = 1
 y_sort_enabled = true
 texture_filter = 1
 texture = SubResource("AtlasTexture_4pvxu")
-script = ExtResource("1_f0v4y")
+script = ExtResource("1_i51o1")
 type = 7
 
 [node name="Button" type="Button" parent="."]

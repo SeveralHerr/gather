@@ -1,18 +1,18 @@
 [gd_scene load_steps=8 format=3 uid="uid://dk6uxq2qtyy8b"]
 
-[ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="1_q5n2t"]
-[ext_resource type="Script" path="res://CraftingStation.gd" id="2_hekx0"]
+[ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="1_i0kwr"]
+[ext_resource type="Script" path="res://Crafting/CraftingStation.gd" id="2_bv0l3"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_8gyjt"]
-atlas = ExtResource("1_q5n2t")
+atlas = ExtResource("1_i0kwr")
 region = Rect2(0, 80, 16, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_85j8t"]
-atlas = ExtResource("1_q5n2t")
+atlas = ExtResource("1_i0kwr")
 region = Rect2(0, 48, 16, 32)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_qbyi6"]
-atlas = ExtResource("1_q5n2t")
+atlas = ExtResource("1_i0kwr")
 region = Rect2(16, 48, 16, 32)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_mtk6o"]
@@ -47,7 +47,7 @@ texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_mtk6o")
 animation = &"Off"
 offset = Vector2(0, -8)
-script = ExtResource("2_hekx0")
+script = ExtResource("2_bv0l3")
 type = 12
 
 [node name="Button" type="Button" parent="."]

@@ -8,6 +8,13 @@ class_name SelectedItemManager
 
 var selected_inventory_slot_item: InventorySlot
 var selectedTexture = TextureRect.new()
+var type: Type = Type.None
+
+enum Type {
+	None,
+	Inventory,
+	Chest
+}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -25,11 +32,12 @@ func _on_click(isUiOpen: bool):
 				tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.tile_source_id, selected_inventory_slot_item.atlas_location, selected_inventory_slot_item.layer, selected_inventory_slot_item.is_scene_tile)
 			
 	
-func SetSelectedItem(inventory_slot_item: InventorySlot):
+func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
 	if inventory_slot_item == null:
 		return 
 	
 	selected_inventory_slot_item = inventory_slot_item
+	type = incoming_type
 	selectedTexture.texture = inventory_slot_item.item.get_atlas()
 	
 func ClearSelection():
@@ -38,6 +46,8 @@ func ClearSelection():
 	#selectedTexture.queue_free() 
 	selectedTexture.texture = null
 	selected_inventory_slot_item = null
+	type = Type.None
+	
 
 
 

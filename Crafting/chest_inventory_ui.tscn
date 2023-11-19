@@ -1,19 +1,19 @@
 [gd_scene load_steps=3 format=3 uid="uid://j3o18gjy61sa"]
 
-[ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="1_11sk6"]
-[ext_resource type="Script" path="res://Chest_UI.gd" id="1_dluce"]
+[ext_resource type="Script" path="res://Crafting/Chest_UI.gd" id="1_dtmet"]
+[ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="2_w4riq"]
 
 [node name="ChestInventory" type="Control"]
 layout_mode = 3
 anchors_preset = 0
 mouse_filter = 2
-script = ExtResource("1_dluce")
+script = ExtResource("1_dtmet")
 
 [node name="InventoryBackground" type="TextureRect" parent="."]
 layout_mode = 2
 offset_right = 226.0
 offset_bottom = 87.0
-texture = ExtResource("1_11sk6")
+texture = ExtResource("2_w4riq")
 
 [node name="PanelContainer" type="PanelContainer" parent="."]
 self_modulate = Color(1, 1, 1, 0)
