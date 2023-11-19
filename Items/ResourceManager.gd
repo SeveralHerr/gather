@@ -21,7 +21,7 @@ func AddRandomResource():
 	SetResource(randomTile, randomResource)
 
 func SetResource(location, resource: GameResource):
-	tileMapHandler.SetGameResource(location, resource.tile_source_id, resource.atlas_location)
+	tileMapHandler.set_tile(location, resource.tile_source_id, resource.atlas_location, resource.layer, resource.is_scene_tile)
 
 	
 func RemoveResource(location):

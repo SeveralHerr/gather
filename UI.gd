@@ -14,6 +14,9 @@ func _ready():
 	#test = $SawmillUI
 	#furnaceUi = $FurnaceUi
 	add_to_group("UI")
+	selected_item_manager.placed_tile.connect(Callable(self, "_on_placed_tile"))
+	
+	
 	for child in item_grid.get_children():
 		child.queue_free()
 		
@@ -29,6 +32,10 @@ func _ready():
 func add_item():
 	update_ui()
 
+func _on_placed_tile(type: Types.Item):
+	inventory_manager.RemoveItem(type)
+	if not inventory_manager.HasItem(type):
+		selected_item_manager.ClearSelection()
 
 func remove_item(item):
 	update_ui()

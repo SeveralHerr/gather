@@ -49,7 +49,7 @@ func _on_resource_added(location: Vector2i, resource: GameResource):
 	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer)
 
 func _on_resource_removed(location: Vector2i, resource: GameResource):
-	if resource.type == Types.Item.Stone:
+	if resource.type == Types.Item.StoneResource or resource.type == Types.Item.CoalResource or resource.type == Types.Item.IronResource:
 		sound_manager.play_sound(SoundManager.SoundType.STONE)
 	
 	clear_tile(tileMap.local_to_map(location))
@@ -89,9 +89,11 @@ func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i,
 		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
 		
 func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
+	var item = items.get_item_by_data(atlas_location, tile_source_id)
 	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
 		sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
-	
+	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
+			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
 func is_occupied(tilePos: Vector2i)-> bool:
 	var is_occupied = false
@@ -100,9 +102,9 @@ func is_occupied(tilePos: Vector2i)-> bool:
 	if tile != null:
 		is_occupied = true
 		
-	tile = tileMap.get_cell_tile_data(2, tilePos)
-	if tile != null:
-		is_occupied = true
+	#tile = tileMap.get_cell_tile_data(2, tilePos)
+	#if tile != null:
+		#is_occupied = true
 	
 	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
 	var source_id = tileMap.get_cell_source_id (1, tilePos)

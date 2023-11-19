@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://hu4y0smkqoni"]
+[gd_scene load_steps=6 format=3 uid="uid://hu4y0smkqoni"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_mgq6d"]
 [ext_resource type="Script" path="res://TileScenes/chest.gd" id="1_xerdl"]
+[ext_resource type="PackedScene" uid="uid://5hfx5ipynryi" path="res://player_range.tscn" id="3_g4v1i"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_otlgb"]
 size = Vector2(12, 7)
@@ -29,3 +30,5 @@ offset_left = -6.0
 offset_top = -4.0
 offset_right = 6.0
 offset_bottom = 6.0
+
+[node name="PlayerRange" parent="." instance=ExtResource("3_g4v1i")]

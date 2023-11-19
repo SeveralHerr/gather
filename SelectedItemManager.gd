@@ -4,7 +4,7 @@ class_name SelectedItemManager
 @export var tileMapHandler: TileMapHandler
 @onready var input_manager: InputManager= $"../../../../../InputManager"
 
-
+signal placed_tile(type: Types.Item)
 
 var selected_inventory_slot_item: InventorySlot
 var selectedTexture = TextureRect.new()
@@ -25,14 +25,17 @@ func _ready():
 	input_manager.connect("mouse_button_left", Callable(self, "_on_click"))
 
 func _on_click(isUiOpen: bool):
-	if selectedTexture.texture != null:
-		if not input_manager.isUiOpen:	
-			var mouse_pos = get_global_mouse_position()
-			var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
-			if not tileMapHandler.is_occupied(tile_pos) and selected_inventory_slot_item.item.is_placeable:
-
-				tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.item.tile_source_id, selected_inventory_slot_item.item.atlas_location, selected_inventory_slot_item.item.layer, selected_inventory_slot_item.item.is_scene_tile)
-			
+	if selectedTexture.texture == null:
+		return
+		
+	if input_manager.isUiOpen:	
+		return
+	
+	var mouse_pos = get_global_mouse_position()
+	var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
+	if not tileMapHandler.is_occupied(tile_pos) and selected_inventory_slot_item.item.is_placeable:
+		tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.item.tile_source_id, selected_inventory_slot_item.item.atlas_location, selected_inventory_slot_item.item.layer, selected_inventory_slot_item.item.is_scene_tile)
+		placed_tile.emit(selected_inventory_slot_item.item.type)
 	
 func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
 	if inventory_slot_item == null:

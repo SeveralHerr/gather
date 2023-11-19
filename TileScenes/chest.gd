@@ -3,6 +3,8 @@ class_name ChestInventory
 
 var chest_inventory = {}
 
+var player: Player = null
+@onready var player_range = $PlayerRange
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -17,7 +19,6 @@ func _ready():
 func _process(delta):
 	
 	pass
-	
 
 func _on_button_open_chest():	
 	var nodes = get_tree().get_nodes_in_group("ChestUi")
@@ -27,9 +28,10 @@ func _on_button_open_chest():
 			for inputNode in inputNodes:
 				if inputNode is InputManager:
 					inputNode.isUiOpen = true
-			
-			node.visible = true
-			node.set_chest(self)
+					
+			if player_range.target != null:
+				node.visible = true
+				node.set_chest(self)
 			
 func saveObject() -> Dictionary:
 	var inventory_data = {}
