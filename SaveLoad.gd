@@ -75,9 +75,7 @@ func _load() -> void:
 		if node_data.has("x") and node_data.has("y"):
 			loads.append(node_data)
 			
-		
 		elif has_node(node_data["filepath"]) :
-
 			get_node(node_data["filepath"]).loadObject(node_data)
 			
 	save_file.close() # Close File

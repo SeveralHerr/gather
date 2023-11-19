@@ -13,7 +13,8 @@ var type: Type = Type.None
 enum Type {
 	None,
 	Inventory,
-	Chest
+	Chest,
+	Crafting
 }
 
 # Called when the node enters the scene tree for the first time.
@@ -29,7 +30,8 @@ func _on_click(isUiOpen: bool):
 			var mouse_pos = get_global_mouse_position()
 			var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
 			if not tileMapHandler.is_occupied(tile_pos) and selected_inventory_slot_item.item.is_placeable:
-				tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.tile_source_id, selected_inventory_slot_item.atlas_location, selected_inventory_slot_item.layer, selected_inventory_slot_item.is_scene_tile)
+
+				tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.item.tile_source_id, selected_inventory_slot_item.item.atlas_location, selected_inventory_slot_item.item.layer, selected_inventory_slot_item.item.is_scene_tile)
 			
 	
 func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
@@ -56,15 +58,17 @@ func _process(delta):
 
 		var mouse_pos = get_global_mouse_position()
 		var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
-		var pos = tileMapHandler.tileMap.map_to_local(tile_pos)
-		pos -= Vector2(16, 16) / 2
+		var tile_center_global = tileMapHandler.tileMap.map_to_local(tile_pos) - Vector2(8, 8)
+
 		if input_manager.isUiOpen:
 			# clamp to tile
-			pos = mouse_pos
+			tile_center_global = tileMapHandler.tileMap.map_to_local(tile_pos)
+			tile_center_global -= Vector2(16, 16) / 2
+			tile_center_global = mouse_pos
 			
 
 		# Set the object's position to the clamped position
-		selectedTexture.position = pos
+		selectedTexture.global_position = tile_center_global
 
 		if tileMapHandler.is_occupied(tile_pos):
 			selectedTexture.modulate = Color(1, 0, 0, 140)

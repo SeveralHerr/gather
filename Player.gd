@@ -12,6 +12,9 @@ const JUMP_VELOCITY = -400.0
 @onready var animation_player = $AnimationPlayer
 @onready var attack = $Attack
 @onready var animated_sprite_2d = $AnimatedSprite2D
+@onready var sound_manager: SoundManager = $"../../SoundManager"
+var sound_player: AudioStreamPlayer
+
 
 var v = Vector2.ZERO
 
@@ -19,6 +22,8 @@ var v = Vector2.ZERO
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
+	sound_player = AudioStreamPlayer.new()
+	add_child(sound_player)
 	add_to_group("SaveLoad")
 	add_to_group("Player")
 	$AnimatedSprite2D.play("Idle")
@@ -39,6 +44,7 @@ func add_central_force(force: Vector2):
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
 	await get_tree().create_timer(0.1).timeout
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 0)
+	#sound_manager.play_sound(sound_manager.SoundType.HIT)
 
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
@@ -71,24 +77,34 @@ func _mouse_button_left(test: bool):
 
 func _mouse_button_right():
 	selectedItemManager.ClearSelection()
-	tilemap.set_tile(Vector2i(2, 2), 5, Vector2i(0,0), 1, true)
-	tilemap.set_tile(Vector2i(3, 2), 2, Vector2i(0,0), 1, true)
+	#tilemap.set_tile(Vector2i(2, 2), 5, Vector2i(0,0), 1, true)
+	#tilemap.set_tile(Vector2i(3, 2), 3, Vector2i(0,0), 1, true)
+	#tilemap.set_tile_item(Vector2i(3,2), items.get_item(Types.Item.Chest))
+	#tilemap.set_tile_item(Vector2(3, 3), items.get_item(Types.Item.WoodDoor))
 
 func _move_down():
+	sound_manager.play_sound_queue(sound_manager.SoundType.WALKING, sound_player)
 	v.y += 1
 	
 func _move_up():
+	sound_manager.play_sound_queue(sound_manager.SoundType.WALKING, sound_player)
 	v.y -= 1
 	
 func _move_left():
+	sound_manager.play_sound_queue(sound_manager.SoundType.WALKING, sound_player)
 	v.x -= 1
 	
 func _move_right():
+	sound_manager.play_sound_queue(sound_manager.SoundType.WALKING, sound_player)
 	v.x += 1
 
 func _process_movement():
+	if v == Vector2.ZERO:
+		sound_player.stop()
+	
 	velocity = v * 50
 	v = Vector2.ZERO 
+	
 	move_and_slide()
 	
 func _physics_process(delta):

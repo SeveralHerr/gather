@@ -10,7 +10,7 @@ atlas = SubResource("CompressedTexture2D_7rsi8")
 region = Rect2(0, 32, 16, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_rd8io"]
-size = Vector2(12, 7)
+size = Vector2(14, 7)
 
 [node name="Sawmill" type="Sprite2D"]
 z_index = 1

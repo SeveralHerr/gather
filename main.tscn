@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=35 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -16,7 +16,7 @@
 [ext_resource type="Script" path="res://Crafting/CraftingUI.gd" id="12_bqf2j"]
 [ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://Items/ItemManager.gd" id="15_fsmbf"]
-[ext_resource type="Script" path="res://Enemy.gd" id="16_3rpif"]
+[ext_resource type="Script" path="res://Crafting.gd" id="16_prcxf"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
 [ext_resource type="Script" path="res://Items/ResourceManager2.gd" id="17_h45i4"]
 [ext_resource type="Script" path="res://Items/Items.gd" id="18_esavp"]
@@ -195,23 +195,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
-shader = ExtResource("6_t1wx5")
-shader_parameter/flash_intensity = null
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_gv4vc"]
-shader = ExtResource("6_t1wx5")
-shader_parameter/flash_intensity = null
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_87llr"]
-radius = 69.5216
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_fymkc"]
-size = Vector2(6, 4)
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_4vhux"]
-
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SoundManager", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -226,8 +210,7 @@ y_sort_enabled = true
 
 [node name="TileMap" parent="Node2D" instance=ExtResource("1_83yt6")]
 layer_0/z_index = -1
-layer_0/tile_data = PackedInt32Array(2, 4, 0, -65534, 4, 0, -65535, 4, 0, -65536, 4, 0, -1, 4, 0, -2, 4, 0, -131076, 4, 0, -131075, 4, 0, -131074, 4, 0, -131073, 4, 0, -196608, 4, 0, -196607, 4, 0, -196606, 4, 0, -196605, 4, 0, -196604, 4, 0, -131068, 4, 0, -131069, 4, 0, -131070, 4, 0, -131071, 4, 0, -131072, 4, 0, -65537, 4, 0, -65538, 4, 0, -65539, 4, 0, -65540, 4, 0, -3, 4, 0, -65533, 4, 0, -65532, 4, 0, -65531, 4, 0, 4, 4, 0, 3, 4, 0, 1, 4, 0, 0, 4, 0, 65535, 4, 0, 65534, 4, 0, 65533, 4, 0, 65532, 4, 0, 65531, 4, 0, -196603, 4, 0, 5, 4, 0, -131067, 4, 0, -131077, 4, 0, -65541, 4, 0, -5, 4, 0, 131067, 4, 0, 131068, 4, 0, 131069, 4, 0, 131070, 4, 0, 131071, 4, 0, 65538, 4, 0, 65539, 4, 0, 65540, 4, 0, 65541, 4, 0, 131074, 4, 0, 131073, 4, 0, 131072, 4, 0, 196607, 4, 0, 196606, 4, 0, 196605, 4, 0, 196604, 4, 0, 196603, 4, 0, 262139, 4, 0, 262140, 4, 0, 262141, 4, 0, 262142, 4, 0, 262143, 4, 0, 196608, 4, 0, 196609, 4, 0, 196610, 4, 0, 196611, 4, 0, 196612, 4, 0, 196613, 4, 0, 262149, 4, 0, 262148, 4, 0, 262147, 4, 0, 262146, 4, 0, 262145, 4, 0, 262144, 4, 0, 327679, 4, 0, 327678, 4, 0, 327677, 4, 0, 327676, 4, 0, 327675, 4, 0, 65537, 4, 0, 65536, 4, 0, 131077, 4, 0, 131076, 4, 0, 131075, 4, 0, -4, 4, 0)
-layer_1/tile_data = PackedInt32Array(-1, 1, 65536, -131071, 3, 65536, 65533, 3, 65536)
+layer_0/tile_data = PackedInt32Array(2, 4, 0, -65534, 4, 0, -65535, 4, 0, -65536, 4, 0, -1, 4, 0, -2, 4, 0, -131076, 4, 0, -131075, 4, 0, -131074, 4, 0, -131073, 4, 0, -196608, 4, 0, -196607, 4, 0, -196606, 4, 0, -196605, 4, 0, -196604, 4, 0, -131068, 4, 0, -131069, 4, 0, -131070, 4, 0, -131071, 4, 0, -131072, 4, 0, -65537, 4, 0, -65538, 4, 0, -65539, 4, 0, -65540, 4, 0, -3, 4, 0, -65533, 4, 0, -65532, 4, 0, -65531, 4, 0, 4, 4, 0, 3, 4, 0, 1, 4, 0, 0, 4, 0, 65535, 4, 0, 65534, 4, 0, 65533, 4, 0, 65532, 4, 0, 65531, 4, 0, -196603, 4, 0, 5, 4, 0, -131067, 4, 0, -131077, 4, 0, -65541, 4, 0, -5, 4, 0, 131067, 4, 0, 131068, 4, 0, 131069, 4, 0, 131070, 4, 0, 131071, 4, 0, 65538, 4, 0, 65539, 4, 0, 65540, 4, 0, 65541, 4, 0, 131074, 4, 0, 131073, 4, 0, 131072, 4, 0, 196607, 4, 0, 196606, 4, 0, 196605, 4, 0, 196604, 4, 0, 196603, 4, 0, 262139, 4, 0, 262140, 4, 0, 262141, 4, 0, 262142, 4, 0, 262143, 4, 0, 196608, 4, 0, 196609, 4, 0, 196610, 4, 0, 196611, 4, 0, 196612, 4, 0, 196613, 4, 0, 262149, 4, 0, 262148, 4, 0, 262147, 4, 0, 262146, 4, 0, 262145, 4, 0, 262144, 4, 0, 327679, 4, 0, 327678, 4, 0, 327677, 4, 0, 327676, 4, 0, 327675, 4, 0, 65537, 4, 0, 65536, 4, 0, 131077, 4, 0, 131076, 4, 0, 131075, 4, 0, -4, 4, 0, -262152, 4, 0, -196616, 4, 0, -131080, 4, 0, -65544, 4, 0, -8, 4, 0, 65528, 4, 0, 131064, 4, 0, 196600, 4, 0, 262136, 4, 0, 327672, 4, 0, 393208, 4, 0, -262151, 4, 0, -196615, 4, 0, -131079, 4, 0, -65543, 4, 0, -7, 4, 0, 65529, 4, 0, 131065, 4, 0, 196601, 4, 0, 262137, 4, 0, 327673, 4, 0, 393209, 4, 0, -262150, 4, 0, -196614, 4, 0, -131078, 4, 0, -65542, 4, 0, -6, 4, 0, 65530, 4, 0, 131066, 4, 0, 196602, 4, 0, 262138, 4, 0, 327674, 4, 0, 393210, 4, 0, -262149, 4, 0, -196613, 4, 0, 393211, 4, 0, -262148, 4, 0, -196612, 4, 0, 393212, 4, 0, -262147, 4, 0, -196611, 4, 0, 393213, 4, 0, -262146, 4, 0, -196610, 4, 0, 393214, 4, 0, -262145, 4, 0, -196609, 4, 0, 393215, 4, 0, -327680, 4, 0, -262144, 4, 0, 327680, 4, 0, -327679, 4, 0, -262143, 4, 0, 327681, 4, 0, -327678, 4, 0, -262142, 4, 0, 327682, 4, 0, -327677, 4, 0, -262141, 4, 0, 327683, 4, 0, -327676, 4, 0, -262140, 4, 0, 327684, 4, 0, -327675, 4, 0, -262139, 4, 0, 327685, 4, 0, -327674, 4, 0, -262138, 4, 0, -196602, 4, 0, -131066, 4, 0, -65530, 4, 0, 6, 4, 0, 65542, 4, 0, 131078, 4, 0, 196614, 4, 0, 262150, 4, 0, 327686, 4, 0, -327673, 4, 0, -262137, 4, 0, -196601, 4, 0, -131065, 4, 0, -65529, 4, 0, 7, 4, 0, 65543, 4, 0, 131079, 4, 0, 196615, 4, 0, 262151, 4, 0, 327687, 4, 0)
 layer_2/name = "Floor"
 layer_2/enabled = true
 layer_2/modulate = Color(1, 1, 1, 1)
@@ -462,14 +445,6 @@ offset_bottom = 35.0
 scale = Vector2(0.53, 0.53)
 text = "X"
 
-[node name="SelectedItemManager" type="Control" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("tileMapHandler")]
-texture_filter = 1
-layout_mode = 3
-anchors_preset = 0
-mouse_filter = 2
-script = ExtResource("11_3m4gl")
-tileMapHandler = NodePath("../../../../..")
-
 [node name="ChestInventory" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("selected_item_manager") instance=ExtResource("11_m2bd2")]
 visible = false
 offset_left = -114.0
@@ -479,58 +454,46 @@ offset_bottom = -61.0
 mouse_filter = 1
 selected_item_manager = NodePath("../SelectedItemManager")
 
+[node name="Crafting" type="Control" parent="Node2D/Player/Camera2D/UI"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("16_prcxf")
+
+[node name="SawmillButton" type="Button" parent="Node2D/Player/Camera2D/UI/Crafting"]
+layout_mode = 0
+offset_left = 98.0
+offset_top = 56.0
+offset_right = 166.0
+offset_bottom = 87.0
+scale = Vector2(0.225, 0.225)
+text = "Sawmill
+"
+
+[node name="FurnaceButton" type="Button" parent="Node2D/Player/Camera2D/UI/Crafting"]
+layout_mode = 0
+offset_left = 98.0
+offset_top = 47.0
+offset_right = 169.0
+offset_bottom = 78.0
+scale = Vector2(0.225, 0.225)
+text = "Furnace
+"
+
+[node name="SelectedItemManager" type="Control" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("tileMapHandler")]
+texture_filter = 1
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("11_3m4gl")
+tileMapHandler = NodePath("../../../../..")
+
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager", "resource_manager")]
 script = ExtResource("15_fsmbf")
 player = NodePath("../Player")
 items = NodePath("../../Items")
 inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
-
-[node name="Enemy" type="CharacterBody2D" parent="Node2D"]
-z_index = 1
-y_sort_enabled = true
-texture_filter = 1
-material = SubResource("ShaderMaterial_nbo6t")
-position = Vector2(-39, -11)
-collision_layer = 2097153
-floor_max_angle = 0.0
-script = ExtResource("16_3rpif")
-
-[node name="Sprite2D" type="Sprite2D" parent="Node2D/Enemy"]
-material = SubResource("ShaderMaterial_gv4vc")
-texture = ExtResource("5_8tjkj")
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Node2D/Enemy"]
-avoidance_enabled = true
-debug_enabled = true
-
-[node name="PathTimer" type="Timer" parent="Node2D/Enemy"]
-wait_time = 0.11
-autostart = true
-
-[node name="LineOfSight" type="Area2D" parent="Node2D/Enemy"]
-position = Vector2(39, 11)
-collision_layer = 1048576
-collision_mask = 1048576
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Enemy/LineOfSight"]
-position = Vector2(-39, -9.5)
-shape = SubResource("CircleShape2D_87llr")
-
-[node name="CollisionShape2D2" type="CollisionShape2D" parent="Node2D/Enemy"]
-position = Vector2(0, 4)
-shape = SubResource("RectangleShape2D_fymkc")
-
-[node name="AttackRange" type="Area2D" parent="Node2D/Enemy"]
-collision_layer = 1048576
-collision_mask = 1048576
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Enemy/AttackRange"]
-position = Vector2(0, 3)
-shape = SubResource("CircleShape2D_4vhux")
-
-[node name="AttackTimer" type="Timer" parent="Node2D/Enemy"]
-autostart = true
 
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("17_h45i4")
@@ -559,5 +522,3 @@ script = ExtResource("20_ylgbb")
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]
-[connection signal="timeout" from="Node2D/Enemy/PathTimer" to="Node2D/Enemy" method="_on_timer_timeout"]
-[connection signal="timeout" from="Node2D/Enemy/AttackTimer" to="Node2D/Enemy" method="_on_attack_timer_timeout"]

@@ -5,6 +5,7 @@ class_name Resources
 
 var resources: Dictionary = {}
 
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	resources[Types.Item.IronResource] = GameResource.new(Vector2i(4, 1), 4, Types.Item.IronResource, 1, false, "Iron", Vector2i.ZERO, false, Types.Item.IronOre,  Vector2i(8, 1))

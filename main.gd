@@ -15,6 +15,11 @@ var wallTiles = []
 @onready var input_manager = $InputManager
 @onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
 
+
+var wall_tiles_min = Vector2(0,7)
+var wall_tiles_max = Vector2(11,11)
+
+
 var late_load = false
 
 var disableSetTile = false
@@ -38,9 +43,8 @@ func _process(delta):
 	GetPlayerPosition()
 	
 func _on_mouse_left(isUiOpen: bool):
-	disableSetTile = true
+	disableSetTile = isUiOpen
 
-	
 func _on_resource_added(location: Vector2i, resource: GameResource):
 	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer)
 
@@ -69,15 +73,25 @@ func clear_tile(location: Vector2i):
 	tileMap.set_cell(3, location, -1)
 	tileMap.set_cell(1, location, -1)
 	
+func set_tile_item(location: Vector2i, item: GameItem):
+	set_tile(location,item.tile_source_id, item.tile_atlas_location, item.layer, item.is_scene_tile)
+	
 func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
 	if disableSetTile == true:
 		return
 	
+	play_audio(location, tile_source_id, atlas_location, layer, is_scene)
 	tileMap.set_cell(layer, location, tile_source_id, atlas_location, is_scene)
-	
-	if atlas_location == Vector2i(0, 11):
+
+	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
+		atlas_location = Vector2(0, 11)
 		wallTiles.append(location)
 		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
+		
+func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
+	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
+		sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
+	
 	
 func is_occupied(tilePos: Vector2i)-> bool:
 	var is_occupied = false
@@ -219,6 +233,8 @@ func saveObject() -> Dictionary:
 			var atlas_location = tileMap.get_cell_atlas_coords(layer, cell)
 			var source_id = tileMap.get_cell_source_id (layer, cell)
 			var item = resources.get_item_or_resource(atlas_location, source_id)
+			if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
+				item = items.get_item(Types.Item.WoodWall)
 			
 			if item == null:
 				continue
@@ -256,8 +272,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var item = resources.get_item_or_resource_by_type(node["type"])
 		var location = Vector2i(node["x"], node["y"])
 		
-		tileMap.set_cell(item.layer, location, item.tile_source_id, item.atlas_location, item.is_scene_tile)
+		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		
 		late_load = true
-	print("finished tilemap load")
-	print(has_node("/root/Main/Node2D/TileMap/Chest"))
+
