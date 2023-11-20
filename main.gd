@@ -15,7 +15,7 @@ var wallTiles = []
 @onready var input_manager = $InputManager
 @onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
 @onready var destroy_manager = $DestroyManager
-
+var chest = preload("res://TileScenes/chest.tscn")
 
 var wall_tiles_min = Vector2(0,7)
 var wall_tiles_max = Vector2(11,11)
@@ -57,13 +57,6 @@ func _on_destroy_added(location: Vector2i, item: GameItem):
 	set_tile(location,item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
 
 func _on_destroy_removed(location: Vector2i, item: GameItem):
-	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
-	var pos = location
-	for chunk in chunk_nodes:
-		if chunk is Node2D:
-			if chunk.position.x == pos.x and chunk.position.y == pos.y:
-				chunk.queue_free()
-
 	tileMap.set_cell(item.layer,tileMap.local_to_map(location), -1)
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
 	
@@ -346,11 +339,6 @@ func loadObject(loadedDict: Dictionary) -> void:
 	for layer in layers:
 		for cell in tile_grid:
 			tileMap.set_cell(layer, cell, -1)
-			
-	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
-	for chunk in chunk_nodes:
-		if chunk is Node2D:
-			chunk.queue_free()
 	
 	for i in loadedDict.tiles.size():
 		var saved_info = loadedDict.tiles[i]
@@ -360,8 +348,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 		var item = resources.get_item_or_resource_by_type(node["type"])
 		var location = Vector2i(node["x"], node["y"])
-		if node["type"] == 16:
-			print(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
+
 		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		
 		late_load = true

@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=38 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -80,18 +80,6 @@ tracks/1/keys = {
 "update": 0,
 "values": [5.23599, 2.36841]
 }
-tracks/2/type = "value"
-tracks/2/imported = false
-tracks/2/enabled = true
-tracks/2/path = NodePath("Attack:scale")
-tracks/2/interp = 1
-tracks/2/loop_wrap = true
-tracks/2/keys = {
-"times": PackedFloat32Array(),
-"transitions": PackedFloat32Array(),
-"update": 0,
-"values": []
-}
 
 [sub_resource type="Animation" id="Animation_jlada"]
 resource_name = "Gather"
@@ -151,10 +139,67 @@ tracks/1/keys = {
 "values": [Vector2(0, -1), Vector2(-5, 2)]
 }
 
+[sub_resource type="Animation" id="Animation_1fng2"]
+resource_name = "Attack2"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(1, -1), Vector2(3, 3)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [-2.0944, 0.349066]
+}
+
+[sub_resource type="Animation" id="Animation_6ij4o"]
+resource_name = "Attack_Left_2"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(-4, -3), Vector2(-1, 9)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5.23599, 2.36841]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_kjuyc"]
 _data = {
 "Attack": SubResource("Animation_y0to0"),
+"Attack2": SubResource("Animation_1fng2"),
 "Attack_Left": SubResource("Animation_uuk1w"),
+"Attack_Left_2": SubResource("Animation_6ij4o"),
 "Gather": SubResource("Animation_jlada"),
 "Gather_left": SubResource("Animation_h6uyy")
 }
@@ -211,27 +256,15 @@ y_sort_enabled = true
 
 [node name="TileMap" parent="Node2D" instance=ExtResource("1_83yt6")]
 layer_0/z_index = -1
-layer_0/tile_data = PackedInt32Array(2, 4, 0, -65534, 4, 0, -65535, 4, 0, -65536, 4, 0, -1, 4, 0, -2, 4, 0, -131076, 4, 0, -131075, 4, 0, -131074, 4, 0, -131073, 4, 0, -196608, 4, 0, -196607, 4, 0, -196606, 4, 0, -196605, 4, 0, -196604, 4, 0, -131068, 4, 0, -131069, 4, 0, -131070, 4, 0, -131071, 4, 0, -131072, 4, 0, -65537, 4, 0, -65538, 4, 0, -65539, 4, 0, -65540, 4, 0, -3, 4, 0, -65533, 4, 0, -65532, 4, 0, -65531, 4, 0, 4, 4, 0, 3, 4, 0, 1, 4, 0, 0, 4, 0, 65535, 4, 0, 65534, 4, 0, 65533, 4, 0, 65532, 4, 0, 65531, 4, 0, -196603, 4, 0, 5, 4, 0, -131067, 4, 0, -131077, 4, 0, -65541, 4, 0, -5, 4, 0, 131067, 4, 0, 131068, 4, 0, 131069, 4, 0, 131070, 4, 0, 131071, 4, 0, 65538, 4, 0, 65539, 4, 0, 65540, 4, 0, 65541, 4, 0, 131074, 4, 0, 131073, 4, 0, 131072, 4, 0, 196607, 4, 0, 196606, 4, 0, 196605, 4, 0, 196604, 4, 0, 196603, 4, 0, 262139, 4, 0, 262140, 4, 0, 262141, 4, 0, 262142, 4, 0, 262143, 4, 0, 196608, 4, 0, 196609, 4, 0, 196610, 4, 0, 196611, 4, 0, 196612, 4, 0, 196613, 4, 0, 262149, 4, 0, 262148, 4, 0, 262147, 4, 0, 262146, 4, 0, 262145, 4, 0, 262144, 4, 0, 327679, 4, 0, 327678, 4, 0, 327677, 4, 0, 327676, 4, 0, 327675, 4, 0, 65537, 4, 0, 65536, 4, 0, 131077, 4, 0, 131076, 4, 0, 131075, 4, 0, -4, 4, 0, -262152, 4, 0, -196616, 4, 0, -131080, 4, 0, -65544, 4, 0, -8, 4, 0, 65528, 4, 0, 131064, 4, 0, 196600, 4, 0, 262136, 4, 0, 327672, 4, 0, 393208, 4, 0, -262151, 4, 0, -196615, 4, 0, -131079, 4, 0, -65543, 4, 0, -7, 4, 0, 65529, 4, 0, 131065, 4, 0, 196601, 4, 0, 262137, 4, 0, 327673, 4, 0, 393209, 4, 0, -262150, 4, 0, -196614, 4, 0, -131078, 4, 0, -65542, 4, 0, -6, 4, 0, 65530, 4, 0, 131066, 4, 0, 196602, 4, 0, 262138, 4, 0, 327674, 4, 0, 393210, 4, 0, -262149, 4, 0, -196613, 4, 0, 393211, 4, 0, -262148, 4, 0, -196612, 4, 0, 393212, 4, 0, -262147, 4, 0, -196611, 4, 0, 393213, 4, 0, -262146, 4, 0, -196610, 4, 0, 393214, 4, 0, -262145, 4, 0, -196609, 4, 0, 393215, 4, 0, -327680, 4, 0, -262144, 4, 0, 327680, 4, 0, -327679, 4, 0, -262143, 4, 0, 327681, 4, 0, -327678, 4, 0, -262142, 4, 0, 327682, 4, 0, -327677, 4, 0, -262141, 4, 0, 327683, 4, 0, -327676, 4, 0, -262140, 4, 0, 327684, 4, 0, -327675, 4, 0, -262139, 4, 0, 327685, 4, 0, -327674, 4, 0, -262138, 4, 0, -196602, 4, 0, -131066, 4, 0, -65530, 4, 0, 6, 4, 0, 65542, 4, 0, 131078, 4, 0, 196614, 4, 0, 262150, 4, 0, 327686, 4, 0, -327673, 4, 0, -262137, 4, 0, -196601, 4, 0, -131065, 4, 0, -65529, 4, 0, 7, 4, 0, 65543, 4, 0, 131079, 4, 0, 196615, 4, 0, 262151, 4, 0, 327687, 4, 0)
+layer_0/tile_data = PackedInt32Array(2, 4, 0, -65534, 4, 0, -65535, 4, 0, -65536, 4, 0, -1, 4, 0, -2, 4, 0, -131076, 4, 0, -131075, 4, 0, -131074, 4, 0, -131073, 4, 0, -196608, 4, 0, -196607, 4, 0, -196606, 4, 0, -196605, 4, 0, -196604, 4, 0, -131068, 4, 0, -131069, 4, 0, -131070, 4, 0, -131071, 4, 0, -131072, 4, 0, -65537, 4, 0, -65538, 4, 0, -65539, 4, 0, -65540, 4, 0, -4, 4, 0, -3, 4, 0, -65533, 4, 0, -65532, 4, 0, -65531, 4, 0, 4, 4, 0, 3, 4, 0, 1, 4, 0, 0, 4, 0, 65535, 4, 0, 65534, 4, 0, 65533, 4, 0, 65532, 4, 0, 65531, 4, 0, -196603, 4, 0, 5, 4, 0, -131067, 4, 0, -131077, 4, 0, -65541, 4, 0, -5, 4, 0, 131067, 4, 0, 131068, 4, 0, 131069, 4, 0, 131070, 4, 0, 131071, 4, 0, 65536, 4, 0, 65537, 4, 0, 65538, 4, 0, 65539, 4, 0, 65540, 4, 0, 65541, 4, 0, 131077, 4, 0, 131076, 4, 0, 131075, 4, 0, 131074, 4, 0, 131073, 4, 0, 131072, 4, 0, 196607, 4, 0, 196606, 4, 0, 196605, 4, 0, 196604, 4, 0, 196603, 4, 0, 262139, 4, 0, 262140, 4, 0, 262141, 4, 0, 262142, 4, 0, 262143, 4, 0, 196608, 4, 0, 196609, 4, 0, 196610, 4, 0, 196611, 4, 0, 196612, 4, 0, 196613, 4, 0, 262149, 4, 0, 262148, 4, 0, 262147, 4, 0, 262146, 4, 0, 262145, 4, 0, 262144, 4, 0, 327679, 4, 0, 327678, 4, 0, 327677, 4, 0, 327676, 4, 0, 327675, 4, 0, -262152, 4, 0, -196616, 4, 0, -131080, 4, 0, -65544, 4, 0, -8, 4, 0, 65528, 4, 0, 131064, 4, 0, 196600, 4, 0, 262136, 4, 0, 327672, 4, 0, 393208, 4, 0, -262151, 4, 0, -196615, 4, 0, -131079, 4, 0, -65543, 4, 0, -7, 4, 0, 65529, 4, 0, 131065, 4, 0, 196601, 4, 0, 262137, 4, 0, 327673, 4, 0, 393209, 4, 0, -262150, 4, 0, -196614, 4, 0, -131078, 4, 0, -65542, 4, 0, -6, 4, 0, 65530, 4, 0, 131066, 4, 0, 196602, 4, 0, 262138, 4, 0, 327674, 4, 0, 393210, 4, 0, -262149, 4, 0, -196613, 4, 0, 393211, 4, 0, -262148, 4, 0, -196612, 4, 0, 393212, 4, 0, -262147, 4, 0, -196611, 4, 0, 393213, 4, 0, -262146, 4, 0, -196610, 4, 0, 393214, 4, 0, -262145, 4, 0, -196609, 4, 0, 393215, 4, 0, -327680, 4, 0, -262144, 4, 0, 327680, 4, 0, -327679, 4, 0, -262143, 4, 0, 327681, 4, 0, -327678, 4, 0, -262142, 4, 0, 327682, 4, 0, -327677, 4, 0, -262141, 4, 0, 327683, 4, 0, -327676, 4, 0, -262140, 4, 0, 327684, 4, 0, -327675, 4, 0, -262139, 4, 0, 327685, 4, 0, -327674, 4, 0, -262138, 4, 0, -196602, 4, 0, -131066, 4, 0, -65530, 4, 0, 6, 4, 0, 65542, 4, 0, 131078, 4, 0, 196614, 4, 0, 262150, 4, 0, 327686, 4, 0, -327673, 4, 0, -262137, 4, 0, -196601, 4, 0, -131065, 4, 0, -65529, 4, 0, 7, 4, 0, 65543, 4, 0, 131079, 4, 0, 196615, 4, 0, 262151, 4, 0, 327687, 4, 0)
 layer_1/tile_data = PackedInt32Array(65539, 3, 65536)
 layer_2/name = "Floor"
-layer_2/enabled = true
-layer_2/modulate = Color(1, 1, 1, 1)
-layer_2/y_sort_enabled = false
-layer_2/y_sort_origin = 0
-layer_2/z_index = 0
 layer_2/tile_data = PackedInt32Array()
 layer_3/name = "Highlight"
-layer_3/enabled = true
-layer_3/modulate = Color(1, 1, 1, 1)
-layer_3/y_sort_enabled = false
-layer_3/y_sort_origin = 0
 layer_3/z_index = 5
 layer_3/tile_data = PackedInt32Array()
 layer_4/name = "Crafting"
-layer_4/enabled = true
-layer_4/modulate = Color(1, 1, 1, 1)
 layer_4/y_sort_enabled = true
-layer_4/y_sort_origin = 0
 layer_4/z_index = 1
 layer_4/tile_data = PackedInt32Array()
 
@@ -272,8 +305,8 @@ visible = false
 visible = false
 z_index = -1
 y_sort_enabled = true
-position = Vector2(-1, 1)
-rotation = -2.0944
+position = Vector2(-4, -3)
+rotation = 5.23599
 collision_layer = 0
 collision_mask = 2097152
 

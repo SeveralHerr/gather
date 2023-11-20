@@ -110,12 +110,15 @@ func _gather_input_release():
 	$Gather.visible=false
 
 func _mouse_button_left(test: bool):
+	print("left")
+	tilemap.tileMap.set_cell(1, Vector2i(2, 2), -1)
+	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 6, Vector2i(0,0), -1)
 	pass
 
 func _mouse_button_right():
 	selectedItemManager.ClearSelection()
-	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 5, Vector2i(0,0), 1)
-	tilemap.set_tile(Vector2i(3, 2), 3, Vector2i(0,0), 1, true)
+	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 3, Vector2i(0,0), 3)
+	#tilemap.set_tile(Vector2i(3, 2), 8, Vector2i(0,0), 1, true)
 	#tilemap.set_tile_item(Vector2i(3,2), items.get_item(Types.Item.Chest))
 	#tilemap.set_tile_item(Vector2(3, 3), items.get_item(Types.Item.WoodDoor))
 
