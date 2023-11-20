@@ -3,13 +3,15 @@ class_name WorldItem
 
 var item: GameItem
 
-@export var instance: TextureRect
+@export var instance: RigidBody2D
 var player: Player
 var inventoryManager: InventoryManager
 var item_manager: ItemManager
 
 
-func _init(item: GameItem, instance: TextureRect, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager):
+
+
+func _init(item: GameItem, instance: RigidBody2D, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager):
 	self.item = item
 	self.instance = instance
 	self.player = player
@@ -19,7 +21,8 @@ func _init(item: GameItem, instance: TextureRect, player: Player, inventoryManag
 func Process(delta) -> bool:
 	var activation_distance = 30.0
 	var move_speed = 20.0
-	var playerPos = player.global_position - Vector2(8,8)
+	var playerPos = player.global_position #+ Vector2(8,8)
+		
 
 	# Use an index-based loop backwards if you plan to remove items from the list
 	var item_instance = instance
