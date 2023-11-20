@@ -44,7 +44,7 @@ func _process(delta):
 	if late_load == true:
 		save_load.late_load()
 		late_load = false
-	
+
 	GetPlayerPosition()
 	
 func _on_destroy_removing(location: Vector2i, item: GameItem):
@@ -59,6 +59,23 @@ func _on_destroy_added(location: Vector2i, item: GameItem):
 func _on_destroy_removed(location: Vector2i, item: GameItem):
 	tileMap.set_cell(item.layer,tileMap.local_to_map(location), -1)
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+	print(tileMap.local_to_map(location))
+	
+	if is_wall_tile(item.atlas_location):
+
+		var index = wallTiles.find(tileMap.local_to_map(location))
+		if index != -1:
+			wallTiles.remove_at(index)
+			print(wallTiles)
+			print(tileMap.local_to_map(player.global_position))
+	replace_tiles()
+	tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 , false)
+	#tileMap.set_cells_terrain_path(1, [Vector2i(-3,-3), Vector2i(-3, -2)], 0, 0 , false)
+
+
+func replace_tiles():
+	for tile in wallTiles:
+		tileMap.set_cell(1, tile, 4, Vector2i(0, 11) )
 	
 func _on_destroy_removing_stop(location: Vector2i, item: GameItem):
 	# Remove highlight
@@ -111,6 +128,11 @@ func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i,
 		atlas_location = Vector2(0, 11)
 		wallTiles.append(location)
 		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
+		
+func is_wall_tile(atlas_location):
+	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
+		return true
+	return false
 		
 func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
 	var item = items.get_item_by_data(atlas_location, tile_source_id)
@@ -192,27 +214,24 @@ func get_location_of_nearby_item_to_destroy(location):
 		var tilePos = tileMap.local_to_map(location) + neighbor
 		var tile_atlas = tileMap.get_cell_atlas_coords(1, tilePos)
 		var tile_source_id = tileMap.get_cell_source_id(1, tilePos)
+		var item = null
 		
 		if tile_atlas == Vector2i(-1,-1):
 			continue
-			
-		var found = false
-		for key in items.get_all_types():
-			if items.get_item(key).atlas_location == tile_atlas and items.get_item(key).tile_source_id == tile_source_id:
-				found = true
-		
-		if found == false:
-			continue
-		
+
+		if tile_atlas.x >= wall_tiles_min.x and tile_atlas.y >= wall_tiles_min.y and tile_atlas.x <= wall_tiles_max.x and tile_atlas.y <= wall_tiles_max.y:
+			tile_atlas = Vector2i(0, 11)
+
+
 		var direction = player.global_position - tileMap.map_to_local(tilePos)
 		var distance = direction.length()
 		if distance < nearestDistance:
 			nearestDistance = distance
 			nearestPos = tilePos
-			
+
 	if nearestPos == null:
 		return
-			
+	
 	var direction = location - tileMap.map_to_local(nearestPos)
 	var distance = direction.length()
 	var activation_distance = 20
@@ -221,8 +240,9 @@ func get_location_of_nearby_item_to_destroy(location):
 		var tile_atlas = tileMap.get_cell_atlas_coords(1, nearestPos)
 		var tile_source_id = tileMap.get_cell_source_id(1, nearestPos)
 		for key in items.get_all_types():
+			if tile_atlas.x >= wall_tiles_min.x and tile_atlas.y >= wall_tiles_min.y and tile_atlas.x <= wall_tiles_max.x and tile_atlas.y <= wall_tiles_max.y:
+				tile_atlas = Vector2i(0, 11)
 			if items.get_item(key).atlas_location == tile_atlas and items.get_item(key).tile_source_id == tile_source_id:
-
 				return { "item": items.get_item(key),  "location": tileMap.map_to_local(nearestPos) }
 
 			

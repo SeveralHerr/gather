@@ -134,4 +134,5 @@ func _craft():
 	
 func _exit():
 	craftingStation = null
+	amountToCraft = 0
 	visible = false

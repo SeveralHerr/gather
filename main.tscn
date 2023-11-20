@@ -322,7 +322,8 @@ shape = SubResource("RectangleShape2D_v1j1r")
 
 [node name="Gather" type="Sprite2D" parent="Node2D/Player"]
 visible = false
-z_index = -1
+show_behind_parent = true
+z_index = 1
 y_sort_enabled = true
 texture_filter = 1
 position = Vector2(0, -1)
