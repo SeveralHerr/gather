@@ -13,6 +13,8 @@ const JUMP_VELOCITY = -400.0
 @onready var attack = $Attack
 @onready var animated_sprite_2d = $AnimatedSprite2D
 @onready var sound_manager: SoundManager = $"../../SoundManager"
+@onready var destroy_manager: DestroyManager = $"../../DestroyManager"
+
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
 
@@ -38,6 +40,8 @@ func _ready():
 	input_manager.connect("mouse_button_right", Callable(self, "_mouse_button_right"))
 	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
+	input_manager.connect("destroy_input_press", Callable(self, "_destroy_input_press"))
+	input_manager.connect("destroy_input_release", Callable(self, "_destroy_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
@@ -51,6 +55,23 @@ func _on_resource_removing_stop(location: Vector2i, resource):
 	sound_player_mining.stop()
 	pass
 		
+func _destroy_input_release():
+	$AnimatedSprite2D.play("Idle")
+	$Gather.visible=false
+	
+	destroy_manager.stop_removing_resource()
+	pass
+	
+func _destroy_input_press():
+	$Gather.visible = true
+	#$AnimatedSprite2D.play("Gathering")
+	if not $AnimatedSprite2D.flip_h:
+		$AnimationPlayer.play("Gather")
+	else:
+		$AnimationPlayer.play("Gather_left")
+		
+	destroy_manager.start_removing_resource()
+	pass	
 
 func add_central_force(force: Vector2):
 	velocity += force
@@ -93,8 +114,8 @@ func _mouse_button_left(test: bool):
 
 func _mouse_button_right():
 	selectedItemManager.ClearSelection()
-	#tilemap.set_tile(Vector2i(2, 2), 5, Vector2i(0,0), 1, true)
-	#tilemap.set_tile(Vector2i(3, 2), 3, Vector2i(0,0), 1, true)
+	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 5, Vector2i(0,0), 1)
+	tilemap.set_tile(Vector2i(3, 2), 3, Vector2i(0,0), 1, true)
 	#tilemap.set_tile_item(Vector2i(3,2), items.get_item(Types.Item.Chest))
 	#tilemap.set_tile_item(Vector2(3, 3), items.get_item(Types.Item.WoodDoor))
 

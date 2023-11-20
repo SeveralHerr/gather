@@ -70,21 +70,20 @@ func save():
 func load(dict):
 	var json = JSON.new()
 	for i in dict["data"]:
-		
-	
 		json.parse(i)
 		var data = json.get_data()
+
 		var count = data["count"]
 		var type = data["itemType"]
 		
 		var items = get_tree().get_nodes_in_group("Items")
-		if items is Items:
-			chest_inventory[type] = InventorySlot.new(items.get_item(type), count)
+		for it in items: 
+			if it is Items:
+				chest_inventory[type] = InventorySlot.new(it.get_item(type), count)
 	
 	
 func loadObject(loadedDict: Dictionary) -> void:
 	chest_inventory = {}
-	print("load")
 	for item in loadedDict.inventory.keys():
 		var x = loadedDict.inventory.get(item)
 		var json = JSON.new()

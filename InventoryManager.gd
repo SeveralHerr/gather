@@ -47,9 +47,7 @@ func remove_all_of_item(type: Types.Item):
 	
 	
 func RemoveItem(type: Types.Item):
-	print(inventory[type].count)
 	if inventory.has(type):
-		print(inventory[type].count)
 		inventory[type].count -= 1
 		
 	if inventory[type].count <= 0:

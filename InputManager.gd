@@ -9,6 +9,8 @@ signal mouse_button_right
 signal mouse_button_left(isUiOpen: bool)
 signal gather_input_press
 signal gather_input_release
+signal destroy_input_press
+signal destroy_input_release
 signal attack
 
 @export var isUiOpen = false
@@ -40,4 +42,8 @@ func _input(event):
 		attack.emit()
 	if Input.is_action_just_released("gather"):
 		gather_input_release.emit()
+	if Input.is_action_just_pressed("destroy"):
+		destroy_input_press.emit()
+	if Input.is_action_just_released("destroy"):
+		destroy_input_release.emit()
 

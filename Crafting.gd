@@ -4,6 +4,8 @@ extends Control
 @onready var furnace_button: Button = $FurnaceButton
 @onready var selected_item_manager: SelectedItemManager = $"../SelectedItemManager"
 @onready var items: Items = $"../../../../../Items"
+@onready var inventory_manager: InventoryManager = $"../../../../../InventoryManager"
+
 
 
 # Called when the node enters the scene tree for the first time.
@@ -16,7 +18,7 @@ func _process(delta):
 	pass
 
 func _on_sawmill_button_pressed():
-	selected_item_manager.SetSelectedItem(InventorySlot.new(items.get_item(Types.Item.Sawmill), 1), selected_item_manager.Type.Crafting)
+	inventory_manager.AddItem(items.get_item(Types.Item.Sawmill), 1)
 	pass
 	
 func _on_furnace_button_pressed():

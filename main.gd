@@ -14,6 +14,7 @@ var wallTiles = []
 @export var sound_manager: SoundManager
 @onready var input_manager = $InputManager
 @onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
+@onready var destroy_manager = $DestroyManager
 
 
 var wall_tiles_min = Vector2(0,7)
@@ -32,6 +33,10 @@ func _ready():
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
 	resource_manager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resource_manager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
+	destroy_manager.connect("destroy_added", Callable(self, "_on_destroy_added"))
+	destroy_manager.connect("destroy_removed", Callable(self, "_on_destroy_removed"))
+	destroy_manager.connect("destroy_removing", Callable(self, "_on_destroy_removing"))
+	destroy_manager.connect("destroy_removing_stop", Callable(self, "_on_destroy_removing_stop"))
 	input_manager.connect("mouse_button_left", Callable(self, "_on_mouse_left"))
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -41,6 +46,32 @@ func _process(delta):
 		late_load = false
 	
 	GetPlayerPosition()
+	
+func _on_destroy_removing(location: Vector2i, item: GameItem):
+	# Add highlight
+	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
+	
+	#tileMap.set_tile(tileMap.local_to_map(location),item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+	
+func _on_destroy_added(location: Vector2i, item: GameItem):
+	set_tile(location,item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+func _on_destroy_removed(location: Vector2i, item: GameItem):
+	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
+	var pos = location
+	for chunk in chunk_nodes:
+		if chunk is Node2D:
+			if chunk.position.x == pos.x and chunk.position.y == pos.y:
+				chunk.queue_free()
+
+	tileMap.set_cell(item.layer,tileMap.local_to_map(location), -1)
+	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+	
+func _on_destroy_removing_stop(location: Vector2i, item: GameItem):
+	# Remove highlight
+	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+	#set_tile(location,item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
 	
 func _on_mouse_left(isUiOpen: bool):
 	disableSetTile = isUiOpen
@@ -159,6 +190,48 @@ func find_nearest_resource_to_location(location: Vector2):
 	if nearest_resource_info:
 		emit_signal("resource_found", nearest_resource_info.resource, nearest_resource_info.location)
 
+func get_location_of_nearby_item_to_destroy(location):
+	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
+	var nearestDistance = 1000000
+	var nearestPos = null
+	
+	for neighbor in neighbors:
+		var tilePos = tileMap.local_to_map(location) + neighbor
+		var tile_atlas = tileMap.get_cell_atlas_coords(1, tilePos)
+		var tile_source_id = tileMap.get_cell_source_id(1, tilePos)
+		
+		if tile_atlas == Vector2i(-1,-1):
+			continue
+			
+		var found = false
+		for key in items.get_all_types():
+			if items.get_item(key).atlas_location == tile_atlas and items.get_item(key).tile_source_id == tile_source_id:
+				found = true
+		
+		if found == false:
+			continue
+		
+		var direction = player.global_position - tileMap.map_to_local(tilePos)
+		var distance = direction.length()
+		if distance < nearestDistance:
+			nearestDistance = distance
+			nearestPos = tilePos
+			
+	if nearestPos == null:
+		return
+			
+	var direction = location - tileMap.map_to_local(nearestPos)
+	var distance = direction.length()
+	var activation_distance = 20
+	
+	if distance < activation_distance and distance > 0:
+		var tile_atlas = tileMap.get_cell_atlas_coords(1, nearestPos)
+		var tile_source_id = tileMap.get_cell_source_id(1, nearestPos)
+		for key in items.get_all_types():
+			if items.get_item(key).atlas_location == tile_atlas and items.get_item(key).tile_source_id == tile_source_id:
+
+				return { "item": items.get_item(key),  "location": tileMap.map_to_local(nearestPos) }
+
 			
 func get_location_of_nearby_resource(location):
 	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
@@ -273,6 +346,11 @@ func loadObject(loadedDict: Dictionary) -> void:
 	for layer in layers:
 		for cell in tile_grid:
 			tileMap.set_cell(layer, cell, -1)
+			
+	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
+	for chunk in chunk_nodes:
+		if chunk is Node2D:
+			chunk.queue_free()
 	
 	for i in loadedDict.tiles.size():
 		var saved_info = loadedDict.tiles[i]
@@ -282,7 +360,8 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 		var item = resources.get_item_or_resource_by_type(node["type"])
 		var location = Vector2i(node["x"], node["y"])
-		
+		if node["type"] == 16:
+			print(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		
 		late_load = true

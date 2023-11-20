@@ -33,4 +33,10 @@ func get_type(name):
 	for key in item_list.keys():
 		if item_list[key].name == name:
 			return item_list[key].type
+			
+func get_all_types():
+	var types = []
+	for key in item_list:
+		types.append(key)
+	return types
 	
