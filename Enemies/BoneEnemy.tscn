@@ -1,8 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://b106gs33ih13n"]
+[gd_scene load_steps=11 format=3 uid="uid://b106gs33ih13n"]
 
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="1_x8ngj"]
 [ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_nafcj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="3_7wili"]
+[ext_resource type="PackedScene" uid="uid://b4lrjtkmp38me" path="res://particle.tscn" id="4_asutq"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
 shader = ExtResource("1_x8ngj")
@@ -26,12 +27,11 @@ region = Rect2(224, 16, 16, 16)
 radius = 69.5216
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_fymkc"]
-size = Vector2(6, 4)
+size = Vector2(11, 5)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_4vhux"]
 
 [node name="Enemy" type="CharacterBody2D"]
-z_index = 1
 y_sort_enabled = true
 texture_filter = 1
 material = SubResource("ShaderMaterial_nbo6t")
@@ -41,6 +41,7 @@ floor_max_angle = 0.0
 script = ExtResource("2_nafcj")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
+y_sort_enabled = true
 material = SubResource("ShaderMaterial_q5ibv")
 texture = SubResource("AtlasTexture_26djf")
 
@@ -53,7 +54,7 @@ autostart = true
 
 [node name="LineOfSight" type="Area2D" parent="."]
 position = Vector2(39, 11)
-collision_layer = 1048576
+collision_layer = 0
 collision_mask = 1048576
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="LineOfSight"]
@@ -61,11 +62,11 @@ position = Vector2(-39, -9.5)
 shape = SubResource("CircleShape2D_87llr")
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="."]
-position = Vector2(0, 4)
+position = Vector2(-0.5, 2.5)
 shape = SubResource("RectangleShape2D_fymkc")
 
 [node name="AttackRange" type="Area2D" parent="."]
-collision_layer = 1048576
+collision_layer = 0
 collision_mask = 1048576
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackRange"]
@@ -74,6 +75,9 @@ shape = SubResource("CircleShape2D_4vhux")
 
 [node name="AttackTimer" type="Timer" parent="."]
 autostart = true
+
+[node name="HitParticles" parent="." instance=ExtResource("4_asutq")]
+emitting = false
 
 [connection signal="timeout" from="PathTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="AttackTimer" to="." method="_on_attack_timer_timeout"]

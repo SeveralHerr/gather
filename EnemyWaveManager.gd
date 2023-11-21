@@ -3,6 +3,9 @@ extends Node
 var boneEnemy = preload("res://Enemies/BoneEnemy.tscn")
 @onready var tilemap_handler: TileMapHandler = $"../.."
 
+@onready var node_2d = $".."
+
+
 @onready var timer: Timer = $Timer
 
 
@@ -21,5 +24,5 @@ func _timeout():
 	var pos = tilemap_handler.tileMap.map_to_local( tilemap_handler.get_random_tile())
 	var instance = boneEnemy.instantiate()
 	instance.position = pos
-	add_child(instance)
+	node_2d.add_child(instance)
 	pass

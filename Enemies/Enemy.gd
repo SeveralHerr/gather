@@ -9,20 +9,23 @@ var target: Player
 
 @export var health_manager: HealthManager
 @export var damage = 3
+var camera: Camera
 
 @export var items: Items
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
-@onready var player = $"../../Player"
+@onready var player = $"../Player"
 
-@onready var player_area_2d = $"../../Player/Area2D"
+@onready var player_area_2d = $"../Player/Area2D"
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 
 var item_manager: ItemManager
 
 var detection_range = 100
+var speed = 10
+var knockback = Vector2.ZERO
 
 var raycast: RayCast2D
 
@@ -40,6 +43,10 @@ func _ready():
 	for node in get_tree().get_nodes_in_group("Items"):
 		if node is Items:
 			items = node
+			
+	for node in get_tree().get_nodes_in_group("Camera"):
+		if node is Camera:
+			camera = node
 
 	attack_range.connect("body_entered", Callable(self, "_on_body_attack_entered"))
 	attack_range.connect("body_exited", Callable(self, "_on_body_attack_exited"))
@@ -106,13 +113,16 @@ func _physics_process(delta):
 
 	var distance = position.distance_to(player.position)
 	if distance <= 10:
-		return
+		speed = 0.01
+	else:
+		speed = 10
 
 
 	var direction = to_local(navigation_agent_2d.get_next_path_position()).normalized()
-	velocity = direction * 10
+	velocity = direction * speed + knockback
 	
 	move_and_slide()
+	knockback = lerp(knockback, Vector2.ZERO, 0.1)
 	
 func create_path():
 	if target == null:
@@ -145,10 +155,12 @@ func get_nearest_area2d(search_distance: int):
 func receive_hit(force: Vector2, damage: int):
 	add_central_force(force)
 	health_manager.take_damage(damage)
-
+	camera.apply_shake(1)
+	$HitParticles.emitting = true
+	await get_tree().create_timer(0.1).timeout
+	$HitParticles.emitting = false
 func add_central_force(force: Vector2):
-	velocity += force
-	move_and_slide()
+	knockback = force
 
 	sprite_2d.material = sprite_2d.material.duplicate()
 	sprite_2d.material.set_shader_parameter("flash_intensity", 4)

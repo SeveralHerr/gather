@@ -17,6 +17,9 @@ var damage = 3
 @onready var sound_manager: SoundManager = $"../../SoundManager"
 @onready var destroy_manager: DestroyManager = $"../../DestroyManager"
 
+@onready var camera: Camera = $Camera2D
+
+
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
 
@@ -33,7 +36,8 @@ func _ready():
 	add_child(sound_player_mining)
 	add_to_group("SaveLoad")
 	add_to_group("Player")
-	
+	$Attack.visible = false
+	$Attack.monitoring = false
 	health_manager = HealthManager.new(10)
 	health_manager.connect("died", Callable(self, "_on_died"))
 	
@@ -85,7 +89,7 @@ func _destroy_input_press():
 func receive_hit(force: Vector2, damage: int):
 	#velocity += force
 	#move_and_slide()
-	
+	camera.apply_shake()
 	health_manager.take_damage(damage)
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
 	animated_sprite_2d.material.set_shader_parameter("r", 1)
@@ -101,10 +105,11 @@ func receive_hit(force: Vector2, damage: int):
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
 		var direction = (body.global_position - global_position).normalized()
-		body.receive_hit(direction * 1040, 3)
+		body.receive_hit(direction * 100, 3)
 	
 func _attack():
 	attack.visible = true
+	attack.monitoring = true
 	if not $AnimatedSprite2D.flip_h:
 		$AnimationPlayer.play("Attack")
 	else:
@@ -171,6 +176,7 @@ func _physics_process(delta):
 	
 	if not $AnimationPlayer.is_playing():
 		$Attack.visible = false
+		$Attack.monitoring = false
 
 	if velocity.x != 0:
 		$AnimatedSprite2D.flip_v = false

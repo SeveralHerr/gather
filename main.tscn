@@ -1,4 +1,4 @@
-[gd_scene load_steps=39 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=40 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="6_t1wx5"]
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
+[ext_resource type="Script" path="res://Camera2D.gd" id="9_3scwu"]
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
 [ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="10_s3ge4"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
@@ -245,7 +246,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SoundManager", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SoundManager", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -346,6 +347,7 @@ animation = &"Gathering"
 
 [node name="Camera2D" type="Camera2D" parent="Node2D/Player"]
 zoom = Vector2(4.935, 4.935)
+script = ExtResource("9_3scwu")
 
 [node name="UI" type="Control" parent="Node2D/Player/Camera2D" node_paths=PackedStringArray("tileMapHandler", "selected_item_manager", "inventory_manager", "item_grid")]
 z_index = 1580
