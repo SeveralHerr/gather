@@ -222,6 +222,9 @@ region = Rect2(96, 16, 16, 16)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_106sc"]
 shader = ExtResource("6_t1wx5")
 shader_parameter/flash_intensity = null
+shader_parameter/r = 1.0
+shader_parameter/g = 1.0
+shader_parameter/b = 1.0
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_pamq7"]
 animations = [{

@@ -7,7 +7,10 @@ const JUMP_VELOCITY = -400.0
 var target: Player
 @export var attack_target: Player
 
+@export var health_manager: HealthManager
+@export var damage = 3
 
+@export var items: Items
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
@@ -17,6 +20,8 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 
+var item_manager: ItemManager
+
 var detection_range = 100
 
 var raycast: RayCast2D
@@ -25,6 +30,16 @@ func _ready():
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))
 	los_area_2d.connect("body_exited", Callable(self, "_on_body_exited"))
 	
+	health_manager = HealthManager.new(10)
+	health_manager.connect("died", Callable(self, "_on_died"))
+	
+	for node in get_tree().get_nodes_in_group("ItemManager"):
+		if node is ItemManager:
+			item_manager = node
+
+	for node in get_tree().get_nodes_in_group("Items"):
+		if node is Items:
+			items = node
 
 	attack_range.connect("body_entered", Callable(self, "_on_body_attack_entered"))
 	attack_range.connect("body_exited", Callable(self, "_on_body_attack_exited"))
@@ -33,6 +48,11 @@ func _ready():
 	raycast.enabled = true
 	raycast.target_position = Vector2(100, 0)  # Adjust this to your desired range
 	add_child(raycast)
+	
+	
+func _on_died():
+	item_manager.AddItemToWorld(position, items.get_item(Types.Item.Bone))
+	queue_free()
 
 func _process(delta):
 	pass
@@ -121,6 +141,10 @@ func get_nearest_area2d(search_distance: int):
 			nearest_object = object
 
 		return object
+		
+func receive_hit(force: Vector2, damage: int):
+	add_central_force(force)
+	health_manager.take_damage(damage)
 
 func add_central_force(force: Vector2):
 	velocity += force
@@ -137,7 +161,7 @@ func _on_attack_timer_timeout():
 		return
 		
 	var direction = (attack_target.global_position - global_position).normalized()
-	attack_target.add_central_force(direction * 1040)
+	attack_target.receive_hit(direction * 1040, damage)
 
 	
 	print("Attack")

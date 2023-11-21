@@ -7,10 +7,16 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
 shader = ExtResource("1_x8ngj")
 shader_parameter/flash_intensity = null
+shader_parameter/r = 1.0
+shader_parameter/g = 1.0
+shader_parameter/b = 1.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_q5ibv"]
 shader = ExtResource("1_x8ngj")
 shader_parameter/flash_intensity = null
+shader_parameter/r = 1.0
+shader_parameter/g = 1.0
+shader_parameter/b = 1.0
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_26djf"]
 atlas = ExtResource("3_7wili")
@@ -40,7 +46,6 @@ texture = SubResource("AtlasTexture_26djf")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
 avoidance_enabled = true
-debug_enabled = true
 
 [node name="PathTimer" type="Timer" parent="."]
 wait_time = 0.11

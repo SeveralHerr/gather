@@ -51,7 +51,7 @@ func AddItemToWorld(position, item: GameItem):
 	
 	add_child(rb)
 	add_to_group("Items")
-	rb.position = position + Vector2i(8,8)
+	rb.position = Vector2i(position.x, position.y) + Vector2i(8,8)
 
 
 	itemsInWorld.append(WorldItem.new(item, rb, player, inventoryManager, self))

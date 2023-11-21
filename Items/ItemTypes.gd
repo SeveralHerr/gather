@@ -18,5 +18,6 @@ enum Item {
 	WoodWall,
 	WoodDoor,
 	Grass,
-	Chest
+	Chest,
+	Bone
 }

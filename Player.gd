@@ -3,12 +3,14 @@ class_name Player
 
 const SPEED = 300.0
 const JUMP_VELOCITY = -400.0
+var damage = 3
 
 @export var tilemap: TileMapHandler
 @export var selectedItemManager: SelectedItemManager
 @export var resourceManager: ResourceManager2
 @export var items: Items
 @export var input_manager: InputManager
+@export var health_manager: HealthManager
 @onready var animation_player = $AnimationPlayer
 @onready var attack = $Attack
 @onready var animated_sprite_2d = $AnimatedSprite2D
@@ -31,6 +33,10 @@ func _ready():
 	add_child(sound_player_mining)
 	add_to_group("SaveLoad")
 	add_to_group("Player")
+	
+	health_manager = HealthManager.new(10)
+	health_manager.connect("died", Callable(self, "_on_died"))
+	
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
 	input_manager.connect("move_up", Callable(self, "_move_up"))
@@ -46,6 +52,9 @@ func _ready():
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
+	
+func _on_died():
+	print("DEAD")
 	
 func _on_resource_removing(location: Vector2i, resource):
 	sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
@@ -73,18 +82,26 @@ func _destroy_input_press():
 	destroy_manager.start_removing_resource()
 	pass	
 
-func add_central_force(force: Vector2):
-	velocity += force
-	move_and_slide()
+func receive_hit(force: Vector2, damage: int):
+	#velocity += force
+	#move_and_slide()
+	
+	health_manager.take_damage(damage)
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
+	animated_sprite_2d.material.set_shader_parameter("r", 1)
+	animated_sprite_2d.material.set_shader_parameter("g", 0)
+	animated_sprite_2d.material.set_shader_parameter("b", 0)
 	await get_tree().create_timer(0.1).timeout
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 0)
+	animated_sprite_2d.material.set_shader_parameter("r", 1)
+	animated_sprite_2d.material.set_shader_parameter("g", 1)
+	animated_sprite_2d.material.set_shader_parameter("b", 1)
 	#sound_manager.play_sound(sound_manager.SoundType.HIT)
 
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
 		var direction = (body.global_position - global_position).normalized()
-		body.add_central_force(direction * 1040)
+		body.receive_hit(direction * 1040, 3)
 	
 func _attack():
 	attack.visible = true
