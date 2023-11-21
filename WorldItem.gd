@@ -8,7 +8,10 @@ var player: Player
 var inventoryManager: InventoryManager
 var item_manager: ItemManager
 
-
+func f_ready():
+	var dir = Vector2(randf_range(-1, 1), randf_range(-1, -0.5)).normalized()
+	var force = dir * randf_range(100, 200)  # Random force
+	instance.apply_central_impulse( force)	
 
 
 func _init(item: GameItem, instance: RigidBody2D, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager):
@@ -23,6 +26,8 @@ func Process(delta) -> bool:
 	var move_speed = 20.0
 	var playerPos = player.global_position #+ Vector2(8,8)
 		
+		
+
 
 	# Use an index-based loop backwards if you plan to remove items from the list
 	var item_instance = instance

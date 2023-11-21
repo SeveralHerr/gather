@@ -1,0 +1,74 @@
+[gd_scene load_steps=10 format=3 uid="uid://b106gs33ih13n"]
+
+[ext_resource type="Shader" path="res://solid_color.gdshader" id="1_x8ngj"]
+[ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_nafcj"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="3_7wili"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
+shader = ExtResource("1_x8ngj")
+shader_parameter/flash_intensity = null
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_q5ibv"]
+shader = ExtResource("1_x8ngj")
+shader_parameter/flash_intensity = null
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_26djf"]
+atlas = ExtResource("3_7wili")
+region = Rect2(224, 16, 16, 16)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_87llr"]
+radius = 69.5216
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_fymkc"]
+size = Vector2(6, 4)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_4vhux"]
+
+[node name="Enemy" type="CharacterBody2D"]
+z_index = 1
+y_sort_enabled = true
+texture_filter = 1
+material = SubResource("ShaderMaterial_nbo6t")
+position = Vector2(-39, -11)
+collision_layer = 2097153
+floor_max_angle = 0.0
+script = ExtResource("2_nafcj")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+material = SubResource("ShaderMaterial_q5ibv")
+texture = SubResource("AtlasTexture_26djf")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+avoidance_enabled = true
+debug_enabled = true
+
+[node name="PathTimer" type="Timer" parent="."]
+wait_time = 0.11
+autostart = true
+
+[node name="LineOfSight" type="Area2D" parent="."]
+position = Vector2(39, 11)
+collision_layer = 1048576
+collision_mask = 1048576
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LineOfSight"]
+position = Vector2(-39, -9.5)
+shape = SubResource("CircleShape2D_87llr")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="."]
+position = Vector2(0, 4)
+shape = SubResource("RectangleShape2D_fymkc")
+
+[node name="AttackRange" type="Area2D" parent="."]
+collision_layer = 1048576
+collision_mask = 1048576
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackRange"]
+position = Vector2(0, 3)
+shape = SubResource("CircleShape2D_4vhux")
+
+[node name="AttackTimer" type="Timer" parent="."]
+autostart = true
+
+[connection signal="timeout" from="PathTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="AttackTimer" to="." method="_on_attack_timer_timeout"]

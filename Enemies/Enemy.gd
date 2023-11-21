@@ -11,8 +11,9 @@ var target: Player
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
-@onready var player = $"../Player"
-@onready var player_area_2d = $"../Player/Area2D"
+@onready var player = $"../../Player"
+
+@onready var player_area_2d = $"../../Player/Area2D"
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 
@@ -124,9 +125,12 @@ func get_nearest_area2d(search_distance: int):
 func add_central_force(force: Vector2):
 	velocity += force
 	move_and_slide()
+
+	sprite_2d.material = sprite_2d.material.duplicate()
 	sprite_2d.material.set_shader_parameter("flash_intensity", 4)
 	await get_tree().create_timer(0.1).timeout
 	sprite_2d.material.set_shader_parameter("flash_intensity", 0)
+
 
 func _on_attack_timer_timeout():
 	if attack_target == null:

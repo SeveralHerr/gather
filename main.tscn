@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=39 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://InputManager.gd" id="20_ylgbb"]
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
+[ext_resource type="Script" path="res://EnemyWaveManager.gd" id="25_qr721"]
 
 [sub_resource type="Animation" id="Animation_y0to0"]
 resource_name = "Attack"
@@ -53,8 +54,63 @@ tracks/1/keys = {
 "values": [-2.0944, 0.349066]
 }
 
+[sub_resource type="Animation" id="Animation_1fng2"]
+resource_name = "Attack2"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(1, -1), Vector2(3, 3)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [-2.0944, 0.349066]
+}
+
 [sub_resource type="Animation" id="Animation_uuk1w"]
 resource_name = "Attack_Left"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Attack:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(-4, -3), Vector2(-1, 9)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Attack:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5.23599, 2.36841]
+}
+
+[sub_resource type="Animation" id="Animation_6ij4o"]
+resource_name = "Attack_Left_2"
 length = 0.2
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -137,61 +193,6 @@ tracks/1/keys = {
 "transitions": PackedFloat32Array(1, 1),
 "update": 0,
 "values": [Vector2(0, -1), Vector2(-5, 2)]
-}
-
-[sub_resource type="Animation" id="Animation_1fng2"]
-resource_name = "Attack2"
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Attack:position")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [Vector2(1, -1), Vector2(3, 3)]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Attack:rotation")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0, 0.2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [-2.0944, 0.349066]
-}
-
-[sub_resource type="Animation" id="Animation_6ij4o"]
-resource_name = "Attack_Left_2"
-length = 0.2
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Attack:position")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [Vector2(-4, -3), Vector2(-1, 9)]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Attack:rotation")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0, 0.2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [5.23599, 2.36841]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_kjuyc"]
@@ -533,6 +534,13 @@ player = NodePath("../Player")
 items = NodePath("../../Items")
 inventoryManager = NodePath("../../InventoryManager")
 resource_manager = NodePath("../../ResourceManager")
+
+[node name="EnemyWaveManager" type="Node" parent="Node2D"]
+script = ExtResource("25_qr721")
+
+[node name="Timer" type="Timer" parent="Node2D/EnemyWaveManager"]
+wait_time = 2.141
+autostart = true
 
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("17_h45i4")
