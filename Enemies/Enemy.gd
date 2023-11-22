@@ -58,6 +58,10 @@ func _ready():
 	
 	
 func _on_died():
+	$HitParticles.emitting = true
+	await get_tree().create_timer(0.1).timeout
+	$HitParticles.emitting = false
+	await get_tree().create_timer(0.1).timeout
 	item_manager.AddItemToWorld(position, items.get_item(Types.Item.Bone))
 	queue_free()
 

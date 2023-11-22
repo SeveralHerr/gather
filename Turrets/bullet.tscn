@@ -1,0 +1,46 @@
+[gd_scene load_steps=6 format=3 uid="uid://cfm17h2w5agm0"]
+
+[ext_resource type="Script" path="res://Turrets/bullet.gd" id="1_7q77j"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_lnpmb"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_k7cv1"]
+radius = 2.121
+height = 11.0
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7xok8"]
+atlas = ExtResource("1_lnpmb")
+region = Rect2(176, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jxmoy"]
+atlas = ExtResource("1_lnpmb")
+region = Rect2(176, 16, 16, 16)
+
+[node name="Bullet" type="CharacterBody2D"]
+script = ExtResource("1_7q77j")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0.5, 0.5)
+rotation = 0.802851
+shape = SubResource("CapsuleShape2D_k7cv1")
+
+[node name="Shadow" type="Sprite2D" parent="."]
+texture_filter = 1
+position = Vector2(0, 8)
+texture = SubResource("AtlasTexture_7xok8")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = SubResource("AtlasTexture_jxmoy")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+
+[node name="HitBox" type="Area2D" parent="."]
+visible = false
+collision_layer = 2097152
+collision_mask = 2097152
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="HitBox"]
+visible = false
+position = Vector2(0.5, 0.5)
+rotation = 0.802851
+shape = SubResource("CapsuleShape2D_k7cv1")

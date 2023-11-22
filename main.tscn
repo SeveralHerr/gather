@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=41 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://Items/ResourceManager2.gd" id="17_h45i4"]
 [ext_resource type="Script" path="res://Items/Items.gd" id="18_esavp"]
 [ext_resource type="Script" path="res://Items/Resources.gd" id="20_pmgm2"]
+[ext_resource type="PackedScene" uid="uid://biwp8o3sgjfju" path="res://Turrets/bone_turret.tscn" id="20_ti7s3"]
 [ext_resource type="Script" path="res://InputManager.gd" id="20_ylgbb"]
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
@@ -546,6 +547,9 @@ script = ExtResource("25_qr721")
 [node name="Timer" type="Timer" parent="Node2D/EnemyWaveManager"]
 wait_time = 2.141
 autostart = true
+
+[node name="BoneTurret" parent="Node2D" instance=ExtResource("20_ti7s3")]
+position = Vector2(-44, -5)
 
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("17_h45i4")

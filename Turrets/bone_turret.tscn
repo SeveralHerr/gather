@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3 uid="uid://biwp8o3sgjfju"]
+
+[ext_resource type="Script" path="res://Turrets/BoneTurret.gd" id="1_q0vyx"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_7c4dj"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s40i8"]
+atlas = ExtResource("2_7c4dj")
+region = Rect2(240, 32, 16, 16)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_owfso"]
+radius = 40.1123
+
+[node name="BoneTurret" type="Node2D"]
+script = ExtResource("1_q0vyx")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = SubResource("AtlasTexture_s40i8")
+
+[node name="ShootTimer" type="Timer" parent="."]
+autostart = true
+
+[node name="LineOfSight" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2097152
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LineOfSight"]
+shape = SubResource("CircleShape2D_owfso")
