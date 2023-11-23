@@ -19,5 +19,8 @@ enum Item {
 	WoodDoor,
 	Grass,
 	Chest,
-	Bone
+	Bone,
+	BoneTurret,
+	String,
+	Net
 }

@@ -15,12 +15,14 @@ func _ready():
 	item_list[Types.Item.IronOre] = GameItem.new(Vector2i(6, 2), 4, Types.Item.IronOre, 1, false, "Iron Ore", Vector2i.ZERO)
 	item_list[Types.Item.IronBar] = GameItem.new(Vector2i(7, 2), 4, Types.Item.IronBar, 1, false, "Iron Bar", Vector2i.ZERO)
 	item_list[Types.Item.WoodWall] = GameItem.new(Vector2i(0, 11), 4, Types.Item.WoodWall, 1, true, "Wood Wall", Vector2i.ZERO)
-	item_list[Types.Item.Furnace] = GameItem.new(Vector2i(0, 0), 5, Types.Item.Furnace, 1, true, "Furnace", Vector2i.ZERO, true)
+	item_list[Types.Item.Furnace] = GameItem.new(Vector2i(0, 0), 5, Types.Item.Furnace, 1, true, "Furnace", Vector2i(0,5), true)
 	item_list[Types.Item.WoodDoor] = GameItem.new(Vector2i(0,0), 1, Types.Item.WoodDoor, 1, true, "Wood Door", Vector2i(0, 13), true)
 	item_list[Types.Item.Grass] = GameItem.new(Vector2i(0,0), 4, Types.Item.Grass, 0, false, "Grass", Vector2i.ZERO)
 	item_list[Types.Item.Chest] = GameItem.new(Vector2i(0,0), 3, Types.Item.Chest, 1, true, "Chest", Vector2i(11,2), true)
 	item_list[Types.Item.Bone] = GameItem.new(Vector2i(11,1), 4, Types.Item.Bone, 1, false, "Bone", Vector2i.ZERO, false)
-
+	item_list[Types.Item.BoneTurret] = GameItem.new(Vector2i(15,2), 6, Types.Item.BoneTurret, 1, true, "Bone Turret", Vector2i.ZERO, true)
+	item_list[Types.Item.Net] = GameItem.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
+	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 
 func get_item_by_data(atlas_location, source_id):
 	for key in item_list.keys():

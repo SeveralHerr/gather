@@ -52,6 +52,21 @@ func _ready():
 		var chest_costs = {}
 		chest_costs[Types.Item.Wood] = 1
 		recipe_list.append(CraftingRecipe.new(Types.Item.Chest, chest_costs))
+		
+		var bone_turret_costs = {}
+		bone_turret_costs[Types.Item.Wood] = 1
+		bone_turret_costs[Types.Item.IronBar] = 1
+		bone_turret_costs[Types.Item.String] = 1
+		recipe_list.append(CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
+		
+		var net_costs = {}
+		net_costs[Types.Item.Wood] = 5
+		net_costs[Types.Item.String] = 5
+		recipe_list.append(CraftingRecipe.new(Types.Item.Net, net_costs))
+		
+		var furnace_costs = {}
+		furnace_costs[Types.Item.Stone] = 9
+		recipe_list.append(CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
 				
 		selected_recipe = recipe_list[0]
 	
