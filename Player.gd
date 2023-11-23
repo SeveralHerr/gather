@@ -8,7 +8,6 @@ var damage = 3
 @export var tilemap: TileMapHandler
 @export var selectedItemManager: SelectedItemManager
 @export var resourceManager: ResourceManager2
-@export var items: Items
 @export var input_manager: InputManager
 @export var health_manager: HealthManager
 @onready var animation_player = $AnimationPlayer
@@ -16,9 +15,11 @@ var damage = 3
 @onready var animated_sprite_2d = $AnimatedSprite2D
 @onready var sound_manager: SoundManager = $"../../SoundManager"
 @onready var destroy_manager: DestroyManager = $"../../DestroyManager"
+@onready var items: Items = $"../../Items"
 
 @onready var camera: Camera = $Camera2D
-
+@onready var area_2d: Area2D = $Area2D
+@onready var inventory_manager: InventoryManager = $"../../InventoryManager"
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
@@ -40,7 +41,7 @@ func _ready():
 	$Attack.monitoring = false
 	health_manager = HealthManager.new(10)
 	health_manager.connect("died", Callable(self, "_on_died"))
-	
+
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
 	input_manager.connect("move_up", Callable(self, "_move_up"))
@@ -116,6 +117,25 @@ func _attack():
 		$AnimationPlayer.play("Attack_Left")
 	pass
 func _gather_input_press():
+	inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
+	if selectedItemManager.selected_inventory_slot_item != null:
+		if selectedItemManager.selected_inventory_slot_item.item.type == Types.Item.BoneEnemy:
+			var nodes = area_2d.get_overlapping_areas()
+			
+			var closest_turret: BoneTurret = null
+			var cloest_distance = Vector2(INF, INF)
+			for node in nodes:
+				var node_parent = node.get_parent()
+				if node_parent is BoneTurret:
+					var distance = global_position.direction_to(node_parent.global_position)
+					if distance < cloest_distance:
+						cloest_distance = distance
+						closest_turret = node_parent
+					
+			if closest_turret != null:
+				closest_turret.set_loaded()
+		return
+	
 	$Gather.visible = true
 	#$AnimatedSprite2D.play("Gathering")
 	if not $AnimatedSprite2D.flip_h:
@@ -127,6 +147,8 @@ func _gather_input_press():
 	resourceManager.start_removing_resource()
 	
 func _gather_input_release():
+	if selectedItemManager.selected_inventory_slot_item != null:
+		return
 	resourceManager.stop_removing_resource()
 	$AnimatedSprite2D.play("Idle")
 	$Gather.visible=false
@@ -168,6 +190,9 @@ func _process_movement():
 	v = Vector2.ZERO 
 	
 	move_and_slide()
+	
+func _process(delta):
+	pass
 	
 func _physics_process(delta):
 	#$AnimatedSprite2D.play("Idle")

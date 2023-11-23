@@ -5,6 +5,7 @@ class_name SelectedItemManager
 @onready var input_manager: InputManager= $"../../../../../InputManager"
 
 signal placed_tile(type: Types.Item)
+signal selected_item(item: GameItem)
 
 var selected_inventory_slot_item: InventorySlot
 var selectedTexture = TextureRect.new()
@@ -19,6 +20,7 @@ enum Type {
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	add_to_group("SelectedItemManager")
 	add_child(selectedTexture)
 	selectedTexture.z_index = 5
 	selectedTexture.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -30,6 +32,8 @@ func _on_click(isUiOpen: bool):
 		
 	if input_manager.isUiOpen:	
 		return
+		
+
 	
 	var mouse_pos = get_global_mouse_position()
 	var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
@@ -42,8 +46,12 @@ func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
 		return 
 	
 	selected_inventory_slot_item = inventory_slot_item
+	print("Selected Item: ", selected_inventory_slot_item.item.type)
+	selected_item.emit(inventory_slot_item.item)
 	type = incoming_type
-	selectedTexture.texture = inventory_slot_item.item.get_atlas()
+	
+	if selected_inventory_slot_item.item.is_placeable:
+		selectedTexture.texture = inventory_slot_item.item.get_atlas()
 	
 func ClearSelection():
 	if selected_inventory_slot_item == null:

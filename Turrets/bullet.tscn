@@ -16,6 +16,9 @@ atlas = ExtResource("1_lnpmb")
 region = Rect2(176, 16, 16, 16)
 
 [node name="Bullet" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 2097152
+platform_floor_layers = 4294967040
 script = ExtResource("1_7q77j")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
@@ -36,7 +39,7 @@ texture = SubResource("AtlasTexture_jxmoy")
 
 [node name="HitBox" type="Area2D" parent="."]
 visible = false
-collision_layer = 2097152
+collision_layer = 0
 collision_mask = 2097152
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="HitBox"]

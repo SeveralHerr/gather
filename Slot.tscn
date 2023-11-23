@@ -1,15 +1,15 @@
-[gd_scene load_steps=3 format=3 uid="uid://b3gs00pjmjv3v"]
+[gd_scene load_steps=4 format=3 uid="uid://b3gs00pjmjv3v"]
 
 [ext_resource type="Script" path="res://Slot.gd" id="1_o7o1f"]
 [ext_resource type="Texture2D" uid="uid://c7v74gceupcyj" path="res://Resources/slot.png" id="2_sg0i8"]
 
-[node name="Slot" type="Panel" node_paths=PackedStringArray("button")]
-self_modulate = Color(1, 1, 1, 0)
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_iigti"]
+
+[node name="Slot" type="Panel"]
 custom_minimum_size = Vector2(25, 25)
 offset_right = 16.0
 offset_bottom = 16.0
 script = ExtResource("1_o7o1f")
-button = NodePath("MarginContainer/Button")
 
 [node name="TextureRect" type="TextureRect" parent="."]
 texture_filter = 1
@@ -33,9 +33,9 @@ custom_minimum_size = Vector2(25, 25)
 layout_mode = 2
 
 [node name="Button" type="Button" parent="MarginContainer"]
-modulate = Color(1, 1, 1, 0)
 custom_minimum_size = Vector2(25, 25)
 layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_iigti")
 action_mode = 0
 
 [node name="QuantityLabel" type="Label" parent="."]

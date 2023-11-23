@@ -247,7 +247,7 @@ animations = [{
 "speed": 5.0
 }]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SoundManager", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -281,7 +281,7 @@ script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")
 resourceManager = NodePath("../../ResourceManager")
 
-[node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "selectedItemManager", "resourceManager", "items", "input_manager")]
+[node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "selectedItemManager", "resourceManager", "input_manager")]
 z_index = 1
 y_sort_enabled = true
 collision_layer = 1048577
@@ -290,7 +290,6 @@ script = ExtResource("3_i35uo")
 tilemap = NodePath("../..")
 selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
-items = NodePath("../../Items")
 input_manager = NodePath("../../InputManager")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Node2D/Player"]
@@ -299,6 +298,7 @@ libraries = {
 }
 
 [node name="Area2D" type="Area2D" parent="Node2D/Player"]
+collision_mask = 3145729
 
 [node name="CollisionShape2D2" type="CollisionShape2D" parent="Node2D/Player/Area2D"]
 position = Vector2(0, 4.5)

@@ -22,5 +22,6 @@ enum Item {
 	Bone,
 	BoneTurret,
 	String,
-	Net
+	Net,
+	BoneEnemy
 }
