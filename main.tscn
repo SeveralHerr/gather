@@ -1,4 +1,4 @@
-[gd_scene load_steps=41 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=47 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -27,6 +27,13 @@
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
 [ext_resource type="Script" path="res://EnemyWaveManager.gd" id="25_qr721"]
+[ext_resource type="PackedScene" uid="uid://b6nel2sc5lw3f" path="res://Enemies/SpiderEnemy.tscn" id="28_e61kk"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_bfrcx"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4m8m1"]
+atlas = ExtResource("5_ba3bd")
+region = Rect2(272, 16, 16, 16)
 
 [sub_resource type="Animation" id="Animation_y0to0"]
 resource_name = "Attack"
@@ -197,6 +204,86 @@ tracks/1/keys = {
 "values": [Vector2(0, -1), Vector2(-5, 2)]
 }
 
+[sub_resource type="Animation" id="Animation_fi3wf"]
+resource_name = "Net_Left"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Net:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(2.49, -2.005), Vector2(-5.055, 1.945)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Net:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [-2.3911, -4.54135]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Net/Sprite2D:flip_v")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+
+[sub_resource type="Animation" id="Animation_ck12b"]
+resource_name = "Net_Right"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Net:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, -3.59), Vector2(5.245, 2.445)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Net:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [-0.738274, 1.50273]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Net/Sprite2D:flip_v")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_kjuyc"]
 _data = {
 "Attack": SubResource("Animation_y0to0"),
@@ -204,7 +291,9 @@ _data = {
 "Attack_Left": SubResource("Animation_uuk1w"),
 "Attack_Left_2": SubResource("Animation_6ij4o"),
 "Gather": SubResource("Animation_jlada"),
-"Gather_left": SubResource("Animation_h6uyy")
+"Gather_left": SubResource("Animation_h6uyy"),
+"Net_Left": SubResource("Animation_fi3wf"),
+"Net_Right": SubResource("Animation_ck12b")
 }
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_nb1ju"]
@@ -246,6 +335,8 @@ animations = [{
 "name": &"Idle",
 "speed": 5.0
 }]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_onssn"]
 
 [node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "UI"]]
 script = ExtResource("1_j4hlh")
@@ -292,6 +383,24 @@ selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 input_manager = NodePath("../../InputManager")
 
+[node name="Net" type="Area2D" parent="Node2D/Player"]
+visible = false
+z_index = 1
+y_sort_enabled = true
+position = Vector2(2.49, -2.005)
+rotation = -2.3911
+collision_layer = 0
+collision_mask = 2129920
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/Net"]
+shape = SubResource("CircleShape2D_bfrcx")
+
+[node name="Sprite2D" type="Sprite2D" parent="Node2D/Player/Net"]
+texture_filter = 1
+texture = SubResource("AtlasTexture_4m8m1")
+flip_h = true
+flip_v = true
+
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Node2D/Player"]
 libraries = {
 "": SubResource("AnimationLibrary_kjuyc")
@@ -311,8 +420,8 @@ visible = false
 visible = false
 z_index = -1
 y_sort_enabled = true
-position = Vector2(-4, -3)
-rotation = 5.23599
+position = Vector2(-1, 1)
+rotation = -2.0944
 collision_layer = 0
 collision_mask = 2097152
 
@@ -534,6 +643,13 @@ mouse_filter = 2
 script = ExtResource("11_3m4gl")
 tileMapHandler = NodePath("../../../../..")
 
+[node name="LineOfSight" type="Area2D" parent="Node2D/Player"]
+collision_layer = 0
+collision_mask = 2097152
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/LineOfSight"]
+shape = SubResource("CircleShape2D_onssn")
+
 [node name="ItemManager" type="Node" parent="Node2D" node_paths=PackedStringArray("player", "items", "inventoryManager", "resource_manager")]
 script = ExtResource("15_fsmbf")
 player = NodePath("../Player")
@@ -580,6 +696,9 @@ script = ExtResource("24_8vlfw")
 items = NodePath("../Items")
 tile_map_handler = NodePath("..")
 player = NodePath("../Node2D/Player")
+
+[node name="SpiderEnemy" parent="." instance=ExtResource("28_e61kk")]
+position = Vector2(7, 47)
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]

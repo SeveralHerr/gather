@@ -15,11 +15,12 @@ var camera: Camera
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
-@onready var player = $"../Player"
+@onready var player =  get_tree().get_nodes_in_group("Player")[1]  
 
 @onready var player_area_2d = $"../Player/Area2D"
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
+@onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
 
 var item_manager: ItemManager
 
@@ -30,6 +31,8 @@ var knockback = Vector2.ZERO
 var raycast: RayCast2D
 
 func _ready():
+	if animated_sprite_2d:
+		animated_sprite_2d.play("Idle")
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))
 	los_area_2d.connect("body_exited", Callable(self, "_on_body_exited"))
 	
@@ -75,6 +78,8 @@ func _on_player_detected():
 	print("Player detected!")
 
 func _on_body_exited(body: Node2D):
+	if animated_sprite_2d:
+		animated_sprite_2d.play("Idle")
 	target = null
 	
 func _on_body_attack_entered(body: Node2D):
@@ -121,6 +126,8 @@ func _physics_process(delta):
 	else:
 		speed = 10
 
+	if animated_sprite_2d:
+		animated_sprite_2d.play("Walking")
 
 	var direction = to_local(navigation_agent_2d.get_next_path_position()).normalized()
 	velocity = direction * speed + knockback
@@ -166,10 +173,17 @@ func receive_hit(force: Vector2, damage: int):
 func add_central_force(force: Vector2):
 	knockback = force
 
-	sprite_2d.material = sprite_2d.material.duplicate()
-	sprite_2d.material.set_shader_parameter("flash_intensity", 4)
+	var sprite
+	if animated_sprite_2d:
+		sprite = animated_sprite_2d
+	else:
+		sprite = sprite_2d
+
+
+	sprite.material = sprite.material.duplicate()
+	sprite.material.set_shader_parameter("flash_intensity", 4)
 	await get_tree().create_timer(0.1).timeout
-	sprite_2d.material.set_shader_parameter("flash_intensity", 0)
+	sprite.material.set_shader_parameter("flash_intensity", 0)
 
 
 func _on_attack_timer_timeout():

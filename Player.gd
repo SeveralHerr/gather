@@ -20,6 +20,8 @@ var damage = 3
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
 @onready var inventory_manager: InventoryManager = $"../../InventoryManager"
+@onready var net = $Net
+
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
@@ -109,6 +111,8 @@ func _on_body_entered_attack(body: Node2D):
 		body.receive_hit(direction * 100, 3)
 	
 func _attack():
+	#v.x = 100
+	
 	attack.visible = true
 	attack.monitoring = true
 	if not $AnimatedSprite2D.flip_h:
@@ -117,7 +121,7 @@ func _attack():
 		$AnimationPlayer.play("Attack_Left")
 	pass
 func _gather_input_press():
-	inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
+	inventory_manager.AddItem(items.get_item(Types.Item.Net), 1)
 	if selectedItemManager.selected_inventory_slot_item != null:
 		if selectedItemManager.selected_inventory_slot_item.item.type == Types.Item.BoneEnemy:
 			var nodes = area_2d.get_overlapping_areas()
@@ -134,6 +138,30 @@ func _gather_input_press():
 					
 			if closest_turret != null:
 				closest_turret.set_loaded()
+		elif selectedItemManager.selected_inventory_slot_item.item.type == Types.Item.Net:
+			net.visible = true
+			net.monitoring = true
+			if not $AnimatedSprite2D.flip_h:
+				animation_player.play("Net_Right")
+			else:
+				animation_player.play("Net_Left")
+			
+			var nodes = $LineOfSight.get_overlapping_bodies()
+
+			var closest_enemy: Enemy = null
+			var cloest_distance = Vector2(INF, INF)
+			for node in nodes:
+				if node is Enemy:
+					var distance = global_position.direction_to(node.global_position)
+					if distance < cloest_distance:
+						cloest_distance = distance
+						closest_enemy = node
+					
+			if closest_enemy != null:
+				
+				inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
+				closest_enemy.queue_free()
+	
 		return
 	
 	$Gather.visible = true
@@ -202,6 +230,8 @@ func _physics_process(delta):
 	if not $AnimationPlayer.is_playing():
 		$Attack.visible = false
 		$Attack.monitoring = false
+		net.visible = false
+		net.monitorable = false
 
 	if velocity.x != 0:
 		$AnimatedSprite2D.flip_v = false
