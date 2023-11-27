@@ -1,6 +1,8 @@
 extends Control
 class_name LevelUpManager
 
+signal added_xp(amount: int)
+
 @onready var xp_bar: ProgressBar = $"../PlayerInfo/XpBar"
 
 
@@ -26,6 +28,7 @@ func add_xp(amount: int):
 	xp += amount
 	xp_bar.max_value = next_level
 	xp_bar.value = xp
+	added_xp.emit(amount)
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

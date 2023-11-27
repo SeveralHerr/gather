@@ -1,4 +1,4 @@
-[gd_scene load_steps=46 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=47 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -14,6 +14,7 @@
 [ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="10_s3ge4"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
 [ext_resource type="PackedScene" uid="uid://j3o18gjy61sa" path="res://Crafting/chest_inventory_ui.tscn" id="11_m2bd2"]
+[ext_resource type="Script" path="res://FloatingText.gd" id="11_uoapv"]
 [ext_resource type="Script" path="res://Crafting/CraftingUI.gd" id="12_bqf2j"]
 [ext_resource type="Script" path="res://LevelUpManager.gd" id="12_hyjmf"]
 [ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
@@ -469,6 +470,20 @@ tileMapHandler = NodePath("../../../..")
 selected_item_manager = NodePath("SelectedItemManager")
 inventory_manager = NodePath("../../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
+
+[node name="FloatingText" type="Control" parent="Node2D/Player/Camera2D/UI"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("11_uoapv")
+
+[node name="XpLabel" type="Label" parent="Node2D/Player/Camera2D/UI/FloatingText"]
+layout_mode = 0
+offset_left = 3.0
+offset_top = -11.0
+offset_right = 43.0
+offset_bottom = 12.0
+scale = Vector2(0.45, 0.45)
 
 [node name="PlayerInfo" type="Control" parent="Node2D/Player/Camera2D/UI"]
 anchors_preset = 0

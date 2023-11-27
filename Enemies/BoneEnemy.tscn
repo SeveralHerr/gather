@@ -41,6 +41,7 @@ collision_layer = 3145729
 collision_mask = 3145729
 floor_max_angle = 0.0
 script = ExtResource("2_nafcj")
+type = "Bone"
 drop = 17
 sound = 7
 

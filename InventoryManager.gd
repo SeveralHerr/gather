@@ -1,6 +1,8 @@
 extends Node
 class_name InventoryManager
 
+
+
 @onready var selected_item_manager: SelectedItemManager = $"../Node2D/Player/Camera2D/UI/SelectedItemManager"
 
 

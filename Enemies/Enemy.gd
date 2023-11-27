@@ -21,7 +21,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
-
+@export var type: String = ""
 @export var drop: Types.Item
 @export var sound: GameSoundManager.SoundType
 var item_manager: ItemManager
@@ -34,6 +34,7 @@ var knockback = Vector2.ZERO
 var raycast: RayCast2D
 
 func _ready():
+	add_to_group("SaveLoad")
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Idle")
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))
@@ -206,3 +207,5 @@ func _on_attack_timer_timeout():
 	
 	print("Attack")
 	pass # Replace with function body.
+
+
