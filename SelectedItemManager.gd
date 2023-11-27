@@ -3,9 +3,13 @@ class_name SelectedItemManager
 
 @export var tileMapHandler: TileMapHandler
 @onready var input_manager: InputManager= $"../../../../../InputManager"
+@onready var inventory_manager: InventoryManager = $"../../../../../InventoryManager"
 
-signal placed_tile(type: Types.Item)
+
+signal placed_tile(item: GameItem)
 signal selected_item(item: GameItem)
+
+
 
 var selected_inventory_slot_item: InventorySlot
 var selectedTexture = TextureRect.new()
@@ -37,16 +41,30 @@ func _on_click(isUiOpen: bool):
 	
 	var mouse_pos = get_global_mouse_position()
 	var tile_pos = tileMapHandler.tileMap.local_to_map(mouse_pos)
-	if not tileMapHandler.is_occupied(tile_pos) and selected_inventory_slot_item.item.is_placeable:
+	var is_wall = selected_inventory_slot_item.item.type == Types.Item.WoodFloor
+	if not tileMapHandler.is_occupied(tile_pos, true, is_wall) and selected_inventory_slot_item.item.is_placeable:
 		tileMapHandler.set_tile(tile_pos, selected_inventory_slot_item.item.tile_source_id, selected_inventory_slot_item.item.atlas_location, selected_inventory_slot_item.item.layer, selected_inventory_slot_item.item.is_scene_tile)
-		placed_tile.emit(selected_inventory_slot_item.item.type)
+		placed_tile.emit(selected_inventory_slot_item.item)
+
+		#if selected_inventory_slot_item.item
+	
+func has_selected_item()-> bool: 
+	return selected_inventory_slot_item != null
+	
+func get_selected_item_type():
+	return selected_inventory_slot_item.item.type
+	
+func get_selected_item():
+	return selected_inventory_slot_item.item
+	
+func get_selected_inventory_slot():
+	return selected_inventory_slot_item
 	
 func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
 	if inventory_slot_item == null:
 		return 
 	
 	selected_inventory_slot_item = inventory_slot_item
-	print("Selected Item: ", selected_inventory_slot_item.item.type)
 	selected_item.emit(inventory_slot_item.item)
 	type = incoming_type
 	
@@ -56,8 +74,11 @@ func SetSelectedItem(inventory_slot_item: InventorySlot, incoming_type: Type):
 func ClearSelection():
 	if selected_inventory_slot_item == null:
 		return
+		
+
 	#selectedTexture.queue_free() 
 	selectedTexture.texture = null
+	#selected_inventory_slot_item.item = null
 	selected_inventory_slot_item = null
 	type = Type.None
 	
@@ -81,7 +102,8 @@ func _process(delta):
 		# Set the object's position to the clamped position
 		selectedTexture.global_position = tile_center_global
 
-		if tileMapHandler.is_occupied(tile_pos):
+		var is_wall = selected_inventory_slot_item.item.type == Types.Item.WoodFloor
+		if tileMapHandler.is_occupied(tile_pos, true, is_wall):
 			selectedTexture.modulate = Color(1, 0, 0, 140)
 		else:
 			selectedTexture.modulate = Color(1, 1, 1, 1)

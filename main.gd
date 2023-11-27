@@ -141,8 +141,11 @@ func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2
 	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
-func is_occupied(tilePos: Vector2i, include_resources = false)-> bool:
+func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = false)-> bool:
 	var is_occupied = false
+	
+	if is_wall == true:
+		return false
 	
 	var tile = tileMap.get_cell_tile_data(1, tilePos)
 	if tile != null:

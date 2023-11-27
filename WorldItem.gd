@@ -3,6 +3,8 @@ class_name WorldItem
 
 var item: GameItem
 
+var sound_manager: SoundManager 
+
 @export var instance: RigidBody2D
 var player: Player
 var inventoryManager: InventoryManager
@@ -14,12 +16,15 @@ func f_ready():
 	instance.apply_central_impulse( force)	
 
 
-func _init(item: GameItem, instance: RigidBody2D, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager):
+func _init(item: GameItem, instance: RigidBody2D, player: Player, inventoryManager: InventoryManager, item_manager: ItemManager, sound_manager: SoundManager):
 	self.item = item
 	self.instance = instance
 	self.player = player
 	self.inventoryManager = inventoryManager
 	self.item_manager = item_manager
+	self.sound_manager = sound_manager
+
+
 	
 func Process(delta) -> bool:
 	var activation_distance = 30.0
@@ -51,6 +56,7 @@ func Process(delta) -> bool:
 			if i.instance == instance:
 				item_manager.itemsInWorld.erase(i)
 		
+		sound_manager.play_sound(sound_manager.SoundType.POP)
 		item_instance.queue_free()
 		return true
 	return false

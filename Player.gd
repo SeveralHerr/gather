@@ -59,7 +59,7 @@ func _ready():
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
-	
+
 func _on_died():
 	print("DEAD")
 	
@@ -161,7 +161,9 @@ func _gather_input_press():
 				
 				inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
 				closest_enemy.queue_free()
-	
+		else:
+			net.visible = false
+			net.monitoring = false
 		return
 	
 	$Gather.visible = true

@@ -4,7 +4,7 @@ class_name Enemy
 const SPEED = 300.0
 const JUMP_VELOCITY = -400.0
 
-var target: Player
+@export var target: Player
 @export var attack_target: Player
 
 @export var health_manager: HealthManager
@@ -21,6 +21,8 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
+
+@export var drop: Types.Item
 
 var item_manager: ItemManager
 
@@ -65,7 +67,7 @@ func _on_died():
 	await get_tree().create_timer(0.1).timeout
 	$HitParticles.emitting = false
 	await get_tree().create_timer(0.1).timeout
-	item_manager.AddItemToWorld(position, items.get_item(Types.Item.Bone))
+	item_manager.AddItemToWorld(position, items.get_item(drop))
 	queue_free()
 
 func _process(delta):
@@ -80,7 +82,8 @@ func _on_player_detected():
 func _on_body_exited(body: Node2D):
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Idle")
-	target = null
+	if body is Player:
+		target = null
 	
 func _on_body_attack_entered(body: Node2D):
 	if body is Player:
@@ -88,7 +91,8 @@ func _on_body_attack_entered(body: Node2D):
 
 
 func _on_body_attack_exited(body: Node2D):
-	attack_target = null
+	if body is Player:
+		attack_target = null
 
 func has_lost_line_of_sight() -> bool:
 

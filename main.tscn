@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=45 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -22,12 +22,10 @@
 [ext_resource type="Script" path="res://Items/ResourceManager2.gd" id="17_h45i4"]
 [ext_resource type="Script" path="res://Items/Items.gd" id="18_esavp"]
 [ext_resource type="Script" path="res://Items/Resources.gd" id="20_pmgm2"]
-[ext_resource type="PackedScene" uid="uid://biwp8o3sgjfju" path="res://Turrets/bone_turret.tscn" id="20_ti7s3"]
 [ext_resource type="Script" path="res://InputManager.gd" id="20_ylgbb"]
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
 [ext_resource type="Script" path="res://EnemyWaveManager.gd" id="25_qr721"]
-[ext_resource type="PackedScene" uid="uid://b6nel2sc5lw3f" path="res://Enemies/SpiderEnemy.tscn" id="28_e61kk"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bfrcx"]
 
@@ -366,7 +364,7 @@ layer_4/z_index = 1
 layer_4/tile_data = PackedInt32Array()
 
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
-wait_time = 5.914
+wait_time = 3.365
 autostart = true
 script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")
@@ -600,6 +598,16 @@ offset_bottom = 35.0
 scale = Vector2(0.53, 0.53)
 text = "X"
 
+[node name="ProgressBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
+visible = false
+layout_mode = 0
+offset_left = 56.0
+offset_top = 109.0
+offset_right = 126.0
+offset_bottom = 119.0
+value = 56.0
+show_percentage = false
+
 [node name="ChestInventory" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("selected_item_manager") instance=ExtResource("11_m2bd2")]
 visible = false
 offset_left = -114.0
@@ -661,11 +669,8 @@ resource_manager = NodePath("../../ResourceManager")
 script = ExtResource("25_qr721")
 
 [node name="Timer" type="Timer" parent="Node2D/EnemyWaveManager"]
-wait_time = 2.141
+wait_time = 10.205
 autostart = true
-
-[node name="BoneTurret" parent="Node2D" instance=ExtResource("20_ti7s3")]
-position = Vector2(-44, -5)
 
 [node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
 script = ExtResource("17_h45i4")
@@ -696,9 +701,6 @@ script = ExtResource("24_8vlfw")
 items = NodePath("../Items")
 tile_map_handler = NodePath("..")
 player = NodePath("../Node2D/Player")
-
-[node name="SpiderEnemy" parent="." instance=ExtResource("28_e61kk")]
-position = Vector2(7, 47)
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]

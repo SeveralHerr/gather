@@ -9,6 +9,8 @@ class_name ItemManager
 @onready var destroy_manager = $"../../DestroyManager"
 
 
+@onready var sound_manager: SoundManager = $"../../SoundManager"
+
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -54,7 +56,7 @@ func AddItemToWorld(position, item: GameItem):
 	rb.position = Vector2i(position.x, position.y) + Vector2i(8,8)
 
 
-	itemsInWorld.append(WorldItem.new(item, rb, player, inventoryManager, self))
+	itemsInWorld.append(WorldItem.new(item, rb, player, inventoryManager, self, sound_manager))
 	
 	
 func saveObject() -> Dictionary:

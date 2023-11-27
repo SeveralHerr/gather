@@ -14,7 +14,7 @@ func _ready():
 	#test = $SawmillUI
 	#furnaceUi = $FurnaceUi
 	add_to_group("UI")
-	selected_item_manager.placed_tile.connect(Callable(self, "_on_placed_tile"))
+	#selected_item_manager.placed_tile.connect(Callable(self, "_on_placed_tile"))
 	
 	
 	for child in item_grid.get_children():
@@ -44,21 +44,29 @@ func update_ui():
 	for i in range(21):
 		item_grid.get_child(i).get_child(1).get_child(0).texture = null
 		item_grid.get_child(i).get_child(2).text = ""
+		var slotButton = item_grid.get_child(i)
+		if slotButton is SlotButton:
+			slotButton.clear_slot()
 
 	var i = 0
-	for key in inventory_manager.inventory.keys():
-		var atlas = inventory_manager.inventory[key].item.get_atlas()
+	var inventory = inventory_manager.get_inventory()
+	for inv_slot in inventory:
+		if inv_slot.item == null:
+			continue
+		var item = inv_slot.item
+		var atlas = item.get_atlas()
 
 		item_grid.get_child(i).get_child(1).get_child(0).texture = atlas
-		item_grid.get_child(i).get_child(2).text = str(inventory_manager.inventory[key].count)
+		item_grid.get_child(i).get_child(2).text = str(inv_slot.count)
 		
 		var slotButton = item_grid.get_child(i)
 		if slotButton is SlotButton:
-			slotButton.inventory_slot_item = inventory_manager.inventory[key]
+			slotButton.set_slot(inv_slot)
 			
 		i += 1
 			
-func _on_Button_pressed(inventory_slot: InventorySlot):
+func _on_Button_pressed(inventory_slot: InventorySlot, instance: SlotButton):
+	print("ui press")
 	if selected_item_manager.selected_inventory_slot_item != null:
 		if selected_item_manager.type == selected_item_manager.Type.Chest:
 			inventory_manager.AddItem(selected_item_manager.selected_inventory_slot_item.item, 
@@ -66,8 +74,9 @@ func _on_Button_pressed(inventory_slot: InventorySlot):
 			
 			chest_inventory.remove_all_of_item(selected_item_manager.selected_inventory_slot_item.item.type)
 			selected_item_manager.ClearSelection()
+
 			
 			update_ui()
-	else: 
+	elif inventory_slot and inventory_slot.item != null: 
 		selected_item_manager.SetSelectedItem(inventory_slot, selected_item_manager.Type.Inventory)
 	

@@ -4,6 +4,8 @@ class_name CraftingUi
 @export var craftingStation: CraftingStation
 @export var items: Items
 @export var inventory_manager: InventoryManager
+@onready var selected_item_manager: SelectedItemManager = $"../SelectedItemManager"
+
 var amountToCraft = 0
 
 
@@ -26,11 +28,15 @@ func _ready():
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
-
+	handle_progress_bar()
 	
 	pass
 	
 func _on_item_selected(index):
+	if craftingStation.count > 0:
+		return
+	
+	
 	var selectedText = $Craftables.get_item_text(index)
 
 	craftingStation.selected_recipe = _get_recipe_by_name(selectedText)
@@ -68,8 +74,7 @@ func load_crafting_station(craftingStation):
 		child.queue_free()
 		
 	$Craftables.clear()
-	print("Test")
-	print(items.get_item(Types.Item.IronBar).name)
+
 	for recipe in craftingStation.recipe_list:
 		var item = items.get_item(recipe.product)		
 		var atlas_texture = item.get_atlas()
@@ -97,8 +102,22 @@ func load_crafting_station(craftingStation):
 		
 		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
-	
+	$QuantityLabel.text = "Qty. " + str(amountToCraft)
+	handle_progress_bar()
 
+	
+func handle_progress_bar():
+	if craftingStation and craftingStation.count > 0:
+		$AddButton.visible = false
+		$CraftButton.visible = false
+		$ProgressBar.visible = true
+		$ProgressBar.max_value = craftingStation.starting_count
+		$ProgressBar.value = craftingStation.count
+		$QuantityLabel.text = "Qty. " + str(craftingStation.count)
+	elif craftingStation:
+		$AddButton.visible = true
+		$CraftButton.visible = true
+		$ProgressBar.visible = false
 	
 func _add():
 	var hasRequiredItems = []
@@ -129,6 +148,7 @@ func _craft():
 			inventory_manager.RemoveItem(item)
 
 	craftingStation.count = amountToCraft
+	craftingStation.starting_count = amountToCraft
 	print("amount left", craftingStation.count)
 	_exit()
 	

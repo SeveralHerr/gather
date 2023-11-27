@@ -1,6 +1,9 @@
 extends Node
 class_name InventoryManager
 
+@onready var selected_item_manager: SelectedItemManager = $"../Node2D/Player/Camera2D/UI/SelectedItemManager"
+
+
 @export var inventory = {}
 @export var items: Items
 @export var ui: UI
@@ -9,9 +12,13 @@ class_name InventoryManager
 func _ready():
 	add_to_group("SaveLoad")
 	AddItem(items.get_item(Types.Item.Wood), 100)
+	AddItem(items.get_item(Types.Item.Stone), 100)
+	AddItem(items.get_item( Types.Item.Sawmill), 1)
+	selected_item_manager.placed_tile.connect(_on_placed_tile)
 	pass # Replace with function body.
 
-		
+func get_inventory() -> Array:
+	return inventory.values()
 func AddItem(item: GameItem, count: int = 0):
 	var inventoryItem = InventorySlot.new(item, count)
 	var found = false
@@ -56,7 +63,13 @@ func RemoveItem(type: Types.Item):
 	ui.update_ui()
 
 
-	
+func _on_placed_tile(item: GameItem):
+	RemoveItem(item.type)
+	if not HasItem(item.type):
+		selected_item_manager.ClearSelection()
+		print("clear")
+		ui.update_ui()
+
 func saveObject() -> Dictionary:
 	var inventory_data = {}
 	for item in inventory.keys():
