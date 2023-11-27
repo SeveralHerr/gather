@@ -24,6 +24,9 @@ func _ready():
 	item_list[Types.Item.Net] = GameItem.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItem.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)
+	item_list[Types.Item.WoodPickaxe] = Pickaxe.new(Vector2i(12,0), 4, Types.Item.WoodPickaxe, 1, false, "Wooden Pickaxe", Vector2i.ZERO, false, 2)
+	item_list[Types.Item.IronPickaxe] = Pickaxe.new(Vector2i(6,1), 4, Types.Item.IronPickaxe, 1, false, "Iron Pickaxe", Vector2i.ZERO, false, 1)
+	item_list[Types.Item.BonePickaxe] = Pickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1)
 	
 	
 	

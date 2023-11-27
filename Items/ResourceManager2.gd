@@ -37,9 +37,9 @@ func remove_resource(location, resource: GameResource):
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
 	
-func start_removing_resource():
+func start_removing_resource(power: int):
 	is_holding_e = true
-	#hold_timer.time_left = 3.0
+	hold_timer.wait_time = power
 	hold_timer.start()
 	
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)

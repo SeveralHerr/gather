@@ -21,6 +21,7 @@ var damage = 3
 @onready var area_2d: Area2D = $Area2D
 @onready var inventory_manager: InventoryManager = $"../../InventoryManager"
 @onready var net = $Net
+@onready var hp_bar: ProgressBar = $Camera2D/UI/PlayerInfo/HpBar
 
 
 var sound_player: AudioStreamPlayer
@@ -43,6 +44,8 @@ func _ready():
 	$Attack.monitoring = false
 	health_manager = HealthManager.new(10)
 	health_manager.connect("died", Callable(self, "_on_died"))
+	hp_bar.max_value = health_manager.max_health
+	hp_bar.value = health_manager.current_health
 
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
@@ -94,6 +97,8 @@ func receive_hit(force: Vector2, damage: int):
 	#move_and_slide()
 	camera.apply_shake()
 	health_manager.take_damage(damage)
+	hp_bar.max_value = health_manager.max_health
+	hp_bar.value = health_manager.current_health
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
 	animated_sprite_2d.material.set_shader_parameter("r", 1)
 	animated_sprite_2d.material.set_shader_parameter("g", 0)
@@ -104,6 +109,9 @@ func receive_hit(force: Vector2, damage: int):
 	animated_sprite_2d.material.set_shader_parameter("g", 1)
 	animated_sprite_2d.material.set_shader_parameter("b", 1)
 	#sound_manager.play_sound(sound_manager.SoundType.HIT)
+	
+func set_pickaxe_skin():
+	$Gather.texture = selectedItemManager.get_selected_item().get_atlas()
 
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
@@ -121,64 +129,74 @@ func _attack():
 		$AnimationPlayer.play("Attack_Left")
 	pass
 func _gather_input_press():
-	inventory_manager.AddItem(items.get_item(Types.Item.Net), 1)
-	if selectedItemManager.selected_inventory_slot_item != null:
-		if selectedItemManager.selected_inventory_slot_item.item.type == Types.Item.BoneEnemy:
-			var nodes = area_2d.get_overlapping_areas()
-			
-			var closest_turret: BoneTurret = null
-			var cloest_distance = Vector2(INF, INF)
-			for node in nodes:
-				var node_parent = node.get_parent()
-				if node_parent is BoneTurret:
-					var distance = global_position.direction_to(node_parent.global_position)
-					if distance < cloest_distance:
-						cloest_distance = distance
-						closest_turret = node_parent
-					
-			if closest_turret != null:
-				closest_turret.set_loaded()
-		elif selectedItemManager.selected_inventory_slot_item.item.type == Types.Item.Net:
-			net.visible = true
-			net.monitoring = true
-			if not $AnimatedSprite2D.flip_h:
-				animation_player.play("Net_Right")
-			else:
-				animation_player.play("Net_Left")
-			
-			var nodes = $LineOfSight.get_overlapping_bodies()
-
-			var closest_enemy: Enemy = null
-			var cloest_distance = Vector2(INF, INF)
-			for node in nodes:
-				if node is Enemy:
-					var distance = global_position.direction_to(node.global_position)
-					if distance < cloest_distance:
-						cloest_distance = distance
-						closest_enemy = node
-					
-			if closest_enemy != null:
-				
-				inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
-				closest_enemy.queue_free()
-		else:
+	#inventory_manager.AddItem(items.get_item(Types.Item.Net), 1)
+	var selected_item = selectedItemManager.selected_inventory_slot_item
+	if selected_item == null:		
+		return
+		
+	match selected_item.item.type:
+		Types.Item.BoneEnemy:
+			handle_bone_enemy_interaction()
+		Types.Item.Net:
+			handle_net_interaction()
+		Types.Item.WoodPickaxe:
+			handle_pickaxe_interaction()
+		Types.Item.IronPickaxe:
+			handle_pickaxe_interaction()
+		_:
 			net.visible = false
 			net.monitoring = false
-		return
 	
+func handle_pickaxe_interaction():
+	set_pickaxe_skin()
 	$Gather.visible = true
 	#$AnimatedSprite2D.play("Gathering")
 	if not $AnimatedSprite2D.flip_h:
 		$AnimationPlayer.play("Gather")
 	else:
 		$AnimationPlayer.play("Gather_left")
-		
 
-	resourceManager.start_removing_resource()
+	resourceManager.start_removing_resource(selectedItemManager.get_selected_item().power)
 	
+func handle_bone_enemy_interaction():
+	var nodes = area_2d.get_overlapping_areas()
+	var closest_turret = find_closest_object(nodes, BoneTurret)
+			
+	if closest_turret != null:
+		closest_turret.set_loaded()
+
+func handle_net_interaction():
+	net.visible = true
+	net.monitoring = true
+	
+	if not $AnimatedSprite2D.flip_h:
+		animation_player.play("Net_Right")
+	else:
+		animation_player.play("Net_Left")
+	
+	var nodes = $LineOfSight.get_overlapping_bodies()
+	var closest_enemy = find_closest_object(nodes, Enemy)
+			
+	if closest_enemy != null:
+		inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
+		inventory_manager.RemoveItem(Types.Item.Net)
+		closest_enemy.queue_free()
+
+
+
+func find_closest_object(nodes, type):
+	var closest_object = null
+	var closest_distance = INF
+	for node in nodes:
+		if is_instance_of(node, type):
+			var distance = global_position.distance_to(node.global_position)
+			if distance < closest_distance:
+				closest_distance = distance
+				closest_object = node
+	return closest_object
+
 func _gather_input_release():
-	if selectedItemManager.selected_inventory_slot_item != null:
-		return
+
 	resourceManager.stop_removing_resource()
 	$AnimatedSprite2D.play("Idle")
 	$Gather.visible=false

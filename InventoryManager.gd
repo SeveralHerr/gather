@@ -14,6 +14,8 @@ func _ready():
 	AddItem(GameItems.get_item(Types.Item.Wood), 100)
 	AddItem(items.get_item(Types.Item.Stone), 100)
 	AddItem(items.get_item( Types.Item.Sawmill), 1)
+	AddItem(items.get_item( Types.Item.WoodPickaxe), 1)
+	AddItem(items.get_item( Types.Item.IronPickaxe), 1)
 	selected_item_manager.placed_tile.connect(_on_placed_tile)
 	pass # Replace with function body.
 

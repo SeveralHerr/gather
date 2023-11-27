@@ -25,6 +25,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @export var drop: Types.Item
 @export var sound: GameSoundManager.SoundType
 var item_manager: ItemManager
+var level_up_manager: LevelUpManager
 
 var detection_range = 100
 var speed = 10
@@ -52,7 +53,10 @@ func _ready():
 	for node in get_tree().get_nodes_in_group("Camera"):
 		if node is Camera:
 			camera = node
-
+			
+	for node in get_tree().get_nodes_in_group("LevelUpManager"):
+		if node is LevelUpManager:
+			level_up_manager = node 
 	attack_range.connect("body_entered", Callable(self, "_on_body_attack_entered"))
 	attack_range.connect("body_exited", Callable(self, "_on_body_attack_exited"))
 	# Initialize the raycast
@@ -68,6 +72,7 @@ func _on_died():
 	$HitParticles.emitting = false
 	await get_tree().create_timer(0.1).timeout
 	item_manager.AddItemToWorld(position, items.get_item(drop))
+	level_up_manager.add_xp(3)
 	queue_free()
 
 func _process(delta):

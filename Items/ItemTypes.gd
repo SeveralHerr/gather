@@ -23,5 +23,8 @@ enum Item {
 	BoneTurret,
 	String,
 	Net,
-	BoneEnemy
+	BoneEnemy,
+	WoodPickaxe,
+	IronPickaxe,
+	BonePickaxe
 }

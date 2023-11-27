@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=46 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
 [ext_resource type="PackedScene" uid="uid://j3o18gjy61sa" path="res://Crafting/chest_inventory_ui.tscn" id="11_m2bd2"]
 [ext_resource type="Script" path="res://Crafting/CraftingUI.gd" id="12_bqf2j"]
+[ext_resource type="Script" path="res://LevelUpManager.gd" id="12_hyjmf"]
 [ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://Items/ItemManager.gd" id="15_fsmbf"]
 [ext_resource type="Script" path="res://Crafting.gd" id="16_prcxf"]
@@ -336,7 +337,7 @@ animations = [{
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_onssn"]
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "LevelUpManager", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -469,6 +470,27 @@ selected_item_manager = NodePath("SelectedItemManager")
 inventory_manager = NodePath("../../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
 
+[node name="PlayerInfo" type="Control" parent="Node2D/Player/Camera2D/UI"]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="HpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
+layout_mode = 0
+offset_left = -114.0
+offset_top = -61.0
+offset_right = -8.0
+offset_bottom = -52.0
+show_percentage = false
+
+[node name="XpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
+layout_mode = 0
+offset_left = -111.0
+offset_top = -48.0
+offset_right = -10.0
+offset_bottom = -38.0
+show_percentage = false
+
 [node name="SaveLoad" type="Control" parent="Node2D/Player/Camera2D/UI"]
 layout_mode = 3
 anchors_preset = 0
@@ -495,6 +517,62 @@ offset_right = 93.0
 offset_bottom = 77.0
 text = "Load
 "
+
+[node name="LevelUpUI" type="Control" parent="Node2D/Player/Camera2D/UI"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_left = -82.0
+offset_top = -43.0
+offset_right = -42.0
+offset_bottom = -3.0
+scale = Vector2(0.23, 0.23)
+script = ExtResource("12_hyjmf")
+
+[node name="BonePickaxeButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
+layout_mode = 0
+offset_left = 52.1739
+offset_top = 13.0435
+offset_right = 96.1739
+offset_bottom = 44.0435
+text = "Bone Pickaxe"
+
+[node name="BoneSwordButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
+layout_mode = 0
+offset_left = 217.391
+offset_top = 13.0435
+offset_right = 263.391
+offset_bottom = 44.0435
+text = "Bone Sword
+"
+
+[node name="IronButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
+layout_mode = 0
+offset_left = 378.261
+offset_top = 8.69564
+offset_right = 479.261
+offset_bottom = 39.6956
+text = "Iron: 
+Unlocks Furnace, Iron pickaxe"
+
+[node name="BoneTurretButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
+layout_mode = 0
+offset_left = 56.5217
+offset_top = 134.783
+offset_right = 157.522
+offset_bottom = 165.783
+text = "Bone Turret:
+Unlocks Net, Turret
+"
+
+[node name="WoodDecorButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
+layout_mode = 0
+offset_left = 56.5217
+offset_top = 243.478
+offset_right = 215.522
+offset_bottom = 297.478
+text = "Wood decor:
+Unlocks floor, walls, door"
 
 [node name="InventoryBackground" type="TextureRect" parent="Node2D/Player/Camera2D/UI"]
 layout_mode = 2
@@ -705,3 +783,8 @@ player = NodePath("../Node2D/Player")
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BonePickaxeButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_save_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BoneSwordButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/IronButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BoneTurretButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
+[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/WoodDecorButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
