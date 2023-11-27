@@ -1,6 +1,8 @@
 extends Node
 class_name SoundManager
 
+var gathering_player: AudioStreamPlayer
+
 # Define your sounds
 enum SoundType {
 	STONE,
@@ -9,7 +11,9 @@ enum SoundType {
 	DOOR_ACTION,
 	WOOD_PLACE,
 	MINING,
-	POP
+	POP,
+	BONE,
+	SQUISH
 	}
 
 # Store your sounds as AudioStreamPlayer nodes or references to AudioStream resources
@@ -20,11 +24,15 @@ var sound_library = {
 	SoundType.DOOR_ACTION: preload("res://Resources/Sounds/door_open.wav"),
 	SoundType.WOOD_PLACE: preload("res://Resources/Sounds/wood_place.wav"),
 	SoundType.MINING: preload("res://Resources/Sounds/mining.wav"),
-	SoundType.POP: preload("res://Resources/Sounds/pop.wav")
+	SoundType.POP: preload("res://Resources/Sounds/pop.wav"),
+	SoundType.BONE: preload("res://Resources/Sounds/bone_hit.wav"),
+	SoundType.SQUISH: preload("res://Resources/Sounds/squish.wav")
 }
 
 func _ready():
 	add_to_group("SoundManager")
+	gathering_player = AudioStreamPlayer.new()
+	add_child(gathering_player)
 
 # This function plays a sound of the given type
 func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
@@ -50,6 +58,22 @@ func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: flo
 		player.volume_db = volume_db
 		#player.loop = loop
 		player.play()
+		
+func play_gathering_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
+	var sound_resource = sound_library[type]
+	gathering_player.autoplay = false
+	
+	if gathering_player.playing == true:
+		return
+	if sound_resource:
+		gathering_player.stream = sound_resource
+		gathering_player.volume_db = volume_db
+
+		#player.loop = loop
+		gathering_player.play()
+		
+func stop_gathering_sound():
+	gathering_player.stop()
 
 
 # This function stops all sounds of the given type

@@ -11,7 +11,7 @@ class_name InventoryManager
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	add_to_group("SaveLoad")
-	AddItem(items.get_item(Types.Item.Wood), 100)
+	AddItem(GameItems.get_item(Types.Item.Wood), 100)
 	AddItem(items.get_item(Types.Item.Stone), 100)
 	AddItem(items.get_item( Types.Item.Sawmill), 1)
 	selected_item_manager.placed_tile.connect(_on_placed_tile)

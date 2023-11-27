@@ -23,7 +23,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
 
 @export var drop: Types.Item
-
+@export var sound: GameSoundManager.SoundType
 var item_manager: ItemManager
 
 var detection_range = 100
@@ -171,6 +171,7 @@ func receive_hit(force: Vector2, damage: int):
 	add_central_force(force)
 	health_manager.take_damage(damage)
 	camera.apply_shake(1)
+	GameSoundManager.play_sound(sound)
 	$HitParticles.emitting = true
 	await get_tree().create_timer(0.1).timeout
 	$HitParticles.emitting = false

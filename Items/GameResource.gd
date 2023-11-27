@@ -2,7 +2,7 @@ extends GameItem
 class_name GameResource
 
 @export var gathering_atlas_location: Vector2i
-
+var sound: GameSoundManager.SoundType
 var drop: Types.Item
 
 func _init(atlas_location: Vector2i, 
@@ -14,7 +14,8 @@ func _init(atlas_location: Vector2i,
 		tile_atlas_location: Vector2i,
 		is_scene_tile: bool,
 		drop: Types.Item, 
-		gathering_atlas_location: Vector2i = Vector2i.ZERO
+		gathering_atlas_location: Vector2i = Vector2i.ZERO,
+		sound: GameSoundManager.SoundType = GameSoundManager.SoundType.STONE
 	):
 	self.atlas_location = atlas_location
 	self.tile_source_id = tile_source_id
@@ -24,4 +25,5 @@ func _init(atlas_location: Vector2i,
 	self.type = type
 	self.drop = drop
 	self.gathering_atlas_location = gathering_atlas_location
+	self.sound = sound
 

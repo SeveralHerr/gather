@@ -44,6 +44,7 @@ func start_removing_resource():
 	
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)
 	if removing_info != null:
+		GameSoundManager.play_gathering_sound(removing_info.resource.sound)
 		emit_signal("resource_removing", removing_info.location, removing_info.resource)
 	
 	
@@ -51,6 +52,7 @@ func stop_removing_resource():
 	is_holding_e = false
 	hold_timer.stop()
 	if removing_info != null:
+		GameSoundManager.stop_gathering_sound()
 		emit_signal("resource_removing_stop", removing_info.location, removing_info.resource)
 	
 func _on_hold_timer_timeout():

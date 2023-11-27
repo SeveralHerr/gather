@@ -64,11 +64,11 @@ func _on_died():
 	print("DEAD")
 	
 func _on_resource_removing(location: Vector2i, resource):
-	sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
+	#sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
 	pass
 	
 func _on_resource_removing_stop(location: Vector2i, resource):
-	sound_player_mining.stop()
+	#sound_player_mining.stop()
 	pass
 		
 func _destroy_input_release():
@@ -184,14 +184,14 @@ func _gather_input_release():
 	$Gather.visible=false
 
 func _mouse_button_left(test: bool):
-	print("left")
-	tilemap.tileMap.set_cell(1, Vector2i(2, 2), -1)
-	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 6, Vector2i(0,0), -1)
+	#print("left")
+	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), -1)
+	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), 6, Vector2i(0,0), -1)
 	pass
 
 func _mouse_button_right():
 	selectedItemManager.ClearSelection()
-	tilemap.tileMap.set_cell(1, Vector2i(2, 2), 3, Vector2i(0,0), 3)
+	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), 3, Vector2i(0,0), 3)
 	#tilemap.set_tile(Vector2i(3, 2), 8, Vector2i(0,0), 1, true)
 	#tilemap.set_tile_item(Vector2i(3,2), items.get_item(Types.Item.Chest))
 	#tilemap.set_tile_item(Vector2(3, 3), items.get_item(Types.Item.WoodDoor))
