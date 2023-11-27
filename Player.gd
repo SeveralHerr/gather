@@ -259,25 +259,17 @@ func _physics_process(delta):
 
 
 func saveObject() -> Dictionary:
-	var data 
-
-	var json = {
-		"x": position.x,
-		"y": position.y
-	}
-		
-	data = JSON.stringify(json)
-	
 	var dict := {
 		"filepath": get_path(),
-		"pos": data
+		"x": position.x,
+		"y": position.y,
+		"hp": health_manager.current_health
 	}
 	return dict
 	
 func loadObject(loadedDict: Dictionary) -> void:
-	var data = loadedDict.pos
-	var json = JSON.new()
-	json.parse(data)
-	var node = json.get_data()
-	position = Vector2(node["x"], node["y"])
+	position = Vector2(loadedDict["x"], loadedDict["y"])
+	health_manager.current_health = loadedDict["hp"]
+	hp_bar.max_value = health_manager.max_health
+	hp_bar.value = health_manager.current_health
 	
