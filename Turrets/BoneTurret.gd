@@ -12,6 +12,7 @@ var loaded: bool = false
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	add_to_group("SaveChunks")
 	los.connect("body_entered", Callable(self, "_on_body_entered"))
 	los.connect("body_exited", Callable(self, "_on_body_exited"))
 
@@ -67,3 +68,39 @@ func _on_timeout_shoot():
 	var b = bullet.instantiate()
 	b.start(Vector2.ZERO, direction)
 	add_child(b)
+
+func save():
+	var bullet_data = {}
+	var bullets = get_children()
+	for i in bullets.size():
+		if bullets[i] is Bullet:
+			var json = {
+				"x": bullets[i].position.x,
+				"y": bullets[i].position.y,
+				"rotation": bullets[i].rotation,
+				"velocity": bullets[i].velocity
+			}
+			bullet_data[i] = JSON.stringify(json)
+	
+	var dict = {
+		"x": position.x,
+		"y": position.y,
+		"data": bullet_data,
+		"filepath": "343"
+	}
+
+	return dict
+	
+func load(dict):
+	for child in get_children(): 
+		child.queue_free()
+	
+	for item in dict.data.keys():
+		var x = dict.data[item]
+		var json = JSON.new()
+		json.parse(x)
+		var node = json.get_data()
+		
+		var b = bullet.instantiate()
+		add_child(b)
+		b.velocity = node["velocity"]

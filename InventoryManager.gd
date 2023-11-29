@@ -18,6 +18,8 @@ func _ready():
 	AddItem(items.get_item( Types.Item.Sawmill), 1)
 	AddItem(items.get_item( Types.Item.WoodPickaxe), 1)
 	AddItem(items.get_item( Types.Item.IronPickaxe), 1)
+	AddItem(items.get_item( Types.Item.BoneTurret), 1)
+	AddItem(items.get_item( Types.Item.BoneEnemy), 1)
 	selected_item_manager.placed_tile.connect(_on_placed_tile)
 	pass # Replace with function body.
 

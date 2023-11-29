@@ -1,4 +1,5 @@
 extends CharacterBody2D
+class_name Bullet
 
 var speed = 30
 var spin_speed = 25.0 

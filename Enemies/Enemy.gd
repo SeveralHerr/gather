@@ -17,7 +17,6 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var los_area_2d = $LineOfSight
 @onready var player =  get_tree().get_nodes_in_group("Player")[1]  
 
-@onready var player_area_2d = $"../Player/Area2D"
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
