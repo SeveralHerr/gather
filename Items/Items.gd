@@ -20,7 +20,7 @@ func _ready():
 	item_list[Types.Item.Grass] = GameItem.new(Vector2i(0,0), 4, Types.Item.Grass, 0, false, "Grass", Vector2i.ZERO)
 	item_list[Types.Item.Chest] = GameItem.new(Vector2i(0,0), 3, Types.Item.Chest, 1, true, "Chest", Vector2i(11,2), true)
 	item_list[Types.Item.Bone] = GameItem.new(Vector2i(11,1), 4, Types.Item.Bone, 1, false, "Bone", Vector2i.ZERO, false)
-	item_list[Types.Item.BoneTurret] = GameItem.new(Vector2i(15,2), 6, Types.Item.BoneTurret, 1, true, "Bone Turret", Vector2i.ZERO, true)
+	item_list[Types.Item.BoneTurret] = GameItem.new(Vector2i(0,0), 6, Types.Item.BoneTurret, 1, true, "Bone Turret", Vector2i(14,2), true)
 	item_list[Types.Item.Net] = GameItem.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItem.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)

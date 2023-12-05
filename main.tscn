@@ -494,16 +494,16 @@ offset_bottom = 40.0
 layout_mode = 0
 offset_left = -114.0
 offset_top = -61.0
-offset_right = -8.0
-offset_bottom = -52.0
+offset_right = -88.0
+offset_bottom = -57.0
 show_percentage = false
 
 [node name="XpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 layout_mode = 0
-offset_left = -111.0
-offset_top = -48.0
-offset_right = -10.0
-offset_bottom = -38.0
+offset_left = -114.0
+offset_top = -55.0
+offset_right = -90.0
+offset_bottom = -51.0
 show_percentage = false
 
 [node name="SaveLoad" type="Control" parent="Node2D/Player/Camera2D/UI"]
@@ -537,10 +537,10 @@ text = "Load
 visible = false
 layout_mode = 3
 anchors_preset = 0
-offset_left = -82.0
-offset_top = -43.0
-offset_right = -42.0
-offset_bottom = -3.0
+offset_left = -122.0
+offset_top = -45.0
+offset_right = -82.0
+offset_bottom = -5.0
 scale = Vector2(0.23, 0.23)
 script = ExtResource("12_hyjmf")
 
@@ -765,12 +765,6 @@ script = ExtResource("25_qr721")
 wait_time = 10.205
 autostart = true
 
-[node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
-script = ExtResource("17_h45i4")
-resources = NodePath("../Resources")
-tile_map_handler = NodePath("..")
-player = NodePath("../Node2D/Player")
-
 [node name="Items" type="Node" parent="."]
 script = ExtResource("18_esavp")
 
@@ -782,6 +776,12 @@ ui = NodePath("../Node2D/Player/Camera2D/UI")
 [node name="Resources" type="Node" parent="." node_paths=PackedStringArray("items")]
 script = ExtResource("20_pmgm2")
 items = NodePath("../Items")
+
+[node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
+script = ExtResource("17_h45i4")
+resources = NodePath("../Resources")
+tile_map_handler = NodePath("..")
+player = NodePath("../Node2D/Player")
 
 [node name="SoundManager" type="Node" parent="."]
 script = ExtResource("17_dy3qn")

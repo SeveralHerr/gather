@@ -7,6 +7,7 @@ signal resource_removing(location: Vector2i, resource)
 signal resource_removing_stop(location: Vector2i, resource)
 
 @export var resources: Resources
+@export var curent_resources = []
 @export var tile_map_handler: TileMapHandler
 @export var player: Player
 
@@ -15,15 +16,31 @@ var removing_info
 var is_holding_e = false
 
 func _ready():
+	randomize()
 	tile_map_handler.resource_found.connect(_resource_found)
 	hold_timer.wait_time = 1
 	hold_timer.one_shot = true
+	
+	curent_resources.append(resources.Get(Types.Item.StoneResource))
+	curent_resources.append(resources.Get(Types.Item.Tree))
+	
 	add_child(hold_timer)
 	hold_timer.connect("timeout", Callable(self, "_on_hold_timer_timeout"))
 	
+func add_resource(type: Types.Item):
+	curent_resources.append(resources.Get(type))
+	
+func get_random():
+	# Get a random index within the range of the array's size
+	var random_index = randi() % curent_resources.size()
+
+	# Access the array at the random index
+	var random_item = curent_resources[random_index]
+	return random_item	
+
 func add_random_resource():
 	var random_tile = tile_map_handler.get_random_tile()
-	var random_resource = resources.get_random()
+	var random_resource = get_random()
 	
 	if random_tile != null:
 		set_resource(random_tile, random_resource)

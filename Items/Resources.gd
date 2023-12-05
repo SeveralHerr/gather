@@ -53,9 +53,7 @@ func GetAllTypes():
 		types.append(key)
 	return types
 	
-func get_random():
-	var key = get_random_key()
-	return resources[key]
+
 
 func get_random_key() -> Variant:
 	var keys = resources.keys()

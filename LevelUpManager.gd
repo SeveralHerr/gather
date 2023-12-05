@@ -4,6 +4,8 @@ class_name LevelUpManager
 signal added_xp(amount: int)
 
 @onready var xp_bar: ProgressBar = $"../PlayerInfo/XpBar"
+@onready var resource_manager: ResourceManager2 = $"../../../../../ResourceManager"
+
 
 
 var xp = 0
@@ -21,6 +23,15 @@ func _ready():
 	$BoneTurretButton.disabled = true
 	$WoodDecorButton.disabled = true
 	
+	$WoodDecorButton.pressed.connect(_on_wood_decor)
+	$WoodDecorButton.disabled = false
+	
+	$BoneTurretButton.pressed.connect(_on_bone_turret)
+	$BoneTurretButton.disabled = false
+	
+	$IronButton.pressed.connect(_on_iron)
+	$IronButton.disabled = false
+	
 	xp_bar.max_value = next_level
 	xp_bar.value = xp
 	pass # Replace with function body.
@@ -31,16 +42,37 @@ func add_xp(amount: int):
 	xp_bar.value = xp
 	added_xp.emit(amount)
 
+func _on_iron():
+	$IronButton.disabled = true
+	resource_manager.add_resource(Types.Item.CoalResource)
+	resource_manager.add_resource(Types.Item.IronResource)
+	Recipes.add_recipe(Types.Item.Furnace, Types.Item.Sawmill)
+	Recipes.add_recipe(Types.Item.IronBar, Types.Item.Furnace)
+	Recipes.add_recipe(Types.Item.IronPickaxe, Types.Item.Furnace)
+	visible = false
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if xp >= next_level:
 		visible = true
-		next_level *= 1.5
+		next_level *= 2
 		xp_bar.max_value = next_level
 		xp_bar.value = xp
+		print(xp, next_level)
 	pass
 
+func _on_bone_turret():
+	$BoneTurretButton.disabled = true
+	Recipes.add_recipe(Types.Item.BoneTurret, Types.Item.Sawmill)
+	Recipes.add_recipe(Types.Item.Net, Types.Item.Sawmill)
+	visible = false
+
+func _on_wood_decor():
+	$WoodDecorButton.disabled = true;
+	Recipes.add_recipe(Types.Item.WoodDoor, Types.Item.Sawmill)
+	Recipes.add_recipe(Types.Item.WoodFloor, Types.Item.Sawmill)
+	Recipes.add_recipe(Types.Item.WoodWall, Types.Item.Sawmill)
+	visible = false
 
 func _on_bone_pickaxe():
 	Recipes.add_recipe(Types.Item.BonePickaxe, Types.Item.Sawmill)
@@ -50,10 +82,9 @@ func _on_bone_pickaxe():
 	visible = false
 	pass
 func _on_bone_sword():
-
-	
 	$BonePickaxeButton.disabled = true
-	$BoneSwordButton.disabled = false
+	$BoneSwordButton.disabled = true
+	$IronButton.disabled = false
 	visible = false
 	pass
 

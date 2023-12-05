@@ -160,10 +160,12 @@ func handle_pickaxe_interaction():
 	
 func handle_bone_enemy_interaction():
 	var nodes = area_2d.get_overlapping_areas()
-	var closest_turret = find_closest_object(nodes, BoneTurret)
+	var closest_turret = find_closest_object_parent(nodes, BoneTurret)
 			
-	if closest_turret != null:
+
+	if closest_turret != null and  closest_turret is BoneTurret:
 		closest_turret.set_loaded()
+		inventory_manager.RemoveItem(Types.Item.BoneEnemy)
 
 func handle_net_interaction():
 	net.visible = true
@@ -177,17 +179,30 @@ func handle_net_interaction():
 	var nodes = $LineOfSight.get_overlapping_bodies()
 	var closest_enemy = find_closest_object(nodes, Enemy)
 			
-	if closest_enemy != null:
+	if closest_enemy != null and closest_enemy.type == "Bone":
 		inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
 		inventory_manager.RemoveItem(Types.Item.Net)
+		net.visible = false
+		net.monitoring = false	
 		closest_enemy.queue_free()
 
-
+func find_closest_object_parent(nodes, type):
+	var closest_object = null
+	var closest_distance = INF
+	for n in nodes:
+		var node = n.get_parent()
+		if is_instance_of(node, type):
+			var distance = global_position.distance_to(node.global_position)
+			if distance < closest_distance:
+				closest_distance = distance
+				closest_object = node
+	return closest_object
 
 func find_closest_object(nodes, type):
 	var closest_object = null
 	var closest_distance = INF
 	for node in nodes:
+		print(node, type)
 		if is_instance_of(node, type):
 			var distance = global_position.distance_to(node.global_position)
 			if distance < closest_distance:
