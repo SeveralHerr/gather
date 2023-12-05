@@ -12,6 +12,7 @@ signal gather_input_release
 signal destroy_input_press
 signal destroy_input_release
 signal attack
+signal toggle_inventory
 
 @export var isUiOpen = false
 
@@ -46,4 +47,6 @@ func _input(event):
 		destroy_input_press.emit()
 	if Input.is_action_just_released("destroy"):
 		destroy_input_release.emit()
+	if Input.is_action_just_released("inventory"):
+		toggle_inventory.emit()
 

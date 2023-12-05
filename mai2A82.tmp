@@ -1,8 +1,7 @@
-[gd_scene load_steps=53 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=48 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
-[ext_resource type="Script" path="res://NewInvManager.gd" id="2_u57kl"]
 [ext_resource type="Script" path="res://Player.gd" id="3_i35uo"]
 [ext_resource type="Script" path="res://Items/ResourceTimer.gd" id="3_tjlgt"]
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
@@ -30,11 +29,6 @@
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
 [ext_resource type="Script" path="res://EnemyWaveManager.gd" id="25_qr721"]
 [ext_resource type="PackedScene" uid="uid://cky1ovsyctr7u" path="res://Inventory/Inventory.tscn" id="29_hswfd"]
-[ext_resource type="Script" path="res://InventoryInterface.gd" id="30_b5rqb"]
-[ext_resource type="PackedScene" uid="uid://dd2q0v3dv06k8" path="res://Inventory/InventorySlot.tscn" id="31_uow64"]
-[ext_resource type="PackedScene" uid="uid://cloqmtolsvs4g" path="res://test_chest.tscn" id="33_ssbv6"]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_vf6iq"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bfrcx"]
 
@@ -355,9 +349,6 @@ resource_manager = NodePath("ResourceManager")
 resources = NodePath("Resources")
 sound_manager = NodePath("SoundManager")
 
-[node name="TestChest" parent="." instance=ExtResource("33_ssbv6")]
-position = Vector2(30, -13)
-
 [node name="Node2D" type="Node2D" parent="."]
 y_sort_enabled = true
 
@@ -392,14 +383,6 @@ tilemap = NodePath("../..")
 selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 input_manager = NodePath("../../InputManager")
-
-[node name="Interact" type="Area2D" parent="Node2D/Player"]
-collision_layer = 0
-collision_mask = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/Interact"]
-position = Vector2(0, 2)
-shape = SubResource("RectangleShape2D_vf6iq")
 
 [node name="Net" type="Area2D" parent="Node2D/Player"]
 visible = false
@@ -816,14 +799,12 @@ player = NodePath("../Node2D/Player")
 [node name="UI2" type="CanvasLayer" parent="."]
 
 [node name="InventoryInterface" type="Control" parent="UI2"]
-visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("30_b5rqb")
 
 [node name="PlayerInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
 layout_mode = 0
@@ -831,24 +812,6 @@ offset_left = 598.0
 offset_top = 568.0
 offset_right = 662.0
 offset_bottom = 632.0
-
-[node name="ExternalInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
-layout_mode = 0
-offset_left = 594.0
-offset_top = 412.0
-offset_right = 658.0
-offset_bottom = 476.0
-
-[node name="GrabbedSlot" parent="UI2/InventoryInterface" instance=ExtResource("31_uow64")]
-visible = false
-modulate = Color(1, 1, 1, 0.486275)
-self_modulate = Color(1, 1, 1, 0)
-layout_mode = 0
-offset_right = 64.0
-offset_bottom = 64.0
-
-[node name="NewInvManager" type="Node" parent="."]
-script = ExtResource("2_u57kl")
 
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]

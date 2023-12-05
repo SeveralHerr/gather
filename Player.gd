@@ -16,6 +16,7 @@ var damage = 3
 @onready var sound_manager: SoundManager = $"../../SoundManager"
 @onready var destroy_manager: DestroyManager = $"../../DestroyManager"
 @onready var items: Items = $"../../Items"
+@onready var interact: Area2D = $Interact
 
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
@@ -23,10 +24,11 @@ var damage = 3
 @onready var net = $Net
 @onready var hp_bar: ProgressBar = $Camera2D/UI/PlayerInfo/HpBar
 
+@export var inventory_data: InventoryData
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
-
+var chest = null
 
 var v = Vector2.ZERO
 
@@ -34,6 +36,10 @@ var v = Vector2.ZERO
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
+	inventory_data = InventoryData.new()
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 1) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 9) as SlotData)
+	inventory_data.inventory_slot_datas.append(null)
 	sound_player = AudioStreamPlayer.new()
 	add_child(sound_player)
 	sound_player_mining = AudioStreamPlayer.new()
@@ -47,6 +53,9 @@ func _ready():
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
 
+	interact.body_entered.connect(on_interact)
+	interact.body_exited.connect(on_interact_exit)
+
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
 	input_manager.connect("move_up", Callable(self, "_move_up"))
@@ -59,6 +68,7 @@ func _ready():
 	input_manager.connect("destroy_input_press", Callable(self, "_destroy_input_press"))
 	input_manager.connect("destroy_input_release", Callable(self, "_destroy_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
+
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
@@ -68,6 +78,15 @@ func _on_died():
 	
 func _on_resource_removing(location: Vector2i, resource):
 	#sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
+	pass
+	
+
+func on_interact(body: Node2D):
+	chest = body
+	pass
+	
+func on_interact_exit(body: Node2D):
+	chest = null
 	pass
 	
 func _on_resource_removing_stop(location: Vector2i, resource):
@@ -255,6 +274,8 @@ func _process_movement():
 	move_and_slide()
 	
 func _process(delta):
+	if Input.is_action_just_pressed("gather"):
+		chest.player_interact()
 	pass
 	
 func _physics_process(delta):
