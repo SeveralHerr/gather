@@ -1,6 +1,7 @@
 extends Control
 
 signal drop_slot_data(slot_data: SlotData)
+signal force_close
 
 var grabbed_slot_data: SlotData
 var external_inventory_owner
@@ -8,6 +9,8 @@ var external_inventory_owner
 @onready var player_inventory: NewInventory = $PlayerInventory
 @onready var grabbed_slot: NewSlot  = $GrabbedSlot
 @onready var external_inventory: NewInventory = $ExternalInventory
+@onready var equip_inventory = $EquipInventory
+@onready var equip_sword_inventory = $EquipSwordInventory
 
 func _ready():
 	gui_input.connect(_on_gui_input)
@@ -16,6 +19,10 @@ func _ready():
 func _physics_process(delta):
 	if grabbed_slot.visible:
 		grabbed_slot.global_position = get_global_mouse_position() + Vector2(5,5)
+
+	if external_inventory_owner \
+			and external_inventory_owner.global_position.distance_to(PlayerManager.get_global_position()) > 15:
+		force_close.emit()
 
 func _on_visibility_changed():
 	if not visible and grabbed_slot_data:
@@ -42,6 +49,14 @@ func _on_gui_input(event: InputEvent):
 func set_player_inventory_data(inventory_data: InventoryData) -> void:
 	inventory_data.inventory_interact.connect(on_inventory_interact)
 	player_inventory.set_inventory_data(inventory_data)
+	
+func set_equip_inventory_data(inventory_data: InventoryData) -> void:
+	inventory_data.inventory_interact.connect(on_inventory_interact)
+	equip_inventory.set_inventory_data(inventory_data)
+	
+func set_equip_sword_inventory_data(inventory_data: InventoryData) -> void:
+	inventory_data.inventory_interact.connect(on_inventory_interact)
+	equip_sword_inventory.set_inventory_data(inventory_data)
 	
 func on_inventory_interact(inventory_data: InventoryData, index: int, button: int ):
 	print("%s %s %s" % [inventory_data, index, button])

@@ -5,17 +5,25 @@ const PICK_UP = preload("res://Items/PickUp.tscn")
 @onready var player: Player = $"../Node2D/Player"
 @onready var inventory_interface = $"../UI2/InventoryInterface"
 @onready var input_manager: InputManager = $"../InputManager"
+@onready var hot_bar_inventory = $"../UI2/HotBarInventory"
+
 
 func _ready():
 	inventory_interface.drop_slot_data.connect(_on_drop_slot_data)
 	input_manager.toggle_inventory.connect(_toggle_inventory)
 	inventory_interface.set_player_inventory_data(player.inventory_data)
+	inventory_interface.set_equip_inventory_data(player.equip_inventory_data)
+	inventory_interface.set_equip_sword_inventory_data(player.equip_sword_inventory_data)
+	inventory_interface.force_close.connect(_toggle_inventory)
+	hot_bar_inventory.set_inventory_data(player.inventory_data)
 
 	for node in get_tree().get_nodes_in_group("external_inventory"):
 		node.toggle_inventory.connect(_toggle_inventory)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	pass
+
+	
 
 func _on_drop_slot_data(slot_data: SlotData):
 	var pick_up = PICK_UP.instantiate()
@@ -29,8 +37,10 @@ func _toggle_inventory(external_inventory_owner = null) -> void:
 	
 	if inventory_interface.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		hot_bar_inventory.hide()
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		hot_bar_inventory.show()
 
 	if external_inventory_owner and inventory_interface.visible:
 		inventory_interface.set_external_inventory(external_inventory_owner)

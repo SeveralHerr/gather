@@ -1,4 +1,4 @@
-[gd_scene load_steps=53 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=58 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -8,9 +8,13 @@
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
 [ext_resource type="Texture2D" uid="uid://b8ymgmwuk7qbi" path="res://Resources/Player.png" id="5_8tjkj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
+[ext_resource type="Script" path="res://StateMachine.gd" id="6_08dnb"]
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="6_t1wx5"]
+[ext_resource type="Script" path="res://PlayerIdle.gd" id="7_ykk1y"]
 [ext_resource type="Script" path="res://InventoryManager.gd" id="8_5am1m"]
+[ext_resource type="Script" path="res://PlayerGather.gd" id="8_rb0ym"]
 [ext_resource type="Script" path="res://Camera2D.gd" id="9_3scwu"]
+[ext_resource type="Script" path="res://PlayerAttack.gd" id="9_acc7j"]
 [ext_resource type="Script" path="res://UI.gd" id="10_72nuh"]
 [ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://Resources/inventory.png" id="10_s3ge4"]
 [ext_resource type="Script" path="res://SelectedItemManager.gd" id="11_3m4gl"]
@@ -32,6 +36,7 @@
 [ext_resource type="PackedScene" uid="uid://cky1ovsyctr7u" path="res://Inventory/Inventory.tscn" id="29_hswfd"]
 [ext_resource type="Script" path="res://InventoryInterface.gd" id="30_b5rqb"]
 [ext_resource type="PackedScene" uid="uid://dd2q0v3dv06k8" path="res://Inventory/InventorySlot.tscn" id="31_uow64"]
+[ext_resource type="PackedScene" uid="uid://cv8jrb20usn5d" path="res://Inventory/hot_bar_inventory.tscn" id="33_m4ngi"]
 [ext_resource type="PackedScene" uid="uid://cloqmtolsvs4g" path="res://test_chest.tscn" id="33_ssbv6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_vf6iq"]
@@ -393,6 +398,18 @@ selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 input_manager = NodePath("../../InputManager")
 
+[node name="StateMachine" type="Node" parent="Node2D/Player"]
+script = ExtResource("6_08dnb")
+
+[node name="PlayerIdle" type="Node" parent="Node2D/Player/StateMachine"]
+script = ExtResource("7_ykk1y")
+
+[node name="PlayerGather" type="Node" parent="Node2D/Player/StateMachine"]
+script = ExtResource("8_rb0ym")
+
+[node name="PlayerAttack" type="Node" parent="Node2D/Player/StateMachine"]
+script = ExtResource("9_acc7j")
+
 [node name="Interact" type="Area2D" parent="Node2D/Player"]
 collision_layer = 0
 collision_mask = 4
@@ -438,8 +455,8 @@ visible = false
 visible = false
 z_index = -1
 y_sort_enabled = true
-position = Vector2(-1, 1)
-rotation = -2.0944
+position = Vector2(-4, -3)
+rotation = 5.23599
 collision_layer = 0
 collision_mask = 2097152
 
@@ -832,6 +849,20 @@ offset_top = 568.0
 offset_right = 662.0
 offset_bottom = 632.0
 
+[node name="EquipInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
+layout_mode = 0
+offset_left = 887.0
+offset_top = 12.0
+offset_right = 951.0
+offset_bottom = 76.0
+
+[node name="EquipSwordInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
+layout_mode = 0
+offset_left = 960.0
+offset_top = 12.0
+offset_right = 1024.0
+offset_bottom = 76.0
+
 [node name="ExternalInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
 visible = false
 layout_mode = 0
@@ -847,6 +878,13 @@ self_modulate = Color(1, 1, 1, 0)
 layout_mode = 0
 offset_right = 64.0
 offset_bottom = 64.0
+
+[node name="HotBarInventory" parent="UI2" instance=ExtResource("33_m4ngi")]
+offset_left = 816.0
+offset_top = 599.0
+offset_right = -256.0
+offset_bottom = 31.0
+scale = Vector2(0.53, 0.53)
 
 [node name="NewInvManager" type="Node" parent="."]
 script = ExtResource("2_u57kl")

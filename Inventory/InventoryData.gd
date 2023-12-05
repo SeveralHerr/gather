@@ -29,7 +29,8 @@ func use_slot_data(index: int):
 		slot_data.count -= 1
 		if slot_data.count < 1:
 			inventory_slot_datas[index] = null
-	print("use")
+	
+	PlayerManager.use_slot_data(slot_data)
 	
 	inventory_updated.emit(self)
 		
