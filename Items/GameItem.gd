@@ -54,3 +54,6 @@ func get_atlas():
 	atlas_texture.region = location
 
 	return atlas_texture
+	
+func use(target):
+	pass

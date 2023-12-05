@@ -37,7 +37,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
 	inventory_data = InventoryData.new()
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 1) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Food), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 9) as SlotData)
 	inventory_data.inventory_slot_datas.append(null)
 	sound_player = AudioStreamPlayer.new()
@@ -277,6 +277,10 @@ func _process(delta):
 	if Input.is_action_just_pressed("gather"):
 		chest.player_interact()
 	pass
+	
+func get_drop_position() -> Vector2:
+	var direction = -camera.global_position
+	return camera.global_position + direction
 	
 func _physics_process(delta):
 	#$AnimatedSprite2D.play("Idle")

@@ -26,5 +26,6 @@ enum Item {
 	BoneEnemy,
 	WoodPickaxe,
 	IronPickaxe,
-	BonePickaxe
+	BonePickaxe,
+	Food
 }

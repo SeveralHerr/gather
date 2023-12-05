@@ -1,5 +1,7 @@
 extends Control
 
+signal drop_slot_data(slot_data: SlotData)
+
 var grabbed_slot_data: SlotData
 var external_inventory_owner
 
@@ -7,9 +9,35 @@ var external_inventory_owner
 @onready var grabbed_slot: NewSlot  = $GrabbedSlot
 @onready var external_inventory: NewInventory = $ExternalInventory
 
+func _ready():
+	gui_input.connect(_on_gui_input)
+	visibility_changed.connect(_on_visibility_changed)
+
 func _physics_process(delta):
 	if grabbed_slot.visible:
 		grabbed_slot.global_position = get_global_mouse_position() + Vector2(5,5)
+
+func _on_visibility_changed():
+	if not visible and grabbed_slot_data:
+		drop_slot_data.emit(grabbed_slot_data)
+		grabbed_slot_data = null
+		update_grabbed_slot()
+
+func _on_gui_input(event: InputEvent):
+	if event is InputEventMouseButton	\
+			and event.is_pressed() \
+			and grabbed_slot_data:
+				
+		match event.button_index:
+			MOUSE_BUTTON_LEFT:
+				drop_slot_data.emit(grabbed_slot_data)
+				grabbed_slot_data = null
+			MOUSE_BUTTON_RIGHT:
+				drop_slot_data.emit(grabbed_slot_data.create_single_slot_data())
+				if grabbed_slot_data.count < 1:
+					grabbed_slot_data = null
+				
+		update_grabbed_slot()
 
 func set_player_inventory_data(inventory_data: InventoryData) -> void:
 	inventory_data.inventory_interact.connect(on_inventory_interact)
@@ -26,7 +54,7 @@ func on_inventory_interact(inventory_data: InventoryData, index: int, button: in
 			grabbed_slot_data = inventory_data.drop_slot_data(grabbed_slot_data, index)
 
 		[null, MOUSE_BUTTON_RIGHT]:
-			pass
+			inventory_data.use_slot_data(index)
 		# Something is in the slot data
 		[_, MOUSE_BUTTON_RIGHT]:
 			grabbed_slot_data = inventory_data.drop_single_slot_data(grabbed_slot_data, index)

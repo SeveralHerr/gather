@@ -833,6 +833,7 @@ offset_right = 662.0
 offset_bottom = 632.0
 
 [node name="ExternalInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
+visible = false
 layout_mode = 0
 offset_left = 594.0
 offset_top = 412.0
