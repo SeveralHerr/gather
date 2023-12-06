@@ -15,7 +15,10 @@ func enter():
 	
 	p.attack.visible = true
 	p.attack.monitoring = true
-	p.animation_player.connect("animation_finished",Callable( self, "animation_finished"))
+	
+	if not p.animation_player.animation_finished.is_connected(animation_finished):
+		p.animation_player.connect("animation_finished",Callable( self, "animation_finished"))
+	
 	if not p.animated_sprite_2d.flip_h:
 		p.animation_player.play("Attack")
 	else:

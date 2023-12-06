@@ -13,8 +13,14 @@ func enter():
 		return
 		
 	p.gather.visible = true
-	p.animation_player.connect("animation_finished",Callable( self, "animation_finished"))
-	p.animation_player.play("Gather")
+	
+	if not p.animation_player.animation_finished.is_connected(animation_finished):
+		p.animation_player.connect("animation_finished",Callable( self, "animation_finished"))
+	
+	if not p.animated_sprite_2d.flip_h:
+		p.animation_player.play("Gather")
+	else:
+		p.animation_player.play("Gather_left")
 	
 	resource_manager.start_removing_resource(p.equip_inventory_data.inventory_slot_datas[0].item.power)
 	
