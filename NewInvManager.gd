@@ -52,7 +52,8 @@ func _toggle_crafting_station(crafting_station = null) -> void:
 	if crafting_station and crafting_ui.visible:
 		crafting_ui.load_crafting_station(crafting_station)
 	else:
-		crafting_ui._exit()
+		crafting_ui._exit2()
+		hot_bar_inventory.show()
 
 	
 func _toggle_inventory(external_inventory_owner = null) -> void:

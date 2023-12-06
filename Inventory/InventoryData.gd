@@ -8,9 +8,33 @@ signal inventory_interact(inventory_data: InventoryData, index: int, button: int
 
 
 func get_count(item: GameItem):
-	for data in inventory_slot_datas:
-		if data.item == item:
+	for i in inventory_slot_datas.size():
+		var data = inventory_slot_datas[i]
+		if data and data.item == item:
 			return data.count
+	return 0
+			
+func has_item(item: GameItem):
+	for i in inventory_slot_datas.size():
+		var data = inventory_slot_datas[i]
+		if data and data.item == item:
+			return true
+	return false
+	
+func has_items(item: GameItem, amount_to_craft: int):
+	for i in range(inventory_slot_datas.size()):
+		var data = inventory_slot_datas[i]
+		if data and data.item.type == item.type and amount_to_craft <= data.count:
+			return true
+	return false
+	
+func remove(item: GameItem):
+	for i in inventory_slot_datas.size():
+		var data = inventory_slot_datas[i]
+		if data and data.item == item:
+			data.count -= 1
+			if data.count <= 0:
+				data = null
 
 func on_slot_clicked(index: int, button: int) -> void:
 	inventory_interact.emit(self, index, button)

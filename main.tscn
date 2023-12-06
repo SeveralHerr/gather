@@ -713,7 +713,7 @@ layout_mode = 2
 mouse_filter = 2
 columns = 7
 
-[node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI" node_paths=PackedStringArray("items", "inventory_manager")]
+[node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI"]
 visible = false
 layout_mode = 0
 offset_left = -64.0
@@ -722,8 +722,6 @@ offset_right = 66.0
 offset_bottom = 65.0
 color = Color(0, 0, 0, 0.701961)
 script = ExtResource("12_bqf2j")
-items = NodePath("../../../../../Items")
-inventory_manager = NodePath("../../../../../InventoryManager")
 
 [node name="Craftables" type="ItemList" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
 layout_mode = 0

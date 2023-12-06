@@ -53,13 +53,13 @@ func _on_item_selected(index):
 		var catlas_texture = citem.get_atlas()
 		newCostRow.texture = catlas_texture
 		
-		var t = PlayerManager.player.inventory_data.
-		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var qty = PlayerManager.player.inventory_data.get_count(citem)
+		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(qty)
 		newCostRow.get_child(0).text = text
 		
 func _get_recipe_by_name(value):
 	for recipe in craftingStation.recipe_list:
-		var item = items.get_type(value)
+		var item = GameItems.get_type(value)
 		if item == recipe.product:
 			return recipe
 
@@ -73,13 +73,13 @@ func load_crafting_station(craftingStation):
 	$Craftables.clear()
 
 	for recipe in craftingStation.recipe_list:
-		var item = items.get_item(recipe.product)		
+		var item = GameItems.get_item(recipe.product)		
 		var atlas_texture = item.get_atlas()
 		#add_child(instance)
-		print(items.get_item(recipe.product).name)
-		$Craftables.add_item( items.get_item(recipe.product).name, atlas_texture)
+	
+		$Craftables.add_item( GameItems.get_item(recipe.product).name, atlas_texture)
 		
-	var item = items.get_item(craftingStation.selected_recipe.product)			
+	var item = GameItems.get_item(craftingStation.selected_recipe.product)			
 	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
@@ -92,12 +92,12 @@ func load_crafting_station(craftingStation):
 		var newCostRow = costRow.instantiate()
 		$CostList.add_child(newCostRow)
 		
-		var citem = items.get_item(costItemType)				
+		var citem = GameItems.get_item(costItemType)				
 		var catlas_texture = item.get_atlas()
 		newCostRow.texture = catlas_texture
 		
-		
-		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var qty = PlayerManager.player.inventory_data.get_count(citem)
+		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(qty)
 		newCostRow.get_child(0).text = text
 	$QuantityLabel.text = "Qty. " + str(amountToCraft)
 	handle_progress_bar()
@@ -118,8 +118,9 @@ func handle_progress_bar():
 	
 func _add():
 	var hasRequiredItems = []
-	for item in craftingStation.selected_recipe.cost_list:
-		hasRequiredItems.append(inventory_manager.HasItems(item, amountToCraft+1))
+	for key in craftingStation.selected_recipe.cost_list.keys():
+		var item = GameItems.get_item(key)	
+		hasRequiredItems.append(PlayerManager.player.inventory_data.has_items(item, amountToCraft+1))
 
 		
 	for item in hasRequiredItems:
@@ -129,8 +130,9 @@ func _add():
 	
 	var i = 0
 	for costItemType in craftingStation.selected_recipe.cost_list.keys():	
-		var item = items.get_item(costItemType)	
-		var text = item.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(inventory_manager.get_quantity(costItemType))
+		var item = GameItems.get_item(costItemType)	
+		var qty = PlayerManager.player.inventory_data.get_count(item)
+		var text = item.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * (amountToCraft+1)) + "/" + str(qty)
 		$CostList.get_child(i).get_child(0).text = text
 		i += 1
 			
@@ -141,8 +143,9 @@ func _add():
 func _craft():
 	print("starting craft")
 	for i in range(amountToCraft):			
-		for item in craftingStation.selected_recipe.cost_list.keys():
-			inventory_manager.RemoveItem(item)
+		for key in craftingStation.selected_recipe.cost_list.keys():
+			var item = GameItems.get_item(key)	
+			PlayerManager.player.inventory_data.remove(item)
 
 	craftingStation.count = amountToCraft
 	craftingStation.starting_count = amountToCraft
@@ -150,6 +153,13 @@ func _craft():
 	_exit()
 	
 func _exit():
+	craftingStation.toggle_crafting_station.emit()
 	craftingStation = null
 	amountToCraft = 0
 	visible = false
+	
+func _exit2():
+	craftingStation = null
+	amountToCraft = 0
+	visible = false
+
