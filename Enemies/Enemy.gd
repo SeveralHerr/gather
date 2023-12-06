@@ -71,7 +71,10 @@ func _on_died():
 	await get_tree().create_timer(0.1).timeout
 	$HitParticles.emitting = false
 	await get_tree().create_timer(0.1).timeout
-	item_manager.AddItemToWorld(position, items.get_item(drop))
+	
+	PickUpManager.create_pickup( items.get_item(drop))
+	
+	#item_manager.AddItemToWorld(position, items.get_item(drop))
 	level_up_manager.add_xp(3)
 	queue_free()
 

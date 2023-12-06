@@ -21,6 +21,7 @@ GameItems="*res://Items/Items.gd"
 GameSoundManager="*res://SoundManager.gd"
 Recipes="*res://Crafting/Recipes.gd"
 PlayerManager="*res://PlayerManager.gd"
+PickUpManager="*res://Items/PickUpManager.gd"
 
 [dotnet]
 

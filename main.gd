@@ -316,6 +316,10 @@ func get_random_tile():
 		if is_occupied(Vector2i(random_x, random_y), true):
 			continue
 			
+		var water_tile = tileMap.get_cell_tile_data(5, Vector2i(random_x, random_y))
+		if water_tile:
+			continue
+			
 		try += 1
 		return Vector2i(random_x, random_y)
 	return null
