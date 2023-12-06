@@ -6,6 +6,12 @@ signal inventory_interact(inventory_data: InventoryData, index: int, button: int
 
 @export var inventory_slot_datas: Array[SlotData] = []
 
+
+func get_count(item: GameItem):
+	for data in inventory_slot_datas:
+		if data.item == item:
+			return data.count
+
 func on_slot_clicked(index: int, button: int) -> void:
 	inventory_interact.emit(self, index, button)
 
@@ -33,6 +39,14 @@ func use_slot_data(index: int):
 	PlayerManager.use_slot_data(slot_data)
 	
 	inventory_updated.emit(self)
+	
+func show_slot_data(index: int):
+	var slot_data = inventory_slot_datas[index]
+	
+	if not slot_data:
+		return	
+		
+	PlayerManager.show_slot_data(slot_data)
 		
 func drop_slot_data(grabbed_slot_data: SlotData, index: int) -> SlotData:
 	var slot_data = inventory_slot_datas[index]

@@ -1,24 +1,25 @@
 [gd_scene load_steps=5 format=3 uid="uid://1ka6xlmaapop"]
 
 [ext_resource type="Script" path="res://Crafting/CraftingStation.gd" id="1_i51o1"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_dxw3q"]
 
-[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_7rsi8"]
-load_path = "res://.godot/imported/Tiles.png-8423d93cbb036e79b880338e78fbb12c.ctex"
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_4pvxu"]
-atlas = SubResource("CompressedTexture2D_7rsi8")
+[sub_resource type="AtlasTexture" id="AtlasTexture_im8td"]
+atlas = ExtResource("2_dxw3q")
 region = Rect2(0, 32, 16, 16)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_rd8io"]
 size = Vector2(14, 7)
 
-[node name="Sawmill" type="Sprite2D"]
+[node name="StaticBody2D" type="StaticBody2D"]
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
-texture = SubResource("AtlasTexture_4pvxu")
+collision_layer = 5
 script = ExtResource("1_i51o1")
 type = 7
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = SubResource("AtlasTexture_im8td")
 
 [node name="Button" type="Button" parent="."]
 modulate = Color(1, 1, 1, 0)
@@ -27,10 +28,6 @@ offset_top = -4.0
 offset_right = 6.0
 offset_bottom = 7.0
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, 3.5)
 shape = SubResource("RectangleShape2D_rd8io")
-
-[connection signal="pressed" from="Button" to="." method="_on_button_pressed"]

@@ -6,8 +6,8 @@ var p : Player
 
 func enter():
 	p = PlayerManager.player
-	var equipped = p.equip_inventory_data.inventory_slot_datas[0]
-	var has_pickaxe_equipped = equipped and equipped.item is  GameItemPickaxe
+	var equipped = p.hot_bar_inventory.selected_slot_data.item
+	var has_pickaxe_equipped = equipped and equipped is  GameItemPickaxe
 	
 	if not has_pickaxe_equipped:
 		return
@@ -22,7 +22,7 @@ func enter():
 	else:
 		p.animation_player.play("Gather_left")
 	
-	resource_manager.start_removing_resource(p.equip_inventory_data.inventory_slot_datas[0].item.power)
+	resource_manager.start_removing_resource(equipped.power)
 	
 func animation_finished(anim_name):
 	p.animation_player.stop()

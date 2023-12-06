@@ -26,5 +26,5 @@ func _init(atlas_location: Vector2i,
 	self.power = power
 	
 func use(target):
-	
+	PlayerManager.player.state_machine.change_to("PlayerAttack")
 	pass

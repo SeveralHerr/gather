@@ -19,7 +19,9 @@ var damage = 3
 @onready var interact: Area2D = $Interact
 
 @onready var gather = $Gather
+@onready var hot_bar_inventory = $"../../UI2/HotBarInventory"
 
+@onready var state_machine: StateMachine = $StateMachine
 
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
@@ -56,7 +58,7 @@ func _ready():
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Food), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.WoodPickaxe), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sawmill), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 9) as SlotData)
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
@@ -310,10 +312,13 @@ func _process(delta):
 	if Input.is_action_just_pressed("gather"):
 		$StateMachine.change_to("PlayerGather")
 		
-		
+	if Input.is_action_just_pressed("action"):
 		if not chest:
 			return
-		chest.player_interact()
+		if chest is TestChest:
+			chest.player_interact()
+		elif chest is CraftingStation:
+			chest.player_interact()
 	pass
 	
 func get_drop_position() -> Vector2:

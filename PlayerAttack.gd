@@ -7,8 +7,9 @@ var p : Player
 func enter():
 	p = PlayerManager.player
 
-	var equipped = p.equip_sword_inventory_data.inventory_slot_datas[0]
-	var has_sword_equipped = equipped and equipped.item is  GameItemSword
+	#var equipped = p.equip_sword_inventory_data.inventory_slot_datas[0]
+	var equipped = p.hot_bar_inventory.selected_slot_data.item
+	var has_sword_equipped = equipped and equipped is  GameItemSword
 	
 	if not has_sword_equipped:
 		return

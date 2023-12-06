@@ -2,9 +2,6 @@ extends ColorRect
 class_name CraftingUi
 
 @export var craftingStation: CraftingStation
-@export var items: Items
-@export var inventory_manager: InventoryManager
-@onready var selected_item_manager: SelectedItemManager = $"../SelectedItemManager"
 
 var amountToCraft = 0
 
@@ -36,11 +33,10 @@ func _on_item_selected(index):
 	if craftingStation.count > 0:
 		return
 	
-	
 	var selectedText = $Craftables.get_item_text(index)
 
 	craftingStation.selected_recipe = _get_recipe_by_name(selectedText)
-	var item = items.get_item(craftingStation.selected_recipe.product)			
+	var item = GameItems.get_item(craftingStation.selected_recipe.product)			
 	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
@@ -53,10 +49,11 @@ func _on_item_selected(index):
 		var newCostRow = costRow.instantiate()
 		$CostList.add_child(newCostRow)
 		
-		var citem = items.get_item(costItemType)				
+		var citem = GameItems.get_item(costItemType)				
 		var catlas_texture = citem.get_atlas()
 		newCostRow.texture = catlas_texture
 		
+		var t = PlayerManager.player.inventory_data.
 		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(inventory_manager.get_quantity(costItemType))
 		newCostRow.get_child(0).text = text
 		
