@@ -28,6 +28,7 @@ var disableSetTile = false
 
 var crack = preload("res://Crack.tres")
 func _ready():
+	randomize()
 	add_to_group("SaveLoad")
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
@@ -81,7 +82,7 @@ func _on_destroy_removing_stop(location: Vector2i, item: GameItem):
 	# Remove highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
 	#set_tile(location,item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
-
+	
 	
 func _on_mouse_left(isUiOpen: bool):
 	disableSetTile = isUiOpen
@@ -301,7 +302,7 @@ func place_auto_tile( atlas_location):
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed
-	var used_rect = tileMap.get_used_rect()
+	var used_tiles = tileMap.get_used_cells(0)
 	var max_retries = 100
 	var try = 1
 	var random_x
@@ -310,18 +311,15 @@ func get_random_tile():
 
 	# Optionally, if you want to keep trying random positions until you find a non-empty tile
 	while try < max_retries:
-		random_x = randi() % used_rect.size.x + used_rect.position.x
-		random_y = randi() % used_rect.size.y + used_rect.position.y
+		var random_index = randi() % used_tiles.size()
+		var random_tile = used_tiles[random_index]
 		
-		if is_occupied(Vector2i(random_x, random_y), true):
+		if is_occupied(Vector2i(random_tile.x, random_tile.y), true):
 			continue
-			
-		var water_tile = tileMap.get_cell_tile_data(5, Vector2i(random_x, random_y))
-		if water_tile:
-			continue
+		
 			
 		try += 1
-		return Vector2i(random_x, random_y)
+		return Vector2i(random_tile.x, random_tile.y)
 	return null
 
 func GetPlayerPosition():
