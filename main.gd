@@ -30,6 +30,7 @@ var crack = preload("res://Crack.tres")
 func _ready():
 	randomize()
 	add_to_group("SaveLoad")
+	rain() 
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
 	resource_manager.connect("resource_removing", Callable(self, "_on_resource_removing"))
@@ -299,6 +300,13 @@ func place_auto_tile( atlas_location):
 	#tileMap.bitma(cell_position - Vector2(1, 1), cell_position + Vector2(1, 1))
 	tileMap.set_cells_terrain_connect(3, wallTiles, 0, 0 )
 
+
+func rain():
+	var amt = 19
+	for i in amt:
+		var tile = get_random_tile()
+		tileMap.set_cell(1, tile, 7, Vector2(0,0))
+		get_tree().create_timer(0.1).timeout
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed
