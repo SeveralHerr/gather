@@ -11,6 +11,8 @@ var external_inventory_owner
 @onready var external_inventory: NewInventory = $ExternalInventory
 @onready var equip_inventory = $EquipInventory
 @onready var equip_sword_inventory = $EquipSwordInventory
+@onready var input_manager: InputManager = $"../../InputManager"
+
 
 func _ready():
 	gui_input.connect(_on_gui_input)

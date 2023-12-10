@@ -15,38 +15,39 @@ signal attack
 signal toggle_inventory
 
 @export var isUiOpen = false
+var disable_input = false
 
 func _ready():
 	add_to_group("InputManager")
 
 func _physics_process(delta):
 
-	if Input.is_action_pressed(&"move_right"):
+	if Input.is_action_pressed(&"move_right") and not disable_input:
 		move_right.emit()
-	if Input.is_action_pressed(&"move_left"):
+	if Input.is_action_pressed(&"move_left") and not disable_input:
 		move_left.emit()
-	if Input.is_action_pressed(&"move_down"):
+	if Input.is_action_pressed(&"move_down") and not disable_input:
 		move_down.emit()
-	if Input.is_action_pressed(&"move_up"):
+	if Input.is_action_pressed(&"move_up") and not disable_input:
 		move_up.emit()
 
 func _input(event):
 
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed and not disable_input:
 			mouse_button_right.emit()
-		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not disable_input:
 			mouse_button_left.emit(isUiOpen)
-	if Input.is_action_just_pressed("gather"):
+	if Input.is_action_just_pressed("gather") and not disable_input:
 		gather_input_press.emit()
-	if Input.is_action_just_pressed("attack"):
+	if Input.is_action_just_pressed("attack") and not disable_input:
 		attack.emit()
-	if Input.is_action_just_released("gather"):
+	if Input.is_action_just_released("gather") and not disable_input:
 		gather_input_release.emit()
-	if Input.is_action_just_pressed("destroy"):
+	if Input.is_action_just_pressed("destroy") and not disable_input:
 		destroy_input_press.emit()
-	if Input.is_action_just_released("destroy"):
+	if Input.is_action_just_released("destroy") and not disable_input:
 		destroy_input_release.emit()
-	if Input.is_action_just_released("inventory"):
+	if Input.is_action_just_released("inventory") and not disable_input:
 		toggle_inventory.emit()
 

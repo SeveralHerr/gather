@@ -34,6 +34,8 @@ func _ready():
 	recipe_list = Recipes.get_recipes(type)
 	selected_recipe = recipe_list[0]
 	
+	
+	
 func _process(delta):
 	if count <= 0:
 		timer.stop()
