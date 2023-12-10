@@ -211,6 +211,30 @@ func get_random_position_within_rect(rect):
 	var random_y = randi() % rect.size.y + rect.position.y
 	return Vector2(random_x, random_y)
 	
+func get_mouse_tile_position():
+	var mouse_pos = get_viewport().get_mouse_position()
+	var tile_pos = tileMap.local_to_map(mouse_pos)
+	var tile_center_global = tileMap.map_to_local(tile_pos) - Vector2(8, 8)
+
+	tile_center_global = tileMap.map_to_local(tile_pos)
+	tile_center_global -= Vector2(16, 16) / 2
+	tile_center_global = mouse_pos
+	
+	return tile_center_global
+	
+func get_tile_in_front_of_player():
+		var tile_pos = tileMap.local_to_map(PlayerManager.player.get_global_position())
+		if PlayerManager.player.is_facing_left():
+			tile_pos += Vector2i(-1, 0)
+			pass
+		else:
+			tile_pos += Vector2i(1, 0)
+			pass
+			
+		#var tile_center_global = tileMap.map_to_local(tile_pos) - Vector2(8, 8)
+
+		return tileMap.map_to_local(tile_pos) 
+	
 func _find_nearest_tile_and_resource(location: Vector2):
 	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
 	var nearestDistance = 1000000

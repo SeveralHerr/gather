@@ -10,4 +10,5 @@ func get_global_position():
 	return player.global_position
 
 func show_slot_data(slot_data: SlotData):
-	player.attack.show()
+	
+	pass

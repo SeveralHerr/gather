@@ -93,6 +93,7 @@ func set_external_inventory(_external_inventory_owner):
 	external_inventory.set_inventory_data(inventory_data)
 	
 	external_inventory.show()
+	input_manager.disable_input = true
 	
 func clear_external_inventory():
 	if not external_inventory_owner:
@@ -105,3 +106,4 @@ func clear_external_inventory():
 	
 	external_inventory.hide()
 	external_inventory_owner = null
+	input_manager.disable_input = false

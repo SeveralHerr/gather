@@ -92,6 +92,7 @@ func _ready():
 	input_manager.connect("mouse_button_right", Callable(self, "_mouse_button_right"))
 	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
+	input_manager.gather_input_press.connect(_on_gather)
 	input_manager.connect("destroy_input_press", Callable(self, "_destroy_input_press"))
 	input_manager.connect("destroy_input_release", Callable(self, "_destroy_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
@@ -115,6 +116,10 @@ func on_interact(body: Node2D):
 func on_interact_exit(body: Node2D):
 	chest = null
 	pass
+	
+func is_facing_left():
+	return animated_sprite_2d.flip_h
+
 	
 func _on_resource_removing_stop(location: Vector2i, resource):
 	#sound_player_mining.stop()
@@ -308,10 +313,10 @@ func _process_movement():
 	
 	move_and_slide()
 	
-func _process(delta):
-	if Input.is_action_just_pressed("gather"):
-		$StateMachine.change_to("PlayerGather")
-		
+func _on_gather():
+	$StateMachine.change_to("PlayerGather")
+	
+func _process(delta):		
 	if Input.is_action_just_pressed("action"):
 		if not chest:
 			return

@@ -9,6 +9,7 @@ signal mouse_button_right
 signal mouse_button_left(isUiOpen: bool)
 signal gather_input_press
 signal gather_input_release
+signal gather
 signal destroy_input_press
 signal destroy_input_release
 signal attack
@@ -44,10 +45,10 @@ func _input(event):
 		attack.emit()
 	if Input.is_action_just_released("gather") and not disable_input:
 		gather_input_release.emit()
+		gather.emit()
 	if Input.is_action_just_pressed("destroy") and not disable_input:
 		destroy_input_press.emit()
 	if Input.is_action_just_released("destroy") and not disable_input:
 		destroy_input_release.emit()
-	if Input.is_action_just_released("inventory") and not disable_input:
+	if Input.is_action_just_released("inventory"):
 		toggle_inventory.emit()
-

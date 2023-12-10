@@ -41,6 +41,7 @@ func _on_drop_slot_data(slot_data: SlotData):
 	
 func _toggle_crafting_station(crafting_station = null) -> void:
 	crafting_ui.visible = not crafting_ui.visible
+	input_manager.disable_input = not 	input_manager.disable_input	
 	
 	if crafting_ui.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -52,12 +53,14 @@ func _toggle_crafting_station(crafting_station = null) -> void:
 	if crafting_station and crafting_ui.visible:
 		crafting_ui.load_crafting_station(crafting_station)
 	else:
+
 		crafting_ui._exit2()
 		hot_bar_inventory.show()
 
 	
 func _toggle_inventory(external_inventory_owner = null) -> void:
-	inventory_interface.visible = not inventory_interface.visible
+	inventory_interface.visible = not inventory_interface.visible	
+	input_manager.disable_input = not 	input_manager.disable_input	
 	
 	if inventory_interface.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

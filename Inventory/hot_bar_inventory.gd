@@ -11,6 +11,12 @@ var inv: InventoryData
 var style: StyleBoxFlat
 
 @onready var h_box_container: HBoxContainer = $MarginContainer/HBoxContainer
+@onready var input_manager: InputManager = $"../../InputManager"
+@onready var place_item_slot: NewSlot = $"../PlaceItemSlot"
+
+@onready var tile_map: TileMapHandler = $"../.."
+
+
 
 func _ready():
 	style = StyleBoxFlat.new()
@@ -18,6 +24,13 @@ func _ready():
 	style.border_width_left = 2
 	style.border_width_right = 2
 	style.border_width_top = 2
+	
+	input_manager.gather_input_press.connect(_on_gather)
+	
+func _process(delta):
+	if place_item_slot.visible:
+		print( tile_map.get_tile_in_front_of_player())
+		place_item_slot.position = PlayerManager.player.position 
 
 func _unhandled_key_input(event):
 	if not visible or not event.is_pressed():
@@ -34,10 +47,9 @@ func _unhandled_key_input(event):
 		selected_slot_data = inv.inventory_slot_datas[selected_index]
 		hot_bar_selected.emit(selected_index)
 		
-func _process(delta):
-	if Input.is_action_just_pressed("gather"):
-		hot_bar_use.emit(selected_index)
-
+func _on_gather():
+	hot_bar_use.emit(selected_index)
+		
 func set_inventory_data(inventory_data: InventoryData) -> void:
 	if not selected_slot_data:
 		selected_slot_data = inventory_data.inventory_slot_datas[0]
@@ -47,6 +59,7 @@ func set_inventory_data(inventory_data: InventoryData) -> void:
 	populate_hot_bar(inventory_data)
 	hot_bar_use.connect(inventory_data.use_slot_data)
 	hot_bar_selected.connect(inventory_data.show_slot_data)
+	update_placed_slot()
 	inv = inventory_data
 
 	style.draw_center = false
@@ -67,3 +80,9 @@ func populate_hot_bar(inventory_data: InventoryData) -> void:
 			if slot_data == selected_slot_data:
 				slot.add_theme_stylebox_override("panel", style)
 
+func update_placed_slot() -> void:
+	if place_item_slot:
+		place_item_slot.show()
+		place_item_slot.set_slot_data(selected_slot_data)
+	else: 
+		place_item_slot.hide()
