@@ -40,7 +40,7 @@ func stop_removing_resource():
 	
 func _on_hold_timer_timeout():
 	if is_holding_e and removing_info != null:
-		PickUpManager.create_pickup(removing_info.item)
+		PickUpManager.create_pickup(removing_info.item, removing_info.location)
 		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
 		emit_signal("destroy_removed", removing_info.location, removing_info.item)
 		removing_info = null

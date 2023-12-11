@@ -45,7 +45,7 @@ func _process(delta):
 		
 func _on_timeout():
 	count -= 1
-	PickUpManager.create_pickup(GameItems.get_item( selected_recipe.product))
+	PickUpManager.create_pickup(GameItems.get_item( selected_recipe.product), position + Vector2(0, 6))
 	
 func _on_button_open_crafting_station():
 	var nodes = get_tree().get_nodes_in_group("CraftingUi")

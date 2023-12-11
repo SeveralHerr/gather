@@ -60,9 +60,10 @@ func _ready():
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.WoodPickaxe), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sawmill), 2) as SlotData)
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Wood), 9) as SlotData)
-	inventory_data.inventory_slot_datas.append(null)
-	inventory_data.inventory_slot_datas.append(null)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Wood), 19) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Stone), 19) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Bone), 19) as SlotData)
+
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)

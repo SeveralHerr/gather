@@ -1,5 +1,5 @@
 extends GameItem
-class_name GameItemCraftingStation
+class_name GameItemPlaceable
 
 
 func use(slot_data):

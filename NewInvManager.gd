@@ -14,8 +14,6 @@ func _ready():
 	inventory_interface.drop_slot_data.connect(_on_drop_slot_data)
 	input_manager.toggle_inventory.connect(_toggle_inventory)
 	inventory_interface.set_player_inventory_data(player.inventory_data)
-	inventory_interface.set_equip_inventory_data(player.equip_inventory_data)
-	inventory_interface.set_equip_sword_inventory_data(player.equip_sword_inventory_data)
 	inventory_interface.force_close.connect(_toggle_inventory)
 	hot_bar_inventory.set_inventory_data(player.inventory_data)
 

@@ -50,7 +50,7 @@ func set_resource(location, resource: GameResource):
 	emit_signal("resource_added", location, resource)
 
 func remove_resource(location, resource: GameResource):
-	PickUpManager.create_pickup( GameItems.get_item(resource.drop))
+	PickUpManager.create_pickup( GameItems.get_item(resource.drop), location)
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
 	

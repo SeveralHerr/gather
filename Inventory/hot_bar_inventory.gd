@@ -12,7 +12,6 @@ var style: StyleBoxFlat
 
 @onready var h_box_container: HBoxContainer = $MarginContainer/HBoxContainer
 @onready var input_manager: InputManager = $"../../InputManager"
-@onready var place_item_slot: NewSlot = $"../../Node2D/Player/PlaceItemSlot"
 @onready var held_item_texture: TextureRect = $"../../Node2D/Player/HeldItemTexture"
 @onready var tile_map: TileMapHandler = $"../.."
 
