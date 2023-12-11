@@ -72,6 +72,10 @@ func sawmill_recipes():
 	var bone_pickaxe_costs = {}
 	bone_pickaxe_costs[Types.Item.Bone] = 9
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
+	
+	var iron_pickaxe_costs = {}
+	iron_pickaxe_costs[Types.Item.Bone] = 9
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
 			
 
 

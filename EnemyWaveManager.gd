@@ -68,6 +68,8 @@ func loadObject(loadedDict: Dictionary) -> void:
 	var enemies_to_load = []
 	
 	for child in get_children(): 
+		if child.name == "Timer":
+			continue
 		child.queue_free()
 	
 	

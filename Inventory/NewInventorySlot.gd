@@ -14,7 +14,7 @@ func set_quantity(quantity: int) -> void:
 	count = quantity
 	
 func can_fully_merge_with(other_slot_data: SlotData) -> bool:
-	return item == other_slot_data.item 
+	return item.type == other_slot_data.item.type
 
 func fully_merge_with(other_slot_data: SlotData) -> void:
 	count += other_slot_data.count

@@ -30,7 +30,7 @@ func _ready():
 	$BoneTurretButton.disabled = false
 	
 	$IronButton.pressed.connect(_on_iron)
-	$IronButton.disabled = false
+	$IronButton.disabled = true
 	
 	xp_bar.max_value = next_level
 	xp_bar.value = xp
@@ -48,7 +48,7 @@ func _on_iron():
 	resource_manager.add_resource(Types.Item.IronResource)
 	Recipes.add_recipe(Types.Item.Furnace, Types.Item.Sawmill)
 	Recipes.add_recipe(Types.Item.IronBar, Types.Item.Furnace)
-	Recipes.add_recipe(Types.Item.IronPickaxe, Types.Item.Furnace)
+	Recipes.add_recipe(Types.Item.IronPickaxe, Types.Item.Sawmill)
 	visible = false
 	close()
 

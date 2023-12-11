@@ -5,7 +5,7 @@ extends RigidBody2D
 @onready var sprite_2d: Sprite2D = $Sprite2D
 @onready var area_2d: Area2D = $Area2D
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
-
+@onready var sound_manager  =  get_tree().get_nodes_in_group("SoundManager")[0]  
 func _ready():
 	area_2d.body_entered.connect(_on_body_entered)
 	#animation_player.play("Hover")
@@ -19,4 +19,5 @@ func _on_body_entered(body: Node2D):
 			
 	elif slot_data.item is GameItem:
 		if body.inventory_data.pick_up_slot_data(slot_data):
+			sound_manager.play_sound(sound_manager.SoundType.POP)
 			queue_free()

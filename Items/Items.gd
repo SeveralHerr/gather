@@ -16,7 +16,7 @@ func _ready():
 	item_list[Types.Item.IronBar] = GameItem.new(Vector2i(7, 2), 4, Types.Item.IronBar, 1, false, "Iron Bar", Vector2i.ZERO)
 	item_list[Types.Item.WoodWall] = GameItemWall2.new(Vector2i(0, 11), 4, Types.Item.WoodWall, 1, true, "Wood Wall", Vector2i.ZERO)
 	item_list[Types.Item.Furnace] = GameItemPlaceable.new(Vector2i(0, 0), 5, Types.Item.Furnace, 1, true, "Furnace", Vector2i(0,5), true)
-	item_list[Types.Item.WoodDoor] = GameItem.new(Vector2i(0,0), 1, Types.Item.WoodDoor, 1, true, "Wood Door", Vector2i(0, 13), true)
+	item_list[Types.Item.WoodDoor] = GameItemPlaceable.new(Vector2i(0,0), 1, Types.Item.WoodDoor, 1, true, "Wood Door", Vector2i(0, 13), true)
 	item_list[Types.Item.Grass] = GameItem.new(Vector2i(0,0), 4, Types.Item.Grass, 0, false, "Grass", Vector2i.ZERO)
 	item_list[Types.Item.Ground] = GameItem.new(Vector2i(0,18), 4, Types.Item.Ground, 0, false, "Ground", Vector2i.ZERO)
 	item_list[Types.Item.Water] = GameItem.new(Vector2i(15,5), 4, Types.Item.Water, 0, false, "Water", Vector2i.ZERO)

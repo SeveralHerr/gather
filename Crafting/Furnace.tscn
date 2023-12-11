@@ -1,54 +1,26 @@
-[gd_scene load_steps=8 format=3 uid="uid://dk6uxq2qtyy8b"]
+[gd_scene load_steps=5 format=3 uid="uid://dk6uxq2qtyy8b"]
 
-[ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://Resources/game_items_atlas.tres" id="1_i0kwr"]
 [ext_resource type="Script" path="res://Crafting/CraftingStation.gd" id="2_bv0l3"]
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_8gyjt"]
-atlas = ExtResource("1_i0kwr")
-region = Rect2(0, 80, 16, 32)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_85j8t"]
-atlas = ExtResource("1_i0kwr")
-region = Rect2(0, 48, 16, 32)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_qbyi6"]
-atlas = ExtResource("1_i0kwr")
-region = Rect2(16, 48, 16, 32)
-
-[sub_resource type="SpriteFrames" id="SpriteFrames_mtk6o"]
-animations = [{
-"frames": [{
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_8gyjt")
-}],
-"loop": true,
-"name": &"Off",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_85j8t")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_qbyi6")
-}],
-"loop": true,
-"name": &"On",
-"speed": 5.0
-}]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_wjqq7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_c61d2"]
 size = Vector2(14, 17)
 
-[node name="Furnace" type="AnimatedSprite2D"]
+[sub_resource type="AtlasTexture" id="AtlasTexture_48csa"]
+atlas = ExtResource("2_wjqq7")
+region = Rect2(0, 80, 16, 32)
+
+[node name="Furnace" type="StaticBody2D"]
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
-sprite_frames = SubResource("SpriteFrames_mtk6o")
-animation = &"Off"
-offset = Vector2(0, -8)
+collision_layer = 5
 script = ExtResource("2_bv0l3")
 type = 12
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -1)
+shape = SubResource("RectangleShape2D_c61d2")
 
 [node name="Button" type="Button" parent="."]
 modulate = Color(1, 1, 1, 0)
@@ -57,8 +29,8 @@ offset_top = -16.0
 offset_right = 8.0
 offset_bottom = 16.0
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
-position = Vector2(0, -1)
-shape = SubResource("RectangleShape2D_c61d2")
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = SubResource("AtlasTexture_48csa")
+offset = Vector2(0, -8)
+flip_h = true

@@ -1,16 +1,7 @@
-[gd_scene load_steps=9 format=3 uid="uid://byk6s1jg0oo51"]
+[gd_scene load_steps=7 format=3 uid="uid://byk6s1jg0oo51"]
 
 [ext_resource type="Script" path="res://Items/PickUp.gd" id="1_1typn"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="2_cyha7"]
-[ext_resource type="Shader" path="res://Items/PickUp.gdshader" id="2_qvwcn"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_3xhh8"]
-shader = ExtResource("2_qvwcn")
-shader_parameter/color = Color(1, 1, 1, 1)
-shader_parameter/width = 1.0
-shader_parameter/pattern = 0
-shader_parameter/inside = true
-shader_parameter/add_margins = false
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_3v030"]
 atlas = ExtResource("2_cyha7")
@@ -45,12 +36,12 @@ position = Vector2(0, 0.587801)
 collision_layer = 0
 collision_mask = 1048576
 gravity_scale = 0.0
+freeze = true
 script = ExtResource("1_1typn")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 y_sort_enabled = true
 texture_filter = 1
-material = SubResource("ShaderMaterial_3xhh8")
 texture = SubResource("AtlasTexture_3v030")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

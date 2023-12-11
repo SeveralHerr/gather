@@ -10,8 +10,6 @@ signal toggle_crafting_station(crafting_station)
 @export var type: Types.Item
 @export var timer: Timer
 @onready var new_inv_manager = get_tree().get_nodes_in_group("InventoryManager")[1]  
-@onready var selected_item_manager: SelectedItemManager = $Node2D/Player/Camera2D/UI/SelectedItemManager
-
 
 var starting_count: int = 0
 
@@ -24,6 +22,7 @@ func player_interact() -> void:
 func _ready():
 	add_to_group("external_inventory")
 	add_to_group("CraftingStations")
+	add_to_group("SaveChunks")
 	$Button.connect("pressed", Callable(self, "_on_button_open_crafting_station"))
 	
 	timer = Timer.new()
@@ -58,10 +57,31 @@ func _on_button_open_crafting_station():
 					if node2.selected_inventory_slot_item == null:
 						node.load_crafting_station(self)
 
-func set_crafting_station(crafting_station):
-	pass
-func clear_crafting_station():
-	pass
+func save():
+	var dict = {
+		"x": position.x,
+		"y": position.y,
+		"selected_recipe": selected_recipe.product,
+		"count": count,
+		"wait_time": timer.wait_time,
+		"timer_status": timer.is_stopped(),
+		"type": type,
+		"filepath": "343"
+	}
+
+	return dict
 	
-	
-	
+func load(dict):
+	if dict["type"] == Types.Item.Sawmill:
+		selected_recipe = Recipes.get_sawmill_recipe(dict["selected_recipe"])
+	elif dict["type"] == Types.Item.Furnace:
+		selected_recipe = Recipes.get_furnace_recipe(dict["selected_recipe"])
+		
+	count = dict["count"]
+	timer.wait_time = dict["wait_time"]
+	if dict["timer_status"] == true:
+		timer.stop()
+	else:
+		timer.start()
+	type = dict["type"]
+

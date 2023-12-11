@@ -13,8 +13,8 @@ func _ready():
 	add_to_group("external_inventory")
 	add_to_group("SaveChunks")
 	inventory_data = InventoryData.new()
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 1) as SlotData)
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.IronBar), 9) as SlotData)
+	inventory_data.inventory_slot_datas.append(null)
+	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
 	toggle_inventory.connect(new_inv_manager._toggle_inventory)
 	pass # Replace with function body.

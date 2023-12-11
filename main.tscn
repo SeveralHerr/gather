@@ -609,6 +609,7 @@ text = "XP
 "
 
 [node name="SaveLoad" type="Control" parent="Node2D/Player/Camera2D/UI"]
+visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_left = 73.0
@@ -660,6 +661,7 @@ offset_left = 217.391
 offset_top = 13.0435
 offset_right = 263.391
 offset_bottom = 44.0435
+disabled = true
 text = "Bone Sword
 "
 
@@ -669,6 +671,7 @@ offset_left = 378.261
 offset_top = 8.69564
 offset_right = 479.261
 offset_bottom = 39.6956
+disabled = true
 text = "Iron: 
 Unlocks Furnace, Iron pickaxe"
 
@@ -678,6 +681,7 @@ offset_left = 56.5217
 offset_top = 134.783
 offset_right = 157.522
 offset_bottom = 165.783
+disabled = true
 text = "Bone Turret:
 Unlocks Net, Turret
 "
@@ -813,6 +817,7 @@ mouse_filter = 1
 selected_item_manager = NodePath("../SelectedItemManager")
 
 [node name="Crafting" type="Control" parent="Node2D/Player/Camera2D/UI"]
+visible = false
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
