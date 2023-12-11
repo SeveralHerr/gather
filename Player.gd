@@ -6,7 +6,6 @@ const JUMP_VELOCITY = -400.0
 var damage = 3
 
 @export var tilemap: TileMapHandler
-@export var selectedItemManager: SelectedItemManager
 @export var resourceManager: ResourceManager2
 @export var input_manager: InputManager
 @export var health_manager: HealthManager
@@ -18,28 +17,20 @@ var damage = 3
 @onready var destroy_manager: DestroyManager = $"../../DestroyManager"
 @onready var items: Items = $"../../Items"
 @onready var interact: Area2D = $Interact
-
 @onready var gather = $Gather
 @onready var hot_bar_inventory = $"../../UI2/HotBarInventory"
-
 @onready var state_machine: StateMachine = $StateMachine
-
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
-@onready var inventory_manager: InventoryManager = $"../../InventoryManager"
 @onready var net = $Net
 @onready var hp_bar: ProgressBar = $Camera2D/UI/PlayerInfo/HpBar
 
 @export var inventory_data: InventoryData
-@export var equip_inventory_data: InventoryDataEquip 
-@export var equip_sword_inventory_data: InventoryDataEquipSword 
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
 var chests = []
 var nearest_chest = null
-
-
 var v = Vector2.ZERO
 
 # Get the gravity from the project settings to be synced with RigidBody nodes.
@@ -47,15 +38,6 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	equip_inventory_data = InventoryDataEquip.new()
-	# Pickaxe
-	equip_inventory_data.inventory_slot_datas.append(null)
-
-
-	
-	equip_sword_inventory_data = InventoryDataEquipSword.new()
-	# Sword
-	equip_sword_inventory_data.inventory_slot_datas.append(null)
 	
 	inventory_data = InventoryData.new()
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Food), 1) as SlotData)
@@ -176,9 +158,6 @@ func receive_hit(force: Vector2, damage: int):
 	animated_sprite_2d.material.set_shader_parameter("g", 1)
 	animated_sprite_2d.material.set_shader_parameter("b", 1)
 	#sound_manager.play_sound(sound_manager.SoundType.HIT)
-	
-func set_pickaxe_skin():
-	$Gather.texture = selectedItemManager.get_selected_item().get_atlas()
 
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
@@ -186,52 +165,9 @@ func _on_body_entered_attack(body: Node2D):
 		body.receive_hit(direction * 100, 3)
 	
 func _attack():
-	#v.x = 100
 	$StateMachine.change_to("PlayerAttack")
-	#attack.visible = true
-	#attack.monitoring = true
-	#if not $AnimatedSprite2D.flip_h:
-		#$AnimationPlayer.play("Attack")
-	#else:
-		#$AnimationPlayer.play("Attack_Left")
-	#pass
-func _gather_input_press():
-	#inventory_manager.AddItem(items.get_item(Types.Item.Net), 1)
-	var selected_item = selectedItemManager.selected_inventory_slot_item
-	if selected_item == null:		
-		return
-		
-func f_gather_input_press():
-	#inventory_manager.AddItem(items.get_item(Types.Item.Net), 1)
-	var selected_item = selectedItemManager.selected_inventory_slot_item
-	if selected_item == null:		
-		return
-	match selected_item.item.type:
-		Types.Item.BoneEnemy:
-			handle_bone_enemy_interaction()
-		Types.Item.Net:
-			handle_net_interaction()
-		Types.Item.WoodPickaxe:
-			pass
-			#handle_pickaxe_interaction()
-		Types.Item.IronPickaxe:
-			#handle_pickaxe_interaction()
-			pass
-		_:
-			net.visible = false
-			net.monitoring = false
-	
-func handle_pickaxe_interaction():
-	set_pickaxe_skin()
-	$Gather.visible = true
-	#$AnimatedSprite2D.play("Gathering")
-	if not $AnimatedSprite2D.flip_h:
-		$AnimationPlayer.play("Gather")
-	else:
-		$AnimationPlayer.play("Gather_left")
 
-	resourceManager.start_removing_resource(selectedItemManager.get_selected_item().power)
-	
+
 func handle_bone_enemy_interaction():
 	var nodes = area_2d.get_overlapping_areas()
 	var closest_turret = find_closest_object_parent(nodes, BoneTurret)
@@ -239,7 +175,7 @@ func handle_bone_enemy_interaction():
 
 	if closest_turret != null and  closest_turret is BoneTurret:
 		closest_turret.set_loaded()
-		inventory_manager.RemoveItem(Types.Item.BoneEnemy)
+		#inventory_manager.RemoveItem(Types.Item.BoneEnemy)
 
 func handle_net_interaction():
 	net.visible = true
@@ -254,8 +190,8 @@ func handle_net_interaction():
 	var closest_enemy = find_closest_object(nodes, Enemy)
 			
 	if closest_enemy != null and closest_enemy.type == "Bone":
-		inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
-		inventory_manager.RemoveItem(Types.Item.Net)
+		#inventory_manager.AddItem(items.get_item(Types.Item.BoneEnemy), 1)
+		#inventory_manager.RemoveItem(Types.Item.Net)
 		net.visible = false
 		net.monitoring = false	
 		closest_enemy.queue_free()
@@ -290,19 +226,6 @@ func _gather_input_release():
 	#$AnimatedSprite2D.play("Idle")
 	#$Gather.visible=false
 	animation_player.stop()
-
-func _mouse_button_left(test: bool):
-	#print("left")
-	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), -1)
-	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), 6, Vector2i(0,0), -1)
-	pass
-
-func _mouse_button_right():
-	selectedItemManager.ClearSelection()
-	#tilemap.tileMap.set_cell(1, Vector2i(2, 2), 3, Vector2i(0,0), 3)
-	#tilemap.set_tile(Vector2i(3, 2), 8, Vector2i(0,0), 1, true)
-	#tilemap.set_tile_item(Vector2i(3,2), items.get_item(Types.Item.Chest))
-	#tilemap.set_tile_item(Vector2(3, 3), items.get_item(Types.Item.WoodDoor))
 
 func _move_down():
 	sound_manager.play_sound_queue(sound_manager.SoundType.WALKING, sound_player)
@@ -378,17 +301,49 @@ func _physics_process(delta):
 
 
 func saveObject() -> Dictionary:
+	var inv = []
+	for i in inventory_data.inventory_slot_datas.size():
+		var item = inventory_data.inventory_slot_datas[i]
+		
+		var json 
+		if not item:
+			json = {
+				"type": 1337,
+				"count": 1337
+			}
+		else:
+			json = {
+				"type": item.item.type,
+				"count": item.count
+			}
+
+		inv.append(JSON.stringify(json))
+		
 	var dict := {
 		"filepath": get_path(),
-		"x": position.x,
-		"y": position.y,
-		"hp": health_manager.current_health
+		"px": position.x,
+		"py": position.y,
+		"hp": health_manager.current_health,
+		"inv_json": inv
 	}
 	return dict
 	
 func loadObject(loadedDict: Dictionary) -> void:
-	position = Vector2(loadedDict["x"], loadedDict["y"])
+	position = Vector2(loadedDict["px"], loadedDict["py"])
 	health_manager.current_health = loadedDict["hp"]
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
+	
+	inventory_data.inventory_slot_datas = []
+	for i in loadedDict.inv_json.size():
+		var saved_info = loadedDict.inv_json[i]
+		var json = JSON.new()
+		json.parse(saved_info)
+		var node = json.get_data()
+		
+		if node["type"] == 1337 and node["count"] == 1337:
+			inventory_data.inventory_slot_datas.append(null)
+		else:
+			inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(node["type"]), node["count"]))
+	inventory_data.inv_updated()
 	

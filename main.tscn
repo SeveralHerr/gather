@@ -1,4 +1,4 @@
-[gd_scene load_steps=63 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=64 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -25,6 +25,7 @@
 [ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://Resources/Sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://Items/ItemManager.gd" id="15_fsmbf"]
 [ext_resource type="Script" path="res://Crafting.gd" id="16_prcxf"]
+[ext_resource type="Script" path="res://fps.gd" id="16_um00x"]
 [ext_resource type="Script" path="res://SoundManager.gd" id="17_dy3qn"]
 [ext_resource type="Script" path="res://Items/ResourceManager2.gd" id="17_h45i4"]
 [ext_resource type="Script" path="res://Items/Items.gd" id="18_esavp"]
@@ -374,11 +375,9 @@ player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
 tileMap = NodePath("Node2D/TileMap")
 items = NodePath("Items")
-specialTiles = null
 resource_manager = NodePath("ResourceManager")
 resources = NodePath("Resources")
 sound_manager = NodePath("SoundManager")
-save_data2 = null
 
 [node name="Node2D" type="Node2D" parent="."]
 y_sort_enabled = true
@@ -414,14 +413,13 @@ script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")
 resourceManager = NodePath("../../ResourceManager")
 
-[node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "selectedItemManager", "resourceManager", "input_manager")]
+[node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "resourceManager", "input_manager")]
 z_index = 1
 y_sort_enabled = true
 collision_layer = 1048577
 collision_mask = 1048577
 script = ExtResource("3_i35uo")
 tilemap = NodePath("../..")
-selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 input_manager = NodePath("../../InputManager")
 
@@ -540,6 +538,17 @@ tileMapHandler = NodePath("../../../..")
 selected_item_manager = NodePath("SelectedItemManager")
 inventory_manager = NodePath("../../../../InventoryManager")
 item_grid = NodePath("PanelContainer/GridContainer")
+
+[node name="Label3" type="Label" parent="Node2D/Player/Camera2D/UI"]
+layout_mode = 0
+offset_left = -115.0
+offset_top = -50.0
+offset_right = -75.0
+offset_bottom = -27.0
+scale = Vector2(0.275, 0.275)
+text = "fps 
+"
+script = ExtResource("16_um00x")
 
 [node name="FloatingText" type="Control" parent="Node2D/Player/Camera2D/UI"]
 anchors_preset = 0

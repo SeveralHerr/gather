@@ -72,6 +72,9 @@ func show_slot_data(index: int):
 		return	
 		
 	PlayerManager.show_slot_data(slot_data)
+	
+func inv_updated():
+	inventory_updated.emit(self)
 		
 func drop_slot_data(grabbed_slot_data: SlotData, index: int) -> SlotData:
 	var slot_data = inventory_slot_datas[index]

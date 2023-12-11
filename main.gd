@@ -481,6 +481,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 	var ground_tiles = []
 	
 	for layer in layers:
+		if layer == 0:
+			continue
+		
 		for cell in tile_grid:
 			tileMap.set_cell(layer, cell, -1)
 			
