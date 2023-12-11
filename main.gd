@@ -51,8 +51,6 @@ func _ready():
 	input_manager.connect("mouse_button_left", Callable(self, "_on_mouse_left"))
 	noise.set_noise_type(FastNoiseLite.TYPE_PERLIN)
 	
-
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
 	
@@ -509,5 +507,5 @@ func loadObject(loadedDict: Dictionary) -> void:
 	
 		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		tileMap.set_cells_terrain_connect(0, ground_tiles, 0, 1)
-		late_load = true
+	late_load = true
 

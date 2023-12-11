@@ -6,6 +6,7 @@ var current_furnace_recipe_list = []
 var current_sawmill_recipe_list = []
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	add_to_group("SaveLoad")
 	furnace_recipes()
 	sawmill_recipes()
 	
@@ -83,3 +84,50 @@ func add_recipe(recipe: Types.Item, type ):
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	pass
+
+
+func saveObject() -> Dictionary:
+	var current_furnace_recipe_list_json = []
+	var current_sawmill_recipe_list_json = []
+
+	for i in current_furnace_recipe_list.size():
+		var json := {
+			"type": current_furnace_recipe_list[i].product
+		}
+	
+		current_furnace_recipe_list_json.append(JSON.stringify(json))
+		
+	for i in current_sawmill_recipe_list.size():
+		var json := {
+			"type": current_sawmill_recipe_list[i].product
+		}
+	
+		current_sawmill_recipe_list_json.append(JSON.stringify(json))	
+	
+		
+	var dict := {
+		"filepath": get_path(),
+		"furnace_recipes": current_furnace_recipe_list_json,
+		"sawmill_recipes": current_sawmill_recipe_list_json
+	}
+	return dict
+	
+func loadObject(loadedDict: Dictionary) -> void:
+	current_furnace_recipe_list = []
+	current_sawmill_recipe_list = []
+	
+	for i in loadedDict.furnace_recipes.size():
+		var saved_info = loadedDict.furnace_recipes[i]
+		var json = JSON.new()
+		json.parse(saved_info)
+		var node = json.get_data()
+		
+		add_recipe(node["type"], Types.Item.Furnace)
+		
+	for i in loadedDict.sawmill_recipes.size():
+		var saved_info = loadedDict.sawmill_recipes[i]
+		var json = JSON.new()
+		json.parse(saved_info)
+		var node = json.get_data()
+		
+		add_recipe(node["type"], Types.Item.Sawmill)

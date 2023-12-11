@@ -16,6 +16,7 @@ var removing_info
 var is_holding_e = false
 
 func _ready():
+	add_to_group("SaveLoad")
 	randomize()
 	tile_map_handler.resource_found.connect(_resource_found)
 	hold_timer.wait_time = 1
@@ -83,3 +84,32 @@ func Test(PlayerPos):
 	
 func _resource_found( resource: GameResource, location: Vector2i):
 	remove_resource(location, resource)
+
+
+func saveObject() -> Dictionary:
+	var current_resource_json = []
+
+	for i in curent_resources.size():
+		var json := {
+			"type": curent_resources[i].type
+		}
+	
+		current_resource_json.append(JSON.stringify(json))
+
+		
+	var dict := {
+		"filepath": get_path(),
+		"resources": current_resource_json
+	}
+	return dict
+	
+func loadObject(loadedDict: Dictionary) -> void:
+	curent_resources = []
+	for i in loadedDict.resources.size():
+		var saved_info = loadedDict.resources[i]
+		var json = JSON.new()
+		json.parse(saved_info)
+		var node = json.get_data()
+		
+		add_resource(node["type"])
+		

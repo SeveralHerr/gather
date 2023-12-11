@@ -12,6 +12,12 @@ func _on_load_pressed() -> void:
 	_load()
 	print("GAME LOADED")
 	
+func _process(delta):
+	if Input.is_action_just_pressed("save"):
+		_save()
+	if Input.is_action_just_pressed("load"):
+		_load()
+	
 func late_load():
 	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
 	for chunk in chunk_nodes:

@@ -3,6 +3,8 @@ extends Node
 const PICK_UP = preload("res://Items/PickUp.tscn")
 @onready var pick_ups = $Node2D/PickUps
 
+func _ready():
+	add_to_group("SaveLoad")
 
 
 func create(slot_data: SlotData, position: Vector2):
@@ -22,3 +24,39 @@ func create_pickup(item: GameItem, position: Vector2):
 	slot_data.item = item
 	slot_data.count = 1
 	PickUpManager.create(slot_data, position)
+
+
+func saveObject() -> Dictionary:
+	var world_item_data = {}
+	var pickups_in_world = get_node("/root/Main/Node2D/PickUps").get_children()
+	
+	for i in pickups_in_world.size():
+		var json = {
+			"itemType": pickups_in_world[i].slot_data.item.type,
+			"x": pickups_in_world[i].position.x,
+			"y": pickups_in_world[i].position.y
+		}
+		
+		world_item_data[i] = JSON.stringify(json)
+	
+	var dict := {
+		"filepath": get_path(),
+		"world_items": world_item_data
+	}
+	return dict
+	
+func loadObject(loadedDict: Dictionary) -> void:
+
+	
+	for child in get_node("/root/Main/Node2D/PickUps").get_children(): 
+		child.queue_free()
+	
+	for item in loadedDict.world_items.keys():
+		var x = loadedDict.world_items[item]
+		var json = JSON.new()
+		json.parse(x)
+		var node = json.get_data()
+		var pos = Vector2i(node["x"], node["y"])
+		var newItem = GameItems.get_item(node["itemType"])
+		
+		create_pickup( newItem, pos)
