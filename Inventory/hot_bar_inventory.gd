@@ -12,8 +12,8 @@ var style: StyleBoxFlat
 
 @onready var h_box_container: HBoxContainer = $MarginContainer/HBoxContainer
 @onready var input_manager: InputManager = $"../../InputManager"
-@onready var place_item_slot: NewSlot = $"../PlaceItemSlot"
-
+@onready var place_item_slot: NewSlot = $"../../Node2D/Player/PlaceItemSlot"
+@onready var held_item_texture: TextureRect = $"../../Node2D/Player/HeldItemTexture"
 @onready var tile_map: TileMapHandler = $"../.."
 
 
@@ -28,10 +28,15 @@ func _ready():
 	input_manager.gather_input_press.connect(_on_gather)
 	
 func _process(delta):
-	if place_item_slot.visible:
-		print( tile_map.get_tile_in_front_of_player())
-		place_item_slot.position = PlayerManager.player.position 
-
+	if held_item_texture.visible:
+		var tile_pos =  tile_map.get_tile_in_front_of_player()
+		held_item_texture.global_position = tile_pos
+		
+		if tile_map.is_occupied(tile_map.tileMap.local_to_map(tile_pos), true, false):
+			held_item_texture.modulate = Color(1, 0, 0, 140)
+		else:
+			held_item_texture.modulate = Color(1, 1, 1, 1)
+		
 func _unhandled_key_input(event):
 	if not visible or not event.is_pressed():
 		return
@@ -45,6 +50,8 @@ func _unhandled_key_input(event):
 		slot.add_theme_stylebox_override("panel", style)
 		selected_index = event.keycode - KEY_1
 		selected_slot_data = inv.inventory_slot_datas[selected_index]
+		#populate_hot_bar(inv)
+		update_placed_slot()
 		hot_bar_selected.emit(selected_index)
 		
 func _on_gather():
@@ -59,13 +66,21 @@ func set_inventory_data(inventory_data: InventoryData) -> void:
 	populate_hot_bar(inventory_data)
 	hot_bar_use.connect(inventory_data.use_slot_data)
 	hot_bar_selected.connect(inventory_data.show_slot_data)
-	update_placed_slot()
+	hot_bar_selected.connect(_on_select)
+
 	inv = inventory_data
 
 	style.draw_center = false
 	(h_box_container.get_children()[0] as PanelContainer).add_theme_stylebox_override("panel", style)
 
+func _on_select(i):
+	update_placed_slot()
+	pass	
+
 func populate_hot_bar(inventory_data: InventoryData) -> void:
+	if selected_slot_data.count <= 0:
+		held_item_texture.texture = null
+	
 	for child in h_box_container.get_children():
 		child.queue_free()
 		
@@ -81,8 +96,8 @@ func populate_hot_bar(inventory_data: InventoryData) -> void:
 				slot.add_theme_stylebox_override("panel", style)
 
 func update_placed_slot() -> void:
-	if place_item_slot:
-		place_item_slot.show()
-		place_item_slot.set_slot_data(selected_slot_data)
+	if held_item_texture and  selected_slot_data and selected_slot_data.item and selected_slot_data.item.is_placeable:
+		held_item_texture.show()
+		held_item_texture.texture = selected_slot_data.item.get_atlas()
 	else: 
-		place_item_slot.hide()
+		held_item_texture.hide()

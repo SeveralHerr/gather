@@ -29,7 +29,12 @@ func _process(delta):
 func _timeout():
 	var random_index = randi() % enemies.size()	
 	var enemy_to_spawn = enemies[random_index]
-	var pos = tilemap_handler.tileMap.map_to_local( tilemap_handler.get_random_tile())
+	
+	var random_tile =  tilemap_handler.get_random_tile()
+	if not random_tile:
+		return
+	
+	var pos = tilemap_handler.tileMap.map_to_local(random_tile)
 	var instance = enemy_to_spawn.instantiate()
 	instance.position = pos
 	add_child(instance)

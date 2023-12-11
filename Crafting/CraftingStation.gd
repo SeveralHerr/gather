@@ -9,7 +9,7 @@ signal toggle_crafting_station(crafting_station)
 @export var count: int
 @export var type: Types.Item
 @export var timer: Timer
-
+@onready var new_inv_manager = get_tree().get_nodes_in_group("InventoryManager")[1]  
 @onready var selected_item_manager: SelectedItemManager = $Node2D/Player/Camera2D/UI/SelectedItemManager
 
 
@@ -33,7 +33,7 @@ func _ready():
 	
 	recipe_list = Recipes.get_recipes(type)
 	selected_recipe = recipe_list[0]
-	
+	toggle_crafting_station.connect(new_inv_manager._toggle_crafting_station)
 	
 	
 func _process(delta):

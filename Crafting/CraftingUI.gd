@@ -93,7 +93,7 @@ func load_crafting_station(craftingStation):
 		$CostList.add_child(newCostRow)
 		
 		var citem = GameItems.get_item(costItemType)				
-		var catlas_texture = item.get_atlas()
+		var catlas_texture = citem.get_atlas()
 		newCostRow.texture = catlas_texture
 		
 		var qty = PlayerManager.player.inventory_data.get_count(citem)

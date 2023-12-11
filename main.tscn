@@ -368,7 +368,7 @@ region = Rect2(96, 16, 16, 16)
 atlas = ExtResource("5_ba3bd")
 region = Rect2(96, 0, 16, 16)
 
-[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "ItemManager", "Items", "LevelUpManager", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "UI"]]
+[node name="Main" type="Node" node_paths=PackedStringArray("player", "itemManager", "tileMap", "items", "resource_manager", "resources", "sound_manager") groups=["Buttons", "Camera", "ChestUi", "Chests", "CraftingStations", "CraftingUi", "InputManager", "InventoryManager", "ItemManager", "Items", "LevelUpManager", "Player", "SaveLoad", "Sawmills", "SelectedItemManager", "SoundManager", "TileMapHandler", "UI"]]
 script = ExtResource("1_j4hlh")
 player = NodePath("Node2D/Player")
 itemManager = NodePath("Node2D/ItemManager")
@@ -415,6 +415,14 @@ selectedItemManager = NodePath("Camera2D/UI/SelectedItemManager")
 resourceManager = NodePath("../../ResourceManager")
 input_manager = NodePath("../../InputManager")
 
+[node name="HeldItemTexture" type="TextureRect" parent="Node2D/Player"]
+visible = false
+z_index = 2
+texture_filter = 1
+offset_right = 16.0
+offset_bottom = 16.0
+texture = SubResource("AtlasTexture_t1usi")
+
 [node name="StateMachine" type="Node" parent="Node2D/Player"]
 script = ExtResource("6_08dnb")
 
@@ -426,18 +434,6 @@ script = ExtResource("8_rb0ym")
 
 [node name="PlayerAttack" type="Node" parent="Node2D/Player/StateMachine"]
 script = ExtResource("9_acc7j")
-
-[node name="HeldItemTexture" type="TextureRect" parent="Node2D/Player"]
-visible = false
-z_index = 1
-y_sort_enabled = true
-texture_filter = 1
-offset_left = -6.0
-offset_top = -10.0
-offset_right = 34.0
-offset_bottom = 30.0
-scale = Vector2(0.29, 0.29)
-texture = SubResource("AtlasTexture_t1usi")
 
 [node name="Interact" type="Area2D" parent="Node2D/Player"]
 collision_layer = 0
@@ -952,13 +948,6 @@ offset_top = 566.0
 offset_right = -386.0
 offset_bottom = -2.0
 scale = Vector2(0.86, 0.86)
-
-[node name="PlaceItemSlot" parent="UI2" instance=ExtResource("31_uow64")]
-visible = false
-modulate = Color(1, 1, 1, 0.486275)
-self_modulate = Color(1, 1, 1, 0)
-offset_right = 64.0
-offset_bottom = 64.0
 
 [node name="NewInvManager" type="Node" parent="."]
 script = ExtResource("2_u57kl")

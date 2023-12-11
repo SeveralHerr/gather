@@ -55,13 +55,14 @@ func use_slot_data(index: int):
 	if not slot_data:
 		return	
 	
-	if slot_data.item is GameItemConsumable:
+	if slot_data.item is GameItemConsumable: # or slot_data.item is GameItemCraftingStation:
 		slot_data.count -= 1
-		if slot_data.count < 1:
-			inventory_slot_datas[index] = null
+
 	
 	PlayerManager.use_slot_data(slot_data)
 	
+	if slot_data.count < 1:
+		inventory_slot_datas[index] = null
 	inventory_updated.emit(self)
 	
 func show_slot_data(index: int):

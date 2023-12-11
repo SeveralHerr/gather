@@ -35,7 +35,8 @@ var damage = 3
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
-var chest = null
+var chests = []
+var nearest_chest = null
 
 var v = Vector2.ZERO
 
@@ -58,7 +59,7 @@ func _ready():
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Food), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.WoodPickaxe), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sawmill), 1) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sawmill), 2) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Wood), 9) as SlotData)
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
@@ -110,11 +111,23 @@ func _on_resource_removing(location: Vector2i, resource):
 	
 
 func on_interact(body: Node2D):
-	chest = body
+	if not chests.has(body):
+		chests.append(body)
+		
+	if nearest_chest:
+		tilemap.add_highlight(nearest_chest.position)	
 	pass
 	
 func on_interact_exit(body: Node2D):
-	chest = null
+	chests.erase(body)
+			
+	if chests.size() == 0:
+		nearest_chest = null
+		tilemap.remove_highlight()
+			
+	if nearest_chest:
+		tilemap.remove_highlight()
+		tilemap.add_highlight(nearest_chest.position)	
 	pass
 	
 func is_facing_left():
@@ -317,13 +330,28 @@ func _on_gather():
 	$StateMachine.change_to("PlayerGather")
 	
 func _process(delta):		
+	
 	if Input.is_action_just_pressed("action"):
-		if not chest:
+		if not nearest_chest:
 			return
-		if chest is TestChest:
-			chest.player_interact()
-		elif chest is CraftingStation:
-			chest.player_interact()
+
+		if nearest_chest is TestChest:
+			nearest_chest.player_interact()
+
+		elif nearest_chest is CraftingStation:
+			nearest_chest.player_interact()
+			
+	var nearestDistance = 1000000
+	for i in chests.size():
+		var tilePos = tilemap.tileMap.local_to_map(chests[i].position)
+		var direction = global_position - tilemap.tileMap.map_to_local(tilePos)
+		var distance = direction.length()
+		if distance < nearestDistance:
+			nearestDistance = distance
+			nearest_chest = chests[i]
+	if nearest_chest:
+		tilemap.remove_highlight()
+		tilemap.add_highlight(nearest_chest.position)	
 	pass
 	
 func get_drop_position() -> Vector2:

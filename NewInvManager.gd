@@ -1,4 +1,5 @@
 extends Node
+class_name NewInventoryManager
 
 const PICK_UP = preload("res://Items/PickUp.tscn")
 
@@ -9,6 +10,7 @@ const PICK_UP = preload("res://Items/PickUp.tscn")
 @onready var crafting_ui = $"../Node2D/Player/Camera2D/UI/CraftingUI"
 
 func _ready():
+	add_to_group("InventoryManager")
 	inventory_interface.drop_slot_data.connect(_on_drop_slot_data)
 	input_manager.toggle_inventory.connect(_toggle_inventory)
 	inventory_interface.set_player_inventory_data(player.inventory_data)

@@ -37,6 +37,7 @@ var crack = preload("res://Crack.tres")
 func _ready():
 	randomize()
 	add_to_group("SaveLoad")
+	add_to_group("TileMapHandler")
 	#rain() 
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
@@ -82,7 +83,14 @@ func _process(delta):
 
 	GetPlayerPosition()
 	
+func add_highlight(location):
+	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
+
 	
+func remove_highlight():
+	var tiles = tileMap.get_used_cells(3)
+	for tile in tiles: 
+		tileMap.set_cell(3, tile, -1)
 
 	
 func _on_destroy_removing(location: Vector2i, item: GameItem):
@@ -192,6 +200,11 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 	tile = tileMap.get_cell_tile_data(2, tilePos)
 	if tile != null and include_resources == true:
 		is_occupied = true
+		
+	# Check if trying to spawn on anything that is not grass
+	if tileMap.get_cell_atlas_coords(0, tilePos) != Vector2i(9, 17):
+		is_occupied = true
+	
 	
 	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
 	var source_id = tileMap.get_cell_source_id (1, tilePos)
@@ -233,7 +246,7 @@ func get_tile_in_front_of_player():
 			
 		#var tile_center_global = tileMap.map_to_local(tile_pos) - Vector2(8, 8)
 
-		return tileMap.map_to_local(tile_pos) 
+		return tileMap.map_to_local(tile_pos) - Vector2(8, 8)
 	
 func _find_nearest_tile_and_resource(location: Vector2):
 	var neighbors = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP + Vector2i.LEFT, Vector2i.UP + Vector2i.RIGHT, Vector2i.DOWN + Vector2i.LEFT, Vector2i.DOWN + Vector2i.RIGHT, Vector2i.ZERO]
@@ -392,6 +405,7 @@ func get_random_tile():
 		var random_tile = used_tiles[random_index]
 		
 		if is_occupied(Vector2i(random_tile.x, random_tile.y), true):
+			try += 1
 			continue
 		
 			

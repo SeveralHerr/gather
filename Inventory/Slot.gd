@@ -16,7 +16,9 @@ func _on_gui_input(event: InputEvent) -> void:
 			or event.button_index == MOUSE_BUTTON_RIGHT) \
 			and event.is_pressed():
 		slot_clicked.emit(get_index(), event.button_index)
-		
+	
+func set_text(text):
+	quantity_label.text = text
 
 func set_slot_data(slot_data: SlotData) -> void:
 	var item = slot_data.item

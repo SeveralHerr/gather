@@ -6,6 +6,9 @@ var p : Player
 
 func enter():
 	p = PlayerManager.player
+	if not p.hot_bar_inventory.selected_slot_data:
+		return
+	
 	var equipped = p.hot_bar_inventory.selected_slot_data.item
 	var has_pickaxe_equipped = equipped and equipped is  GameItemPickaxe
 	
