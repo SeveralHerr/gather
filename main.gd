@@ -20,7 +20,8 @@ var chest = preload("res://TileScenes/chest.tscn")
 var wall_tiles_min = Vector2(0,7)
 var wall_tiles_max = Vector2(11,11)
 
-
+var ground_tiles_min = Vector2(0,15)
+var ground_tiles_max = Vector2(11,18)
 
 var radius = 6
 var noise_scale = 1
@@ -50,6 +51,8 @@ func _ready():
 	input_manager.connect("mouse_button_left", Callable(self, "_on_mouse_left"))
 	noise.set_noise_type(FastNoiseLite.TYPE_PERLIN)
 	
+
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
 	
@@ -75,6 +78,28 @@ func _ready():
 	PlayerManager.player.position = tileMap.map_to_local(lands[0])
 
 
+func generate_island():
+	var layers = tileMap.get_layers_count()
+	var tile_grid = tileMap.get_used_cells(0)
+	
+	for cell in tile_grid:
+		tileMap.set_cell(0, cell, -1)
+	#noise.set_frequency(0.5)	
+	noise.set_seed(randi())
+	var lands = []
+	for x in range(-radius, radius + 1):
+		for y in range(-radius, radius + 1):
+			var tile_position = Vector2(x, y)
+			var distance = tile_position.length()
+
+			if distance <= radius:
+				var noise_value = noise.get_noise_2d(x * noise_scale, y * noise_scale)
+
+				if noise_value < noise_threshold:
+					# Place a tile at this position
+					#tileMap.set_cell(1, tile_position, 4, Vector2i(0, 15),1 )
+					lands.append(tile_position)
+	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	if late_load == true:
@@ -428,6 +453,8 @@ func saveObject() -> Dictionary:
 			var item = resources.get_item_or_resource(atlas_location, source_id)
 			if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
 				item = items.get_item(Types.Item.WoodWall)
+			elif  atlas_location.x >= ground_tiles_min.x and atlas_location.y >= ground_tiles_min.y and atlas_location.x <= ground_tiles_max.x and atlas_location.y <= ground_tiles_max.y:
+				item = items.get_item(Types.Item.Ground)
 			
 			if item == null:
 				continue
@@ -451,11 +478,19 @@ func loadObject(loadedDict: Dictionary) -> void:
 	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
 	wallTiles = []
+	var ground_tiles = []
 	
 	for layer in layers:
 		for cell in tile_grid:
 			tileMap.set_cell(layer, cell, -1)
-	
+			
+	var used_rect = tileMap.get_used_rect()
+	for x in range(used_rect.position.x, used_rect.position.x + used_rect.size.x):
+		for y in range(used_rect.position.y, used_rect.position.y + used_rect.size.y):
+			var cell = Vector2(x, y)
+			var water = GameItems.get_item(Types.Item.Water)
+			tileMap.set_cell(water.layer, cell, water.tile_source_id, water.atlas_location)
+		
 	for i in loadedDict.tiles.size():
 		var saved_info = loadedDict.tiles[i]
 		var json = JSON.new()
@@ -463,9 +498,13 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var node = json.get_data()
 
 		var item = resources.get_item_or_resource_by_type(node["type"])
-		var location = Vector2i(node["x"], node["y"])
-
-		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		
+		var location = Vector2i(node["x"], node["y"])
+		if item.type == Types.Item.Ground:
+			ground_tiles.append(location)
+
+	
+		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
+		tileMap.set_cells_terrain_connect(0, ground_tiles, 0, 1)
 		late_load = true
 

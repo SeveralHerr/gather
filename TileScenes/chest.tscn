@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=3 uid="uid://hu4y0smkqoni"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_mgq6d"]
-[ext_resource type="Script" path="res://TileScenes/chest.gd" id="1_xerdl"]
-[ext_resource type="PackedScene" uid="uid://5hfx5ipynryi" path="res://player_range.tscn" id="3_g4v1i"]
+[ext_resource type="Script" path="res://test_chest.gd" id="1_pqdaw"]
+[ext_resource type="PackedScene" path="res://player_range.tscn" id="3_g4v1i"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_otlgb"]
 size = Vector2(12, 7)
@@ -15,7 +15,7 @@ region = Rect2(176, 32, 16, 16)
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
-script = ExtResource("1_xerdl")
+script = ExtResource("1_pqdaw")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, 2.5)

@@ -12,6 +12,7 @@ var damage = 3
 @export var health_manager: HealthManager
 @onready var animation_player = $AnimationPlayer
 @onready var attack = $Attack
+@onready var attack_sprite: Sprite2D = $Attack/Sprite
 @onready var animated_sprite_2d = $AnimatedSprite2D
 @onready var sound_manager: SoundManager = $"../../SoundManager"
 @onready var destroy_manager: DestroyManager = $"../../DestroyManager"
@@ -37,6 +38,7 @@ var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
 var chests = []
 var nearest_chest = null
+
 
 var v = Vector2.ZERO
 
