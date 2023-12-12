@@ -25,18 +25,15 @@ func _physics_process(delta):
 		itemsInWorld[i].Process(delta)
 			#itemsInWorld.erase(i)
 			
-func _on_destroy_removed(position: Vector2i, item: GameItem):
+func _on_destroy_removed(position: Vector2i, _item: GameItem):
 	position = position - Vector2i(8,8)
-	#AddItemToWorld(position, item)
 
 func _on_resource_removed(position: Vector2i, resource: GameItem):
 	position = position - Vector2i(8,8)
-	#AddItemToWorld(position, items.get_item(resource.drop))
 	
 func AddItemToWorldByType(position, type: Types.Item):
 	position = Vector2i(position.x, position.y) - Vector2i(8,8)
 	var item = items.get_item(type)
-	#AddItemToWorld(position, item)
 	
 
 func AddItemToWorld(position, item: GameItem):

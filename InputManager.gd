@@ -21,7 +21,7 @@ var disable_input = false
 func _ready():
 	add_to_group("InputManager")
 
-func _physics_process(delta):
+func _physics_process(_delta):
 
 	if Input.is_action_pressed(&"move_right") and not disable_input:
 		move_right.emit()

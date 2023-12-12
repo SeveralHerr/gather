@@ -3,7 +3,7 @@ class_name GameItemBoneEnemy
 
 
 	
-func use(target):
+func use(_target):
 	var nodes = PlayerManager.player.area_2d.get_overlapping_areas()
 	var closest_turret = find_closest_object_parent(nodes, BoneTurret)
 

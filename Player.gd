@@ -92,7 +92,7 @@ func _ready():
 func _on_died():
 	print("DEAD")
 	
-func _on_resource_removing(location: Vector2i, resource):
+func _on_resource_removing(_location: Vector2i, _resource):
 	#sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
 	pass
 	
@@ -121,7 +121,7 @@ func is_facing_left():
 	return animated_sprite_2d.flip_h
 
 	
-func _on_resource_removing_stop(location: Vector2i, resource):
+func _on_resource_removing_stop(_location: Vector2i, _resource):
 	#sound_player_mining.stop()
 	pass
 		
@@ -143,11 +143,11 @@ func _destroy_input_press():
 	destroy_manager.start_removing_resource()
 	pass	
 
-func receive_hit(force: Vector2, damage: int):
+func receive_hit(_force: Vector2, _damage: int):
 	#velocity += force
 	#move_and_slide()
 	camera.apply_shake()
-	health_manager.take_damage(damage)
+	health_manager.take_damage(_damage)
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
@@ -206,7 +206,7 @@ func _on_gather():
 	#$StateMachine.change_to("PlayerGather")
 	pass
 	
-func _process(delta):		
+func _process(_delta):		
 	
 	if Input.is_action_just_pressed("action"):
 		if not nearest_chest:
@@ -235,7 +235,7 @@ func get_drop_position() -> Vector2:
 	var direction = -camera.global_position
 	return camera.global_position + direction
 	
-func _physics_process(delta):
+func _physics_process(_delta):
 	#$AnimatedSprite2D.play("Idle")
 		
 	_process_movement()

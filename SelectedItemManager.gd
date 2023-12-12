@@ -85,7 +85,7 @@ func ClearSelection():
 
 
 
-func _process(delta):
+func _process(_delta):
 	if selectedTexture.texture != null:
 
 		var mouse_pos = get_global_mouse_position()

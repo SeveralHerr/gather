@@ -53,7 +53,7 @@ func _on_iron():
 	close()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _process(_delta):
 	if xp >= next_level:
 		visible = true
 		next_level *= 2

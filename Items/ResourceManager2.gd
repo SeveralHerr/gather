@@ -81,9 +81,7 @@ func _on_hold_timer_timeout():
 		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
 		remove_resource(removing_info.location, removing_info.resource)
 		removing_info = null
-	
-func Test(PlayerPos):
-	var resource = tile_map_handler.find_nearest_resource_to_location(PlayerPos)
+
 	
 func _resource_found( resource: GameResource, location: Vector2i):
 	remove_resource(location, resource)

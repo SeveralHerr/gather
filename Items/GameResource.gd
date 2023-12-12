@@ -5,25 +5,25 @@ class_name GameResource
 var sound: GameSoundManager.SoundType
 var drop: Types.Item
 
-func _init(atlas_location: Vector2i, 
-		tile_source_id: int, 
-		type: Types.Item,
-		layer: int, 
-		is_placeable: bool, 
-		name: String,
-		tile_atlas_location: Vector2i,
-		is_scene_tile: bool,
-		drop: Types.Item, 
-		gathering_atlas_location: Vector2i = Vector2i.ZERO,
-		sound: GameSoundManager.SoundType = GameSoundManager.SoundType.STONE
+func _init(_atlas_location: Vector2i, 
+		_tile_source_id: int, 
+		_type: Types.Item,
+		_layer: int, 
+		_is_placeable: bool, 
+		_name: String,
+		_tile_atlas_location: Vector2i,
+		_is_scene_tile: bool,
+		_drop: Types.Item, 
+		_gathering_atlas_location: Vector2i = Vector2i.ZERO,
+		_sound: GameSoundManager.SoundType = GameSoundManager.SoundType.STONE
 	):
-	self.atlas_location = atlas_location
-	self.tile_source_id = tile_source_id
-	self.layer = layer
-	self.is_placeable = is_placeable
-	self.tile_atlas_location = tile_atlas_location
-	self.type = type
-	self.drop = drop
-	self.gathering_atlas_location = gathering_atlas_location
-	self.sound = sound
+	self.atlas_location = _atlas_location
+	self.tile_source_id = _tile_source_id
+	self.layer = _layer
+	self.is_placeable = _is_placeable
+	self.tile_atlas_location = _tile_atlas_location
+	self.type = _type
+	self.drop = _drop
+	self.gathering_atlas_location = _gathering_atlas_location
+	self.sound = _sound
 

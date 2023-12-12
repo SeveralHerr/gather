@@ -17,23 +17,23 @@ class_name GameItem
 @export var is_scene_tile: bool
 
 
-func _init(atlas_location: Vector2i, 
-		tile_source_id: int, 
-		type: Types.Item,
-		layer: int, 
-		is_placeable: bool, 
-		name: String,
-		tile_atlas_location: Vector2i = Vector2i.ZERO,
-		is_scene_tile: bool = false
+func _init(_atlas_location: Vector2i, 
+		_tile_source_id: int, 
+		_type: Types.Item,
+		_layer: int, 
+		_is_placeable: bool, 
+		_name: String,
+		_tile_atlas_location: Vector2i = Vector2i.ZERO,
+		_is_scene_tile: bool = false
 	):
-	self.atlas_location = atlas_location
-	self.tile_source_id = tile_source_id
-	self.layer = layer
-	self.is_placeable = is_placeable
-	self.tile_atlas_location = tile_atlas_location
-	self.type = type
-	self.name = name
-	self.is_scene_tile = is_scene_tile
+	self.atlas_location = _atlas_location
+	self.tile_source_id = _tile_source_id
+	self.layer = _layer
+	self.is_placeable = _is_placeable
+	self.tile_atlas_location = _tile_atlas_location
+	self.type = _type
+	self.name = _name
+	self.is_scene_tile = _is_scene_tile
 	
 func equal_type(incomingType: Types.Item):
 	return type == incomingType
@@ -55,7 +55,7 @@ func get_atlas():
 
 	return atlas_texture
 	
-func use(target):
+func use(_target):
 	pass
 	
 func stop():

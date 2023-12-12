@@ -53,7 +53,7 @@ func find_closest_object(nodes, type):
 				closest_object = node
 	return closest_object
 	
-func animation_finished(anim_name):
+func animation_finished(_anim_name):
 	p.animation_player.stop()
 	p.net.visible = false
 	p.net.monitoring = false	

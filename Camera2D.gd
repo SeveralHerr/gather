@@ -7,8 +7,8 @@ class_name Camera
 var rng = RandomNumberGenerator.new()
 var shake_strength: float = 0.0
 
-func apply_shake(randomStrength: float = 1.0):
-	shake_strength = randomStrength
+func apply_shake(_randomStrength: float = 1.0):
+	shake_strength = _randomStrength
 	
 func _ready():
 	add_to_group("Camera")

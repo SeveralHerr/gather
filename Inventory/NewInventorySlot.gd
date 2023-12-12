@@ -6,9 +6,9 @@ var item: GameItem
 
 
 
-func _init(item: GameItem = null, count: int = 0):
-	self.item = item
-	self.count = count
+func _init(_item: GameItem = null, _count: int = 0):
+	self.item = _item
+	self.count = _count
 
 func set_quantity(quantity: int) -> void: 
 	count = quantity

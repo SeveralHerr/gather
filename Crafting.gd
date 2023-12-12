@@ -13,9 +13,6 @@ func _ready():
 	sawmill_button.connect("pressed", Callable(self, "_on_sawmill_button_pressed"))
 	furnace_button.connect("pressed", Callable(self, "_on_furnace_button_pressed"))
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
 
 func _on_sawmill_button_pressed():
 	inventory_manager.AddItem(items.get_item(Types.Item.Sawmill), 1)

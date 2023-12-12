@@ -9,9 +9,7 @@ extends RigidBody2D
 func _ready():
 	area_2d.body_entered.connect(_on_body_entered)
 	#animation_player.play("Hover")
-	
-func _physics_process(delta):
-	pass
+
 	
 func _on_body_entered(body: Node2D):
 	if not body is Player:

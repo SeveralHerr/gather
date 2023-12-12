@@ -24,7 +24,7 @@ func _ready():
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _process(_delta):
 	handle_progress_bar()
 	
 	pass
@@ -63,23 +63,23 @@ func _get_recipe_by_name(value):
 		if item == recipe.product:
 			return recipe
 
-func load_crafting_station(craftingStation):
+func load_crafting_station(_craftingStation):
 	visible = true
-	self.craftingStation = craftingStation
+	self.craftingStation = _craftingStation
 	
 	for child in $Craftables.get_children():
 		child.queue_free()
 		
 	$Craftables.clear()
 
-	for recipe in craftingStation.recipe_list:
-		var item = GameItems.get_item(recipe.product)		
-		var atlas_texture = item.get_atlas()
+	for recipe in _craftingStation.recipe_list:
+		var recipe_item = GameItems.get_item(recipe.product)		
+		var recipe_atlas_texture = recipe_item.get_atlas()
 		#add_child(instance)
 	
-		$Craftables.add_item( GameItems.get_item(recipe.product).name, atlas_texture)
+		$Craftables.add_item( GameItems.get_item(recipe.product).name, recipe_atlas_texture)
 		
-	var item = GameItems.get_item(craftingStation.selected_recipe.product)			
+	var item = GameItems.get_item(_craftingStation.selected_recipe.product)			
 	var atlas_texture = item.get_atlas()
 	$SelectedCraftable.texture = atlas_texture
 	
@@ -88,7 +88,7 @@ func load_crafting_station(craftingStation):
 			
 
 	
-	for costItemType in craftingStation.selected_recipe.cost_list.keys():
+	for costItemType in _craftingStation.selected_recipe.cost_list.keys():
 		var newCostRow = costRow.instantiate()
 		$CostList.add_child(newCostRow)
 		
@@ -97,7 +97,7 @@ func load_crafting_station(craftingStation):
 		newCostRow.texture = catlas_texture
 		
 		var qty = PlayerManager.player.inventory_data.get_count(citem)
-		var text = citem.name + " "+ str(craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(qty)
+		var text = citem.name + " "+ str(_craftingStation.selected_recipe.cost_list[costItemType] * amountToCraft) + "/" + str(qty)
 		newCostRow.get_child(0).text = text
 	$QuantityLabel.text = "Qty. " + str(amountToCraft)
 	handle_progress_bar()

@@ -23,7 +23,7 @@ func _ready():
 	for item in range(21):
 		var slot = Slot.instantiate()
 		grid_container.add_child(slot)
-		var button = grid_container.get_child(item).get_child(1).get_child(1)
+
 		#button.connect("pressed", Callable(button, "_on_Button_pressed"))
 		var slotButton = grid_container.get_child(item)
 		if slotButton is SlotButton:
@@ -34,9 +34,6 @@ func _exit():
 	input_manager.isUiOpen = false
 	visible = false
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
 
 func update_ui():
 	for i in range(21):

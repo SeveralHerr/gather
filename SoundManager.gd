@@ -49,7 +49,7 @@ func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
 		if not loop:
 			player.connect("finished", Callable(player, "queue_free"))
 			
-func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: float = 0.0, loop: bool = false):
+func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: float = 0.0, _loop: bool = false):
 	var sound_resource = sound_library[type]
 	player.autoplay = false
 	
@@ -61,7 +61,7 @@ func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: flo
 		#player.loop = loop
 		player.play()
 		
-func play_gathering_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
+func play_gathering_sound(type: SoundType, volume_db: float = 0.0, _loop: bool = false):
 	var sound_resource = sound_library[type]
 	gathering_player.autoplay = false
 	

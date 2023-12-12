@@ -4,6 +4,6 @@ class_name CraftingRecipe
 @export var product: Types.Item
 @export var cost_list = {}
 
-func _init(product: Types.Item, cost_list ):
-	self.product = product
-	self.cost_list = cost_list
+func _init(_product: Types.Item, _cost_list ):
+	self.product = _product
+	self.cost_list = _cost_list

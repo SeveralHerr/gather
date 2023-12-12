@@ -51,7 +51,6 @@ func _ready():
 	input_manager.connect("mouse_button_left", Callable(self, "_on_mouse_left"))
 	noise.set_noise_type(FastNoiseLite.TYPE_PERLIN)
 	
-	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
 	
 	for cell in tile_grid:
@@ -77,7 +76,6 @@ func _ready():
 
 
 func generate_island():
-	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
 	
 	for cell in tile_grid:
@@ -99,7 +97,7 @@ func generate_island():
 					lands.append(tile_position)
 	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _process(_delta):
 	if late_load == true:
 		save_load.late_load()
 		late_load = false
@@ -116,7 +114,7 @@ func remove_highlight():
 		tileMap.set_cell(3, tile, -1)
 
 	
-func _on_destroy_removing(location: Vector2i, item: GameItem):
+func _on_destroy_removing(location: Vector2i, _item: GameItem):
 	# Add highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
 	
@@ -146,7 +144,7 @@ func replace_tiles():
 	for tile in wallTiles:
 		tileMap.set_cell(1, tile, 4, Vector2i(0, 11) )
 	
-func _on_destroy_removing_stop(location: Vector2i, item: GameItem):
+func _on_destroy_removing_stop(location: Vector2i, _item: GameItem):
 	# Remove highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
 	#set_tile(location,item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
@@ -203,7 +201,7 @@ func is_wall_tile(atlas_location):
 		return true
 	return false
 		
-func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
+func play_audio(_location: Vector2i, tile_source_id: int, atlas_location: Vector2i, _layer: int, _is_scene: bool = false):
 	var item = items.get_item_by_data(atlas_location, tile_source_id)
 	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
 		sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
@@ -211,22 +209,22 @@ func play_audio(location: Vector2i, tile_source_id: int, atlas_location: Vector2
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
 func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = false)-> bool:
-	var is_occupied = false
+	var occupied = false
 	
 	if is_wall == true:
 		return false
 	
 	var tile = tileMap.get_cell_tile_data(1, tilePos)
 	if tile != null:
-		is_occupied = true
+		occupied = true
 		
 	tile = tileMap.get_cell_tile_data(2, tilePos)
 	if tile != null and include_resources == true:
-		is_occupied = true
+		occupied = true
 		
 	# Check if trying to spawn on anything that is not grass
 	if tileMap.get_cell_atlas_coords(0, tilePos) != Vector2i(9, 17):
-		is_occupied = true
+		occupied = true
 	
 	
 	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
@@ -234,10 +232,10 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 	var item = resources.get_item_or_resource(atlas_location, source_id)
 	
 	if item != null and item.is_scene_tile:
-		is_occupied = true
+		occupied = true
 			
 
-	return is_occupied
+	return occupied
 		
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
@@ -283,9 +281,9 @@ func _find_nearest_tile_and_resource(location: Vector2):
 			continue
 		
 		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var distance = direction.length()
-		if distance < nearestDistance:
-			nearestDistance = distance
+		var dist = direction.length()
+		if dist < nearestDistance:
+			nearestDistance = dist
 			nearestPos = tilePos
 			
 	if nearestPos == null:
@@ -314,8 +312,6 @@ func get_location_of_nearby_item_to_destroy(location):
 	for neighbor in neighbors:
 		var tilePos = tileMap.local_to_map(location) + neighbor
 		var tile_atlas = tileMap.get_cell_atlas_coords(1, tilePos)
-		var tile_source_id = tileMap.get_cell_source_id(1, tilePos)
-		var item = null
 		
 		if tile_atlas == Vector2i(-1,-1):
 			continue
@@ -325,9 +321,9 @@ func get_location_of_nearby_item_to_destroy(location):
 
 
 		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var distance = direction.length()
-		if distance < nearestDistance:
-			nearestDistance = distance
+		var dist = direction.length()
+		if dist < nearestDistance:
+			nearestDistance = dist
 			nearestPos = tilePos
 
 	if nearestPos == null:
@@ -368,9 +364,9 @@ func get_location_of_nearby_resource(location):
 			continue
 		
 		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var distance = direction.length()
-		if distance < nearestDistance:
-			nearestDistance = distance
+		var dist = direction.length()
+		if dist < nearestDistance:
+			nearestDistance = dist
 			nearestPos = tilePos
 			
 	if nearestPos == null:
@@ -418,8 +414,6 @@ func get_random_tile():
 	
 	var max_retries = 100
 	var try = 1
-	var random_x
-	var random_y
 
 
 	# Optionally, if you want to keep trying random positions until you find a non-empty tile

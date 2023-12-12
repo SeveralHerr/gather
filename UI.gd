@@ -37,7 +37,7 @@ func _on_placed_tile(type: Types.Item):
 	if not inventory_manager.HasItem(type):
 		selected_item_manager.ClearSelection()
 
-func remove_item(item):
+func remove_item(_item):
 	update_ui()
 
 func update_ui():
@@ -49,8 +49,8 @@ func update_ui():
 			slotButton.clear_slot()
 
 	var i = 0
-	var inventory = inventory_manager.get_inventory()
-	for inv_slot in inventory:
+	var inv = inventory_manager.get_inventory()
+	for inv_slot in inv:
 		if inv_slot.item == null:
 			continue
 		var item = inv_slot.item
@@ -65,7 +65,7 @@ func update_ui():
 			
 		i += 1
 			
-func _on_Button_pressed(inventory_slot: InventorySlot, instance: SlotButton):
+func _on_Button_pressed(inventory_slot: InventorySlot, _instance: SlotButton):
 	print("ui press")
 	if selected_item_manager.selected_inventory_slot_item != null:
 		if selected_item_manager.type == selected_item_manager.Type.Chest:

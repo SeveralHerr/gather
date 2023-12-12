@@ -85,11 +85,6 @@ func add_recipe(recipe: Types.Item, type ):
 	elif type == Types.Item.Sawmill:
 		current_sawmill_recipe_list.append(get_sawmill_recipe(recipe))
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
-
-
 func saveObject() -> Dictionary:
 	var current_furnace_recipe_list_json = []
 	var current_sawmill_recipe_list_json = []

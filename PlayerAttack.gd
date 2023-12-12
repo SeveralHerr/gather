@@ -27,7 +27,7 @@ func enter():
 		
 	
 	
-func animation_finished(anim_name):
+func animation_finished(_anim_name):
 	p.attack.visible = false
 	p.attack.monitoring = false
 	fsm.change_to("PlayerIdle")

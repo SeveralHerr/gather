@@ -16,9 +16,6 @@ func _ready():
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	
-	pass
 
 func _on_button_open_chest():	
 	var nodes = get_tree().get_nodes_in_group("ChestUi")

@@ -84,8 +84,7 @@ func _on_died():
 	level_up_manager.add_xp(5)
 	queue_free()
 
-func _process(delta):
-	pass
+
 func _on_body_entered(body: Node2D):
 	if body is Player:
 		target = body
@@ -130,9 +129,6 @@ func has_lost_line_of_sight() -> bool:
 
 	return true
 
-
-func d_process(delta):
-	target = get_nearest_area2d(1000)
 
 func _physics_process(delta):
 	if target == null:
@@ -184,11 +180,11 @@ func get_nearest_area2d(search_distance: int):
 			minimum_distance = distance
 			nearest_object = object
 
-		return object
+	return nearest_object
 		
-func receive_hit(force: Vector2, damage: int):
+func receive_hit(force: Vector2, _damage: int):
 	add_central_force(force)
-	health_manager.take_damage(damage)
+	health_manager.take_damage(_damage)
 	camera.apply_shake(1)
 	GameSoundManager.play_sound(sound)
 	$HitParticles.emitting = true

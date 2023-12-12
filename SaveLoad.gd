@@ -12,7 +12,7 @@ func _on_load_pressed() -> void:
 	_load()
 	print("GAME LOADED")
 	
-func _process(delta):
+func _process(_delta):
 	if Input.is_action_just_pressed("save"):
 		_save()
 	if Input.is_action_just_pressed("load"):

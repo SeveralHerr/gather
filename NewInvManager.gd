@@ -24,9 +24,6 @@ func _ready():
 	for node in get_tree().get_nodes_in_group("CraftingStations"):
 		if node is CraftingStation:
 			node.toggle_crafting_station.connect(_toggle_crafting_station)
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
 
 	
 

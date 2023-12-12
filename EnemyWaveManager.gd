@@ -42,7 +42,7 @@ func increase_intensity():
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _process(_delta):
 	intensity_label.text = "%.2f" % intensity_timer.time_left
 
 	pass
@@ -63,24 +63,24 @@ func _timeout():
 
 func saveObject() -> Dictionary:	
 	
-	var enemies = get_children()
+	var _enemies = get_children()
 	var enemies_to_save = {}
 	
-	for i in enemies.size():
-		if enemies[i] is Enemy:
-			var dict := {
-				"hp": enemies[i].health_manager.current_health,
-				"target": enemies[i].target == null,
-				"attack_target": enemies[i].attack_target == null, 
-				"drop": enemies[i].drop,
-				"x": enemies[i].position.x,
-				"y": enemies[i].position.y,
+	for i in _enemies.size():
+		if _enemies[i] is Enemy:
+			var e_dict := {
+				"hp": _enemies[i].health_manager.current_health,
+				"target": _enemies[i].target == null,
+				"attack_target": _enemies[i].attack_target == null, 
+				"drop": _enemies[i].drop,
+				"x": _enemies[i].position.x,
+				"y": _enemies[i].position.y,
 				"wave": wave,
 				"wait_time": timer.wait_time,
-				"type": enemies[i].type
+				"type": _enemies[i].type
 			}
 			
-			enemies_to_save[i] =  JSON.stringify(dict)
+			enemies_to_save[i] =  JSON.stringify(e_dict)
 	var dict := {
 		"filepath": get_path(),
 		"enemies": enemies_to_save
@@ -88,8 +88,6 @@ func saveObject() -> Dictionary:
 	return dict
 	
 func loadObject(loadedDict: Dictionary) -> void:
-	var enemies_to_load = []
-	
 	for child in get_children(): 
 		if child.name == "Timer" or child.name == "IntensityTimer":
 			continue

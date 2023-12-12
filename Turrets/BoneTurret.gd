@@ -50,11 +50,6 @@ func set_loaded():
 	$LoadedSprite.visible = true
 	$UnloadedSprite.visible = false
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	
-	
-	pass
 
 func _on_timeout_shoot():
 	if target == null:

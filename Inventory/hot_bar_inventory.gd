@@ -28,7 +28,7 @@ func _ready():
 	input_manager.gather_input_press.connect(_on_gather)
 	input_manager.gather_input_release.connect(_on_gather_stop)
 	
-func _process(delta):
+func _process(_delta):
 	if held_item_texture.visible:
 		var tile_pos =  tile_map.get_tile_in_front_of_player()
 		held_item_texture.global_position = tile_pos
@@ -78,7 +78,7 @@ func set_inventory_data(inventory_data: InventoryData) -> void:
 	style.draw_center = false
 	(h_box_container.get_children()[0] as PanelContainer).add_theme_stylebox_override("panel", style)
 
-func _on_select(i):
+func _on_select(_i):
 	update_placed_slot()
 	pass	
 

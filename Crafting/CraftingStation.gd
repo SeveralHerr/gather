@@ -35,7 +35,7 @@ func _ready():
 	toggle_crafting_station.connect(new_inv_manager._toggle_crafting_station)
 	
 	
-func _process(delta):
+func _process(_delta):
 	if count <= 0:
 		timer.stop()
 	elif count >0:

@@ -27,7 +27,7 @@ func enter():
 	
 	resource_manager.start_removing_resource(equipped.power)
 	
-func animation_finished(anim_name):
+func animation_finished(_anim_name):
 	p.animation_player.stop()
 
 	p.gather.visible = false

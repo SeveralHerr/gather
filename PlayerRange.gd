@@ -12,7 +12,7 @@ func _on_range(body: Node2D):
 	if body is Player:
 		target = body
 	
-func _on_range_exit(body: Node2D):
+func _on_range_exit(_body: Node2D):
 	target = null
 
 
@@ -21,5 +21,5 @@ func _on_body_entered(body):
 		target = body
 
 
-func _on_body_exited(body):
+func _on_body_exited(_body):
 	target = null

@@ -32,6 +32,6 @@ func _physics_process(delta):
 func _on_exit():
 	queue_free()
 	
-func _on_hit(body: Node2D):
+func _on_hit(_body: Node2D):
 
 	pass

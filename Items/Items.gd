@@ -43,9 +43,9 @@ func get_item_by_data(atlas_location, source_id):
 func get_item(type: Types.Item) -> GameItem:
 	return item_list[type]
 
-func get_type(name):
+func get_type(_name):
 	for key in item_list.keys():
-		if item_list[key].name == name:
+		if item_list[key].name == _name:
 			return item_list[key].type
 			
 func get_all_types():

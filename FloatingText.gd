@@ -8,10 +8,6 @@ func _ready():
 	level_up_ui.added_xp.connect(_on_xp_add)
 	pass # Replace with function body.
 
-
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
 	
 func _on_xp_add(amount: int):
 	$XpLabel.text = str(amount) + " xp"
