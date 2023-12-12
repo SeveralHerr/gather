@@ -50,8 +50,8 @@ func _on_button_open_crafting_station():
 	var nodes = get_tree().get_nodes_in_group("CraftingUi")
 	for node in nodes:
 		if node is CraftingUi:
-			
-			var nodes2 = get_tree().get_nodes_in_group("SelectedItemManager")
+			pass
+			#var nodes2 = get_tree().get_nodes_in_group("SelectedItemManager")
 			#for node2 in nodes2:
 				#if node2 is SelectedItemManager:
 					#if node2.selected_inventory_slot_item == null:

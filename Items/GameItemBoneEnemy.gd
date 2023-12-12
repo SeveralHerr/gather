@@ -12,12 +12,12 @@ func use(_target):
 		PlayerManager.player.inventory_data.remove_by_type(Types.Item.BoneEnemy)
 	pass
 
-func find_closest_object_parent(nodes, type):
+func find_closest_object_parent(nodes, _type):
 	var closest_object = null
 	var closest_distance = INF
 	for n in nodes:
 		var node = n.get_parent()
-		if is_instance_of(node, type):
+		if is_instance_of(node, _type):
 			var distance = PlayerManager.player.global_position.distance_to(node.global_position)
 			if distance < closest_distance:
 				closest_distance = distance

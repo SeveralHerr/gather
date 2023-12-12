@@ -7,7 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
 [ext_resource type="Texture2D" uid="uid://b8ymgmwuk7qbi" path="res://Resources/Player.png" id="5_8tjkj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
-[ext_resource type="Script" path="res://Player.gd" id="5_obuww"]
+[ext_resource type="Script" path="res://Player.gd" id="5_pb0o6"]
 [ext_resource type="Script" path="res://StateMachine.gd" id="6_08dnb"]
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="6_t1wx5"]
 [ext_resource type="Script" path="res://PlayerIdle.gd" id="7_ykk1y"]
@@ -28,7 +28,6 @@
 [ext_resource type="Script" path="res://SaveLoad.gd" id="21_p1f0h"]
 [ext_resource type="Script" path="res://DestroyManager.gd" id="24_8vlfw"]
 [ext_resource type="Script" path="res://EnemyWaveManager.gd" id="25_qr721"]
-[ext_resource type="Script" path="res://SoundManager.gd" id="26_v4086"]
 [ext_resource type="PackedScene" uid="uid://cky1ovsyctr7u" path="res://Inventory/Inventory.tscn" id="29_hswfd"]
 [ext_resource type="Script" path="res://InventoryInterface.gd" id="30_b5rqb"]
 [ext_resource type="PackedScene" uid="uid://dd2q0v3dv06k8" path="res://Inventory/InventorySlot.tscn" id="31_uow64"]
@@ -379,6 +378,101 @@ func _on_furnace_button_pressed():
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_onssn"]
 
+[sub_resource type="GDScript" id="GDScript_24wpx"]
+script/source = "extends Node
+class_name SoundManager
+
+var gathering_player: AudioStreamPlayer
+
+# Define your sounds
+enum SoundType {
+	STONE,
+	HIT,
+	WALKING,
+	DOOR_ACTION,
+	WOOD_PLACE,
+	MINING,
+	POP,
+	BONE,
+	SQUISH,
+	WOOD_GATHER
+	}
+
+# Store your sounds as AudioStreamPlayer nodes or references to AudioStream resources
+var sound_library = {
+	SoundType.STONE: preload(\"res://Resources/Sounds/stone.wav\"),
+	SoundType.HIT: preload(\"res://Resources/Sounds/hit.wav\"),
+	SoundType.WALKING: preload(\"res://Resources/Sounds/walking.wav\"),
+	SoundType.DOOR_ACTION: preload(\"res://Resources/Sounds/door_open.wav\"),
+	SoundType.WOOD_PLACE: preload(\"res://Resources/Sounds/wood_place.wav\"),
+	SoundType.MINING: preload(\"res://Resources/Sounds/mining.wav\"),
+	SoundType.POP: preload(\"res://Resources/Sounds/pop.wav\"),
+	SoundType.BONE: preload(\"res://Resources/Sounds/bone_hit.wav\"),
+	SoundType.SQUISH: preload(\"res://Resources/Sounds/squish.wav\"),
+	SoundType.WOOD_GATHER: preload(\"res://Resources/Sounds/wood_place.wav\")
+}
+
+func _ready():
+	add_to_group(\"SoundManager\")
+	gathering_player = AudioStreamPlayer.new()
+	add_child(gathering_player)
+
+# This function plays a sound of the given type
+func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
+	var sound_resource = sound_library[type]
+	if sound_resource:
+		var player = AudioStreamPlayer.new()
+		player.stream = sound_resource
+		player.volume_db = volume_db
+		#player.loop = loop
+		add_child(player)
+		player.play()
+		if not loop:
+			player.connect(\"finished\", Callable(player, \"queue_free\"))
+			
+func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: float = 0.0, _loop: bool = false):
+	var sound_resource = sound_library[type]
+	player.autoplay = false
+	
+	if player.playing == true:
+		return
+	if sound_resource:
+		player.stream = sound_resource
+		player.volume_db = volume_db
+		#player.loop = loop
+		player.play()
+		
+func play_gathering_sound(type: SoundType, volume_db: float = 0.0, _loop: bool = false):
+	var sound_resource = sound_library[type]
+	gathering_player.autoplay = false
+	
+	if gathering_player.playing == true:
+		return
+	if sound_resource:
+		gathering_player.stream = sound_resource
+		#gathering_player.stream.loop_mode = 1
+		gathering_player.volume_db = volume_db
+
+		gathering_player.play()
+		
+func stop_gathering_sound():
+	gathering_player.stop()
+
+
+# This function stops all sounds of the given type
+func stop_sound(type: SoundType):
+	for child in get_children():
+		if child is AudioStreamPlayer and child.stream == sound_library[type]:
+			child.stop()
+			child.queue_free()
+
+# This function sets the volume of all sounds of the given type
+func set_volume(type: SoundType, volume_db: float):
+	for child in get_children():
+		if child is AudioStreamPlayer and child.stream == sound_library[type]:
+			child.volume_db = volume_db
+"
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_w8axy"]
 atlas = ExtResource("5_ba3bd")
 region = Rect2(96, 16, 16, 16)
@@ -434,15 +528,12 @@ script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")
 resourceManager = NodePath("../../ResourceManager")
 
-[node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "resourceManager", "input_manager")]
+[node name="Player" type="CharacterBody2D" parent="Node2D"]
 z_index = 1
 y_sort_enabled = true
 collision_layer = 1048593
 collision_mask = 1048577
-script = ExtResource("5_obuww")
-tilemap = NodePath("../..")
-resourceManager = NodePath("../../ResourceManager")
-input_manager = NodePath("../../InputManager")
+script = ExtResource("5_pb0o6")
 
 [node name="HeldItemTexture" type="TextureRect" parent="Node2D/Player"]
 visible = false
@@ -898,7 +989,7 @@ player = NodePath("../Node2D/Player")
 level_up_manager = NodePath("../Node2D/Player/Camera2D/UI/LevelUpUI")
 
 [node name="SoundManager" type="Node" parent="."]
-script = ExtResource("26_v4086")
+script = SubResource("GDScript_24wpx")
 
 [node name="InputManager" type="Node" parent="."]
 script = ExtResource("20_ylgbb")

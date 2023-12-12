@@ -4,7 +4,6 @@ class_name TileMapHandler
 signal resource_found(resource, location)  
 
 @export var player: Player
-@export var itemManager: ItemManager
 @export var tileMap: TileMap
 @export var items: Items
 @export var specialTiles = []
@@ -280,8 +279,8 @@ func _find_nearest_tile_and_resource(location: Vector2):
 		if tile == Vector2i(-1,-1):
 			continue
 		
-		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var dist = direction.length()
+		var dir = player.global_position - tileMap.map_to_local(tilePos)
+		var dist = dir.length()
 		if dist < nearestDistance:
 			nearestDistance = dist
 			nearestPos = tilePos
@@ -320,8 +319,8 @@ func get_location_of_nearby_item_to_destroy(location):
 			tile_atlas = Vector2i(0, 11)
 
 
-		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var dist = direction.length()
+		var dir = player.global_position - tileMap.map_to_local(tilePos)
+		var dist = dir.length()
 		if dist < nearestDistance:
 			nearestDistance = dist
 			nearestPos = tilePos
@@ -363,8 +362,8 @@ func get_location_of_nearby_resource(location):
 		if found == false:
 			continue
 		
-		var direction = player.global_position - tileMap.map_to_local(tilePos)
-		var dist = direction.length()
+		var dir = player.global_position - tileMap.map_to_local(tilePos)
+		var dist = dir.length()
 		if dist < nearestDistance:
 			nearestDistance = dist
 			nearestPos = tilePos
@@ -398,7 +397,7 @@ func rain():
 	for i in amt:
 		var tile = get_random_tile()
 		tileMap.set_cell(1, tile, 7, Vector2(0,0))
-		get_tree().create_timer(0.1).timeout
+		#get_tree().create_timer(0.1).timeout
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed

@@ -1,7 +1,6 @@
 extends Node
 
 const PICK_UP = preload("res://Items/PickUp.tscn")
-@onready var pick_ups = $Node2D/PickUps
 
 func _ready():
 	add_to_group("SaveLoad")

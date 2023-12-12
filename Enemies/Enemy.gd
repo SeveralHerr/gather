@@ -23,7 +23,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @export var type: String = ""
 @export var drop: Types.Item
 @export var sound: GameSoundManager.SoundType
-var item_manager: ItemManager
+
 var level_up_manager: LevelUpManager
 
 var detection_range = 100
@@ -47,10 +47,6 @@ func _ready():
 	
 	health_manager = HealthManager.new(10)
 	health_manager.connect("died", Callable(self, "_on_died"))
-	
-	for node in get_tree().get_nodes_in_group("ItemManager"):
-		if node is ItemManager:
-			item_manager = node
 
 	for node in get_tree().get_nodes_in_group("Items"):
 		if node is Items:
