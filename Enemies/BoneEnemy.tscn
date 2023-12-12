@@ -1,9 +1,10 @@
-[gd_scene load_steps=11 format=3 uid="uid://b106gs33ih13n"]
+[gd_scene load_steps=13 format=3 uid="uid://b106gs33ih13n"]
 
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="1_x8ngj"]
 [ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_nafcj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="3_7wili"]
 [ext_resource type="PackedScene" path="res://particle.tscn" id="4_asutq"]
+[ext_resource type="PackedScene" uid="uid://c3phmewrmk8jq" path="res://soft_collision.tscn" id="5_mekvq"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
 shader = ExtResource("1_x8ngj")
@@ -30,6 +31,9 @@ radius = 69.5216
 size = Vector2(11, 5)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_4vhux"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_2m8t8"]
+radius = 5.09902
 
 [node name="Enemy" type="CharacterBody2D"]
 z_index = 1
@@ -82,5 +86,14 @@ autostart = true
 [node name="HitParticles" parent="." instance=ExtResource("4_asutq")]
 emitting = false
 
+[node name="SoftCollision" parent="." instance=ExtResource("5_mekvq")]
+collision_layer = 16
+collision_mask = 16
+
+[node name="CollisionShape2D" parent="SoftCollision" index="0"]
+shape = SubResource("CircleShape2D_2m8t8")
+
 [connection signal="timeout" from="PathTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="AttackTimer" to="." method="_on_attack_timer_timeout"]
+
+[editable path="SoftCollision"]

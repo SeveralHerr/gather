@@ -16,7 +16,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
 @onready var player =  get_tree().get_nodes_in_group("Player")[1]  
-
+@onready var soft_collision = $SoftCollision
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
@@ -31,6 +31,12 @@ var speed = 10
 var knockback = Vector2.ZERO
 
 var raycast: RayCast2D
+
+var lunge_speed = 50    # Speed of the lunge
+var lunge_distance = 18 # Distance at which the enemy starts lunging
+var normal_speed = 10   # Normal speed
+var cooldown_time = 1.0 # Time in seconds between lunges
+var in_cooldown = false
 
 func _ready():
 	add_to_group("SaveLoad")
@@ -133,18 +139,23 @@ func _physics_process(delta):
 		return
 
 	var distance = position.distance_to(player.position)
-	if distance <= 10:
-		speed = 0.01
-	else:
-		speed = 10
+	var current_speed = normal_speed
+	
+	if distance <= lunge_distance and not in_cooldown:
+		current_speed = lunge_speed
+		await get_tree().create_timer(cooldown_time).timeout
+		in_cooldown = false
 
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Walking")
 
 	var direction = to_local(navigation_agent_2d.get_next_path_position()).normalized()
-	velocity = direction * speed + knockback
+	velocity = direction * current_speed + knockback
 	
-	move_and_slide()
+	if soft_collision.is_colliding():
+		velocity += soft_collision.get_push_vector() * delta * 400
+	
+	move_and_collide(velocity * delta)
 	knockback = lerp(knockback, Vector2.ZERO, 0.1)
 	
 func create_path():

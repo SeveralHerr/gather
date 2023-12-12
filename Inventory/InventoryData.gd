@@ -63,6 +63,14 @@ func grab_slot_data(index: int) -> SlotData:
 		return slot_data
 	else:
 		return null
+		
+func stop_slot_data(index: int):
+	var slot_data = inventory_slot_datas[index]
+	
+	if not slot_data:
+		return	
+		
+	PlayerManager.stop_slot_data(slot_data)
 	
 func use_slot_data(index: int):
 	var slot_data = inventory_slot_datas[index]

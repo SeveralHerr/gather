@@ -1,6 +1,7 @@
 extends PanelContainer
 
 signal hot_bar_use(index: int)
+signal hot_bar_stop(index: int)
 signal hot_bar_selected(index: int)
 
 const INVENTORY_SLOT = preload("res://Inventory/InventorySlot.tscn")
@@ -25,6 +26,7 @@ func _ready():
 	style.border_width_top = 2
 	
 	input_manager.gather_input_press.connect(_on_gather)
+	input_manager.gather_input_release.connect(_on_gather_stop)
 	
 func _process(delta):
 	if held_item_texture.visible:
@@ -55,6 +57,9 @@ func _unhandled_key_input(event):
 		
 func _on_gather():
 	hot_bar_use.emit(selected_index)
+	
+func _on_gather_stop():
+	hot_bar_stop.emit(selected_index)
 		
 func set_inventory_data(inventory_data: InventoryData) -> void:
 	if not selected_slot_data:
@@ -64,6 +69,7 @@ func set_inventory_data(inventory_data: InventoryData) -> void:
 	inventory_data.inventory_updated.connect(populate_hot_bar)
 	populate_hot_bar(inventory_data)
 	hot_bar_use.connect(inventory_data.use_slot_data)
+	hot_bar_stop.connect(inventory_data.stop_slot_data)
 	hot_bar_selected.connect(inventory_data.show_slot_data)
 	hot_bar_selected.connect(_on_select)
 

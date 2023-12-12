@@ -22,6 +22,7 @@ var damage = 3
 @onready var gather = $Gather
 @onready var hot_bar_inventory = $"../../UI2/HotBarInventory"
 @onready var state_machine: StateMachine = $StateMachine
+@onready var gather_state = $StateMachine/PlayerGather
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
 @onready var hp_bar: ProgressBar = $Camera2D/UI/PlayerInfo/HpBar
@@ -166,10 +167,11 @@ func _on_body_entered_attack(body: Node2D):
 		body.receive_hit(direction * 100, 3)
 	
 func _attack():
-	$StateMachine.change_to("PlayerAttack")
+	#$StateMachine.change_to("PlayerAttack")
+	pass
 
 func _gather_input_release():
-	$StateMachine.change_to("PlayerIdle")
+	#$StateMachine.change_to("PlayerIdle")
 	resourceManager.stop_removing_resource()
 	#$AnimatedSprite2D.play("Idle")
 	#$Gather.visible=false
@@ -201,7 +203,8 @@ func _process_movement():
 	move_and_slide()
 	
 func _on_gather():
-	$StateMachine.change_to("PlayerGather")
+	#$StateMachine.change_to("PlayerGather")
+	pass
 	
 func _process(delta):		
 	

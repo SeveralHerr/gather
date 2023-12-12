@@ -26,5 +26,8 @@ func _init(atlas_location: Vector2i,
 	self.power = power
 	
 func use(target):
-	
+	PlayerManager.player.state_machine.change_to("PlayerGather")
 	pass
+	
+func stop():
+	PlayerManager.player.gather_state.stop()

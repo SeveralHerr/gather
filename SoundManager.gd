@@ -13,7 +13,8 @@ enum SoundType {
 	MINING,
 	POP,
 	BONE,
-	SQUISH
+	SQUISH,
+	WOOD_GATHER
 	}
 
 # Store your sounds as AudioStreamPlayer nodes or references to AudioStream resources
@@ -26,7 +27,8 @@ var sound_library = {
 	SoundType.MINING: preload("res://Resources/Sounds/mining.wav"),
 	SoundType.POP: preload("res://Resources/Sounds/pop.wav"),
 	SoundType.BONE: preload("res://Resources/Sounds/bone_hit.wav"),
-	SoundType.SQUISH: preload("res://Resources/Sounds/squish.wav")
+	SoundType.SQUISH: preload("res://Resources/Sounds/squish.wav"),
+	SoundType.WOOD_GATHER: preload("res://Resources/Sounds/wood_place.wav")
 }
 
 func _ready():
@@ -67,9 +69,9 @@ func play_gathering_sound(type: SoundType, volume_db: float = 0.0, loop: bool = 
 		return
 	if sound_resource:
 		gathering_player.stream = sound_resource
+		#gathering_player.stream.loop_mode = 1
 		gathering_player.volume_db = volume_db
 
-		#player.loop = loop
 		gathering_player.play()
 		
 func stop_gathering_sound():

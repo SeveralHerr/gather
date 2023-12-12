@@ -104,6 +104,9 @@ func load_crafting_station(craftingStation):
 
 	
 func handle_progress_bar():
+	if not craftingStation:
+		return
+	
 	if craftingStation and craftingStation.count > 0:
 		$AddButton.visible = false
 		$CraftButton.visible = false

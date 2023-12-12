@@ -54,6 +54,7 @@ func set_resource(location, resource: GameResource):
 func remove_resource(location, resource: GameResource):
 	PickUpManager.create_pickup( GameItems.get_item(resource.drop), location)
 	level_up_manager.add_xp(1)
+	GameSoundManager.stop_gathering_sound()
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
 	

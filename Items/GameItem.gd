@@ -57,3 +57,6 @@ func get_atlas():
 	
 func use(target):
 	pass
+	
+func stop():
+	pass

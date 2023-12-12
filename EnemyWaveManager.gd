@@ -10,7 +10,13 @@ var spiderEnemy = preload("res://Enemies/SpiderEnemy.tscn")
 @onready var node_2d = $".."
 
 
+@onready var wave_label: Label = $"../Player/Camera2D/UI/WaveLabel"
+@onready var intensity_label: Label = $"../Player/Camera2D/UI/IntensityLabel"
+
 @onready var timer: Timer = $Timer
+@onready var intensity_timer: Timer = $IntensityTimer
+
+var wave = 1
 
 var enemies = [boneEnemy, spiderEnemy]
 
@@ -19,11 +25,26 @@ func _ready():
 	add_to_group("SaveLoad")
 	randomize()
 	timer.connect("timeout", Callable(self, "_timeout"))
+	intensity_timer.timeout.connect(increase_intensity)
+	_timeout()
+	_timeout()
+	_timeout()
+	_timeout()
+	_timeout()
+	_timeout()
 	pass # Replace with function body.
+
+
+func increase_intensity():
+	timer.wait_time *= 0.8
+	wave += 1
+	wave_label.text = "Wave " + str(wave)
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
+	intensity_label.text = "%.2f" % intensity_timer.time_left
+
 	pass
 
 func _timeout():
@@ -54,6 +75,8 @@ func saveObject() -> Dictionary:
 				"drop": enemies[i].drop,
 				"x": enemies[i].position.x,
 				"y": enemies[i].position.y,
+				"wave": wave,
+				"wait_time": timer.wait_time,
 				"type": enemies[i].type
 			}
 			
@@ -68,7 +91,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 	var enemies_to_load = []
 	
 	for child in get_children(): 
-		if child.name == "Timer":
+		if child.name == "Timer" or child.name == "IntensityTimer":
 			continue
 		child.queue_free()
 	
@@ -80,6 +103,8 @@ func loadObject(loadedDict: Dictionary) -> void:
 		var node = json.get_data()
 		var pos = Vector2i(node["x"], node["y"])
 		
+		wave = node["wave"]
+		timer.wait_time = node["wait_time"]
 		var e
 		if node["type"] == "Spider":
 			e = spiderEnemy
@@ -94,4 +119,7 @@ func loadObject(loadedDict: Dictionary) -> void:
 		if node["attack_target"] == false:
 			instance.target = player
 		instance.drop = node["drop"]
+		
+		wave_label.text = "Wave " + str(wave)
+		intensity_label.text = str(intensity_timer.time_left)
 		

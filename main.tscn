@@ -408,6 +408,10 @@ script = ExtResource("25_qr721")
 wait_time = 18.903
 autostart = true
 
+[node name="IntensityTimer" type="Timer" parent="Node2D/EnemyWaveManager"]
+wait_time = 35.387
+autostart = true
+
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
 wait_time = 8.79
 autostart = true
@@ -418,7 +422,7 @@ resourceManager = NodePath("../../ResourceManager")
 [node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "resourceManager", "input_manager")]
 z_index = 1
 y_sort_enabled = true
-collision_layer = 1048577
+collision_layer = 1048593
 collision_mask = 1048577
 script = ExtResource("3_i35uo")
 tilemap = NodePath("../..")
@@ -491,11 +495,10 @@ shape = SubResource("RectangleShape2D_nb1ju")
 visible = false
 
 [node name="Attack" type="Area2D" parent="Node2D/Player"]
-visible = false
 z_index = -1
 y_sort_enabled = true
-position = Vector2(-1, 1)
-rotation = -2.0944
+position = Vector2(3, 3)
+rotation = 0.349066
 collision_layer = 0
 collision_mask = 2097152
 
@@ -555,6 +558,25 @@ scale = Vector2(0.275, 0.275)
 text = "fps 
 "
 script = ExtResource("16_um00x")
+
+[node name="WaveLabel" type="Label" parent="Node2D/Player/Camera2D/UI"]
+layout_mode = 0
+offset_left = -6.99999
+offset_top = -64.0
+offset_right = 49.0
+offset_bottom = -41.0
+scale = Vector2(0.275, 0.275)
+text = "Wave 1
+"
+
+[node name="IntensityLabel" type="Label" parent="Node2D/Player/Camera2D/UI"]
+layout_mode = 0
+offset_left = -4.0
+offset_top = -58.0
+offset_right = 36.0
+offset_bottom = -35.0
+scale = Vector2(0.275, 0.275)
+text = "8989"
 
 [node name="FloatingText" type="Control" parent="Node2D/Player/Camera2D/UI"]
 anchors_preset = 0

@@ -29,6 +29,13 @@ func enter():
 	
 func animation_finished(anim_name):
 	p.animation_player.stop()
+
+	p.gather.visible = false
+	fsm.change_to("PlayerIdle")
+	
+func stop():
+	p.animation_player.stop()
+	print("Stop")
 	p.gather.visible = false
 	fsm.change_to("PlayerIdle")
 

@@ -5,6 +5,10 @@ var player: Player
 func use_slot_data(slot_data: SlotData):
 	slot_data.item.use(slot_data)
 	pass
+	
+func stop_slot_data(slot_data: SlotData):
+	slot_data.item.stop()
+	pass
 
 func get_global_position():
 	return player.global_position
