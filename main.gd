@@ -379,8 +379,22 @@ func get_location_of_nearby_resource(location):
 		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
 		for key in resources.GetAllTypes():
 			if resources.Get(key).atlas_location == tile:
+				return { "resource": resources.Get(key),  "location": tileMap.map_to_local(nearestPos), "tile_data": tileMap.get_cell_tile_data(resources.Get(key).layer, nearestPos ) }
 
-				return { "resource": resources.Get(key),  "location": tileMap.map_to_local(nearestPos) }
+func get_nearest_scene_tile():
+	var nearestDistance = 1000000
+	var nearest = null
+	var nodes = tileMap.get_children()
+	for i in nodes.size():
+		if nodes[i] is GameSceneResource:
+					
+			var dir = player.global_position - nodes[i].position
+			var dist = dir.length()
+			if dist < nearestDistance:
+					nearestDistance = dist
+					nearest = nodes[i]
+					
+	return nearest
 
 func place_auto_tile( atlas_location):
 	# Set the tile at the specified cell position.

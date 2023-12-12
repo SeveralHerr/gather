@@ -88,6 +88,8 @@ func _ready():
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
 	attack.connect("body_entered", Callable(self, "_on_body_entered_attack"))
+	
+
 
 func _on_died():
 	print("DEAD")
@@ -168,6 +170,8 @@ func _on_body_entered_attack(body: Node2D):
 	
 func _attack():
 	#$StateMachine.change_to("PlayerAttack")
+	var r = tilemap.resources.resources[Types.Item.StoneResourceTest]
+	tilemap.tileMap.set_cell(r.layer, Vector2i(1, 1), r.tile_source_id, r.atlas_location, 1)	
 	pass
 
 func _gather_input_release():

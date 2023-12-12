@@ -31,5 +31,6 @@ enum Item {
 	Sword,
 	Ground,
 	Water,
-	X
+	X,
+	StoneResourceTest
 }

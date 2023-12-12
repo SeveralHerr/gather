@@ -8,7 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://biwp8o3sgjfju" path="res://Turrets/bone_turret.tscn" id="6_dqoys"]
 [ext_resource type="Texture2D" uid="uid://cdkk04ucq2q5o" path="res://Resources/rain.png" id="7_t5t3u"]
 [ext_resource type="PackedScene" uid="uid://dw27q3ci821n5" path="res://test_chest.tscn" id="8_oitce"]
-[ext_resource type="PackedScene" uid="uid://cw0a0ns7kyg1r" path="res://Resources/Stone.tscn" id="9_eik6y"]
+[ext_resource type="PackedScene" uid="uid://chjikq1piphhi" path="res://Enemies/Stone.tscn" id="9_n6rxy"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -1938,7 +1938,7 @@ texture = ExtResource("7_t5t3u")
 scenes/1/scene = ExtResource("8_oitce")
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_p8ekw"]
-scenes/1/scene = ExtResource("9_eik6y")
+scenes/1/scene = ExtResource("9_n6rxy")
 
 [resource]
 physics_layer_0/collision_layer = 1
