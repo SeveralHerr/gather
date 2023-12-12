@@ -75,7 +75,7 @@ func _on_died():
 	PickUpManager.create_pickup( items.get_item(drop), position)
 	
 	#item_manager.AddItemToWorld(position, items.get_item(drop))
-	level_up_manager.add_xp(10)
+	level_up_manager.add_xp(5)
 	queue_free()
 
 func _process(delta):

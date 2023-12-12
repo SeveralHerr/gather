@@ -10,6 +10,7 @@ signal resource_removing_stop(location: Vector2i, resource)
 @export var curent_resources = []
 @export var tile_map_handler: TileMapHandler
 @export var player: Player
+@export var level_up_manager: LevelUpManager
 
 var hold_timer = Timer.new()
 var removing_info
@@ -52,6 +53,7 @@ func set_resource(location, resource: GameResource):
 
 func remove_resource(location, resource: GameResource):
 	PickUpManager.create_pickup( GameItems.get_item(resource.drop), location)
+	level_up_manager.add_xp(1)
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
 	

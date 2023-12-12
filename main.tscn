@@ -888,11 +888,12 @@ ui = NodePath("../Node2D/Player/Camera2D/UI")
 script = ExtResource("20_pmgm2")
 items = NodePath("../Items")
 
-[node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player")]
+[node name="ResourceManager" type="Node" parent="." node_paths=PackedStringArray("resources", "tile_map_handler", "player", "level_up_manager")]
 script = ExtResource("17_h45i4")
 resources = NodePath("../Resources")
 tile_map_handler = NodePath("..")
 player = NodePath("../Node2D/Player")
+level_up_manager = NodePath("../Node2D/Player/Camera2D/UI/LevelUpUI")
 
 [node name="SoundManager" type="Node" parent="."]
 script = ExtResource("17_dy3qn")
