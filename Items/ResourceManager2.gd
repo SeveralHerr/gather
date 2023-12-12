@@ -73,10 +73,10 @@ func start_removing_resource(power: int):
 				removing_info.location = node.position
 				removing_info.resource = resources.get_item_or_resource_by_type(node.resource_type)
 				removing_node = node
-				GameSoundManager.play_gathering_sound(removing_info.resource.sound)
+		GameSoundManager.play_gathering_sound(removing_info.resource.sound)
 
-				emit_signal("resource_removing", node.position, resources.get_item_or_resource_by_type(node.resource_type))
-				return
+		emit_signal("resource_removing", removing_info.location, resources.get_item_or_resource_by_type(removing_info.resource.type))
+		return
 	else:
 		var node = tile_map_handler.get_nearest_scene_tile()
 		if node and node is GameSceneResource:
@@ -100,7 +100,7 @@ func stop_removing_resource():
 func _on_hold_timer_timeout():
 	if is_holding_e and removing_info != null:
 		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
-		if removing_node is GameSceneResource:
+		if removing_node and removing_node is GameSceneResource:
 			var test = removing_node.animated_sprite_2d
 			#removing_node.animated_sprite_2d.play("Destroy")
 			camera.apply_shake(1)
@@ -110,7 +110,7 @@ func _on_hold_timer_timeout():
 			removing_node.hit_particles.emitting = false
 			#removing_node.animated_sprite_2d.animation_finished.connect(_animation_done)
 			_animation_done()
-		
+			removing_node = null
 		else:
 			remove_resource(removing_info.location, removing_info.resource)
 			removing_info = null
