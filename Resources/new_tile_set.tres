@@ -1,4 +1,4 @@
-[gd_resource type="TileSet" load_steps=22 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=24 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_fu67e"]
 [ext_resource type="PackedScene" uid="uid://2m4ylcr6bkcn" path="res://TileScenes/Door.tscn" id="2_cujkm"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://biwp8o3sgjfju" path="res://Turrets/bone_turret.tscn" id="6_dqoys"]
 [ext_resource type="Texture2D" uid="uid://cdkk04ucq2q5o" path="res://Resources/rain.png" id="7_t5t3u"]
 [ext_resource type="PackedScene" uid="uid://dw27q3ci821n5" path="res://test_chest.tscn" id="8_oitce"]
+[ext_resource type="PackedScene" uid="uid://cw0a0ns7kyg1r" path="res://Resources/Stone.tscn" id="9_eik6y"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -1936,6 +1937,9 @@ texture = ExtResource("7_t5t3u")
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_cwg37"]
 scenes/1/scene = ExtResource("8_oitce")
 
+[sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_p8ekw"]
+scenes/1/scene = ExtResource("9_eik6y")
+
 [resource]
 physics_layer_0/collision_layer = 1
 physics_layer_1/collision_layer = 1
@@ -1954,4 +1958,5 @@ sources/3 = SubResource("TileSetScenesCollectionSource_7jm7k")
 sources/6 = SubResource("TileSetScenesCollectionSource_yyg8f")
 sources/7 = SubResource("TileSetAtlasSource_s7pv6")
 sources/8 = SubResource("TileSetScenesCollectionSource_cwg37")
+sources/9 = SubResource("TileSetScenesCollectionSource_p8ekw")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

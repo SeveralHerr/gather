@@ -153,7 +153,7 @@ func _on_mouse_left(isUiOpen: bool):
 	disableSetTile = isUiOpen
 
 func _on_resource_added(location: Vector2i, resource: GameResource):
-	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer)
+	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer, resource.is_scene_tile)
 
 func _on_resource_removed(location: Vector2i, resource: GameResource):
 	if resource.type == Types.Item.StoneResource or resource.type == Types.Item.CoalResource or resource.type == Types.Item.IronResource:
