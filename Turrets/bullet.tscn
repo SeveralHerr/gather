@@ -16,6 +16,8 @@ atlas = ExtResource("1_lnpmb")
 region = Rect2(176, 16, 16, 16)
 
 [node name="Bullet" type="CharacterBody2D"]
+z_index = 1
+y_sort_enabled = true
 collision_layer = 0
 collision_mask = 2097152
 platform_floor_layers = 4294967040

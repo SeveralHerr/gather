@@ -3,7 +3,7 @@
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="1_x8ngj"]
 [ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_nafcj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="3_7wili"]
-[ext_resource type="PackedScene" uid="uid://b4lrjtkmp38me" path="res://particle.tscn" id="4_asutq"]
+[ext_resource type="PackedScene" path="res://particle.tscn" id="4_asutq"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
 shader = ExtResource("1_x8ngj")

@@ -78,7 +78,9 @@ func save():
 				"x": bullets[i].position.x,
 				"y": bullets[i].position.y,
 				"rotation": bullets[i].rotation,
-				"velocity": bullets[i].velocity
+				"velocityx": bullets[i].velocity.x,
+				"velocityy": bullets[i].velocity.y,
+				"loaded": loaded
 			}
 			bullet_data[i] = JSON.stringify(json)
 	
@@ -93,7 +95,8 @@ func save():
 	
 func load(dict):
 	for child in get_children(): 
-		child.queue_free()
+		if child is Bullet:
+			child.queue_free()
 	
 	for item in dict.data.keys():
 		var x = dict.data[item]
@@ -101,6 +104,14 @@ func load(dict):
 		json.parse(x)
 		var node = json.get_data()
 		
+		if  node["loaded"] == true:
+			set_loaded()
 		var b = bullet.instantiate()
 		add_child(b)
-		b.velocity = node["velocity"]
+		b.velocity = Vector2( node["velocityx"],node["velocityy"])
+
+		var nodes = los.get_overlapping_bodies()
+		for e in nodes:
+			if e is Enemy:
+				target = e
+				return 

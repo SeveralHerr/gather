@@ -23,7 +23,7 @@ var wall_tiles_max = Vector2(11,11)
 var ground_tiles_min = Vector2(0,15)
 var ground_tiles_max = Vector2(11,18)
 
-var radius = 6
+var radius = 10
 var noise_scale = 1
 var noise_threshold = 0.0
 var noise = FastNoiseLite.new() # Instance of OpenSimplexNoise
@@ -504,7 +504,8 @@ func loadObject(loadedDict: Dictionary) -> void:
 		if item.type == Types.Item.Ground:
 			ground_tiles.append(location)
 
-	
+		if item.type == Types.Item.BoneTurret:
+			pass
 		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
 		tileMap.set_cells_terrain_connect(0, ground_tiles, 0, 1)
 	late_load = true

@@ -34,7 +34,22 @@ func remove(item: GameItem):
 		if data and data.item == item:
 			data.count -= 1
 			if data.count <= 0:
-				data = null
+				inventory_slot_datas[i] = null
+				
+			inventory_updated.emit(self)
+			return
+	
+func remove_by_type(type: Types.Item):
+	for i in inventory_slot_datas.size():
+		var data = inventory_slot_datas[i]
+		if data and data.item.type == type:
+			data.count -= 1
+			if data.count <= 0:
+				inventory_slot_datas[i] = null
+				
+			inventory_updated.emit(self)
+			return
+				
 
 func on_slot_clicked(index: int, button: int) -> void:
 	inventory_interact.emit(self, index, button)
