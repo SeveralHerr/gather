@@ -30,5 +30,6 @@ enum Item {
 	Food,
 	Sword,
 	Ground,
-	Water
+	Water,
+	X
 }

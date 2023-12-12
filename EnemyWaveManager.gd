@@ -26,12 +26,6 @@ func _ready():
 	randomize()
 	timer.connect("timeout", Callable(self, "_timeout"))
 	intensity_timer.timeout.connect(increase_intensity)
-	_timeout()
-	_timeout()
-	_timeout()
-	_timeout()
-	_timeout()
-	_timeout()
 	pass # Replace with function body.
 
 
@@ -54,6 +48,11 @@ func _timeout():
 	var random_tile =  tilemap_handler.get_random_tile()
 	if not random_tile:
 		return
+	
+	var x = GameItems.get_item(Types.Item.X)
+	tilemap_handler.tileMap.set_cell(x.layer, random_tile, x.tile_source_id, x.atlas_location)
+	await get_tree().create_timer(2).timeout
+	tilemap_handler.tileMap.set_cell(1, random_tile, -1)
 	
 	var pos = tilemap_handler.tileMap.map_to_local(random_tile)
 	var instance = enemy_to_spawn.instantiate()

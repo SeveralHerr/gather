@@ -31,6 +31,7 @@ func _ready():
 	item_list[Types.Item.BonePickaxe] = GameItemPickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1)
 	item_list[Types.Item.Food] = GameItemConsumable.new(Vector2i(15, 0), 4, Types.Item.Food, 1, false, "Food", Vector2i.ZERO)
 	item_list[Types.Item.Sword] = GameItemSword.new(Vector2i(6, 0), 4, Types.Item.Sword, 1, false, "Sword", Vector2i.ZERO, false, 4)
+	item_list[Types.Item.X] = GameItem.new(Vector2i(16, 0), 4, Types.Item.X, 1, false, "X", Vector2i.ZERO, false)
 	
 	
 	

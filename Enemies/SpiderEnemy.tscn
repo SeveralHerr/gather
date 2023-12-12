@@ -1,10 +1,14 @@
-[gd_scene load_steps=12 format=3 uid="uid://b6nel2sc5lw3f"]
+[gd_scene load_steps=16 format=3 uid="uid://b6nel2sc5lw3f"]
 
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="1_ncv1j"]
 [ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_gy40b"]
 [ext_resource type="SpriteFrames" uid="uid://dwp5plpejj5es" path="res://Resources/spider.tres" id="3_v2mhf"]
-[ext_resource type="PackedScene" path="res://particle.tscn" id="4_wfa64"]
-[ext_resource type="PackedScene" uid="uid://c3phmewrmk8jq" path="res://soft_collision.tscn" id="5_gyncl"]
+[ext_resource type="PackedScene" uid="uid://b4lrjtkmp38me" path="res://particle.tscn" id="4_wfa64"]
+[ext_resource type="PackedScene" path="res://soft_collision.tscn" id="5_gyncl"]
+[ext_resource type="Script" path="res://Enemies/EnemyStateMachine.gd" id="6_fpvci"]
+[ext_resource type="Script" path="res://Enemies/EnemyIdle.gd" id="7_8ofar"]
+[ext_resource type="Script" path="res://Enemies/EnemyFollow.gd" id="8_7m0gd"]
+[ext_resource type="Script" path="res://Enemies/EnemyAttack.gd" id="11_q1udg"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nbo6t"]
 shader = ExtResource("1_ncv1j")
@@ -38,6 +42,7 @@ texture_filter = 1
 material = SubResource("ShaderMaterial_nbo6t")
 collision_layer = 3145729
 collision_mask = 3145729
+motion_mode = 1
 floor_max_angle = 0.0
 script = ExtResource("2_gy40b")
 type = "Spider"
@@ -89,6 +94,26 @@ collision_mask = 16
 
 [node name="CollisionShape2D" parent="SoftCollision" index="0"]
 shape = SubResource("CircleShape2D_8gror")
+
+[node name="StateMachine" type="Node" parent="." node_paths=PackedStringArray("initial_state")]
+script = ExtResource("6_fpvci")
+initial_state = NodePath("EnemyIdle")
+
+[node name="EnemyIdle" type="Node" parent="StateMachine" node_paths=PackedStringArray("enemy")]
+script = ExtResource("7_8ofar")
+enemy = NodePath("../..")
+attack_range = 10
+
+[node name="EnemyFollow" type="Node" parent="StateMachine" node_paths=PackedStringArray("enemy", "next_state")]
+script = ExtResource("8_7m0gd")
+enemy = NodePath("../..")
+move_speed = 30
+next_state = NodePath("../EnemyAttack")
+attack_range = 10
+
+[node name="EnemyAttack" type="Node" parent="StateMachine" node_paths=PackedStringArray("enemy")]
+script = ExtResource("11_q1udg")
+enemy = NodePath("../..")
 
 [connection signal="timeout" from="PathTimer" to="." method="_on_timer_timeout"]
 [connection signal="timeout" from="AttackTimer" to="." method="_on_attack_timer_timeout"]

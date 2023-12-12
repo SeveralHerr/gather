@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://ck4ahdbiis0km"]
+
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="1_ha05u"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6savc"]
+atlas = ExtResource("1_ha05u")
+region = Rect2(272, 0, 16, 16)
+
+[node name="LungeTexture" type="Sprite2D"]
+z_index = -1
+texture_filter = 1
+position = Vector2(0, 1)
+texture = SubResource("AtlasTexture_6savc")
+offset = Vector2(-6.99, 0)

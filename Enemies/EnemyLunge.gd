@@ -6,8 +6,10 @@ class_name EnemyLunge
 
 var direction
 
+
 func enter():
-	direction = PlayerManager.player.global_position - enemy.global_position
+	#direction = PlayerManager.player.global_position - enemy.global_position
+
 	
 	if not enemy.attack_timer.timeout.is_connected(_on_lunge_end):
 		enemy.attack_timer.timeout.connect(_on_lunge_end)
@@ -21,19 +23,10 @@ func physics_update(delta):
 	enemy.velocity = direction.normalized() * 50
 	
 	if  current_direction.length() < 10:
-		print("idle < 10")
-		_on_attack()
 		enemy.attack_timer.stop()
-		Transitioned.emit(self, "EnemyIdle")
+		Transitioned.emit(self, "EnemyAttack")
 
 func _on_lunge_end():
 	enemy.attack_timer.stop()
-	print("timer")
-	Transitioned.emit(self, "EnemyIdle")
+	Transitioned.emit(self, "EnemyFollow")
 	
-func _on_attack():
-	if enemy.attack_target == null:
-		return
-		
-	if enemy.attack_target is Player:
-		enemy.attack_target.receive_hit(Vector2.ZERO, 3)

@@ -132,7 +132,7 @@ func has_lost_line_of_sight() -> bool:
 
 func _physics_process(delta):
 	if soft_collision.is_colliding():
-		#velocity += soft_collision.get_push_vector() * delta * 10
+		#velocity += soft_collision.get_push_vector() * delta * 2
 		pass
 	
 	move_and_slide()
@@ -160,7 +160,7 @@ func f_physics_process(delta):
 	velocity = direction * current_speed + knockback
 	
 	if soft_collision.is_colliding():
-		#velocity += soft_collision.get_push_vector() * delta * 400
+		velocity += soft_collision.get_push_vector() * delta * 400
 		pass
 	
 	#move_and_collide(velocity * delta)
