@@ -1884,6 +1884,17 @@ texture = ExtResource("1_fu67e")
 16:0/0/physics_layer_0/angular_velocity = 0.0
 16:0/0/physics_layer_1/linear_velocity = Vector2(0, 0)
 16:0/0/physics_layer_1/angular_velocity = 0.0
+3:5/animation_columns = 5
+3:5/animation_frame_0/duration = 0.1
+3:5/animation_frame_1/duration = 0.1
+3:5/animation_frame_2/duration = 0.1
+3:5/animation_frame_3/duration = 0.1
+3:5/animation_frame_4/duration = 0.1
+3:5/0 = 0
+3:5/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+3:5/0/physics_layer_0/angular_velocity = 0.0
+3:5/0/physics_layer_1/linear_velocity = Vector2(0, 0)
+3:5/0/physics_layer_1/angular_velocity = 0.0
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_n7wq6"]
 scenes/1/scene = ExtResource("5_8m17u")
