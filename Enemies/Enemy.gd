@@ -15,10 +15,12 @@ var camera: Camera
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
-@onready var player =  get_tree().get_nodes_in_group("Player")[1]  
+@onready var player =  get_tree().get_nodes_in_group("Player")[0]  
 @onready var soft_collision = $SoftCollision
+@onready var collision = $CollisionShape2D2
 @onready var attack_range = $AttackRange
 @onready var sprite_2d = $Sprite2D
+@onready var attack_timer = $AttackTimer
 @onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
 @export var type: String = ""
 @export var drop: Types.Item
@@ -32,11 +34,14 @@ var knockback = Vector2.ZERO
 
 var raycast: RayCast2D
 
-var lunge_speed = 50    # Speed of the lunge
+var lunge_speed = 500    # Speed of the lunge
 var lunge_distance = 18 # Distance at which the enemy starts lunging
 var normal_speed = 10   # Normal speed
 var cooldown_time = 1.0 # Time in seconds between lunges
 var in_cooldown = false
+var is_lunging = false
+var anticipation_time = 0.5
+var lunge_time = 1
 
 func _ready():
 	add_to_group("SaveLoad")
@@ -125,8 +130,14 @@ func has_lost_line_of_sight() -> bool:
 
 	return true
 
-
 func _physics_process(delta):
+	if soft_collision.is_colliding():
+		#velocity += soft_collision.get_push_vector() * delta * 10
+		pass
+	
+	move_and_slide()
+
+func f_physics_process(delta):
 	if target == null:
 		return
 
@@ -134,6 +145,10 @@ func _physics_process(delta):
 	var current_speed = normal_speed
 	
 	if distance <= lunge_distance and not in_cooldown:
+		is_lunging = true
+		in_cooldown = true
+		current_speed = 0  # Pause for anticipation
+		await get_tree().create_timer(anticipation_time).timeout
 		current_speed = lunge_speed
 		await get_tree().create_timer(cooldown_time).timeout
 		in_cooldown = false
@@ -145,9 +160,11 @@ func _physics_process(delta):
 	velocity = direction * current_speed + knockback
 	
 	if soft_collision.is_colliding():
-		velocity += soft_collision.get_push_vector() * delta * 400
+		#velocity += soft_collision.get_push_vector() * delta * 400
+		pass
 	
-	move_and_collide(velocity * delta)
+	#move_and_collide(velocity * delta)
+	move_and_slide()
 	knockback = lerp(knockback, Vector2.ZERO, 0.1)
 	
 func create_path():
@@ -207,7 +224,7 @@ func _on_attack_timer_timeout():
 		return
 		
 	var direction = (attack_target.global_position - global_position).normalized()
-	attack_target.receive_hit(direction * 1040, damage)
+	#attack_target.receive_hit(direction * 1040, damage)
 
 	
 	print("Attack")

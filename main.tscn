@@ -1,10 +1,11 @@
-[gd_scene load_steps=60 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=61 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://Resources/World.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
 [ext_resource type="Script" path="res://NewInvManager.gd" id="2_u57kl"]
 [ext_resource type="Script" path="res://Items/ResourceTimer.gd" id="3_tjlgt"]
 [ext_resource type="Texture2D" uid="uid://r87ncunriixn" path="res://Resources/PlayerGather.png" id="4_k6xni"]
+[ext_resource type="PackedScene" uid="uid://b106gs33ih13n" path="res://Enemies/BoneEnemy.tscn" id="4_lgsq1"]
 [ext_resource type="Texture2D" uid="uid://b8ymgmwuk7qbi" path="res://Resources/Player.png" id="5_8tjkj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="5_ba3bd"]
 [ext_resource type="Script" path="res://Player.gd" id="5_obuww"]
@@ -378,6 +379,7 @@ func _on_furnace_button_pressed():
 "
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_onssn"]
+radius = 5.0
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_w8axy"]
 atlas = ExtResource("5_ba3bd")
@@ -427,6 +429,8 @@ autostart = true
 wait_time = 35.387
 autostart = true
 
+[node name="Enemy" parent="Node2D/EnemyWaveManager" instance=ExtResource("4_lgsq1")]
+
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
 wait_time = 8.79
 autostart = true
@@ -437,7 +441,7 @@ resourceManager = NodePath("../../ResourceManager")
 [node name="Player" type="CharacterBody2D" parent="Node2D" node_paths=PackedStringArray("tilemap", "resourceManager", "input_manager")]
 z_index = 1
 y_sort_enabled = true
-collision_layer = 1048593
+collision_layer = 1048577
 collision_mask = 1048577
 script = ExtResource("5_obuww")
 tilemap = NodePath("../..")
@@ -877,6 +881,14 @@ collision_layer = 0
 collision_mask = 2097152
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/LineOfSight"]
+shape = SubResource("CircleShape2D_onssn")
+
+[node name="SoftCollision" type="Area2D" parent="Node2D/Player"]
+collision_layer = 16
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/Player/SoftCollision"]
+position = Vector2(0, 6)
 shape = SubResource("CircleShape2D_onssn")
 
 [node name="PickUps" type="Node2D" parent="Node2D"]
