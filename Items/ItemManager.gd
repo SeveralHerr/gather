@@ -4,7 +4,6 @@ class_name ItemManager
 @export var itemsInWorld= []
 @export var player: Player
 @export var items: Items
-@export var inventoryManager: InventoryManager
 @export var resource_manager: ResourceManager2
 @onready var destroy_manager = $"../../DestroyManager"
 
