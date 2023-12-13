@@ -28,7 +28,7 @@ func enter():
 	resource_manager.start_removing_resource(equipped.power)
 	
 func animation_finished(_anim_name):
-	p.animationee_player.stop()
+	p.animation_player.stop()
 
 	p.gather.visible = false
 	fsm.change_to("PlayerIdle")
