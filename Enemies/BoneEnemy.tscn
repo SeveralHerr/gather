@@ -3,8 +3,8 @@
 [ext_resource type="Shader" path="res://solid_color.gdshader" id="1_x8ngj"]
 [ext_resource type="Script" path="res://Enemies/Enemy.gd" id="2_nafcj"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://Resources/Tiles.png" id="3_7wili"]
-[ext_resource type="PackedScene" uid="uid://b4lrjtkmp38me" path="res://particle.tscn" id="4_asutq"]
-[ext_resource type="PackedScene" path="res://soft_collision.tscn" id="5_mekvq"]
+[ext_resource type="PackedScene" path="res://particle.tscn" id="4_asutq"]
+[ext_resource type="PackedScene" uid="uid://c3phmewrmk8jq" path="res://soft_collision.tscn" id="5_mekvq"]
 [ext_resource type="Script" path="res://Enemies/EnemyStateMachine.gd" id="6_1lmjl"]
 [ext_resource type="Script" path="res://Enemies/EnemyIdle.gd" id="7_1ljog"]
 [ext_resource type="Script" path="res://Enemies/EnemyFollow.gd" id="8_fkyk7"]
@@ -102,7 +102,7 @@ shape = SubResource("CircleShape2D_2m8t8")
 
 [node name="StateMachine" type="Node" parent="." node_paths=PackedStringArray("initial_state")]
 script = ExtResource("6_1lmjl")
-initial_state = NodePath("EnemyFollow")
+initial_state = NodePath("EnemyIdle")
 
 [node name="EnemyIdle" type="Node" parent="StateMachine" node_paths=PackedStringArray("enemy")]
 script = ExtResource("7_1ljog")
@@ -113,7 +113,6 @@ attack_range = 25
 script = ExtResource("8_fkyk7")
 enemy = NodePath("../..")
 next_state = NodePath("../EnemyAnticipate")
-attack_range = 25
 
 [node name="EnemyLunge" type="Node" parent="StateMachine" node_paths=PackedStringArray("enemy")]
 script = ExtResource("9_4cd4j")

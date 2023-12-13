@@ -6,14 +6,10 @@ class_name EnemyAttack
 
 
 func enter():
-	#direction = PlayerManager.player.global_position - enemy.global_position
-
 	_on_attack()
 	if not enemy.attack_timer.timeout.is_connected(_on_attack):
 		enemy.attack_timer.timeout.connect(_on_attack)
 	
-	#enemy.collision.disabled = true
-	#enemy.soft_collision.disabled = true
 	enemy.attack_timer.start()
 
 func physics_update(delta):
