@@ -1,6 +1,25 @@
 # Godot 4+ specific ignores
 .godot/
 
+# Export output. The built game is regenerated on every export and goes stale
+# the moment a script changes, so it does not belong in history.
+bin/
+*.exe
+*.pck
+*.zip
+
+# Editor scratch. Godot writes these while saving a scene or resource
+# (maiXXXX.tmp next to main.tscn, WorXXXX.tmp next to World.tscn, and so on)
+# and does not always clean them up.
+*.tmp
+
+# Runtime save state, written by SaveLoad.gd during play.
+saveFile
+saveFile*
+
+# Screenshots captured by the devtools bridge
+screenshots/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
