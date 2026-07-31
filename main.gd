@@ -14,7 +14,7 @@ var wallTiles = []
 @onready var input_manager = $InputManager
 @onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
 @onready var destroy_manager = $DestroyManager
-var chest = preload("res://TileScenes/chest.tscn")
+var chest = preload("res://world/tile_scenes/chest.tscn")
 
 var wall_tiles_min = Vector2(0,7)
 var wall_tiles_max = Vector2(11,11)
@@ -33,7 +33,7 @@ var late_load = false
 var disableSetTile = false
 @export var save_data2 = {}
 
-var crack = preload("res://Crack.tres")
+var crack = preload("res://assets/materials/crack_material.tres")
 func _ready():
 	randomize()
 	add_to_group("SaveLoad")

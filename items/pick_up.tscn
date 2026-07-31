@@ -1,0 +1,68 @@
+[gd_scene load_steps=9 format=3 uid="uid://byk6s1jg0oo51"]
+
+[ext_resource type="Script" path="res://items/pick_up.gd" id="1_1typn"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="2_cyha7"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_bmnsy"]
+bounce = 0.5
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3v030"]
+atlas = ExtResource("2_cyha7")
+region = Rect2(32, 32, 16, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dxywn"]
+size = Vector2(9, 4)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_rjvvy"]
+radius = 15.0057
+
+[sub_resource type="Animation" id="Animation_psa6b"]
+resource_name = "Hover"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(0, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_i4q8c"]
+_data = {
+"Hover": SubResource("Animation_psa6b")
+}
+
+[node name="PickUp" type="RigidBody2D"]
+z_index = 1
+y_sort_enabled = true
+position = Vector2(0, 0.587801)
+collision_layer = 0
+collision_mask = 0
+physics_material_override = SubResource("PhysicsMaterial_bmnsy")
+gravity_scale = 0.3
+script = ExtResource("1_1typn")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = SubResource("AtlasTexture_3v030")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(-0.5, 1.4122)
+shape = SubResource("RectangleShape2D_dxywn")
+
+[node name="Area2D" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1048576
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("CircleShape2D_rjvvy")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_i4q8c")
+}

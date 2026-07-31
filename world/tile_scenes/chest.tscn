@@ -1,0 +1,34 @@
+[gd_scene load_steps=6 format=3 uid="uid://hu4y0smkqoni"]
+
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="1_mgq6d"]
+[ext_resource type="Script" path="res://world/tile_scenes/test_chest.gd" id="1_pqdaw"]
+[ext_resource type="PackedScene" path="res://player/player_range.tscn" id="3_g4v1i"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_otlgb"]
+size = Vector2(12, 7)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u1dwr"]
+atlas = ExtResource("1_mgq6d")
+region = Rect2(176, 32, 16, 16)
+
+[node name="Chest" type="StaticBody2D"]
+z_index = 1
+y_sort_enabled = true
+texture_filter = 1
+script = ExtResource("1_pqdaw")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 2.5)
+shape = SubResource("RectangleShape2D_otlgb")
+
+[node name="Area2D" type="Sprite2D" parent="."]
+texture = SubResource("AtlasTexture_u1dwr")
+
+[node name="Button" type="Button" parent="."]
+modulate = Color(1, 1, 1, 0)
+offset_left = -6.0
+offset_top = -4.0
+offset_right = 6.0
+offset_bottom = 6.0
+
+[node name="PlayerRange" parent="." instance=ExtResource("3_g4v1i")]

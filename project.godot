@@ -21,11 +21,11 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-GameItems="*res://Items/Items.gd"
-GameSoundManager="*res://SoundManager.gd"
-Recipes="*res://Crafting/Recipes.gd"
-PlayerManager="*res://PlayerManager.gd"
-PickUpManager="*res://Items/PickUpManager.gd"
+GameItems="*res://items/items.gd"
+GameSoundManager="*res://systems/sound_manager.gd"
+Recipes="*res://crafting/recipes.gd"
+PlayerManager="*res://player/player_manager.gd"
+PickUpManager="*res://items/pick_up_manager.gd"
 DevTools="*res://addons/godot_selftest/dev_tools.gd"
 
 [dotnet]

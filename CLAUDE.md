@@ -84,9 +84,17 @@ GODOT="/c/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe"   # adjust per ma
 
 **The `--import` step is not optional.** A newly added `class_name` is unresolvable
 until `.godot/global_script_class_cache.cfg` is regenerated. Until then lint reports
-cascading `Could not find type "X"` errors through `main.gd`, `Player.gd` and
-`Items.gd`, and the game fails to boot — all of which look like your new code is
+cascading `Could not find type "X"` errors through `main.gd`, `player/player.gd` and
+`items/items.gd`, and the game fails to boot — all of which look like your new code is
 broken when the cache is the only problem.
+
+**Case-only renames on Windows.** The filesystem is case-insensitive, so `git mv Items
+items` records the rename in git while the directory on disk keeps its old case. Godot
+then loads the same script under two paths and reports `Class "X" hides a global script
+class` for many classes at once, alongside `Case mismatch opening requested file`. The
+symptom looks like a duplicate-class bug in your code; it is not. Rename physically in
+two steps (`Items` -> `__tmp` -> `items`), then re-run `--import`. This happened during
+the `gather-c7o` reorganization and cost real debugging time.
 
 **Reading lint output:** `SceneState: ... NodePath unresolved` lines are false
 positives. Those paths resolve fine at runtime; the checker cannot see into instanced
@@ -108,24 +116,40 @@ check the runner's stderr for `SCRIPT ERROR`.
 
 Single-scene game. `main.tscn`'s root node `Main` runs `main.gd` (`class_name
 TileMapHandler`) and owns world generation, tile writes and the save format.
-Autoloads (see `[autoload]` in `project.godot`): `GameItems` (`Items/Items.gd`),
-`GameSoundManager`, `Recipes`, `PlayerManager`, `PickUpManager`, `DevTools`.
 
-**One ID space.** `Types.Item` (`Items/ItemTypes.gd`) is a single enum covering
+Source is grouped by domain: `player/` (+`states/`), `enemies/` (+`states/`), `items/`,
+`inventory/`, `crafting/`, `turrets/`, `world/` (+`resource_nodes/`, `tile_scenes/`,
+`vfx/`), `systems/`, `ui/`, and `assets/` (+`art/`, `audio/`, `tilesets/`, `materials/`,
+`shaders/`). The harness dirs `addons/`, `devtools_ext/`, `tools/` and `test/` sit at
+root, as do `main.gd`, `main.tscn`, `default_bus_layout.tres` and `icon.svg` — those
+four are pinned by `project.godot` or by an implicit `res://` default, so they must not
+move. There is deliberately no `Resources/` folder: that name collided both with Godot's
+`Resource` type and with the game's own tree/stone "resource" concept, so art and audio
+now live under `assets/`.
+
+Autoloads (see `[autoload]` in `project.godot`): `GameItems` (`items/items.gd`),
+`GameSoundManager` (`systems/sound_manager.gd`), `Recipes` (`crafting/recipes.gd`),
+`PlayerManager` (`player/player_manager.gd`), `PickUpManager`
+(`items/pick_up_manager.gd`), `DevTools` (`addons/godot_selftest/dev_tools.gd`).
+
+**One ID space.** `Types.Item` (`items/types.gd`) is a single enum covering
 inventory items, world resources and placeable tiles. Everything keys off it.
 
-**Item model.** `GameItem` is the base; behavior is added by overriding
-`use()` / `stop()` / `can_use()`. Subclasses live in scattered files whose names do not
-match their classes — notably `GameItemPickaxe` is in `Inventory/ItemDataEquip.gd` and
-`GameItemPlaceable` is in `Items/GameItemCraftingStation.gd`. Registries are built
-imperatively in `_ready()`: `Items.gd` populates `item_list`, and `Resources.gd`
-populates `resources` then applies `Resources.TUNING`.
+**Item model.** `GameItem` (`items/game_item.gd`) is the base; behavior is added by
+overriding `use()` / `stop()` / `can_use()`. Every subclass now lives in `items/` in a
+file named for its class — `GameItemPickaxe` in `items/game_item_pickaxe.gd`,
+`GameItemPlaceable` in `items/game_item_placeable.gd`, and so on — so the class name is
+enough to find the file. (Before the `gather-c7o` reorganization these were scattered
+across `Items/` and `Inventory/` under unrelated filenames; if older notes or beads
+mention `ItemDataEquip.gd` or `GameItemCraftingStation.gd`, those are the two above.)
+Registries are built imperatively in `_ready()`: `items/items.gd` populates `item_list`,
+and `items/resources.gd` populates `resources` then applies `Resources.TUNING`.
 
 **Where gameplay tuning lives** — these are the files to edit for balance, not the
-logic: `Resources.TUNING` (xp, yield range, spawn weight, secondary drops per
-resource), the `Items.gd` constructor calls (pickaxe gather time and bonus yield,
-consumable heal values), and `Crafting/Recipes.gd` (costs, and which recipes are
-unlocked by which `LevelUpManager` upgrade).
+logic: `Resources.TUNING` in `items/resources.gd` (xp, yield range, spawn weight,
+secondary drops per resource), the `items/items.gd` constructor calls (pickaxe gather
+time and bonus yield, consumable heal values), and `crafting/recipes.gd` (costs, and
+which recipes are unlocked by which `LevelUpManager` upgrade).
 
 **Tilemap layers** (`main.gd`): `0` ground/terrain, `1` objects (resources, walls,
 buildings), `2` floors, `3` highlight overlay. A tile is mapped back to its registry
@@ -138,29 +162,38 @@ handle both representations (`main.gd:resource_node_census` does).
 **Gather loop**, the most-touched path and the one that spans the most files:
 
 ```
-InputManager (signals) -> Player -> HotBarInventory -> InventoryData.use_slot_data
-  -> SlotData.item.use() -> Player StateMachine -> PlayerGather
-  -> ResourceManager2.start_removing_resource(pickaxe)   # hold_timer.wait_time = pickaxe.power
-  -> on timeout: remove_resource() -> rolls yield, PickUpManager.create_pickup(),
-                                      LevelUpManager.add_xp(resource.xp)
+InputManager (systems/input_manager.gd, signals)
+  -> Player (player/player.gd)
+  -> HotBarInventory (inventory/hot_bar_inventory.gd)
+  -> InventoryData.use_slot_data (inventory/inventory_data.gd)
+  -> SlotData.item.use() (inventory/slot_data.gd)
+  -> Player StateMachine (player/states/state_machine.gd)
+  -> PlayerGather (player/states/player_gather.gd)
+  -> ResourceManager2.start_removing_resource(pickaxe)   # world/resource_manager2.gd
+                                                         # hold_timer.wait_time = pickaxe.power
+  -> on timeout: remove_resource() -> rolls yield,
+                                      PickUpManager.create_pickup()  # items/pick_up_manager.gd
+                                      LevelUpManager.add_xp(resource.xp)  # systems/level_up_manager.gd
 ```
 
 Releasing the key goes through `Player._gather_input_release` →
 `ResourceManager2.stop_removing_resource()`. The hotbar's own stop signal only halts
 the animation — driving a gather test through it leaves the timer running.
 
-**Two incompatible state machines.** `StateMachine.gd` (player) uses
-`change_to(name)`, and states expose `enter()` with `fsm` injected. `EnemyStateMachine.gd`
-(enemies) uses states extending `EnemyState` that transition by emitting `Transitioned`
-and expose `enter()/update()/physics_update()/exit()`. Do not carry patterns between them.
+**Two incompatible state machines.** `player/states/state_machine.gd` (player) uses
+`change_to(name)`, and states expose `enter()` with `fsm` injected.
+`enemies/states/enemy_state_machine.gd` (enemies) uses states extending `EnemyState`
+that transition by emitting `Transitioned` and expose
+`enter()/update()/physics_update()/exit()`. Do not carry patterns between them.
 
-**Enemies.** A single `Enemies/Enemy.gd` backs both `BoneEnemy.tscn` (has a `Sprite2D`,
-no `AnimatedSprite2D`) and `SpiderEnemy.tscn` (the reverse), so any sprite access must
-be null-checked and looked up with `get_node_or_null`. `EnemyWaveManager` ramps its
-spawn timer toward `MIN_SPAWN_INTERVAL` and caps population at `MAX_LIVE_ENEMIES`;
-both bounds exist because the ramp was previously unbounded.
+**Enemies.** A single `enemies/enemy.gd` backs both `enemies/bone_enemy.tscn` (has a
+`Sprite2D`, no `AnimatedSprite2D`) and `enemies/spider_enemy.tscn` (the reverse), so any sprite access must
+be null-checked and looked up with `get_node_or_null`. `EnemyWaveManager`
+(`enemies/enemy_wave_manager.gd`) ramps its spawn timer toward `MIN_SPAWN_INTERVAL` and
+caps population at `MAX_LIVE_ENEMIES`; both bounds exist because the ramp was previously
+unbounded.
 
-**Saving.** Nodes add themselves to the `SaveLoad` group and implement
+**Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
 individually. Bound to `[` (save) and `]` (load).
 
@@ -172,15 +205,37 @@ with a node in reach, so otherwise the test stands in empty grass and proves not
 
 ## Conventions & Patterns
 
+### File naming (in force since `gather-c7o`)
+
+- **snake_case for every file and folder.** PascalCase is reserved for `class_name`
+  declarations and for node names inside scenes.
+- **A script's filename is the snake_case of its `class_name`** — `GameItemPickaxe`
+  lives in `items/game_item_pickaxe.gd`, `EnemyStateMachine` in
+  `enemies/states/enemy_state_machine.gd`. Scenes follow the same rule
+  (`enemies/bone_enemy.tscn`). If you know the class, you know the path.
+- **Deliberate exceptions, left alone because renaming a class touches every call site
+  and belongs in its own change:**
+  - `world/resource_manager2.gd` holds `ResourceManager2` — the trailing `2` is legacy;
+    there is no `ResourceManager1`.
+  - `items/game_item_wall2.gd` holds `GameItemWall2` — same, and the file was renamed to
+    match the class rather than the reverse.
+  - `world/tile_scenes/test_chest.gd` holds `TestChest` — despite the name this is live
+    game code (the scene tile registered in the tileset), not a test.
+  - `items/types.gd` holds `Types` — a deliberately generic name for the one shared
+    `Types.Item` enum.
+  - Two files genuinely do not match their class: `main.gd` holds `TileMapHandler`
+    (pinned by `run/main_scene` and by every existing `saveFile`), and
+    `inventory/slot.gd` holds `NewSlot`.
+
 - **`main.tscn`'s root node belongs to every group in the project** (`Player`, `Items`,
   `LevelUpManager`, `SoundManager`, …). `get_first_node_in_group()` therefore returns
   the root, not what you asked for. Always iterate `get_nodes_in_group()` and
-  type-check (`if node is LevelUpManager`). `Enemy.gd` does this correctly;
-  `Crafting/CraftingStation.gd` instead indexes `[1]` to skip the root, which breaks
+  type-check (`if node is LevelUpManager`). `enemies/enemy.gd` does this correctly;
+  `crafting/crafting_station.gd` instead indexes `[1]` to skip the root, which breaks
   as soon as another node joins that group.
-- `HealthManager` extends `RefCounted` and is held as a plain field — never add it to
-  the tree. It previously extended `Node`, was never freed, and leaked one object per
-  enemy spawned.
+- `HealthManager` (`systems/health_manager.gd`) extends `RefCounted` and is held as a
+  plain field — never add it to the tree. It previously extended `Node`, was never
+  freed, and leaked one object per enemy spawned.
 - Godot 4.4+ writes a `.uid` sidecar next to every script. Commit them alongside the
   script, and delete them with it.
 - Only one Godot instance may run against the DevTools bridge at a time — it is a

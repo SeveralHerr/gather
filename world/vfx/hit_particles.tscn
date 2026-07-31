@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3 uid="uid://b4lrjtkmp38me"]
+
+[ext_resource type="Texture2D" uid="uid://duhmojqu3yfpb" path="res://assets/art/particle.png" id="1_2hasd"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_lq7b7"]
+particles_animation = true
+particles_anim_h_frames = 4
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="CurveXYZTexture" id="CurveXYZTexture_vgw6w"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ti3rg"]
+particle_flag_disable_z = true
+emission_shape = 1
+emission_sphere_radius = 7.17
+angle_max = 490.2
+directional_velocity_min = 1.0
+directional_velocity_max = 1.0
+directional_velocity_curve = SubResource("CurveXYZTexture_vgw6w")
+gravity = Vector3(0, 0, 0)
+anim_speed_min = 1.0
+anim_speed_max = 2.0
+
+[node name="GPUParticles2D" type="GPUParticles2D"]
+texture_filter = 1
+material = SubResource("CanvasItemMaterial_lq7b7")
+amount = 3
+process_material = SubResource("ParticleProcessMaterial_ti3rg")
+texture = ExtResource("1_2hasd")
+lifetime = 0.3
+speed_scale = 0.74

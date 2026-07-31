@@ -1,6 +1,11 @@
 # Godot 4+ specific ignores
 .godot/
 
+# Visual Studio workspace state. Per-machine editor scratch (content indexes,
+# solution user options, a sqlite workspace cache) that was committed by
+# accident -- ~2.7 MB of churn that means nothing to anyone else.
+.vs/
+
 # Export output. The built game is regenerated on every export and goes stale
 # the moment a script changes, so it does not belong in history.
 bin/

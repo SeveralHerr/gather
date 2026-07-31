@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://bx2upw0yut0hj"]
-
-[ext_resource type="Texture2D" uid="uid://b3gf1b2q3ybik" path="res://Resources/Wood.png" id="1_js3tv"]
-
-[node name="Tree" type="Sprite2D"]
-texture_filter = 1
-texture = ExtResource("1_js3tv")

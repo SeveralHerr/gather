@@ -3,7 +3,7 @@
 Gather is a compact single-scene Godot 4.7 game focused on gathering, crafting, and survival.
 It combines a simple item-driven gather loop with resource nodes, enemies, crafting stations, and a built-in self-test harness for reliable development.
 
-![Gather screenshot](image.png)
+![Gather screenshot](docs/screenshot.png)
 
 ## Key Features
 
@@ -16,12 +16,23 @@ It combines a simple item-driven gather loop with resource nodes, enemies, craft
 
 ## Project Structure
 
-- `main.tscn` / `main.gd` — core scene and game loop
-- `Items/` — item definitions, resources, pickups, and gather logic
-- `Inventory/` — inventory, hotbar, and slot systems
-- `Crafting/` — crafting recipes, stations, and UI
-- `Enemies/` — enemy states, AI, and wave spawning
+All files and folders use snake_case; PascalCase is reserved for `class_name`
+declarations and node names.
+
+- `main.tscn` / `main.gd` — core scene, world generation, tile writes, and save format
+- `player/` — player node, manager, and reach; `player/states/` holds the player state machine
+- `enemies/` — enemy scenes and wave spawning; `enemies/states/` holds the enemy state machine
+- `items/` — item and resource definitions, the shared `Types.Item` enum, pickups
+- `inventory/` — inventory data, hotbar, and slot systems
+- `crafting/` — crafting recipes, stations, and UI
+- `turrets/` — turret and projectile logic
+- `world/` — camera, resource gathering and spawning, plus `resource_nodes/`,
+  `tile_scenes/`, and `vfx/`
+- `systems/` — input, health, save/load, sound, level-up, and collision helpers
+- `ui/` — HUD elements such as the gather progress bar and floating damage numbers
+- `assets/` — `art/`, `audio/`, `tilesets/`, `materials/`, and `shaders/`
 - `tools/` — lint and test runner scripts
+- `test/unit/` — headless unit tests
 - `devtools_ext/` — project-specific DevTools commands
 - `addons/godot_selftest/` — test harness implementation
 

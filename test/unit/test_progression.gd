@@ -22,7 +22,7 @@ func setup() -> void:
 	resources.items = items
 	resources._ready()
 
-	recipes = load("res://Crafting/Recipes.gd").new()
+	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
 	recipes.sawmill_recipes()
 

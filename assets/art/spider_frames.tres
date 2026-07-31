@@ -1,0 +1,51 @@
+[gd_resource type="SpriteFrames" load_steps=7 format=3 uid="uid://dwp5plpejj5es"]
+
+[ext_resource type="Texture2D" uid="uid://eled7lugd02s" path="res://assets/art/spider.png" id="1_2mm82"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8ais4"]
+atlas = ExtResource("1_2mm82")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2ccol"]
+atlas = ExtResource("1_2mm82")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6o2ul"]
+atlas = ExtResource("1_2mm82")
+region = Rect2(16, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_x8r3p"]
+atlas = ExtResource("1_2mm82")
+region = Rect2(32, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_61cml"]
+atlas = ExtResource("1_2mm82")
+region = Rect2(48, 0, 16, 16)
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8ais4")
+}],
+"loop": true,
+"name": &"Idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2ccol")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_6o2ul")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_x8r3p")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_61cml")
+}],
+"loop": true,
+"name": &"Walking",
+"speed": 5.0
+}]
