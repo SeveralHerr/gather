@@ -19,9 +19,9 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var soft_collision = $SoftCollision
 @onready var collision = $CollisionShape2D2
 @onready var attack_range : Area2D = $AttackRange
-@onready var sprite_2d = $Sprite2D
+@onready var sprite_2d = get_node_or_null("Sprite2D")
 @onready var attack_timer = $AttackTimer
-@onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
+@onready var animated_sprite_2d: AnimatedSprite2D = get_node_or_null("AnimatedSprite2D") as AnimatedSprite2D
 @export var type: String = ""
 @export var drop: Types.Item
 @export var sound: GameSoundManager.SoundType
@@ -90,9 +90,6 @@ func _on_body_entered(body: Node2D):
 	if body is Player:
 		target = body
 
-func _on_player_detected():
-	print("Player detected!")
-
 func _on_body_exited(body: Node2D):
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Idle")
@@ -108,65 +105,9 @@ func _on_body_attack_exited(body: Node2D):
 	if body is Player:
 		attack_target = null
 
-func has_lost_line_of_sight() -> bool:
-
-	var space_state = get_world_2d().get_direct_space_state()
-
-	var params = PhysicsRayQueryParameters3D.new()
-
-	params.from = Vector3(global_transform.origin.x, global_transform.origin.y, 0) + Vector3.UP
-
-	params.to =Vector3(player.global_transform.origin.x, player.global_transform.origin.y, 0)
-
-	params.exclude = []
-
-	params.collision_mask = 1
-
-	var result = space_state.intersect_ray(params)
-
-	if result:
-
-		return false
-
-	return true
-
-func _physics_process(delta):
-	if soft_collision.is_colliding():
-		#velocity += soft_collision.get_push_vector() * delta * 2
-		pass
-	
+func _physics_process(_delta):
 	move_and_slide()
 
-func f_physics_process(delta):
-	if target == null:
-		return
-
-	var distance = position.distance_to(player.position)
-	var current_speed = normal_speed
-	
-	if distance <= lunge_distance and not in_cooldown:
-		is_lunging = true
-		in_cooldown = true
-		current_speed = 0  # Pause for anticipation
-		await get_tree().create_timer(anticipation_time).timeout
-		current_speed = lunge_speed
-		await get_tree().create_timer(cooldown_time).timeout
-		in_cooldown = false
-
-	if animated_sprite_2d:
-		animated_sprite_2d.play("Walking")
-
-	var direction = to_local(navigation_agent_2d.get_next_path_position()).normalized()
-	velocity = direction * current_speed + knockback
-	
-	if soft_collision.is_colliding():
-		velocity += soft_collision.get_push_vector() * delta * 400
-		pass
-	
-	#move_and_collide(velocity * delta)
-	move_and_slide()
-	knockback = lerp(knockback, Vector2.ZERO, 0.1)
-	
 func create_path():
 	if target == null:
 		return
