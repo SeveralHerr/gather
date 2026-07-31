@@ -21,6 +21,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("add_xp", _cmd_add_xp)
 	dev.register_command("gather_stats", _cmd_gather_stats)
 	dev.register_command("wave_stats", _cmd_wave_stats)
+	dev.register_command("goto_resource", _cmd_goto_resource)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -172,6 +173,55 @@ func _cmd_add_xp(args: Dictionary) -> Dictionary:
 			"panel_open": level_up.visible,
 			"has_available_upgrade": level_up.has_available_upgrade(),
 			"taken": level_up.taken.keys(),
+		},
+	}
+
+
+## Teleports the player next to a live resource node. Gathering only engages when a
+## node is within reach, so without this a gather test just stands in empty grass and
+## proves nothing.
+func _cmd_goto_resource(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	var handler := _tile_map_handler()
+	if player == null or handler == null:
+		return {"success": false, "message": "player or tilemap handler missing", "data": {}}
+
+	var resource_atlases := {}
+	for key in handler.resources.GetAllTypes():
+		var resource = handler.resources.Get(key)
+		if not resource.is_scene_tile:
+			resource_atlases[resource.atlas_location] = resource.name
+
+	var target = null
+	var target_name := ""
+
+	for cell in handler.tileMap.get_used_cells(1):
+		var atlas = handler.tileMap.get_cell_atlas_coords(1, cell)
+		if resource_atlases.has(atlas):
+			target = handler.tileMap.map_to_local(cell)
+			target_name = resource_atlases[atlas]
+			break
+
+	if target == null:
+		for node in handler.tileMap.get_children():
+			if node is GameSceneResource:
+				target = node.position
+				target_name = "scene resource"
+				break
+
+	if target == null:
+		return {"success": false, "message": "no resource nodes on the island", "data": {}}
+
+	# Stand just beside the node rather than on top of it.
+	player.position = target + Vector2(6, 0)
+
+	return {
+		"success": true,
+		"message": "moved next to %s" % target_name,
+		"data": {
+			"resource": target_name,
+			"resource_position": {"x": target.x, "y": target.y},
+			"player_position": {"x": player.position.x, "y": player.position.y},
 		},
 	}
 

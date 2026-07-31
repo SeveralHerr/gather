@@ -138,6 +138,9 @@ func get_nearest_area2d(search_distance: int):
 		
 func receive_hit(force: Vector2, _damage: int):
 	add_central_force(force)
+	# Spawn before the awaits below: the number lives in a world-level container,
+	# so it survives (and cleans up after) this enemy dying from the same hit.
+	DamageNumber.spawn(self, global_position, _damage)
 	health_manager.take_damage(_damage)
 	camera.apply_shake(1)
 	GameSoundManager.play_sound(sound)

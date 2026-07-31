@@ -29,19 +29,42 @@ var removing_node
 # Pickaxe driving the current gather, so the drop roll can apply its tier bonus.
 var removing_tool: GameItemPickaxe
 
+var gather_progress: GatherProgress
+
 func _ready():
 	add_to_group("SaveLoad")
 	randomize()
 	tile_map_handler.resource_found.connect(_resource_found)
 	hold_timer.wait_time = 1
 	hold_timer.one_shot = true
-	
+
 	curent_resources.append(resources.Get(Types.Item.StoneResourceTest))
 	curent_resources.append(resources.Get(Types.Item.Tree))
-	
+
 	add_child(hold_timer)
 	hold_timer.connect("timeout", Callable(self, "_on_hold_timer_timeout"))
-	
+
+	# Parented to the tilemap so it sits in the world next to the node being
+	# gathered rather than on the HUD.
+	gather_progress = GatherProgress.new()
+	gather_progress.name = "GatherProgress"
+	tile_map_handler.tileMap.add_child(gather_progress)
+
+
+func _process(_delta):
+	if not is_holding_e or removing_info == null or hold_timer.is_stopped():
+		return
+
+	# Read from the timer itself so the bar tracks the equipped pickaxe's real
+	# gather time instead of a duplicated constant.
+	gather_progress.set_progress(1.0 - (hold_timer.time_left / hold_timer.wait_time))
+
+
+func _begin_progress():
+	if removing_info != null:
+		gather_progress.begin(removing_info.location)
+
+
 func add_resource(type: Types.Item):
 	curent_resources.append(resources.Get(type))
 	
@@ -109,6 +132,7 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 		GameSoundManager.play_gathering_sound(removing_info.resource.sound)
 
 		emit_signal("resource_removing", removing_info.location, resources.get_item_or_resource_by_type(removing_info.resource.type))
+		_begin_progress()
 		return
 	else:
 		var node = tile_map_handler.get_nearest_scene_tile()
@@ -121,16 +145,19 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 		if removing_info:
 			GameSoundManager.play_gathering_sound(removing_info.resource.sound)
 			emit_signal("resource_removing", removing_info.location, removing_info.resource)
+			_begin_progress()
 		
 	
 func stop_removing_resource():
 	is_holding_e = false
 	hold_timer.stop()
+	gather_progress.finish()
 	if removing_info != null:
 		GameSoundManager.stop_gathering_sound()
 		emit_signal("resource_removing_stop", removing_info.location, removing_info.resource)
-	
+
 func _on_hold_timer_timeout():
+	gather_progress.finish()
 	if is_holding_e and removing_info != null:
 		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
 		if removing_node and removing_node is GameSceneResource:
