@@ -16,7 +16,18 @@ var spiderEnemy = preload("res://Enemies/SpiderEnemy.tscn")
 @onready var timer: Timer = $Timer
 @onready var intensity_timer: Timer = $IntensityTimer
 
+# Difficulty ramps toward a ceiling instead of past it. Without the floor the
+# interval halves away to nothing (~0.02s about 18 minutes in) and the run buries
+# itself no matter how well the player is doing; without the cap, enemies that are
+# never killed accumulate until the frame rate collapses.
+const MIN_SPAWN_INTERVAL := 1.5
+const MAX_LIVE_ENEMIES := 25
+
 var wave = 1
+
+# Spawns telegraph for 2s before the enemy appears, which is longer than the minimum
+# spawn interval - so in-flight spawns have to count against the cap too.
+var pending_spawns := 0
 
 var enemies = [boneEnemy, spiderEnemy]
 
@@ -30,9 +41,17 @@ func _ready():
 
 
 func increase_intensity():
-	timer.wait_time *= 0.8
+	timer.wait_time = max(MIN_SPAWN_INTERVAL, timer.wait_time * 0.8)
 	wave += 1
 	wave_label.text = "Wave " + str(wave)
+
+
+func count_live_enemies() -> int:
+	var total = 0
+	for child in get_children():
+		if child is Enemy:
+			total += 1
+	return total
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -42,23 +61,29 @@ func _process(_delta):
 	pass
 
 func _timeout():
-	var random_index = randi() % enemies.size()	
+	if count_live_enemies() + pending_spawns >= MAX_LIVE_ENEMIES:
+		return
+
+	var random_index = randi() % enemies.size()
 	var enemy_to_spawn = enemies[random_index]
-	
+
 	var random_tile =  tilemap_handler.get_random_tile()
 	if not random_tile:
 		return
-	
+
+	pending_spawns += 1
+
 	var x = GameItems.get_item(Types.Item.X)
 	tilemap_handler.tileMap.set_cell(x.layer, random_tile, x.tile_source_id, x.atlas_location)
 	await get_tree().create_timer(2).timeout
 	tilemap_handler.tileMap.set_cell(1, random_tile, -1)
-	
+
 	var pos = tilemap_handler.tileMap.map_to_local(random_tile)
 	var instance = enemy_to_spawn.instantiate()
 	instance.position = pos
 	add_child(instance)
-	pass
+
+	pending_spawns -= 1
 
 func saveObject() -> Dictionary:	
 	

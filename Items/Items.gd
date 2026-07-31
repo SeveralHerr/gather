@@ -26,10 +26,12 @@ func _ready():
 	item_list[Types.Item.Net] = GameItemNet.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItemBoneEnemy.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)
-	item_list[Types.Item.WoodPickaxe] = GameItemPickaxe.new(Vector2i(12,0), 4, Types.Item.WoodPickaxe, 1, false, "Wooden Pickaxe", Vector2i.ZERO, false, 2)
-	item_list[Types.Item.IronPickaxe] = GameItemPickaxe.new(Vector2i(6,1), 4, Types.Item.IronPickaxe, 1, false, "Iron Pickaxe", Vector2i.ZERO, false, 1)
-	item_list[Types.Item.BonePickaxe] = GameItemPickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1)
-	item_list[Types.Item.Food] = GameItemConsumable.new(Vector2i(15, 0), 4, Types.Item.Food, 1, false, "Food", Vector2i.ZERO)
+	# Pickaxe tiers: power is the gather time in seconds, bonus_yield_chance is the
+	# odds of an extra drop. Each tier is faster AND more productive than the last.
+	item_list[Types.Item.WoodPickaxe] = GameItemPickaxe.new(Vector2i(12,0), 4, Types.Item.WoodPickaxe, 1, false, "Wooden Pickaxe", Vector2i.ZERO, false, 2.0, 0.0)
+	item_list[Types.Item.BonePickaxe] = GameItemPickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1.2, 0.25)
+	item_list[Types.Item.IronPickaxe] = GameItemPickaxe.new(Vector2i(6,1), 4, Types.Item.IronPickaxe, 1, false, "Iron Pickaxe", Vector2i.ZERO, false, 0.7, 0.5)
+	item_list[Types.Item.Food] = GameItemConsumable.new(Vector2i(15, 0), 4, Types.Item.Food, 1, false, "Food", Vector2i.ZERO, false, 4)
 	item_list[Types.Item.Sword] = GameItemSword.new(Vector2i(6, 0), 4, Types.Item.Sword, 1, false, "Sword", Vector2i.ZERO, false, 4)
 	item_list[Types.Item.X] = GameItem.new(Vector2i(16, 0), 4, Types.Item.X, 1, false, "X", Vector2i.ZERO, false)
 	

@@ -8,12 +8,16 @@ func enter():
 	p = PlayerManager.player
 
 	#var equipped = p.equip_sword_inventory_data.inventory_slot_datas[0]
-	var equipped = p.hot_bar_inventory.selected_slot_data.item
+	var selected = p.hot_bar_inventory.selected_slot_data
+	var equipped = selected.item if selected else null
 	var has_sword_equipped = equipped and equipped is  GameItemSword
-	
+
+	# Without a sword there is no swing animation to wait on, so hand control back
+	# immediately rather than parking the machine in a state that never exits.
 	if not has_sword_equipped:
+		fsm.change_to("PlayerIdle")
 		return
-	
+
 	p.attack.visible = true
 	p.attack.monitoring = true
 	

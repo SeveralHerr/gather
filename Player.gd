@@ -8,7 +8,7 @@ var damage = 3
 @export var tilemap: TileMapHandler
 @export var resourceManager: ResourceManager2
 @export var input_manager: InputManager
-@export var health_manager: HealthManager
+var health_manager: HealthManager
 @onready var animation_player = $AnimationPlayer
 @onready var attack = $Attack
 @onready var net = $Net
@@ -29,11 +29,19 @@ var damage = 3
 
 @export var inventory_data: InventoryData
 
+const RESPAWN_INVULNERABLE_TIME := 2.0
+
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
 var chests = []
 var nearest_chest = null
 var v = Vector2.ZERO
+
+# Where a death sends the player back to. main.gd overwrites this once the island
+# has been generated and it knows which tile the player was dropped on.
+var spawn_position: Vector2
+var is_dead := false
+var invulnerable := false
 
 # Get the gravity from the project settings to be synced with RigidBody nodes.
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -67,6 +75,7 @@ func _ready():
 	health_manager.connect("died", Callable(self, "_on_died"))
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
+	spawn_position = position
 	PlayerManager.player = self
 	interact.body_entered.connect(on_interact)
 	interact.body_exited.connect(on_interact_exit)
@@ -91,9 +100,58 @@ func _ready():
 	
 
 
+func set_spawn_position(new_spawn: Vector2) -> void:
+	spawn_position = new_spawn
+
+
 func _on_died():
-	print("DEAD")
-	
+	if is_dead:
+		return
+	is_dead = true
+	respawn()
+
+
+# Forager-style: death costs you the trip back, not your inventory. Full heal at the
+# spawn point plus a grace window so the enemy that killed you cannot immediately
+# kill you again while you are still standing in its lap.
+func respawn() -> void:
+	input_manager.disable_input = true
+	animation_player.stop()
+	gather.visible = false
+	$Attack.visible = false
+	$Attack.monitoring = false
+
+	await get_tree().create_timer(0.5).timeout
+
+	position = spawn_position
+	velocity = Vector2.ZERO
+	v = Vector2.ZERO
+	health_manager.reset_health()
+	update_hp_bar()
+
+	is_dead = false
+	input_manager.disable_input = false
+	_grant_invulnerability(RESPAWN_INVULNERABLE_TIME)
+
+
+func _grant_invulnerability(duration: float) -> void:
+	invulnerable = true
+	var blink := create_tween()
+	blink.set_loops(int(duration / 0.2))
+	blink.tween_property(animated_sprite_2d, "modulate:a", 0.3, 0.1)
+	blink.tween_property(animated_sprite_2d, "modulate:a", 1.0, 0.1)
+	await get_tree().create_timer(duration).timeout
+	blink.kill()
+	animated_sprite_2d.modulate.a = 1.0
+	invulnerable = false
+
+
+func update_hp_bar() -> void:
+	hp_bar.max_value = health_manager.max_health
+	hp_bar.value = health_manager.current_health
+
+
+
 func _on_resource_removing(_location: Vector2i, _resource):
 	#sound_manager.play_sound_queue(sound_manager.SoundType.MINING, sound_player_mining)
 	pass
@@ -146,12 +204,14 @@ func _destroy_input_press():
 	pass	
 
 func receive_hit(_force: Vector2, _damage: int):
+	if is_dead or invulnerable:
+		return
+
 	#velocity += force
 	#move_and_slide()
 	camera.apply_shake()
 	health_manager.take_damage(_damage)
-	hp_bar.max_value = health_manager.max_health
-	hp_bar.value = health_manager.current_health
+	update_hp_bar()
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
 	animated_sprite_2d.material.set_shader_parameter("r", 1)
 	animated_sprite_2d.material.set_shader_parameter("g", 0)
@@ -169,10 +229,9 @@ func _on_body_entered_attack(body: Node2D):
 		body.receive_hit(direction * 100, 3)
 	
 func _attack():
-	#$StateMachine.change_to("PlayerAttack")
-	var r = tilemap.resources.resources[Types.Item.StoneResourceTest]
-	tilemap.tileMap.set_cell(r.layer, Vector2i(1, 1), r.tile_source_id, r.atlas_location, 1)	
-	pass
+	if is_dead:
+		return
+	state_machine.change_to("PlayerAttack")
 
 func _gather_input_release():
 	#$StateMachine.change_to("PlayerIdle")

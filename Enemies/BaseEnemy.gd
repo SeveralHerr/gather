@@ -12,8 +12,6 @@ var speed = 10
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	health_manager.new(10)
-	
 	line_of_sight.connect("body_entered", Callable(self, "_on_body_entered"))
 	line_of_sight.connect("body_exited", Callable(self, "_on_body_exited"))
 	pass # Replace with function body.

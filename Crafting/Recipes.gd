@@ -73,8 +73,11 @@ func sawmill_recipes():
 	bone_pickaxe_costs[Types.Item.Bone] = 9
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
 	
+	# Gated behind the furnace: iron bars are the whole point of unlocking iron, so the
+	# top-tier pickaxe should cost them rather than repeating the bone pickaxe's price.
 	var iron_pickaxe_costs = {}
-	iron_pickaxe_costs[Types.Item.Bone] = 9
+	iron_pickaxe_costs[Types.Item.IronBar] = 5
+	iron_pickaxe_costs[Types.Item.Plank] = 2
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
 			
 

@@ -13,10 +13,21 @@ signal resource_removing_stop(location: Vector2i, resource)
 @export var level_up_manager: LevelUpManager
 @export var camera: Camera
 
+# Ceiling on live resource nodes. The spawn timer never stops, so without this the
+# island saturates: every walkable tile ends up occupied, get_random_tile burns all
+# of its retries every tick, and the player has nowhere left to build.
+const MAX_RESOURCE_NODES := 60
+
+# Floor on gather time so a fast tool can never hand Timer a zero wait_time.
+const MIN_GATHER_TIME := 0.1
+
 var hold_timer = Timer.new()
 var removing_info
 var is_holding_e = false
 var removing_node
+
+# Pickaxe driving the current gather, so the drop roll can apply its tier bonus.
+var removing_tool: GameItemPickaxe
 
 func _ready():
 	add_to_group("SaveLoad")
@@ -35,18 +46,32 @@ func add_resource(type: Types.Item):
 	curent_resources.append(resources.Get(type))
 	
 func get_random():
-	# Get a random index within the range of the array's size
-	var random_index = randi() % curent_resources.size()
+	if curent_resources.is_empty():
+		return null
 
-	# Access the array at the random index
-	var random_item = curent_resources[random_index]
-	return random_item	
+	var total_weight := 0.0
+	for resource in curent_resources:
+		total_weight += max(0.0, resource.spawn_weight)
+
+	if total_weight <= 0.0:
+		return curent_resources[randi() % curent_resources.size()]
+
+	var roll := randf() * total_weight
+	for resource in curent_resources:
+		roll -= max(0.0, resource.spawn_weight)
+		if roll <= 0.0:
+			return resource
+
+	return curent_resources[curent_resources.size() - 1]
 
 func add_random_resource():
+	if tile_map_handler.count_resource_nodes() >= MAX_RESOURCE_NODES:
+		return
+
 	var random_tile = tile_map_handler.get_random_tile()
 	var random_resource = get_random()
-	
-	if random_tile != null:
+
+	if random_tile != null and random_resource != null:
 		set_resource(random_tile, random_resource)
 
 func set_resource(location, resource: GameResource):
@@ -54,17 +79,25 @@ func set_resource(location, resource: GameResource):
 	emit_signal("resource_added", location, resource)
 
 func remove_resource(location, resource: GameResource):
-	PickUpManager.create_pickup( GameItems.get_item(resource.drop), location)
-	level_up_manager.add_xp(1)
+	var bonus_chance := removing_tool.bonus_yield_chance if removing_tool else 0.0
+
+	for _i in resource.roll_yield(bonus_chance):
+		PickUpManager.create_pickup(GameItems.get_item(resource.drop), location)
+
+	if resource.roll_secondary_drop():
+		PickUpManager.create_pickup(GameItems.get_item(resource.secondary_drop), location)
+
+	level_up_manager.add_xp(resource.xp)
 	GameSoundManager.stop_gathering_sound()
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
-	
-func start_removing_resource(power: int):
+
+func start_removing_resource(pickaxe: GameItemPickaxe):
 	is_holding_e = true
-	hold_timer.wait_time = power
+	removing_tool = pickaxe
+	hold_timer.wait_time = max(MIN_GATHER_TIME, pickaxe.power)
 	hold_timer.start()
-	
+
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)
 	if removing_info != null:
 		if removing_info.resource.type == Types.Item.StoneResourceTest:

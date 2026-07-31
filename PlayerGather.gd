@@ -25,7 +25,7 @@ func enter():
 	else:
 		p.animation_player.play("Gather_left")
 	
-	resource_manager.start_removing_resource(equipped.power)
+	resource_manager.start_removing_resource(equipped)
 	
 func animation_finished(_anim_name):
 	p.animation_player.stop()

@@ -1,5 +1,8 @@
 class_name HealthManager
-extends Node
+# RefCounted, not Node: these are built with .new() and held as a plain field, never
+# added to the scene tree. As a Node nothing ever freed them, so every enemy the wave
+# manager spawned leaked its HealthManager for the life of the process.
+extends RefCounted
 
 signal health_changed(current_health)
 signal died

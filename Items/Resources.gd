@@ -5,6 +5,30 @@ class_name Resources
 
 var resources: Dictionary = {}
 
+# Early-game pacing lives here. Trees and stone are the common starter nodes that
+# are quick to clear and pay little; coal and iron are rare, slow and worth the
+# detour, which is what makes unlocking them read as progress rather than as more
+# of the same. Weights are relative, so adding a resource does not dilute the rest
+# evenly - iron stays rare no matter how many other nodes exist.
+const TUNING = {
+	Types.Item.Tree: {
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 5.0,
+		"secondary_drop": Types.Item.Food, "secondary_drop_chance": 0.2,
+	},
+	Types.Item.StoneResourceTest: {
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 4.0,
+	},
+	Types.Item.StoneResource: {
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 4.0,
+	},
+	Types.Item.CoalResource: {
+		"xp": 3, "yield_min": 1, "yield_max": 2, "spawn_weight": 1.5,
+	},
+	Types.Item.IronResource: {
+		"xp": 4, "yield_min": 1, "yield_max": 1, "spawn_weight": 1.0,
+	},
+}
+
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -14,6 +38,19 @@ func _ready():
 	resources[Types.Item.StoneResourceTest] = GameResource.new(Vector2i(0, 0), 9, Types.Item.StoneResourceTest, 1, true, "Stone", Vector2i.ZERO, true, Types.Item.Stone, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
 	resources[Types.Item.StoneResourceTest].is_scene_tile = true
 	resources[Types.Item.CoalResource] = GameResource.new(Vector2i(3, 1), 4,Types.Item.CoalResource, 1, false, "Coal", Vector2i.ZERO, false, Types.Item.CoalOre, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
+
+	_apply_tuning()
+
+
+func _apply_tuning():
+	for type in TUNING:
+		var resource: GameResource = resources.get(type)
+		if resource == null:
+			push_warning("Resources: tuning entry for unknown resource type %s" % type)
+			continue
+		for property in TUNING[type]:
+			resource.set(property, TUNING[type][property])
+
 
 func get_resource_by_data(atlas_location, source_id):
 	for key in resources.keys():

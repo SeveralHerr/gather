@@ -70,8 +70,9 @@ func _ready():
 					#tileMap.set_cell(1, tile_position, 4, Vector2i(0, 15),1 )
 					lands.append(tile_position)
 	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
-	
+
 	PlayerManager.player.position = tileMap.map_to_local(lands[0])
+	PlayerManager.player.set_spawn_position(PlayerManager.player.position)
 
 
 func generate_island():
@@ -238,6 +239,39 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 		
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
+
+## Live gatherable nodes on the island broken down by resource name, covering both
+## tile-based resources and the scene-based ones parented to the tilemap.
+func resource_node_census() -> Dictionary:
+	var atlas_to_name = {}
+	for key in resources.GetAllTypes():
+		var resource = resources.Get(key)
+		if not resource.is_scene_tile:
+			atlas_to_name[resource.atlas_location] = resource.name
+
+	var census = {}
+	for cell in tileMap.get_used_cells(1):
+		var atlas = tileMap.get_cell_atlas_coords(1, cell)
+		if atlas_to_name.has(atlas):
+			var resource_name = atlas_to_name[atlas]
+			census[resource_name] = census.get(resource_name, 0) + 1
+
+	for node in tileMap.get_children():
+		if node is GameSceneResource:
+			var resource = resources.get_item_or_resource_by_type(node.resource_type)
+			var resource_name = resource.name if resource else "Unknown"
+			census[resource_name] = census.get(resource_name, 0) + 1
+
+	return census
+
+
+## Total live resource nodes. Used to cap spawning.
+func count_resource_nodes() -> int:
+	var census = resource_node_census()
+	var total = 0
+	for resource_name in census:
+		total += census[resource_name]
+	return total
 
 func get_random_position_within_rect(rect):
 	var random_x = randi() % rect.size.x + rect.position.x

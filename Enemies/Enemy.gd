@@ -7,7 +7,7 @@ const JUMP_VELOCITY = -400.0
 @export var target: Player
 @export var attack_target: Player
 
-@export var health_manager: HealthManager
+var health_manager: HealthManager
 @export var damage = 3
 var camera: Camera
 

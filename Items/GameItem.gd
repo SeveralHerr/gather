@@ -55,8 +55,13 @@ func get_atlas():
 
 	return atlas_texture
 	
+## Whether using this item right now would do anything. Consumables override it so
+## that a no-op use does not eat the stack.
+func can_use() -> bool:
+	return true
+
 func use(_target):
 	pass
-	
+
 func stop():
 	pass
