@@ -99,6 +99,14 @@ func _run_all_tests(test_scripts: Array[String]) -> void:
 			_failed += 1
 			continue
 
+		# A script with a parse error still loads as a non-null GDScript, but calling
+		# new() on it raises a script error that aborts this whole function - so every
+		# remaining test file was silently skipped and the run still reported success.
+		if not script.can_instantiate():
+			_errors.append({"script": script_path, "error": "Script has a parse error and cannot be instantiated"})
+			_failed += 1
+			continue
+
 		var test_obj: RefCounted = script.new()
 		if test_obj == null:
 			_errors.append({"script": script_path, "error": "Failed to instantiate"})
@@ -129,16 +137,29 @@ func _run_single_test(test_obj: RefCounted, method_name: String, script_path: St
 	var result: Dictionary = {"script": script_path, "test": method_name, "status": "PASS", "message": ""}
 	var start_time: int = Time.get_ticks_msec()
 
-	# Run the test - catch assertion failures via return value
-	var error_msg: String = test_obj.call(method_name) as String
-	if error_msg == null:
-		error_msg = ""
+	# Run the test. Keep the raw Variant rather than coercing with `as String`: a
+	# method that is aborted or forgets to return hands back null, and `null as String`
+	# produced "" - indistinguishable from a pass.
+	#
+	# KNOWN LIMITATION: this does NOT catch a runtime error inside a test method
+	# declared `-> String`. GDScript aborts the method but the typed signature still
+	# yields "", so the runner sees a pass. Godot exposes no in-process hook for
+	# engine errors, so the only reliable guard is to check the runner's stderr for
+	# "SCRIPT ERROR" alongside the exit code. Tracked as beads gather-1t9.
+	var raw_result: Variant = test_obj.call(method_name)
 
 	var elapsed: int = Time.get_ticks_msec() - start_time
 
-	if error_msg != "":
+	if typeof(raw_result) != TYPE_STRING:
 		result["status"] = "FAIL"
-		result["message"] = error_msg
+		result["message"] = (
+			"test did not return a String (it errored at runtime, or is missing a return); got %s"
+			% type_string(typeof(raw_result))
+		)
+		_failed += 1
+	elif str(raw_result) != "":
+		result["status"] = "FAIL"
+		result["message"] = str(raw_result)
 		_failed += 1
 	else:
 		_passed += 1
@@ -193,7 +214,7 @@ func _print_results() -> void:
 	print("  Total: %d  |  Passed: %d  |  Failed: %d  |  Skipped: %d" % [total, _passed, _failed, _skipped])
 	print("-" .repeat(60))
 
-	if _failed == 0:
+	if _failed == 0 and _errors.is_empty():
 		print("  ALL TESTS PASSED")
 	else:
 		print("  SOME TESTS FAILED")
