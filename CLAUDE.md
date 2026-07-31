@@ -1,6 +1,6 @@
-# Project Instructions for AI Agents
+# CLAUDE.md
 
-This file provides instructions and context for AI coding agents working on this project.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -60,21 +60,138 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Build & Test
 
-_Add your build and test commands here_
+Godot 4.7 project (`config/features` in `project.godot`). No package manager and no
+build step for development. The Godot binary is typically **not on PATH** — resolve it
+first and reuse the path.
 
 ```bash
-# Example:
-# npm install
-# npm test
+GODOT="/c/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe"   # adjust per machine
+
+# Headless — need no running game
+"$GODOT" --headless --path . --script res://tools/lint_project.gd    # UID + scene lint
+"$GODOT" --headless --path . --script res://tools/run_tests.gd       # all unit tests
+
+# A single test (substring match on the method name)
+"$GODOT" --headless --path . --script res://tools/run_tests.gd -- --filter test_food_actually_heals
+"$GODOT" --headless --path . --script res://tools/run_tests.gd -- --json
+
+# Play the game (--mute for automated runs)
+"$GODOT" --path . --mute
+
+# REQUIRED after adding any new class_name
+"$GODOT" --headless --path . --import
 ```
+
+**The `--import` step is not optional.** A newly added `class_name` is unresolvable
+until `.godot/global_script_class_cache.cfg` is regenerated. Until then lint reports
+cascading `Could not find type "X"` errors through `main.gd`, `Player.gd` and
+`Items.gd`, and the game fails to boot — all of which look like your new code is
+broken when the cache is the only problem.
+
+**Reading lint output:** `SceneState: ... NodePath unresolved` lines are false
+positives. Those paths resolve fine at runtime; the checker cannot see into instanced
+sub-scenes. Only missing-resource and parse errors are real. See beads `gather-75k`.
+
+**Test contract:** files are `test/unit/test_*.gd` extending `RefCounted`, with optional
+`setup()` / `teardown()` run around each test. Every `test_*` method returns `""` to
+pass or a failure message. The runner injects itself as `_T`, providing `assert_eq`,
+`assert_true`, `assert_false`, `assert_gt`, `assert_gte`, `assert_float_eq`. Note that
+`var x := _T.assert_eq(...)` fails to compile (`_T` is untyped) — write
+`var x: String = _T.assert_eq(...)`.
+
+**Known runner limitation (`gather-1t9`):** a runtime error inside a method declared
+`-> String` is still counted as a pass, because GDScript aborts the method but the
+typed signature still yields `""`. A green suite is therefore not sufficient — also
+check the runner's stderr for `SCRIPT ERROR`.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Single-scene game. `main.tscn`'s root node `Main` runs `main.gd` (`class_name
+TileMapHandler`) and owns world generation, tile writes and the save format.
+Autoloads (see `[autoload]` in `project.godot`): `GameItems` (`Items/Items.gd`),
+`GameSoundManager`, `Recipes`, `PlayerManager`, `PickUpManager`, `DevTools`.
+
+**One ID space.** `Types.Item` (`Items/ItemTypes.gd`) is a single enum covering
+inventory items, world resources and placeable tiles. Everything keys off it.
+
+**Item model.** `GameItem` is the base; behavior is added by overriding
+`use()` / `stop()` / `can_use()`. Subclasses live in scattered files whose names do not
+match their classes — notably `GameItemPickaxe` is in `Inventory/ItemDataEquip.gd` and
+`GameItemPlaceable` is in `Items/GameItemCraftingStation.gd`. Registries are built
+imperatively in `_ready()`: `Items.gd` populates `item_list`, and `Resources.gd`
+populates `resources` then applies `Resources.TUNING`.
+
+**Where gameplay tuning lives** — these are the files to edit for balance, not the
+logic: `Resources.TUNING` (xp, yield range, spawn weight, secondary drops per
+resource), the `Items.gd` constructor calls (pickaxe gather time and bonus yield,
+consumable heal values), and `Crafting/Recipes.gd` (costs, and which recipes are
+unlocked by which `LevelUpManager` upgrade).
+
+**Tilemap layers** (`main.gd`): `0` ground/terrain, `1` objects (resources, walls,
+buildings), `2` floors, `3` highlight overlay. A tile is mapped back to its registry
+entry by matching `atlas_location` + `tile_source_id`, so those coordinates are
+effectively the persistence key — changing an atlas position silently changes save
+compatibility. Resources flagged `is_scene_tile` are instead instanced as
+`GameSceneResource` children of the TileMap, so any code that enumerates resources must
+handle both representations (`main.gd:resource_node_census` does).
+
+**Gather loop**, the most-touched path and the one that spans the most files:
+
+```
+InputManager (signals) -> Player -> HotBarInventory -> InventoryData.use_slot_data
+  -> SlotData.item.use() -> Player StateMachine -> PlayerGather
+  -> ResourceManager2.start_removing_resource(pickaxe)   # hold_timer.wait_time = pickaxe.power
+  -> on timeout: remove_resource() -> rolls yield, PickUpManager.create_pickup(),
+                                      LevelUpManager.add_xp(resource.xp)
+```
+
+Releasing the key goes through `Player._gather_input_release` →
+`ResourceManager2.stop_removing_resource()`. The hotbar's own stop signal only halts
+the animation — driving a gather test through it leaves the timer running.
+
+**Two incompatible state machines.** `StateMachine.gd` (player) uses
+`change_to(name)`, and states expose `enter()` with `fsm` injected. `EnemyStateMachine.gd`
+(enemies) uses states extending `EnemyState` that transition by emitting `Transitioned`
+and expose `enter()/update()/physics_update()/exit()`. Do not carry patterns between them.
+
+**Enemies.** A single `Enemies/Enemy.gd` backs both `BoneEnemy.tscn` (has a `Sprite2D`,
+no `AnimatedSprite2D`) and `SpiderEnemy.tscn` (the reverse), so any sprite access must
+be null-checked and looked up with `get_node_or_null`. `EnemyWaveManager` ramps its
+spawn timer toward `MIN_SPAWN_INTERVAL` and caps population at `MAX_LIVE_ENEMIES`;
+both bounds exist because the ramp was previously unbounded.
+
+**Saving.** Nodes add themselves to the `SaveLoad` group and implement
+`saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
+individually. Bound to `[` (save) and `]` (load).
+
+**DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
+`player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
+`gather_stats`, `wave_stats`, `goto_resource` — plus a status provider merged into
+every response. Use `goto_resource` before any gather test: gathering only engages
+with a node in reach, so otherwise the test stands in empty grass and proves nothing.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **`main.tscn`'s root node belongs to every group in the project** (`Player`, `Items`,
+  `LevelUpManager`, `SoundManager`, …). `get_first_node_in_group()` therefore returns
+  the root, not what you asked for. Always iterate `get_nodes_in_group()` and
+  type-check (`if node is LevelUpManager`). `Enemy.gd` does this correctly;
+  `Crafting/CraftingStation.gd` instead indexes `[1]` to skip the root, which breaks
+  as soon as another node joins that group.
+- `HealthManager` extends `RefCounted` and is held as a plain field — never add it to
+  the tree. It previously extended `Node`, was never freed, and leaked one object per
+  enemy spawned.
+- Godot 4.4+ writes a `.uid` sidecar next to every script. Commit them alongside the
+  script, and delete them with it.
+- Only one Godot instance may run against the DevTools bridge at a time — it is a
+  single command/result file pair in `user://`, so concurrent instances silently answer
+  each other's commands. To test while another instance is live, copy the project to a
+  scratch dir and set `use_custom_user_dir=true` in its `project.godot`.
+- `run-method` passes raw JSON to `callv` with no vector coercion, so methods taking a
+  `Vector2` cannot be called through it and fail quietly (`gather-6sp`). Add a project
+  verb in `devtools_ext/commands.gd` instead.
+- `bin/`, `*.tmp` and `saveFile` are gitignored — the exporter and editor regenerate
+  them, and they were previously committed by accident.
 
 <!-- BEGIN godot-selftest-harness -->
 ## Self-Test Harness (godot-selftest-harness)

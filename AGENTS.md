@@ -126,3 +126,11 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+## Project Build, Architecture & Conventions
+
+Godot 4.7 project. Build/test commands, the gather-loop architecture, and the
+project-specific gotchas (the `--import` step required after adding a `class_name`,
+the root node being in every group, the single-instance DevTools bridge) are
+documented in **CLAUDE.md**. Keep substantive changes to those sections in that file
+so there is one source of truth.
