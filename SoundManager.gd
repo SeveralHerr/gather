@@ -1,6 +1,11 @@
 extends Node
 class_name SoundManager
 
+## Max fractional pitch offset applied to one-shot sounds, e.g. 0.1 == +/-10%.
+## Deliberately NOT applied to the looping gathering player: a sustained sound
+## whose pitch jumps between restarts sounds broken, not lively.
+const PITCH_VARIATION := 0.1
+
 var gathering_player: AudioStreamPlayer
 
 # Define your sounds
@@ -36,6 +41,10 @@ func _ready():
 	gathering_player = AudioStreamPlayer.new()
 	add_child(gathering_player)
 
+# Returns a pitch_scale randomly offset by up to +/-PITCH_VARIATION.
+func _random_pitch() -> float:
+	return randf_range(1.0 - PITCH_VARIATION, 1.0 + PITCH_VARIATION)
+
 # This function plays a sound of the given type
 func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
 	var sound_resource = sound_library[type]
@@ -43,6 +52,7 @@ func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
 		var player = AudioStreamPlayer.new()
 		player.stream = sound_resource
 		player.volume_db = volume_db
+		player.pitch_scale = _random_pitch()
 		#player.loop = loop
 		add_child(player)
 		player.play()
@@ -58,9 +68,11 @@ func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: flo
 	if sound_resource:
 		player.stream = sound_resource
 		player.volume_db = volume_db
+		# One-shot retrigger (footsteps etc.), not a sustained loop, so vary it.
+		player.pitch_scale = _random_pitch()
 		#player.loop = loop
 		player.play()
-		
+
 func play_gathering_sound(type: SoundType, volume_db: float = 0.0, _loop: bool = false):
 	var sound_resource = sound_library[type]
 	gathering_player.autoplay = false

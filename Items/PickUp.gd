@@ -1,5 +1,23 @@
 extends RigidBody2D
 
+## Distance at which the item is actually absorbed into the inventory.
+const COLLECT_RADIUS := 6.0
+## Outer edge of the vacuum. Tiles are 16px and the player moves at 50 units,
+## so ~3 tiles reads as a generous magnet without yanking drops across the island.
+const VACUUM_RADIUS := 50.0
+## Pull speed at the very edge of the vacuum (just under player speed, so it
+## reads as "noticed me" rather than an instant snap).
+const VACUUM_SPEED_MIN := 40.0
+## Pull speed right before collection (~3x player speed, so a walking player
+## can never outrun a drop that has already latched on).
+const VACUUM_SPEED_MAX := 160.0
+## Exponent on the 0..1 closeness factor. >1 keeps the approach lazy at the
+## edge and makes the final snap feel accelerated.
+const VACUUM_RAMP_EXPONENT := 2.0
+## Items aim slightly above the player origin so they vanish into the body,
+## not the feet.
+const VACUUM_AIM_OFFSET := Vector2(0, -4)
+
 @export var slot_data: SlotData
 var shadow: Node2D
 var target: Node2D
@@ -34,17 +52,24 @@ func _physics_process(_delta):
 		
 		
 	var distance_to_player = global_position.distance_to(PlayerManager.player.global_position)
-	if distance_to_player <= 5 and delay:
+	if distance_to_player <= COLLECT_RADIUS and delay:
 		if PlayerManager.player.inventory_data.pick_up_slot_data(slot_data):
 			sound_manager.play_sound(sound_manager.SoundType.POP)
 			shadow.queue_free()
 			queue_free()
 		else:
+			# Inventory full: leave the drop sitting in the world.
+			linear_velocity = Vector2.ZERO
 			return
-	elif distance_to_player <= 30 and delay:
-		var direction = (PlayerManager.player.global_position - global_position - Vector2(0, -4)).normalized()
-		#apply_central_impulse(direction * 5 * _delta)
-		linear_velocity = direction * 5
+	elif distance_to_player <= VACUUM_RADIUS and delay:
+		var to_player = PlayerManager.player.global_position - global_position - VACUUM_AIM_OFFSET
+		var direction = to_player.normalized()
+		# 0 at the edge of the vacuum, 1 at the collection radius.
+		var closeness = clampf(
+			inverse_lerp(VACUUM_RADIUS, COLLECT_RADIUS, distance_to_player), 0.0, 1.0
+		)
+		var speed = lerpf(VACUUM_SPEED_MIN, VACUUM_SPEED_MAX, pow(closeness, VACUUM_RAMP_EXPONENT))
+		linear_velocity = direction * speed
 	elif delay:
 		linear_velocity = Vector2.ZERO
 
