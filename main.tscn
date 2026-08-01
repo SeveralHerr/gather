@@ -1,4 +1,4 @@
-[gd_scene load_steps=62 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=63 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://world/tile_map.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -34,6 +34,7 @@
 [ext_resource type="PackedScene" uid="uid://dd2q0v3dv06k8" path="res://inventory/inventory_slot.tscn" id="31_uow64"]
 [ext_resource type="PackedScene" uid="uid://cv8jrb20usn5d" path="res://inventory/hot_bar_inventory.tscn" id="33_m4ngi"]
 [ext_resource type="Texture2D" uid="uid://rnkkygbmsau6" path="res://assets/art/light.png" id="40_m2a4r"]
+[ext_resource type="Script" path="res://ui/skill_tree_ui.gd" id="41_sktui"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -704,54 +705,6 @@ offset_bottom = -5.0
 scale = Vector2(0.23, 0.23)
 script = ExtResource("12_hyjmf")
 
-[node name="BonePickaxeButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
-layout_mode = 0
-offset_left = 52.1739
-offset_top = 13.0435
-offset_right = 96.1739
-offset_bottom = 44.0435
-text = "Bone Pickaxe"
-
-[node name="BoneSwordButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
-layout_mode = 0
-offset_left = 217.391
-offset_top = 13.0435
-offset_right = 263.391
-offset_bottom = 44.0435
-disabled = true
-text = "Bone Sword
-"
-
-[node name="IronButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
-layout_mode = 0
-offset_left = 378.261
-offset_top = 8.69564
-offset_right = 479.261
-offset_bottom = 39.6956
-disabled = true
-text = "Iron: 
-Unlocks Furnace, Iron pickaxe"
-
-[node name="BoneTurretButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
-layout_mode = 0
-offset_left = 56.5217
-offset_top = 134.783
-offset_right = 157.522
-offset_bottom = 165.783
-disabled = true
-text = "Bone Turret:
-Unlocks Net, Turret
-"
-
-[node name="WoodDecorButton" type="Button" parent="Node2D/Player/Camera2D/UI/LevelUpUI"]
-layout_mode = 0
-offset_left = 56.5217
-offset_top = 243.478
-offset_right = 215.522
-offset_bottom = 297.478
-text = "Wood decor:
-Unlocks floor, walls, door"
-
 [node name="InventoryBackground" type="TextureRect" parent="Node2D/Player/Camera2D/UI"]
 visible = false
 layout_mode = 2
@@ -1009,6 +962,16 @@ offset_right = -386.0
 offset_bottom = -2.0
 scale = Vector2(0.86, 0.86)
 
+[node name="SkillTreeUI" type="Control" parent="UI2"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("41_sktui")
+
 [node name="NewInvManager" type="Node" parent="."]
 script = ExtResource("2_u57kl")
 
@@ -1021,8 +984,3 @@ texture = ExtResource("40_m2a4r")
 [connection signal="timeout" from="Node2D/ResourceTimer" to="Node2D/ResourceTimer" method="_on_timeout"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/SaveButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_save_pressed"]
 [connection signal="pressed" from="Node2D/Player/Camera2D/UI/SaveLoad/LoadButton" to="Node2D/Player/Camera2D/UI/SaveLoad" method="_on_load_pressed"]
-[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BonePickaxeButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_save_pressed"]
-[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BoneSwordButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
-[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/IronButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
-[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/BoneTurretButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]
-[connection signal="pressed" from="Node2D/Player/Camera2D/UI/LevelUpUI/WoodDecorButton" to="Node2D/Player/Camera2D/UI/LevelUpUI" method="_on_load_pressed"]

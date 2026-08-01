@@ -14,6 +14,7 @@ signal destroy_input_press
 signal destroy_input_release
 signal attack
 signal toggle_inventory
+signal toggle_skills
 
 @export var isUiOpen = false
 var disable_input = false
@@ -52,3 +53,7 @@ func _input(event):
 		destroy_input_release.emit()
 	if Input.is_action_just_released("inventory"):
 		toggle_inventory.emit()
+	# Not gated on disable_input, matching the inventory: opening a menu while dead
+	# or mid-respawn is harmless, and being locked out of it is not.
+	if Input.is_action_just_released("skills"):
+		toggle_skills.emit()

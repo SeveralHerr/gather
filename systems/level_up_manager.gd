@@ -1,27 +1,45 @@
 extends Control
 class_name LevelUpManager
 
+## Progression model. This node no longer draws anything — it owns xp, levels,
+## banked skill points and the taken set, and SkillTreeUi renders it. It stays a
+## Control at its original scene path because saveObject() keys off get_path() and
+## every existing saveFile refers to it there.
+
 signal added_xp(amount: int)
+signal xp_changed(xp: int, next_level: int)
+signal level_gained(level: int)
+signal points_changed(points: int)
+signal skill_learned(skill: Skill)
 
 @onready var xp_bar: ProgressBar = $"../PlayerInfo/XpBar"
 @onready var resource_manager: ResourceManager2 = $"../../../../../ResourceManager"
 
-# Each upgrade is a button in this scene plus the name of the upgrade that has to
-# be taken before it unlocks. An empty requirement means it is offered from the start.
-const UPGRADES = {
-	"bone_pickaxe": {"button": "BonePickaxeButton", "requires": ""},
-	"bone_sword": {"button": "BoneSwordButton", "requires": "bone_pickaxe"},
-	"iron": {"button": "IronButton", "requires": "bone_sword"},
-	"bone_turret": {"button": "BoneTurretButton", "requires": ""},
-	"wood_decor": {"button": "WoodDecorButton", "requires": ""},
+## XP needed to reach level 2, and the ratio between one threshold and the next.
+## The old curve doubled (10/20/40/80...), which outran the 1-4 xp a node pays by
+## about level 5 and left most of the tree unreachable. 1.35 keeps a full twelve
+## nodes inside one session.
+const XP_FIRST_LEVEL := 10
+const XP_GROWTH := 1.35
+
+## Ids that were renamed when the flat upgrade list became a tree. Applied on load
+## so saves written before the rework keep their progress.
+const LEGACY_IDS := {
+	"iron": "iron_age",
 }
 
-var xp = 0
-var next_level = 10
+## Field initializer rather than built in _ready(), so anything that finds this
+## node can read the definitions regardless of whose _ready() ran first.
+var tree := SkillTree.new()
 
-# Levels earned but not yet spent. Banking them means a burst of xp that crosses
-# two thresholds still hands out two upgrades instead of silently eating one.
-var pending_levels = 0
+var xp := 0
+var level := 1
+var next_level := XP_FIRST_LEVEL
+
+## Levels earned but not yet spent. Banking them means a burst of xp that crosses
+## two thresholds still hands out two points instead of silently eating one, and
+## the player can now walk away from a level-up without losing it.
+var points := 0
 
 var taken: Dictionary = {}
 
@@ -30,127 +48,115 @@ func _ready():
 	add_to_group("LevelUpManager")
 	add_to_group("SaveLoad")
 
-	for upgrade_name in UPGRADES:
-		_button(upgrade_name).pressed.connect(_on_upgrade_chosen.bind(upgrade_name))
-
+	# The panel lives in the UI2 CanvasLayer now; this node is model-only.
 	visible = false
-	_refresh_buttons()
 
+	_refresh_xp_bar()
+
+
+func _refresh_xp_bar() -> void:
+	if xp_bar == null:
+		return
 	xp_bar.max_value = next_level
 	xp_bar.value = xp
 
 
-func _button(upgrade_name: String) -> Button:
-	return get_node(UPGRADES[upgrade_name]["button"]) as Button
-
-
-func is_available(upgrade_name: String) -> bool:
-	if taken.has(upgrade_name):
-		return false
-	var requires: String = UPGRADES[upgrade_name]["requires"]
-	return requires == "" or taken.has(requires)
-
-
-func has_available_upgrade() -> bool:
-	for upgrade_name in UPGRADES:
-		if is_available(upgrade_name):
-			return true
-	return false
-
-
-func _refresh_buttons() -> void:
-	for upgrade_name in UPGRADES:
-		_button(upgrade_name).disabled = not is_available(upgrade_name)
-
-
+## XP earned before the Scholar multiplier, as awarded by resources and enemies.
 func add_xp(amount: int):
-	xp += amount
-	added_xp.emit(amount)
+	var player := PlayerManager.player
+	var multiplier: float = player.stats.xp_mult if player else 1.0
+	var granted := int(round(amount * multiplier))
+
+	xp += granted
+	added_xp.emit(granted)
 
 	while xp >= next_level:
-		next_level *= 2
-		pending_levels += 1
+		level += 1
+		points += 1
+		next_level = next_threshold(next_level)
+		level_gained.emit(level)
+		points_changed.emit(points)
 
-	xp_bar.max_value = next_level
-	xp_bar.value = xp
-
-	_offer_upgrade()
+	_refresh_xp_bar()
+	xp_changed.emit(xp, next_level)
 
 
-# Only take over the screen when there is actually something to pick. Otherwise the
-# player is left staring at a panel of dead buttons with no way to dismiss it.
-func _offer_upgrade() -> void:
-	if pending_levels <= 0 or not has_available_upgrade():
+## The cumulative XP threshold that follows `current`. Static and shared with
+## add_xp so a test of the curve exercises the arithmetic the game actually runs.
+static func next_threshold(current: int) -> int:
+	return int(ceil(current * XP_GROWTH))
+
+
+## Total XP needed to reach `target_level` from a fresh start.
+static func xp_for_level(target_level: int) -> int:
+	var threshold := XP_FIRST_LEVEL
+	for _i in range(max(0, target_level - 2)):
+		threshold = next_threshold(threshold)
+	return threshold
+
+
+func is_available(skill_id: String) -> bool:
+	return tree.is_available(skill_id, taken)
+
+
+func has_available_skill() -> bool:
+	return tree.has_any_available(taken)
+
+
+func can_purchase(skill_id: String) -> bool:
+	return points > 0 and is_available(skill_id)
+
+
+## Spends a point on a skill. Returns false and changes nothing when the skill is
+## already taken, still locked, or there is no point to spend.
+func purchase(skill_id: String) -> bool:
+	if not can_purchase(skill_id):
+		return false
+
+	taken[skill_id] = true
+	points -= 1
+
+	_apply_unlocks(tree.get_skill(skill_id))
+	sync_player_stats()
+
+	points_changed.emit(points)
+	skill_learned.emit(tree.get_skill(skill_id))
+	return true
+
+
+## Recipes and spawnable resources are the half of a skill that lives outside
+## PlayerStats. Deliberately NOT called from loadObject: Recipes and
+## ResourceManager2 each save their own unlocked list, so replaying these on load
+## would append every recipe a second time.
+func _apply_unlocks(skill: Skill) -> void:
+	if skill == null:
 		return
 
-	_refresh_buttons()
-	visible = true
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	for unlock in skill.recipes:
+		Recipes.add_recipe(unlock["product"], unlock["station"])
+
+	for resource_type in skill.resources:
+		resource_manager.add_resource(resource_type)
 
 
-func _on_upgrade_chosen(upgrade_name: String) -> void:
-	if not is_available(upgrade_name):
+## Pushes the taken set into the player's stat totals. Safe to call before the
+## Player exists; Player._ready() calls it again once PlayerManager is populated,
+## because _ready() runs child-first and this node is a descendant of the Player.
+func sync_player_stats() -> void:
+	var player := PlayerManager.player
+	if player == null:
 		return
-
-	taken[upgrade_name] = true
-	pending_levels = max(0, pending_levels - 1)
-
-	call("_apply_" + upgrade_name)
-
-	_refresh_buttons()
-
-	# A banked level with something left to spend it on keeps the panel up.
-	if pending_levels > 0 and has_available_upgrade():
-		return
-
-	close()
-
-
-func _apply_bone_pickaxe() -> void:
-	Recipes.add_recipe(Types.Item.BonePickaxe, Types.Item.Sawmill)
-
-
-func _apply_bone_sword() -> void:
-	pass
-
-
-func _apply_iron() -> void:
-	resource_manager.add_resource(Types.Item.CoalResource)
-	resource_manager.add_resource(Types.Item.IronResource)
-	Recipes.add_recipe(Types.Item.Furnace, Types.Item.Sawmill)
-	Recipes.add_recipe(Types.Item.IronBar, Types.Item.Furnace)
-	Recipes.add_recipe(Types.Item.IronPickaxe, Types.Item.Sawmill)
-
-
-func _apply_bone_turret() -> void:
-	Recipes.add_recipe(Types.Item.BoneTurret, Types.Item.Sawmill)
-	Recipes.add_recipe(Types.Item.Net, Types.Item.Sawmill)
-
-
-func _apply_wood_decor() -> void:
-	Recipes.add_recipe(Types.Item.WoodDoor, Types.Item.Sawmill)
-	Recipes.add_recipe(Types.Item.WoodFloor, Types.Item.Sawmill)
-	Recipes.add_recipe(Types.Item.WoodWall, Types.Item.Sawmill)
-
-
-func close():
-	visible = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	player.stats.recompute(taken, tree)
 
 
 func saveObject() -> Dictionary:
 	var dict := {
 		"filepath": get_path(),
-		"visible": visible,
 		"taken": taken.keys(),
-		"pending_levels": pending_levels,
+		"points": points,
+		"level": level,
 		"xp": xp,
 		"next_level": next_level,
-		# Kept so that older builds reading this save still see sane button states.
-		"bone_sword_button": _button("bone_sword").disabled,
-		"iron_button": _button("iron").disabled,
-		"bone_turret_button": _button("bone_turret").disabled,
-		"wood_decor_button": _button("wood_decor").disabled,
 	}
 	return dict
 
@@ -158,27 +164,37 @@ func saveObject() -> Dictionary:
 func loadObject(loadedDict: Dictionary) -> void:
 	xp = loadedDict["xp"]
 	next_level = loadedDict["next_level"]
-	pending_levels = loadedDict.get("pending_levels", 0)
+	level = loadedDict.get("level", 1)
+
+	# "pending_levels" is what banked levels were called before they became points.
+	points = loadedDict.get("points", loadedDict.get("pending_levels", 0))
 
 	taken = {}
 	if loadedDict.has("taken"):
-		for upgrade_name in loadedDict["taken"]:
-			taken[upgrade_name] = true
+		for skill_id in loadedDict["taken"]:
+			var id: String = LEGACY_IDS.get(skill_id, skill_id)
+			if tree.has_skill(id):
+				taken[id] = true
 	else:
-		# Saves written before upgrades were tracked by name: recover what we can from
-		# the button states. A disabled button meant either taken or not yet unlocked.
-		if loadedDict.get("bone_sword_button", true) == false:
-			taken["bone_pickaxe"] = true
-		if loadedDict.get("iron_button", true) == false:
-			taken["bone_pickaxe"] = true
-			taken["bone_sword"] = true
-		if loadedDict.get("bone_turret_button", true) == true:
-			taken["bone_turret"] = true
-		if loadedDict.get("wood_decor_button", true) == true:
-			taken["wood_decor"] = true
+		_recover_taken_from_button_states(loadedDict)
 
-	_refresh_buttons()
-	xp_bar.max_value = next_level
-	xp_bar.value = xp
+	sync_player_stats()
+	_refresh_xp_bar()
 
-	visible = loadedDict["visible"] and has_available_upgrade()
+	points_changed.emit(points)
+	xp_changed.emit(xp, next_level)
+
+
+## Saves written before upgrades were tracked by name stored only the enabled state
+## of the five buttons that used to be in main.tscn. A disabled button meant the
+## upgrade was either taken or not yet unlocked, so this recovers what it can.
+func _recover_taken_from_button_states(loadedDict: Dictionary) -> void:
+	if loadedDict.get("bone_sword_button", true) == false:
+		taken["bone_pickaxe"] = true
+	if loadedDict.get("iron_button", true) == false:
+		taken["bone_pickaxe"] = true
+		taken["bone_sword"] = true
+	if loadedDict.get("bone_turret_button", true) == true:
+		taken["bone_turret"] = true
+	if loadedDict.get("wood_decor_button", true) == true:
+		taken["wood_decor"] = true

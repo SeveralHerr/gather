@@ -103,6 +103,9 @@ func set_resource(location, resource: GameResource):
 
 func remove_resource(location, resource: GameResource):
 	var bonus_chance := removing_tool.bonus_yield_chance if removing_tool else 0.0
+	# Bountiful Harvest stacks on top of whatever the pickaxe tier already gives.
+	if player:
+		bonus_chance += player.stats.bonus_yield_chance
 
 	for _i in resource.roll_yield(bonus_chance):
 		PickUpManager.create_pickup(GameItems.get_item(resource.drop), location)
@@ -118,7 +121,10 @@ func remove_resource(location, resource: GameResource):
 func start_removing_resource(pickaxe: GameItemPickaxe):
 	is_holding_e = true
 	removing_tool = pickaxe
-	hold_timer.wait_time = max(MIN_GATHER_TIME, pickaxe.power)
+	# Swift Hands scales the tool's own gather time. The MIN_GATHER_TIME floor still
+	# applies, so no stack of speed skills can hand Timer a zero wait_time.
+	var speed_mult: float = player.stats.gather_speed_mult if player else 1.0
+	hold_timer.wait_time = max(MIN_GATHER_TIME, pickaxe.power * speed_mult)
 	hold_timer.start()
 
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)

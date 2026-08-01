@@ -20,6 +20,18 @@ func set_health(value: int):
 	if current_health <= 0:
 		emit_signal("died")
 
+## Raising the ceiling heals for the difference, so a +max-health skill is felt the
+## moment it is bought rather than only after the next heal. Lowering it just
+## re-clamps. Never allows a max of zero, which would make set_health() fire died.
+func set_max_health(value: int):
+	var delta: int = value - max_health
+	max_health = max(1, value)
+
+	if delta > 0:
+		set_health(current_health + delta)
+	else:
+		set_health(current_health)
+
 func take_damage(damage: int):
 	set_health(current_health - damage)
 

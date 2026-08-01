@@ -3,7 +3,18 @@ class_name Player
 
 const SPEED = 300.0
 const JUMP_VELOCITY = -400.0
+
+## Walk speed before the Light Step multiplier.
+const MOVE_SPEED := 50.0
+## Health before the Tough Hide bonus.
+const BASE_MAX_HEALTH := 10
+
 var damage = 3
+
+## Totals contributed by the skill tree. Built as a field initializer rather than
+## in _ready() because _ready() runs child-first: ResourceManager2 and the pickup
+## vacuum both read stats off the player before the Player's own _ready() has run.
+var stats := PlayerStats.new()
 
 @export var tilemap: TileMapHandler
 @export var resourceManager: ResourceManager2
@@ -71,12 +82,19 @@ func _ready():
 	add_to_group("Player")
 	$Attack.visible = false
 	$Attack.monitoring = false
-	health_manager = HealthManager.new(10)
+	health_manager = HealthManager.new(BASE_MAX_HEALTH)
 	health_manager.connect("died", Callable(self, "_on_died"))
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
 	spawn_position = position
 	PlayerManager.player = self
+
+	stats.stats_changed.connect(_on_stats_changed)
+	# LevelUpManager is a descendant of this node, so its _ready() has already run
+	# and found no PlayerManager.player to push totals into. Pull them now.
+	for node in get_tree().get_nodes_in_group("LevelUpManager"):
+		if node is LevelUpManager:
+			node.sync_player_stats()
 	interact.body_entered.connect(on_interact)
 	interact.body_exited.connect(on_interact_exit)
 
@@ -149,6 +167,16 @@ func _grant_invulnerability(duration: float) -> void:
 func update_hp_bar() -> void:
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
+
+
+# Max health is the only stat that has to be pushed somewhere on change; the rest
+# are read at the point of use.
+func _on_stats_changed() -> void:
+	if health_manager == null:
+		return
+
+	health_manager.set_max_health(BASE_MAX_HEALTH + stats.max_health_bonus)
+	update_hp_bar()
 
 
 
@@ -226,7 +254,9 @@ func receive_hit(_force: Vector2, _damage: int):
 func _on_body_entered_attack(body: Node2D):
 	if body is Enemy:
 		var direction = (body.global_position - global_position).normalized()
-		body.receive_hit(direction * 100, 3)
+		# The equipped sword sets `damage` (PlayerManager.show_slot_data); this used
+		# to pass a hardcoded 3, so neither the sword nor any skill reached the enemy.
+		body.receive_hit(direction * 100, damage + stats.damage_bonus)
 	
 func _attack():
 	if is_dead:
@@ -260,8 +290,8 @@ func _process_movement():
 	if v == Vector2.ZERO:
 		sound_player.stop()
 	
-	velocity = v * 50
-	v = Vector2.ZERO 
+	velocity = v * MOVE_SPEED * stats.move_speed_mult
+	v = Vector2.ZERO
 	
 	move_and_slide()
 	

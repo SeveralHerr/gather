@@ -22,6 +22,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("gather_stats", _cmd_gather_stats)
 	dev.register_command("wave_stats", _cmd_wave_stats)
 	dev.register_command("goto_resource", _cmd_goto_resource)
+	dev.register_command("skill_panel", _cmd_skill_panel)
+	dev.register_command("learn_skill", _cmd_learn_skill)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -41,6 +43,17 @@ func _level_up_manager() -> LevelUpManager:
 		if node is LevelUpManager:
 			return node
 	return null
+
+
+## The skill panel builds itself in code, so its inner nodes have generated paths.
+## Going through the script instead keeps callers off those paths.
+func _skill_tree_ui() -> SkillTreeUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI2/SkillTreeUI") as SkillTreeUi
+
+
+func _skill_panel_open() -> bool:
+	var ui := _skill_tree_ui()
+	return ui != null and ui.is_open()
 
 
 func _tile_map_handler() -> TileMapHandler:
@@ -66,8 +79,9 @@ func _status(_args: Dictionary) -> Dictionary:
 	if level_up:
 		status["xp"] = level_up.xp
 		status["next_level"] = level_up.next_level
-		status["pending_levels"] = level_up.pending_levels
-		status["upgrade_panel_open"] = level_up.visible
+		status["level"] = level_up.level
+		status["skill_points"] = level_up.points
+		status["skill_panel_open"] = _skill_panel_open()
 
 	return status
 
@@ -86,6 +100,19 @@ func _cmd_player_state(_args: Dictionary) -> Dictionary:
 			"position": {"x": player.position.x, "y": player.position.y},
 			"spawn": {"x": player.spawn_position.x, "y": player.spawn_position.y},
 			"hp": player.health_manager.current_health,
+			"max_hp": player.health_manager.max_health,
+			# PlayerStats is a RefCounted, so get-state serialises it as an opaque
+			# object id. These are the skill-tree totals spelled out, and they are
+			# the only way to see from the CLI whether a passive actually landed.
+			"stats": {
+				"gather_speed_mult": player.stats.gather_speed_mult,
+				"bonus_yield_chance": player.stats.bonus_yield_chance,
+				"xp_mult": player.stats.xp_mult,
+				"max_health_bonus": player.stats.max_health_bonus,
+				"damage_bonus": player.stats.damage_bonus,
+				"move_speed_mult": player.stats.move_speed_mult,
+				"pickup_radius_mult": player.stats.pickup_radius_mult,
+			},
 			"is_dead": player.is_dead,
 			"invulnerable": player.invulnerable,
 			"state": player.state_machine.state.name if player.state_machine.state else "",
@@ -169,9 +196,50 @@ func _cmd_add_xp(args: Dictionary) -> Dictionary:
 		"data": {
 			"xp": level_up.xp,
 			"next_level": level_up.next_level,
-			"pending_levels": level_up.pending_levels,
-			"panel_open": level_up.visible,
-			"has_available_upgrade": level_up.has_available_upgrade(),
+			"level": level_up.level,
+			"skill_points": level_up.points,
+			"panel_open": _skill_panel_open(),
+			"has_available_skill": level_up.has_available_skill(),
+			"taken": level_up.taken.keys(),
+		},
+	}
+
+
+## Opens or closes the skill panel. `{"open": true|false}`, or omit to toggle.
+## Goes through set_open() rather than the visible property so the mouse-mode and
+## disable_input handshake runs the same way a K press would.
+func _cmd_skill_panel(args: Dictionary) -> Dictionary:
+	var ui := _skill_tree_ui()
+	if ui == null:
+		return {"success": false, "message": "no SkillTreeUi in the scene", "data": {}}
+
+	if args.has("open"):
+		ui.set_open(bool(args["open"]))
+	else:
+		ui.toggle()
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {"open": ui.is_open()},
+	}
+
+
+## Spends a banked point on a skill by id. Returns success=false when the purchase
+## was refused, so a test can assert the guard as well as the happy path.
+func _cmd_learn_skill(args: Dictionary) -> Dictionary:
+	var level_up = _level_up_manager()
+	if level_up == null:
+		return {"success": false, "message": "no LevelUpManager in the scene", "data": {}}
+
+	var skill_id: String = str(args.get("id", ""))
+	var bought: bool = level_up.purchase(skill_id)
+
+	return {
+		"success": bought,
+		"message": "learned %s" % skill_id if bought else "refused %s" % skill_id,
+		"data": {
+			"skill_points": level_up.points,
 			"taken": level_up.taken.keys(),
 		},
 	}

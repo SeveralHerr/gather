@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. This game is inspired by Forager and it's early game mechanics. 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
@@ -148,8 +148,33 @@ and `items/resources.gd` populates `resources` then applies `Resources.TUNING`.
 **Where gameplay tuning lives** — these are the files to edit for balance, not the
 logic: `Resources.TUNING` in `items/resources.gd` (xp, yield range, spawn weight,
 secondary drops per resource), the `items/items.gd` constructor calls (pickaxe gather
-time and bonus yield, consumable heal values), and `crafting/recipes.gd` (costs, and
-which recipes are unlocked by which `LevelUpManager` upgrade).
+time and bonus yield, consumable heal values), `crafting/recipes.gd` (recipe costs),
+`systems/skill_tree.gd` (every skill's effect, prerequisite and unlock) and
+`LevelUpManager.XP_FIRST_LEVEL` / `XP_GROWTH` (the level curve).
+
+**Skill tree** (Forager-style, replaced the five hardcoded upgrade buttons):
+
+- `systems/skill_tree.gd` is the registry — four branches (Foraging, Industry,
+  Combat, Building), three tiers each, built imperatively like `items.gd`. A skill
+  carries `effects` (stat deltas), `recipes` and `resources` (unlocks), so adding
+  one is a data edit, not a new `_apply_*` method.
+- `systems/player_stats.gd` sums the taken set into the totals the game reads:
+  gather time (`resource_manager2.gd`), bonus yield, xp, damage / max health /
+  move speed (`player.gd`) and pickup radius (`items/pick_up.gd`). It **recomputes
+  from scratch** on every change — never apply a delta incrementally, or load and
+  repurchase will double it.
+- `systems/level_up_manager.gd` owns xp, level and banked points. It no longer
+  draws anything and no longer seizes the screen on level-up; points bank and the
+  player opens the panel with `K` when they choose to.
+- `ui/skill_tree_ui.gd` builds the panel in code from the registry and lives in the
+  `UI2` CanvasLayer. Do not put full-screen menus under `Player/Camera2D/UI` —
+  that Control is world-space at `0.23` scale for the diegetic HUD.
+- Unlocks are applied on purchase only, never on load: `Recipes` and
+  `ResourceManager2` persist their own unlocked lists, so replaying them would
+  append every recipe twice.
+- The devtools verbs `skill_panel` and `learn_skill` drive it from the CLI, and
+  `player_state` spells out the stat totals (`PlayerStats` is a RefCounted, so
+  `get-state` shows only an opaque object id).
 
 **Tilemap layers** (`main.gd`): `0` ground/terrain, `1` objects (resources, walls,
 buildings), `2` floors, `3` highlight overlay. A tile is mapped back to its registry

@@ -52,6 +52,10 @@ func _physics_process(_delta):
 		
 		
 	var distance_to_player = global_position.distance_to(PlayerManager.player.global_position)
+	# Magnetism widens the outer edge only; the collection radius stays put so the
+	# item still has to reach the player to be absorbed.
+	var vacuum_radius: float = VACUUM_RADIUS * PlayerManager.player.stats.pickup_radius_mult
+
 	if distance_to_player <= COLLECT_RADIUS and delay:
 		if PlayerManager.player.inventory_data.pick_up_slot_data(slot_data):
 			sound_manager.play_sound(sound_manager.SoundType.POP)
@@ -61,12 +65,12 @@ func _physics_process(_delta):
 			# Inventory full: leave the drop sitting in the world.
 			linear_velocity = Vector2.ZERO
 			return
-	elif distance_to_player <= VACUUM_RADIUS and delay:
+	elif distance_to_player <= vacuum_radius and delay:
 		var to_player = PlayerManager.player.global_position - global_position - VACUUM_AIM_OFFSET
 		var direction = to_player.normalized()
 		# 0 at the edge of the vacuum, 1 at the collection radius.
 		var closeness = clampf(
-			inverse_lerp(VACUUM_RADIUS, COLLECT_RADIUS, distance_to_player), 0.0, 1.0
+			inverse_lerp(vacuum_radius, COLLECT_RADIUS, distance_to_player), 0.0, 1.0
 		)
 		var speed = lerpf(VACUUM_SPEED_MIN, VACUUM_SPEED_MAX, pow(closeness, VACUUM_RAMP_EXPONENT))
 		linear_velocity = direction * speed
