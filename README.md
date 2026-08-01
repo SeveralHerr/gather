@@ -77,4 +77,29 @@ Run unit tests:
 - Keep `project.godot` and `class_name` imports up to date
 - Use `tools/devtools.py` and the DevTools bridge for automated runtime validation
 
+## Web Deployment (itch.io)
+
+The Web build is published to **https://severalherr.itch.io/gather**.
+
+- **Trigger:** every push to `main` runs `.github/workflows/deploy-to-itchio.yml`.
+  The workflow can also be started by hand from the Actions tab
+  (`workflow_dispatch`).
+- **What it does:** downloads Godot 4.7-stable and its export templates, imports
+  the project (the `.godot/` cache is gitignored, so it must be rebuilt in CI),
+  exports the `Web` preset to `bin/index.html`, and pushes `bin/` to itch.io with
+  butler as `severalherr/gather:html5`.
+- **Export preset:** `Web` (`preset.1` in `export_presets.cfg`). It is configured
+  with `variant/thread_support=false` because itch.io serves pages without
+  cross-origin isolation headers, so `SharedArrayBuffer` is unavailable.
+- **`bin/` stays gitignored** — CI builds it fresh on every run.
+
+### One-time setup
+
+A repository secret named `BUTLER_API_KEY` must exist
+(*Settings → Secrets and variables → Actions*). Generate the key at
+https://itch.io/user/settings/api-keys. The itch.io project page must also exist
+at `severalherr/gather`; the `html5` channel is created automatically by the
+first successful butler push, and the uploaded build should be marked as
+"This file will be played in the browser" on the itch.io project page.
+
 

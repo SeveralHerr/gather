@@ -1,0 +1,71 @@
+name: Deploy to itch.io
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Godot
+      run: |
+        wget https://github.com/godotengine/godot/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip -O godot.zip
+        unzip godot.zip -d godot
+        mv godot/Godot_v4.7-stable_linux.x86_64 /usr/local/bin/godot
+        chmod +x /usr/local/bin/godot
+
+    - name: Download Godot Export Templates
+      run: |
+        wget https://github.com/godotengine/godot/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz -O templates.zip
+        mkdir -p ~/.local/share/godot/export_templates/4.7.stable
+        unzip templates.zip -d ~/.local/share/godot/export_templates/4.7.stable
+        mv ~/.local/share/godot/export_templates/4.7.stable/templates/* ~/.local/share/godot/export_templates/4.7.stable/
+        rmdir ~/.local/share/godot/export_templates/4.7.stable/templates
+
+    # `.godot/` is gitignored, so a fresh checkout has no import cache and no
+    # global script class cache. Without this the export produces a broken or
+    # empty build. The first pass can legitimately fail while it is still
+    # resolving `class_name` declarations, so run it twice.
+    - name: Import project resources
+      run: |
+        godot --headless --path . --import || true
+        godot --headless --path . --import
+
+    # `bin/` is gitignored and therefore absent on a fresh checkout. Godot
+    # fails the export outright if the target directory does not exist.
+    - name: Create output directory
+      run: mkdir -p bin
+
+    - name: Export project
+      run: godot --headless --path . --export-release "Web" "bin/index.html"
+
+    - name: Verify export output
+      run: |
+        if [ ! -f bin/index.html ]; then
+          echo "::error::Export produced no bin/index.html - aborting deploy."
+          ls -la bin || true
+          exit 1
+        fi
+        ls -la bin
+
+    - name: Install Butler
+      run: |
+        curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+        unzip butler.zip
+        sudo mv butler /usr/local/bin/butler
+        sudo chmod +x /usr/local/bin/butler
+        butler -V  # Verify installation
+
+    - name: Deploy to itch.io
+      env:
+        BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
+        BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      run: |
+        butler push bin/ severalherr/gather:html5

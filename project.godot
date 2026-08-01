@@ -44,6 +44,14 @@ window/stretch/mode="disabled"
 
 project/assembly_name="Gather"
 
+[editor_plugins]
+
+; The virtual joystick behind ui/mobile_controls.tscn. The overlay instances
+; addons/virtual_joystick/virtual_joystick_scene.tscn directly, so the game does
+; not need the plugin enabled to run. This is only so the editor registers the
+; custom type and the addon stops showing up as disabled.
+enabled=PackedStringArray("res://addons/virtual_joystick/plugin.cfg")
+
 [input]
 
 move_left={
@@ -111,3 +119,14 @@ load={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":93,"key_label":0,"unicode":93,"location":0,"echo":false,"script":null)
 ]
 }
+
+[rendering]
+
+; Desktop stays on Forward+. A Godot 4 web export cannot use it — the browser
+; target only supports the Compatibility (OpenGL/WebGL2) backend, and a Forward+
+; build exports cleanly but then fails to start in the browser, so the breakage
+; only ever surfaces on itch.io. The per-platform override keeps the desktop
+; build byte-identical while giving the web build a backend it can actually run.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.web="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

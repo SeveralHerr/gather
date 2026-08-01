@@ -49,6 +49,7 @@ Guidelines that make an entry useful later:
   template evolution (new flags, new docstrings); no project edits existed to protect.
   Workaround: diffed all three by hand to confirm they were disposable, then reported
   them to the user rather than deleting unprompted.
+  - [G-001] status: open | seen: 1 | harness: 0.4.0
   - Improvement: have step 4 skip the backup when the existing file matches a *known
     previous template version* — e.g. stamp a `# harness-version: N` header into copied
     tools and only back up when the target's stamp is absent or modified.
@@ -57,6 +58,7 @@ Guidelines that make an entry useful later:
   merging `hud_layer_name` worked only because the existing value (`UI2`) happened to be
   non-default; a project that legitimately set it back to `"HUD"` would be
   indistinguishable from an unpatched default on the next refresh.
+  - [G-002] status: open | seen: 1 | harness: 0.4.0
   - Improvement: write a `"_scaffold_defaults"` sidecar block into
     `devtools_config.json` recording the values scaffold last wrote, so a later run can
     diff "what I wrote" against "what's there now" and only overwrite untouched keys.
@@ -64,6 +66,13 @@ Guidelines that make an entry useful later:
 - Gap: **No verb reports which harness version is installed** — deciding whether this
   refresh was a no-op or a real upgrade required diffing template files against the
   repo by hand. `list-commands` shows verbs but not the harness revision.
+  Bit again 2026-08-01 during the itch.io/mobile `/verify` run: the workflow now *instructs*
+  reading it ("`harness:` The installed version, from `python3 tools/devtools.py
+  harness-version`"), but the verb still does not exist —
+  `python tools/devtools.py harness-version` printed
+  `usage: devtools.py [-h] ... {ping,screenshot,validate,...,node-bounds}`, i.e. an argparse
+  rejection, so every `harness:` field in this file is a hand-guess.
+  - [G-003] status: open | seen: 2 | harness: 0.4.0
   - Improvement: add a `harness-version` verb (and a line in `lint_project.gd`'s header
     output) reporting the template revision the installed files came from.
 
@@ -77,6 +86,7 @@ Guidelines that make an entry useful later:
   pass looks like to an agent grepping for the exit code. Workaround: fell back to
   running the whole suite, which defeats the point of a filter when several agents are
   adding test files concurrently.
+  - [G-004] status: open | seen: 2 | harness: 0.4.0
   - Improvement: match `--filter` against the test *script filename* as well as the
     method name, and make a run that selected zero tests exit non-zero (or at minimum
     print `filter '<x>' selected 0 of N tests` as a warning).
@@ -88,6 +98,7 @@ Guidelines that make an entry useful later:
   is a single file, so a new `class_name` from any agent forces a global rebuild.
   Workaround: pre-created stub files declaring all four new `class_name`s, ran `--import`
   once up front, then told every agent not to run it.
+  - [G-005] status: open | seen: 1 | harness: 0.4.0
   - Improvement: teach `tools/devtools.py` to derive its command/result filenames from a
     `--session` id (defaulting to the current behaviour), and have `scaffold` document a
     `--session` + `use_custom_user_dir` recipe, so N agents can each own an instance.
@@ -96,6 +107,7 @@ Guidelines that make an entry useful later:
   notice** — `lint_project.gd` reported `UIDs: OK` for `test/unit/test_enemy_spawner.gd`
   while the file had no sidecar at all, because the check only validates sidecars that
   exist. CLAUDE.md requires committing them alongside the script.
+  - [G-006] status: open | seen: 1 | harness: 0.4.0
   - Improvement: have the UID pass flag `.gd` files under `scan_root`/`test_dir` with no
     `.uid` sidecar as a warning, so the omission is visible before commit rather than at
     review time.
@@ -105,6 +117,7 @@ Guidelines that make an entry useful later:
   most of `test_skill_tree.gd` and all of `test_ore_chain.gd`, so it too fell back to the
   full 111-test suite. Two of four agents hit it, which makes it the highest-value fix in
   this log for concurrent work.
+  - [G-004] status: open | seen: 2 | harness: 0.4.0
   - Improvement (restated concretely): add `--file <basename>` to `run_tests.gd`, matched
     against the test script path, so an agent can run exactly the file it owns.
 
@@ -116,6 +129,7 @@ Guidelines that make an entry useful later:
   required leaving the project entirely: `git -C ~/Documents/GitHub/godot-selftest-harness
   log --oneline` showed `922c45d Ship the devtools gaps log, and close the gaps it recorded
   (0.4.0)`. Nothing in this repo records that.
+  - [G-007] status: open | seen: 1 | harness: 0.4.0
   - Improvement: give each gap a stable id and a status line —
     `- [G-007] status: open | fixed-in: 0.5.0 | seen: 2` — so a fixed gap can be filtered
     out before the log is pasted back, and recurrences can be counted instead of narrated.
@@ -125,6 +139,7 @@ Guidelines that make an entry useful later:
   normalized]`, so any byte-level change to `log-devtools.md` satisfies it. A session that
   appends "no gaps this turn" forever passes the check forever, which is precisely the
   decay mode the hook exists to catch.
+  - [G-008] status: open | seen: 1 | harness: 0.4.0
   - Improvement: require an entry whose `## ` heading carries today's date, rather than
     treating the file's mere presence in `git status` as compliance.
 
@@ -132,6 +147,7 @@ Guidelines that make an entry useful later:
   already flagged the missing `harness-version` verb on 2026-08-01, and the absence bites
   again here: a gap logged before an upgrade cannot be distinguished from a regression
   after one. Second sighting of the same underlying miss.
+  - [G-003] status: open | seen: 2 | harness: 0.4.0
   - Improvement: have `/verify` stamp the installed harness revision into each entry's
     heading automatically, so version is captured without the model having to remember.
 
@@ -144,6 +160,7 @@ Guidelines that make an entry useful later:
   hunting a non-existent load crash before checking the process list. The existing
   "Crossed replies" detection did not fire, because the stale instance was answering
   every request — just for a different world.
+  - [G-009] status: open | seen: 1 | harness: 0.4.0
   - Improvement: have the DevTools autoload write a `devtools_owner.json` with its PID
     and start time, and have `devtools.py` refuse to run (naming the other PID) when a
     live owner file belongs to a different process. Failing that, make `ping`'s
@@ -154,6 +171,7 @@ Guidelines that make an entry useful later:
   Main/InputManager`, but `cmd`-registered verbs resolve `Main/...` fine via
   `get_tree().root.get_node_or_null`. The inconsistency cost a debugging round on a
   path that was actually correct.
+  - [G-010] status: open | seen: 1 | harness: 0.4.0
   - Improvement: have `run-method` / `get-state` / `set-state` retry a failed lookup
     with `/root/` prefixed, or say so in the error text.
 
@@ -162,6 +180,7 @@ Guidelines that make an entry useful later:
   node's state with no failed assertion anywhere. This is the same trap the test runner
   has (`gather-1t9`), but in game code, and it hid a real data-loss bug
   (`gather-hxa.8`) for as long as the file has existed.
+  - [G-011] status: open | seen: 1 | harness: 0.4.0
   - Improvement: add a `save_roundtrip` verb that calls every `SaveLoad` member's
     `saveObject()` and reports any that return an empty dict or omit `filepath` —
     a one-call check for a class of bug that is otherwise silent.
@@ -181,6 +200,7 @@ Guidelines that make an entry useful later:
   transport has never run for this batch: the harness log's only heading is
   `## 2026-08-01 — Ship the gaps log, close what it recorded (0.4.0)`, so all six of this
   project's gaps are still local.
+  - [G-012] status: open | seen: 2 | harness: 0.4.0
   - Improvement: as already filed — an `upstream_gaps` script that appends open gaps to
     the harness repo's log, deduped by id. The prompt written this turn is the manual
     version of exactly that script, which is the strongest evidence yet that it should
@@ -193,9 +213,75 @@ Guidelines that make an entry useful later:
   `SCRIPT ERROR` lines) was re-run against the committed tree and agreed with the
   pre-commit run.
 
-## 2026-08-01 � Enlarged the game window to 1920x1080 and re-anchored every UI (gather-6fx)
+## 2026-08-01 — itch.io web deploy workflow + mobile touch controls (fan-out)
 
-- Gap: **`set-state` cannot write a vector-typed property** � the documented `run-method`
+- Gap: **No harness check that the project's renderer is web-exportable** — gather ships
+  `config/features=PackedStringArray("4.7", "Forward Plus")` while a Godot 4 web export only
+  runs on `gl_compatibility`. Nothing in `lint_project.gd` or `/verify` flags this; it was
+  caught only by hand-diffing `project.godot` against the AtomicRobot repo, which has
+  `renderer/rendering_method="gl_compatibility"`. A Forward+ web build exports cleanly and
+  then fails to start in the browser — the failure surfaces on itch.io, not in CI.
+  - [G-013] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: add a lint rule that reads `renderer/rendering_method` (plus its `.web` /
+    `.mobile` overrides) and errors when a `Web` preset exists in `export_presets.cfg`
+    without a compatibility override.
+
+- Gap: **`/verify` has no headless export check** — the harness validates lint, tests and
+  runtime, but nothing exercises `--export-release`, so a broken or missing export preset is
+  invisible until CI. The new `Web` preset in `export_presets.cfg` could not be validated
+  locally at all; the deploy agent reported "I did not run the Godot binary, so the new preset
+  has not been round-tripped through the editor."
+  - [G-014] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: a `tools/check_exports.gd` that enumerates presets, asserts each has an
+    `export_path` and that the matching export template is installed, runnable headless.
+
+- Gap: **Bridge is single-instance, so parallel agents cannot self-verify** — the known
+  one-command/one-result-file limitation meant all three subagents had to be forbidden from
+  running Godot at all (`--import` also races on `.godot/`), pushing every check onto the
+  orchestrator serially after fan-out.
+  - [G-005] status: open | seen: 3 | harness: 0.4.0
+  - Improvement: have `devtools.py` and the headless runners namespace their bridge and import
+    cache per-instance (env var or `--userdata`-style flag), so N agents can verify in parallel.
+
+- Gap: **Nothing validates a vendored addon's UIDs against the host project before lint runs** —
+  the ported `addons/virtual_joystick/test/test.tscn` carried AtomicRobot's icon UID
+  (`uid="uid://cw7a6wede53n1"` for `res://icon.svg`) while gather's is `uid://c6knbegisd067`,
+  so `lint_project.gd` (`scan_root: "res://"`) would have reported it as a project defect
+  rather than as imported third-party debt. Found by hand-diffing, patched by hand.
+  - [G-015] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: teach `lint_project.gd` a `--baseline`-style vendored-path skip list (or reuse
+    the existing `--baseline` split) so `addons/*` findings report as PRE-EXISTING/VENDORED
+    instead of NEW.
+
+- Gap: **No way to read whether an input action is currently pressed** — the whole point of
+  the touch overlay is that a button latches a real `InputMap` action and later releases it,
+  but `input list` reports only the *bindings*:
+  `gather: E - Physical` / `attack: Space - Physical`. There is no `Input.is_action_pressed`
+  readout, so proving "the MINE button is holding `gather` right now" had to be done
+  indirectly through whatever gameplay node happened to expose the state —
+  `cmd player_state` (`state=PlayerGather`) for gather, and
+  `get-state --node /root/Main/DestroyManager --property is_holding_e` for destroy. A project
+  without such a node could not assert a held action at all.
+  - [G-021] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: add `input state [ACTION...]` returning
+    `{action: {pressed: bool, strength: float}}` from `Input.is_action_pressed` /
+    `get_action_strength`, so a hold/release pair is assertable without a gameplay proxy.
+
+- Gap: **The drift check names files but cannot say which side is ahead** — Phase 0 reported
+  `DRIFT:` on all six harness files (`dev_tools.gd`, `scene_validator.gd`, `devtools.py`,
+  `lint_project.gd`, `run_tests.gd`, `check_devtools_log.py`) while `tools/*.bak` copies from
+  the last in-place refresh sat untracked beside them. `cmp -s` gives a boolean, so
+  "the project patched this locally" and "the install predates the plugin" look identical, and
+  the workflow's own instruction to compare `git log -1 --format=%cd` fails for the plugin side
+  because those templates live outside this repo. Resolved by reporting drift unresolved.
+  - [G-022] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: stamp a `# harness-template: <sha>` line into each copied template at scaffold
+    time; the drift check then compares stamps and reports ahead/behind instead of just differs.
+    Closes with [G-003], which is the same missing-version-identity problem at verb level.
+
+## 2026-08-01 — Enlarged the game window to 1920x1080 and re-anchored every UI (gather-6fx)
+
+- Gap: **`set-state` cannot write a vector-typed property** — the documented `run-method`
   coercion gap (`gather-6sp`) also applies to `set-state`. Resizing the viewport to exercise
   `camera_hud.gd`'s `size_changed` handler needed `/root.size`, and every value form silently
   produced garbage rather than erroring:
@@ -207,7 +293,7 @@ Guidelines that make an entry useful later:
   ```
   `--value '[1280,720]'` produced the same `(232, 64)`. The run still proved the reflow
   (the HUD tracked 232x64 exactly: `Rect: -160, -62, 47x13` == `232/4.935 x 64/4.935`), but
-  by accident � the resize I asked for is not the resize I got, and nothing said so.
+  by accident — the resize I asked for is not the resize I got, and nothing said so.
   - [G-016] status: open | seen: 1 | harness: 0.4.0
   - Improvement: have `set-state` coerce a 2/3/4-element array or an `{x,y,...}` dict to the
     property's declared type via `type_convert()`, and **fail loudly** when the target
@@ -215,7 +301,7 @@ Guidelines that make an entry useful later:
     the bad cast yields and answering `State updated`.
 
 - Gap: **No verb resizes the window, so the single most important behaviour of a
-  resolution change is untestable by design** � `/verify` has `set-game-speed`,
+  resolution change is untestable by design** — `/verify` has `set-game-speed`,
   `wait-frames` and `step-time` for the time axis and nothing at all for the viewport axis.
   Every anchor, every `size_changed` handler and every `get_viewport_rect()` caller in the
   project is only ever exercised at one size unless you quit and relaunch with
@@ -227,7 +313,7 @@ Guidelines that make an entry useful later:
     so a caller can assert the resize landed before asserting on layout.
 
 - Gap: **`validate-ui` applies screen-space checks to world-space Controls, so its verdict
-  is a function of where the player is standing** � this project's diegetic HUD hangs off
+  is a function of where the player is standing** — this project's diegetic HUD hangs off
   `Player/Camera2D`, and `ui_negative_pos` reports its *global* position:
   ```
   [WARN] ui_negative_pos: Label 'Label3' has negative position (-267, -51)
@@ -235,7 +321,7 @@ Guidelines that make an entry useful later:
   That number is the player's world position plus an offset; it says nothing about layout.
   9 of the run's 9 findings were this. Deciding whether the change regressed anything took a
   full `git stash` + relaunch + `validate-ui` on HEAD to compare (HEAD: 10 issues, branch: 9
-  � the change removes `ui_zero_size` on `UI`), which is exactly the hand-triage that lint's
+  — the change removes `ui_zero_size` on `UI`), which is exactly the hand-triage that lint's
   `--baseline` exists to abolish.
   - [G-018] status: open | seen: 1 | harness: 0.4.0
   - Improvement: give `validate-ui` the same `--baseline PATH` / `--baseline-write PATH`
@@ -244,7 +330,7 @@ Guidelines that make an entry useful later:
     where negative coordinates are the normal case rather than a defect.
 
 - Gap: **`input press <action>` does not drive the gather loop, and the failure is
-  indistinguishable from a real bug** � after `cmd goto_resource` put the player 6 units from
+  indistinguishable from a real bug** — after `cmd goto_resource` put the player 6 units from
   a Stone node, holding `gather` for 1.8s left `state: PlayerIdle` and `xp: 0`, with the
   census unchanged. Confirming this was pre-existing rather than a regression from the scene
   edits cost another stash + relaunch cycle on HEAD (identical `PlayerIdle`). CLAUDE.md
@@ -256,7 +342,7 @@ Guidelines that make an entry useful later:
     (or an explicit `"no resource in reach"`), so a gather assertion tests the gather loop
     instead of testing input plumbing.
 
-- Gap: **Harness drift is detected but the report has no bearing on the run** � Phase 0
+- Gap: **Harness drift is detected but the report has no bearing on the run** — Phase 0
   flagged `DRIFT: tools/check_devtools_log.py differs from the plugin template`, with the
   plugin ahead (`Sat Aug 1 15:45:28 2026` vs the project's `Sat Aug 1 14:33:55 2026`). Three
   stale `.bak` files from an earlier refresh (`tools/devtools.py.bak`, `tools/lint_project.gd.bak`,
@@ -267,7 +353,7 @@ Guidelines that make an entry useful later:
     file passes a syntax check, so a completed refresh leaves no residue to mistake for drift.
 
 - Closure (paid off): **the exit-`2` contract on `run_tests.gd` caught a real "you verified
-  nothing"** � a final gate re-run against the tree picked up `test/unit/test_mobile_controls.gd`
+  nothing"** — a final gate re-run against the tree picked up `test/unit/test_mobile_controls.gd`
   (in-flight work from outside this session) and reported:
   ```
   tests exit=2
