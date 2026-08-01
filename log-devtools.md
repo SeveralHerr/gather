@@ -192,3 +192,89 @@ Guidelines that make an entry useful later:
   provides; the pre-commit gate (`lint_project.gd` exit 0, `run_tests.gd` 114/114, zero
   `SCRIPT ERROR` lines) was re-run against the committed tree and agreed with the
   pre-commit run.
+
+## 2026-08-01 — Enlarged the game window to 1920x1080 and re-anchored every UI (gather-6fx)
+
+- Gap: **`set-state` cannot write a vector-typed property** — the documented `run-method`
+  coercion gap (`gather-6sp`) also applies to `set-state`. Resizing the viewport to exercise
+  `camera_hud.gd`'s `size_changed` handler needed `/root.size`, and every value form silently
+  produced garbage rather than erroring:
+  ```
+  $ devtools.py set-state --node "/root" --property size --value '{"x":1280,"y":720}'
+  State updated
+  $ devtools.py get-state --node "/root" --property size
+  size: (232, 64)
+  ```
+  `--value '[1280,720]'` produced the same `(232, 64)`. The run still proved the reflow
+  (the HUD tracked 232x64 exactly: `Rect: -160, -62, 47x13` == `232/4.935 x 64/4.935`), but
+  by accident — the resize I asked for is not the resize I got, and nothing said so.
+  - [G-016] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: have `set-state` coerce a 2/3/4-element array or an `{x,y,...}` dict to the
+    property's declared type via `type_convert()`, and **fail loudly** when the target
+    property is a vector type and the value cannot be converted, instead of writing whatever
+    the bad cast yields and answering `State updated`.
+
+- Gap: **No verb resizes the window, so the single most important behaviour of a
+  resolution change is untestable by design** — `/verify` has `set-game-speed`,
+  `wait-frames` and `step-time` for the time axis and nothing at all for the viewport axis.
+  Every anchor, every `size_changed` handler and every `get_viewport_rect()` caller in the
+  project is only ever exercised at one size unless you quit and relaunch with
+  `--resolution WxH`, which costs a full boot per data point and cannot test the
+  *transition* at all.
+  - [G-017] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: add a generic `set-resolution --size WxH` verb that calls
+    `DisplayServer.window_set_size()` and returns the resulting `get_viewport_rect().size`,
+    so a caller can assert the resize landed before asserting on layout.
+
+- Gap: **`validate-ui` applies screen-space checks to world-space Controls, so its verdict
+  is a function of where the player is standing** — this project's diegetic HUD hangs off
+  `Player/Camera2D`, and `ui_negative_pos` reports its *global* position:
+  ```
+  [WARN] ui_negative_pos: Label 'Label3' has negative position (-267, -51)
+  ```
+  That number is the player's world position plus an offset; it says nothing about layout.
+  9 of the run's 9 findings were this. Deciding whether the change regressed anything took a
+  full `git stash` + relaunch + `validate-ui` on HEAD to compare (HEAD: 10 issues, branch: 9
+  — the change removes `ui_zero_size` on `UI`), which is exactly the hand-triage that lint's
+  `--baseline` exists to abolish.
+  - [G-018] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: give `validate-ui` the same `--baseline PATH` / `--baseline-write PATH`
+    split `lint_project.gd` already has, so UI findings report as `NEW` vs `PRE-EXISTING`;
+    and skip `ui_negative_pos` for Controls whose canvas ancestor is not a `CanvasLayer`,
+    where negative coordinates are the normal case rather than a defect.
+
+- Gap: **`input press <action>` does not drive the gather loop, and the failure is
+  indistinguishable from a real bug** — after `cmd goto_resource` put the player 6 units from
+  a Stone node, holding `gather` for 1.8s left `state: PlayerIdle` and `xp: 0`, with the
+  census unchanged. Confirming this was pre-existing rather than a regression from the scene
+  edits cost another stash + relaunch cycle on HEAD (identical `PlayerIdle`). CLAUDE.md
+  already warns that driving gather through the hotbar's stop signal leaves the timer
+  running; the *start* side has the same class of problem and is undocumented.
+  - [G-019] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: add a project verb `gather_once` in `devtools_ext/commands.gd` that calls
+    `ResourceManager2.start_removing_resource()` directly and returns the node it engaged
+    (or an explicit `"no resource in reach"`), so a gather assertion tests the gather loop
+    instead of testing input plumbing.
+
+- Gap: **Harness drift is detected but the report has no bearing on the run** — Phase 0
+  flagged `DRIFT: tools/check_devtools_log.py differs from the plugin template`, with the
+  plugin ahead (`Sat Aug 1 15:45:28 2026` vs the project's `Sat Aug 1 14:33:55 2026`). Three
+  stale `.bak` files from an earlier refresh (`tools/devtools.py.bak`, `tools/lint_project.gd.bak`,
+  `tools/run_tests.gd.bak`) are still sitting untracked in the tree, which is what a
+  half-finished refresh looks like.
+  - [G-020] status: open | seen: 1 | harness: 0.4.0
+  - Improvement: have `/scaffold-godot-harness` delete its own `.bak` files once the refreshed
+    file passes a syntax check, so a completed refresh leaves no residue to mistake for drift.
+
+- Closure (paid off): **the exit-`2` contract on `run_tests.gd` caught a real "you verified
+  nothing"** — a final gate re-run against the tree picked up `test/unit/test_mobile_controls.gd`
+  (in-flight work from outside this session) and reported:
+  ```
+  tests exit=2
+    Total: 114  |  Passed: 114  |  Failed: 0  |  Skipped: 0
+  SCRIPT ERROR: Parse Error: Identifier "MobileControls" not declared in the current scope.
+    [ERR]  res://test/unit/test_mobile_controls.gd: Script failed to compile (see stderr)
+  ```
+  The summary line alone reads as a clean pass; only the exit code and the `[ERR]` line say
+  otherwise. `--import` then took the suite to `121 passed, exit 0`. This is the fix from
+  the earlier "0 tests discovered, ALL TESTS PASSED" gap working exactly as intended.

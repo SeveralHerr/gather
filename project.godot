@@ -28,6 +28,18 @@ PlayerManager="*res://player/player_manager.gd"
 PickUpManager="*res://items/pick_up_manager.gd"
 DevTools="*res://addons/godot_selftest/dev_tools.gd"
 
+[display]
+
+; A bigger window, deliberately with stretch disabled: the viewport grows with the
+; window instead of being scaled up, so sprites keep their exact pixel size and the
+; extra window area becomes extra visible world. Every HUD element is anchored to a
+; viewport edge (UI2 CanvasLayer) or to the camera's visible world rect
+; (Player/Camera2D/UI, sized by ui/camera_hud.gd), so these numbers are a starting
+; size and not a layout the UI depends on.
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="disabled"
+
 [dotnet]
 
 project/assembly_name="Gather"

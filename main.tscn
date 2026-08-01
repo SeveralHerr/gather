@@ -35,6 +35,8 @@
 [ext_resource type="PackedScene" uid="uid://cv8jrb20usn5d" path="res://inventory/hot_bar_inventory.tscn" id="33_m4ngi"]
 [ext_resource type="Texture2D" uid="uid://rnkkygbmsau6" path="res://assets/art/light.png" id="40_m2a4r"]
 [ext_resource type="Script" path="res://ui/skill_tree_ui.gd" id="41_sktui"]
+[ext_resource type="Script" path="res://ui/camera_hud.gd" id="42_camhud"]
+[ext_resource type="PackedScene" path="res://ui/mobile_controls.tscn" id="43_mobile"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -570,21 +572,27 @@ z_index = 1580
 texture_filter = 1
 layout_mode = 3
 anchors_preset = 0
-mouse_filter = 1
+mouse_filter = 2
+script = ExtResource("42_camhud")
 
 [node name="Label3" type="Label" parent="Node2D/Player/Camera2D/UI"]
 layout_mode = 0
-offset_left = -115.0
-offset_top = -53.0
-offset_right = -75.0
-offset_bottom = -30.0
+offset_left = 1.7173
+offset_top = 12.6535
+offset_right = 41.7173
+offset_bottom = 35.6535
 scale = Vector2(0.275, 0.275)
 text = "fps 
 "
 script = ExtResource("16_um00x")
 
 [node name="FloatingText" type="Control" parent="Node2D/Player/Camera2D/UI"]
-anchors_preset = 0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("11_uoapv")
@@ -598,9 +606,11 @@ offset_bottom = 12.0
 scale = Vector2(0.45, 0.45)
 
 [node name="PlayerInfo" type="Control" parent="Node2D/Player/Camera2D/UI"]
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
+layout_mode = 0
+offset_left = 116.7173
+offset_top = 65.6535
+offset_right = 156.7173
+offset_bottom = 105.6535
 
 [node name="HpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 modulate = Color(1, 0, 0, 1)
@@ -645,12 +655,16 @@ text = "XP
 
 [node name="SaveLoad" type="Control" parent="Node2D/Player/Camera2D/UI"]
 visible = false
-layout_mode = 3
-anchors_preset = 0
-offset_left = 73.0
-offset_top = 45.0
-offset_right = 113.0
-offset_bottom = 85.0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -43.7173
+offset_top = -20.6535
+offset_right = -3.7173
+offset_bottom = 19.3465
 scale = Vector2(0.23, 0.23)
 script = ExtResource("21_p1f0h")
 
@@ -673,22 +687,24 @@ text = "Load
 
 [node name="LevelUpUI" type="Control" parent="Node2D/Player/Camera2D/UI"]
 visible = false
-layout_mode = 3
-anchors_preset = 0
-offset_left = -122.0
-offset_top = -45.0
-offset_right = -82.0
-offset_bottom = -5.0
+layout_mode = 0
+offset_left = -5.2827
+offset_top = 20.6535
+offset_right = 34.7173
+offset_bottom = 60.6535
 scale = Vector2(0.23, 0.23)
 script = ExtResource("12_hyjmf")
 
 [node name="InventoryBackground" type="TextureRect" parent="Node2D/Player/Camera2D/UI"]
 visible = false
-layout_mode = 2
-offset_left = -113.0
-offset_top = 28.0
-offset_right = 113.0
-offset_bottom = 115.0
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 3.7173
+offset_top = -37.6535
+offset_right = 229.7173
+offset_bottom = 49.3465
 scale = Vector2(0.435, 0.435)
 texture = ExtResource("10_s3ge4")
 
@@ -696,11 +712,14 @@ texture = ExtResource("10_s3ge4")
 visible = false
 self_modulate = Color(1, 1, 1, 0)
 texture_filter = 1
-layout_mode = 0
-offset_left = -111.0
-offset_top = 30.0
-offset_right = 104.0
-offset_bottom = 107.0
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 5.7173
+offset_top = -35.6535
+offset_right = 220.7173
+offset_bottom = 41.3465
 scale = Vector2(0.39, 0.39)
 mouse_filter = 2
 
@@ -712,7 +731,12 @@ columns = 7
 
 [node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI"]
 visible = false
-layout_mode = 0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
 offset_left = -64.0
 offset_top = -57.0
 offset_right = 66.0
@@ -796,9 +820,16 @@ show_percentage = false
 
 [node name="Crafting" type="Control" parent="Node2D/Player/Camera2D/UI"]
 visible = false
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -116.7173
+offset_top = -65.6535
+offset_right = -76.7173
+offset_bottom = -25.6535
 script = SubResource("GDScript_8pb28")
 
 [node name="SawmillButton" type="Button" parent="Node2D/Player/Camera2D/UI/Crafting"]
@@ -880,18 +911,24 @@ grow_vertical = 2
 script = ExtResource("30_b5rqb")
 
 [node name="PlayerInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
-layout_mode = 0
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
 offset_left = 14.0
-offset_top = 470.0
+offset_top = -178.0
 offset_right = 78.0
-offset_bottom = 534.0
+offset_bottom = -114.0
 
 [node name="EquipInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
 visible = false
-layout_mode = 0
-offset_left = 887.0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -265.0
 offset_top = 12.0
-offset_right = 951.0
+offset_right = -201.0
 offset_bottom = 76.0
 
 [node name="BackgroundTexture" type="TextureRect" parent="UI2/InventoryInterface/EquipInventory"]
@@ -903,10 +940,13 @@ texture = SubResource("AtlasTexture_w8axy")
 
 [node name="EquipSwordInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
 visible = false
-layout_mode = 0
-offset_left = 980.0
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -172.0
 offset_top = 12.0
-offset_right = 1044.0
+offset_right = -108.0
 offset_bottom = 76.0
 
 [node name="BackgroundTexture" type="TextureRect" parent="UI2/InventoryInterface/EquipSwordInventory"]
@@ -918,11 +958,14 @@ texture = SubResource("AtlasTexture_1k0mj")
 
 [node name="ExternalInventory" parent="UI2/InventoryInterface" instance=ExtResource("29_hswfd")]
 visible = false
-layout_mode = 0
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
 offset_left = 594.0
-offset_top = 412.0
+offset_top = -236.0
 offset_right = 658.0
-offset_bottom = 476.0
+offset_bottom = -172.0
 
 [node name="GrabbedSlot" parent="UI2/InventoryInterface" instance=ExtResource("31_uow64")]
 visible = false
@@ -933,9 +976,14 @@ offset_right = 64.0
 offset_bottom = 64.0
 
 [node name="HotBarInventory" parent="UI2" instance=ExtResource("33_m4ngi")]
-offset_left = 686.0
-offset_top = 566.0
-offset_right = -386.0
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -180.6
+offset_top = -82.0
+offset_right = 239.4
 offset_bottom = -2.0
 scale = Vector2(0.86, 0.86)
 
@@ -948,6 +996,8 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("41_sktui")
+
+[node name="MobileControls" parent="UI2" instance=ExtResource("43_mobile")]
 
 [node name="NewInvManager" type="Node" parent="."]
 script = ExtResource("2_u57kl")

@@ -176,6 +176,28 @@ time and bonus yield, consumable heal values), `crafting/recipes.gd` (recipe cos
   `player_state` spells out the stat totals (`PlayerStats` is a RefCounted, so
   `get-state` shows only an opaque object id).
 
+**Window size and UI layout.** The window is `1920x1080` with `window/stretch/mode`
+explicitly `"disabled"` (`[display]` in `project.godot`), so growing the window shows
+*more world* rather than scaling the same view up — sprites stay pixel-exact at the
+camera's `4.935` zoom. Nothing may hardcode a viewport dimension:
+
+- Screen-space UI goes in the `UI2` CanvasLayer and must be anchored to a viewport
+  edge or centred, never placed at absolute pixels. `skill_tree_ui.gd` and
+  `land_purchase_ui.gd` build themselves with `PRESET_FULL_RECT` + a
+  `CenterContainer` and need nothing further.
+- The diegetic HUD under `Player/Camera2D/UI` is world-space and gets no viewport
+  rect for free, so `ui/camera_hud.gd` sizes that Control to
+  `viewport_size / camera.zoom` and centres it on the camera, on `_ready` and on
+  `size_changed`. **Its children must therefore use ordinary anchors** — `0` is the
+  left/top screen edge, `1` the right/bottom, `0.5` the centre. `PlayerInfo` and
+  `Crafting` are bare `Control`s that exist only to pin a group to a corner; anchor
+  the group and leave the offsets of the things inside it alone.
+- Anchors were retrofitted in `gather-6fx`. Before it every offset was hand-tuned to
+  the old `1152x648` window (the HUD's left edge was literally `x = -115`, one unit
+  inside `1152 / 4.935 / 2`), and every element drifted toward the middle of the
+  screen the moment the window grew. If you see a raw `-115` or a `470` in a layout,
+  it is a leftover of that and is a bug at any other size.
+
 **Tilemap layers** (`main.gd`): `0` ground/terrain, `1` objects (resources, walls,
 buildings), `2` floors, `3` highlight overlay. A tile is mapped back to its registry
 entry by matching `atlas_location` + `tile_source_id`, so those coordinates are
