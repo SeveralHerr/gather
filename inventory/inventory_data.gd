@@ -39,6 +39,42 @@ func remove(item: GameItem):
 			inventory_updated.emit(self)
 			return
 	
+## Total held across every slot. get_count() compares GameItem identity and stops at
+## the first slot, so it answers a different question: this one is what a price check
+## needs when a currency has spilled into more than one stack.
+func count_of_type(type: Types.Item) -> int:
+	var total := 0
+	for data in inventory_slot_datas:
+		if data and data.item and data.item.type == type:
+			total += data.count
+	return total
+
+
+## Spends `amount` of `type`, draining partial stacks in slot order. Returns false
+## and removes nothing when the player cannot afford it, so a caller never has to
+## unwind a half-completed payment.
+func spend_type(type: Types.Item, amount: int) -> bool:
+	if amount <= 0 or count_of_type(type) < amount:
+		return false
+
+	var remaining := amount
+	for index in inventory_slot_datas.size():
+		if remaining <= 0:
+			break
+		var data = inventory_slot_datas[index]
+		if not data or not data.item or data.item.type != type:
+			continue
+
+		var taken: int = mini(remaining, data.count)
+		data.count -= taken
+		remaining -= taken
+		if data.count <= 0:
+			inventory_slot_datas[index] = null
+
+	inventory_updated.emit(self)
+	return true
+
+
 func remove_by_type(type: Types.Item):
 	for i in inventory_slot_datas.size():
 		var data = inventory_slot_datas[i]

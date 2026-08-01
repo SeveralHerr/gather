@@ -32,5 +32,18 @@ enum Item {
 	Ground,
 	Water,
 	X,
-	StoneResourceTest
+	StoneResourceTest,
+
+	# Appended, never inserted: the integer value of every entry is what saveFile
+	# stores for each tile and inventory slot, so reordering this enum silently
+	# rewrites every existing save.
+	Coin,
+	CopperResource,
+	CopperOre,
+	CopperBar,
+	GoldResource,
+	GoldOre,
+	GoldBar,
+	GoldPickaxe,
+	CopperPickaxe
 }

@@ -1,5 +1,11 @@
 extends Control
 
+## The corner "+N xp" readout. Since the xp splash pass this is the quieter, second view
+## of the same event: LevelUpManager.add_xp emits added_xp once and spawns one world
+## splash, and this label only listens - it never awards anything, so the two cannot
+## double-count. Kept rather than folded into SplashText because it survives a burst
+## (the timer restarts) and stays readable while a dozen splashes are flying.
+
 const DISPLAY_TIME := 0.6
 
 @onready var level_up_ui: LevelUpManager = $"../LevelUpUI"

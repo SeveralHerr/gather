@@ -41,15 +41,28 @@ func equal_type(incomingType: Types.Item):
 func equals(incoming_atlas_location, incoming_tile_source_id):
 	return incoming_atlas_location == atlas_location and incoming_tile_source_id == tile_source_id
 	
+## Atlas source id of the generated placeholder sheet, as registered in
+## assets/tilesets/world_tile_set.tres.
+const PLACEHOLDER_SOURCE_ID := 10
+
+## Icon sheet per tileset source. Everything hand-drawn lives on one sheet; the
+## generated placeholder ores are on a second one (tools/generate_placeholder_art.gd),
+## so the icon lookup has to key off the source id rather than assume the first.
+const SOURCE_ATLASES := {
+	PLACEHOLDER_SOURCE_ID: "res://assets/tilesets/placeholder_items_atlas.tres",
+}
+const DEFAULT_ATLAS := "res://assets/tilesets/game_items_atlas.tres"
+
+
 func get_atlas():
 	var location
 	if tile_atlas_location != Vector2i.ZERO:
 		location = Rect2(tile_atlas_location.x*16, tile_atlas_location.y*16, 16, 16)
 	else:
 		location = Rect2(atlas_location.x*16, atlas_location.y*16, 16, 16)
-	
+
 	var atlas_texture = AtlasTexture.new()
-	var atlas_file = load("res://assets/tilesets/game_items_atlas.tres")
+	var atlas_file = load(SOURCE_ATLASES.get(tile_source_id, DEFAULT_ATLAS))
 	atlas_texture.atlas = atlas_file
 	atlas_texture.region = location
 

@@ -16,7 +16,12 @@ signal resource_removing_stop(location: Vector2i, resource)
 # Ceiling on live resource nodes. The spawn timer never stops, so without this the
 # island saturates: every walkable tile ends up occupied, get_random_tile burns all
 # of its retries every tick, and the player has nowhere left to build.
-const MAX_RESOURCE_NODES := 60
+#
+# It is a density rather than a flat number because the island is no longer a fixed
+# size - land is bought, and a flat cap would leave every parcel after the first one
+# barren while the starting island stayed as crowded as ever.
+const RESOURCE_NODES_PER_LAND_TILE := 0.25
+const MIN_RESOURCE_CAP := 40
 
 # Floor on gather time so a fast tool can never hand Timer a zero wait_time.
 const MIN_GATHER_TIME := 0.1
@@ -38,8 +43,18 @@ func _ready():
 	hold_timer.wait_time = 1
 	hold_timer.one_shot = true
 
-	curent_resources.append(resources.Get(Types.Item.StoneResourceTest))
-	curent_resources.append(resources.Get(Types.Item.Tree))
+	# Everything a wooden pickaxe can be pointed at is here from the first frame.
+	# Coal and iron used to wait behind the Iron Age skill, which left a player who
+	# pushed any other branch with a pickaxe and nothing but trees and stone to hit.
+	# The higher tiers (copper, gold) are still skill-gated - see SkillTree.
+	for starting_resource in [
+		Types.Item.StoneResourceTest,
+		Types.Item.Tree,
+		Types.Item.StoneResource,
+		Types.Item.CoalResource,
+		Types.Item.IronResource,
+	]:
+		add_resource(starting_resource)
 
 	add_child(hold_timer)
 	hold_timer.connect("timeout", Callable(self, "_on_hold_timer_timeout"))
@@ -65,9 +80,50 @@ func _begin_progress():
 		gather_progress.begin(removing_info.location)
 
 
+## Makes a resource type eligible for the spawn timer. Idempotent on purpose: the
+## same type arrives from the starting set, from a skill purchase and from a loaded
+## save, and a duplicate entry would silently double that resource's spawn weight.
 func add_resource(type: Types.Item):
-	curent_resources.append(resources.Get(type))
-	
+	var resource := resources.Get(type)
+	if resource == null or curent_resources.has(resource):
+		return
+	curent_resources.append(resource)
+
+
+## Live-node ceiling for the island's current size.
+func resource_cap() -> int:
+	var land_tiles: int = tile_map_handler.count_land_tiles() if tile_map_handler else 0
+	return maxi(MIN_RESOURCE_CAP, int(land_tiles * RESOURCE_NODES_PER_LAND_TILE))
+
+
+## How full a stretch of land is when the player first sets foot on it, and the cap on
+## how much work one seeding pass will do.
+const SEED_FILL_RATIO := 0.7
+const SEED_ATTEMPT_LIMIT := 240
+
+
+## Fills the island up to SEED_FILL_RATIO of its cap in one go.
+##
+## The spawn timer places one node every eight seconds, which is the right rate for
+## *replacing* what the player clears and completely the wrong one for stocking ground
+## nobody has stood on yet: a fresh island opened with a single tree, and a parcel
+## bought for 31 gold stayed empty grass for the better part of ten minutes. Called
+## once after the island is generated, and again whenever land is bought.
+## Progress is counted from what add_random_resource() reports, NOT from the node
+## census. The census cannot see a scene-backed node on the frame its cell is written,
+## so treating a flat census as "the island is full" ended the first seeding pass at
+## six nodes — the moment the weighted roll first came up scene stone.
+func seed_island() -> void:
+	var target := int(resource_cap() * SEED_FILL_RATIO)
+	var placed := tile_map_handler.count_resource_nodes()
+	var attempts := 0
+
+	while placed < target and attempts < SEED_ATTEMPT_LIMIT:
+		attempts += 1
+		if add_random_resource():
+			placed += 1
+
+
 func get_random():
 	if curent_resources.is_empty():
 		return null
@@ -87,19 +143,46 @@ func get_random():
 
 	return curent_resources[curent_resources.size() - 1]
 
-func add_random_resource():
-	if tile_map_handler.count_resource_nodes() >= MAX_RESOURCE_NODES:
-		return
+## Returns whether a node was actually placed. The caller cannot infer that from the
+## node census: a scene-backed resource (StoneResourceTest) becomes a GameSceneResource
+## child of the TileMap only after the engine instantiates the scene tile, so the census
+## still reads the old value on the same frame the cell was written.
+func add_random_resource() -> bool:
+	if tile_map_handler.count_resource_nodes() >= resource_cap():
+		return false
 
 	var random_tile = tile_map_handler.get_random_tile()
 	var random_resource = get_random()
 
-	if random_tile != null and random_resource != null:
-		set_resource(random_tile, random_resource)
+	if random_tile == null or random_resource == null:
+		return false
+
+	set_resource(random_tile, random_resource)
+	return true
 
 func set_resource(location, resource: GameResource):
 	#tile_map_handler.set_game_resource(location, resource.tile_source_id, resource.atlas_location)
 	emit_signal("resource_added", location, resource)
+
+## Global position of a gather target. `location` is not one thing: the tilemap branch
+## hands over a map coordinate (Vector2i from get_location_of_nearby_resource), while the
+## scene-tile branch hands over the node's position in tilemap space. Both have to become
+## a global position before anything world-space - the xp splash - can be put there.
+func world_position_of(location) -> Vector2:
+	# Untyped on purpose: tileMap is a TileMap/TileMapLayer and map_to_local() is not on
+	# Node2D, so a narrower static type here would fail to compile.
+	var tile_map = tile_map_handler.tileMap if tile_map_handler else null
+
+	if location is Vector2i:
+		if tile_map == null:
+			return Vector2(location)
+		return tile_map.to_global(tile_map.map_to_local(location))
+
+	var local := Vector2(location.x, location.y)
+	if tile_map == null:
+		return local
+	return tile_map.to_global(local)
+
 
 func remove_resource(location, resource: GameResource):
 	var bonus_chance := removing_tool.bonus_yield_chance if removing_tool else 0.0
@@ -113,7 +196,7 @@ func remove_resource(location, resource: GameResource):
 	if resource.roll_secondary_drop():
 		PickUpManager.create_pickup(GameItems.get_item(resource.secondary_drop), location)
 
-	level_up_manager.add_xp(resource.xp)
+	level_up_manager.add_xp(resource.xp, world_position_of(location))
 	GameSoundManager.stop_gathering_sound()
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)

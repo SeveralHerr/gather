@@ -17,10 +17,37 @@ signal skill_learned(skill: Skill)
 
 ## XP needed to reach level 2, and the ratio between one threshold and the next.
 ## The old curve doubled (10/20/40/80...), which outran the 1-4 xp a node pays by
-## about level 5 and left most of the tree unreachable. 1.35 keeps a full twelve
-## nodes inside one session.
+## about level 5 and left most of the tree unreachable.
+##
+## 1.35 was calibrated against a twelve-node tree. The tree is sixteen nodes now, and
+## because the cost of the last level compounds, those four extra nodes doubled the
+## price of clearing it: 1020 XP, against the 500 that
+## test_player_stats.test_the_whole_tree_is_reachable_in_one_run treats as the edge of
+## one session. 1.28 puts sixteen nodes at 465. The guard is the design intent and the
+## growth rate is the dial, so the dial moved.
 const XP_FIRST_LEVEL := 10
-const XP_GROWTH := 1.35
+const XP_GROWTH := 1.28
+
+## XP award table for everything that is not a resource node. Node xp lives in
+## Resources.TUNING (1 for the common starters, up to 9 for gold) and is meant to stay
+## the dominant source; these are seasoning, not a second economy:
+##
+##   XP_KILL 5   - unchanged from before this pass. Enemies are scarce and dangerous,
+##                 so a kill is worth several common nodes.
+##   XP_CRAFT 2  - a crafted item always consumes gathered input, so crafting cannot be
+##                 farmed independently of gathering. 2 makes running a sawmill feel
+##                 worth watching without out-earning the pickaxe.
+##   XP_BUILD 1  - placing a tile consumes an item that was itself gathered or crafted,
+##                 so this is the tail end of a chain that has already paid out.
+##   XP_PICKUP 1 every PICKUPS_PER_XP drops - a drop is worth ~0.33 xp. A common node
+##                 pays 1 xp and drops 1-2 items, so gathering keeps ~2/3 of the income
+##                 from its own loop; per-drop xp at 1 each would have inverted that and
+##                 made vacuuming, not mining, the fastest way to level.
+const XP_KILL := 5
+const XP_CRAFT := 2
+const XP_BUILD := 1
+const XP_PICKUP := 1
+const PICKUPS_PER_XP := 3
 
 ## Ids that were renamed when the flat upgrade list became a tree. Applied on load
 ## so saves written before the rework keep their progress.
@@ -61,24 +88,67 @@ func _refresh_xp_bar() -> void:
 	xp_bar.value = xp
 
 
-## XP earned before the Scholar multiplier, as awarded by resources and enemies.
-func add_xp(amount: int):
+## The single LevelUpManager, found by group. main.tscn's root belongs to every group in
+## the project, so the type check is mandatory - get_first_node_in_group() would hand
+## back the root. Returns null when there is no tree (a bare node in a unit test).
+static func find(from: Node) -> LevelUpManager:
+	if from == null:
+		return null
+	var tree := from.get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("LevelUpManager"):
+		if node is LevelUpManager:
+			return node
+	return null
+
+
+## XP earned before the Scholar multiplier, as awarded by resources, enemies, crafting,
+## building and pickups. `world_position` is where the "+N XP" splash pops; pass the
+## thing that earned it (the node, the corpse, the station). Omit it and the splash
+## falls back to the player, so no award is ever silently invisible. Returns the amount
+## actually granted, after the multiplier.
+##
+## The "unset" default is Vector2.INF rather than null so the parameter stays statically
+## typed; no real world position is ever non-finite.
+func add_xp(amount: int, world_position: Vector2 = Vector2.INF) -> int:
 	var player := PlayerManager.player
 	var multiplier: float = player.stats.xp_mult if player else 1.0
 	var granted := int(round(amount * multiplier))
 
 	xp += granted
+	# The corner XpLabel (ui/floating_text.gd) listens to this. The world splash below
+	# is a second view of the same event, not a second award.
 	added_xp.emit(granted)
+
+	var splash_at := world_position if world_position.is_finite() else _player_position()
+	SplashText.spawn_xp(self, splash_at, granted)
 
 	while xp >= next_level:
 		level += 1
 		points += 1
 		next_level = next_threshold(next_level)
+		_splash_level_up()
 		level_gained.emit(level)
 		points_changed.emit(points)
 
 	_refresh_xp_bar()
 	xp_changed.emit(xp, next_level)
+	return granted
+
+
+func _player_position() -> Vector2:
+	var player := PlayerManager.player
+	return player.global_position if player else Vector2.ZERO
+
+
+## Level-ups are announced in the world, at the player, and nothing else happens: the
+## panel is opened with K when the player chooses to. This deliberately does not restore
+## the old behaviour of seizing the screen the instant a threshold is crossed.
+func _splash_level_up() -> void:
+	var at := _player_position()
+	SplashText.spawn(self, at, "LEVEL %d!" % level, SplashText.COLOR_LEVEL, SplashText.Emphasis.BIG)
+	SplashText.spawn(self, at, "+1 SKILL POINT", SplashText.COLOR_POINT, SplashText.Emphasis.BIG)
 
 
 ## The cumulative XP threshold that follows `current`. Static and shared with

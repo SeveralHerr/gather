@@ -80,10 +80,28 @@ func _on_died():
 	await get_tree().create_timer(0.1).timeout
 	
 	PickUpManager.create_pickup( items.get_item(drop), position)
-	
+	drop_coins()
+
 	#item_manager.AddItemToWorld(position, items.get_item(drop))
-	level_up_manager.add_xp(5)
+	level_up_manager.add_xp(LevelUpManager.XP_KILL, global_position)
 	queue_free()
+
+
+## Every kill pays at least one coin — gold is the currency land purchase runs on,
+## so a zero-coin kill would make combat feel like it paid nothing. Luck (the
+## Combat branch's coin_find_bonus) buys a chance at a second one.
+const BASE_COIN_DROP := 1
+
+
+func drop_coins() -> void:
+	var coins := BASE_COIN_DROP
+
+	var p = PlayerManager.player
+	if p != null and p.stats != null and randf() < p.stats.coin_find_bonus:
+		coins += 1
+
+	for _i in coins:
+		PickUpManager.create_pickup(items.get_item(Types.Item.Coin), position)
 
 
 func _on_body_entered(body: Node2D):

@@ -28,11 +28,29 @@ func get_furnace_recipe(type):
 			return recipe
 
 func furnace_recipes():
+	# Copper is the first metal the furnace ever sees — it is unlocked by the same
+	# skill that unlocks the furnace itself, so it has to be the cheapest bar in the
+	# game: one ore, one coal, exactly like iron but from a commoner-to-reach node.
+	var copper_bar_costs = {}
+	copper_bar_costs[Types.Item.CoalOre] = 1
+	copper_bar_costs[Types.Item.CopperOre] = 1
+	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.CopperBar, copper_bar_costs))
+
 	var iron_bar_costs = {}
 	iron_bar_costs[Types.Item.CoalOre] = 1
 	iron_bar_costs[Types.Item.IronOre] = 1
 	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.IronBar, iron_bar_costs))
-	
+
+	# Gold is alloyed, not smelted straight. The copper bar in here is deliberate: it
+	# is what stops copper becoming a dead tier the moment iron is unlocked, and it
+	# makes the gold bar cost two ore types plus double fuel without needing a new
+	# item to carry the difference.
+	var gold_bar_costs = {}
+	gold_bar_costs[Types.Item.CoalOre] = 2
+	gold_bar_costs[Types.Item.GoldOre] = 1
+	gold_bar_costs[Types.Item.CopperBar] = 1
+	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.GoldBar, gold_bar_costs))
+
 func sawmill_recipes():
 	var plank_costs = {}
 	plank_costs[Types.Item.Wood] = 1
@@ -54,9 +72,14 @@ func sawmill_recipes():
 	chest_costs[Types.Item.Wood] = 1
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Chest, chest_costs))
 	
+	# Copper rather than iron on purpose. The turret is a Combat-branch unlock, and
+	# pricing it in iron bars made it secretly depend on Industry tier 2; copper bars
+	# come with the furnace at Industry tier 1, so a Combat player can now actually
+	# reach the thing their own branch just gave them. It also gives copper a sink
+	# that exists before gold does.
 	var bone_turret_costs = {}
 	bone_turret_costs[Types.Item.Wood] = 1
-	bone_turret_costs[Types.Item.IronBar] = 1
+	bone_turret_costs[Types.Item.CopperBar] = 2
 	bone_turret_costs[Types.Item.String] = 1
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
 	
@@ -79,6 +102,24 @@ func sawmill_recipes():
 	iron_pickaxe_costs[Types.Item.IronBar] = 5
 	iron_pickaxe_costs[Types.Item.Plank] = 2
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
+
+	# The top of the ladder, and it should read as an undertaking rather than one more
+	# rung. Same shape as the iron pickaxe (bars + planks) so the comparison is
+	# obvious, but every gold bar underneath it already cost a gold ore, a copper bar
+	# and two coal - so this is really 5 gold ore + 5 copper ore + 15 coal + 4 wood,
+	# out of the rarest node on the island.
+	# The tool copper exists for. Cheap on purpose — it arrives with the furnace, well
+	# before bone becomes affordable, so it is the bridge out of the wooden pickaxe
+	# rather than a competitor to the tiers above it.
+	var copper_pickaxe_costs = {}
+	copper_pickaxe_costs[Types.Item.CopperBar] = 3
+	copper_pickaxe_costs[Types.Item.Plank] = 1
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
+
+	var gold_pickaxe_costs = {}
+	gold_pickaxe_costs[Types.Item.GoldBar] = 5
+	gold_pickaxe_costs[Types.Item.Plank] = 4
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
 			
 
 

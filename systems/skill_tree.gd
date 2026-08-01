@@ -23,8 +23,10 @@ const BRANCH_COLORS := {
 const BRANCH_TAGLINES := {
 	FORAGING: "Gather faster, gather more",
 	INDUSTRY: "Ore, fire and better tools",
-	COMBAT: "Survive what the waves send",
-	BUILDING: "Shelter, speed and reach",
+	# Combat used to promise surviving "what the waves send". Waves are gone, and the
+	# branch now ends on coin find, so it reads as damage-and-loot instead.
+	COMBAT: "Hit harder, loot richer",
+	BUILDING: "Shelter, speed and new land",
 }
 
 var skills: Dictionary = {}
@@ -43,10 +45,15 @@ func _add(skill: Skill) -> void:
 	order.append(skill.id)
 
 
-# Every branch is a straight three-node chain: one unlock or bonus per level, each
+# Every branch is a straight four-node chain: one unlock or bonus per level, each
 # gated on the one above it. Straight chains rather than a web are deliberate for
 # the early game — the choice worth making is which branch to push, not which of
 # five sibling nodes to take first.
+#
+# Tier 3 is the capstone row. Every branch ends on something the earlier tiers were
+# building towards rather than on one more percentage: Industry ends on gold (the
+# ore chain's last link), Combat on coin find, Building on cheaper land, and
+# Foraging on a double bonus to the loop it has been compounding all along.
 func _build() -> void:
 	# --- Foraging: the gathering loop is the most-used path in the game, so this
 	# branch compounds it. Speed first because it is felt immediately, yield
@@ -75,6 +82,19 @@ func _build() -> void:
 		Types.Item.Plank, ["bountiful"],
 		{"xp_mult": 0.25}
 	))
+	# The capstone deliberately repeats the two stats this branch opened with rather
+	# than introducing a fourth one. Foraging's whole pitch is the gather loop, and a
+	# second helping of speed and drops on top of the first is what "compounding"
+	# means here — by this point the player is holding an iron or gold pickaxe, so the
+	# percentages land on a much bigger number than they did at tier 0.
+	_add(Skill.new(
+		"motherlode", FORAGING, 3,
+		"Motherlode",
+		"Gather another 10% faster, and another 25% chance of an extra drop.",
+		"Faster + more drops",
+		Types.Item.Stone, ["scholar"],
+		{"gather_speed_mult": -0.10, "bonus_yield_chance": 0.25}
+	))
 
 	# --- Industry: the original recipe ladder, unchanged in content. Bone pickaxe
 	# opens the tier, iron makes the ore worth mining, smelting turns it into gear.
@@ -86,14 +106,23 @@ func _build() -> void:
 		Types.Item.BonePickaxe, [], {},
 		[{"product": Types.Item.BonePickaxe, "station": Types.Item.Sawmill}]
 	))
+	# The id stays "iron_age" — it is in LEGACY_IDS and in every save's taken set, so
+	# renaming it would silently drop the skill on load. Its *content* is repointed:
+	# coal and iron now spawn from the first frame (see ResourceManager2), which left
+	# this node granting nothing but the furnace. It opens copper instead, so the
+	# furnace arrives with something to put in it.
 	_add(Skill.new(
 		"iron_age", INDUSTRY, 1,
-		"Iron Age",
-		"Coal and iron start appearing. Craft the furnace.",
-		"New ore + furnace",
-		Types.Item.IronOre, ["bone_pickaxe"], {},
-		[{"product": Types.Item.Furnace, "station": Types.Item.Sawmill}],
-		[Types.Item.CoalResource, Types.Item.IronResource]
+		"Copper Age",
+		"Build the furnace, smelt copper bars and cut a copper pickaxe. Copper veins start appearing.",
+		"Furnace + copper",
+		Types.Item.CopperOre, ["bone_pickaxe"], {},
+		[
+			{"product": Types.Item.Furnace, "station": Types.Item.Sawmill},
+			{"product": Types.Item.CopperBar, "station": Types.Item.Furnace},
+			{"product": Types.Item.CopperPickaxe, "station": Types.Item.Sawmill},
+		],
+		[Types.Item.CopperResource]
 	))
 	_add(Skill.new(
 		"smelting", INDUSTRY, 2,
@@ -105,6 +134,20 @@ func _build() -> void:
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.IronPickaxe, "station": Types.Item.Sawmill},
 		]
+	))
+	# The last link in the ore chain. Gold is the only node that also pays coins, so
+	# this is the node that feeds both the top pickaxe and the land purchase.
+	_add(Skill.new(
+		"gold_rush", INDUSTRY, 3,
+		"Gold Rush",
+		"Gold veins start appearing. Alloy gold bars, and craft the gold pickaxe.",
+		"Gold + 2 recipes",
+		Types.Item.GoldBar, ["smelting"], {},
+		[
+			{"product": Types.Item.GoldBar, "station": Types.Item.Furnace},
+			{"product": Types.Item.GoldPickaxe, "station": Types.Item.Sawmill},
+		],
+		[Types.Item.GoldResource]
 	))
 
 	# --- Combat: bone_sword used to be a dead node that granted nothing at all
@@ -136,6 +179,17 @@ func _build() -> void:
 			{"product": Types.Item.Net, "station": Types.Item.Sawmill},
 		]
 	))
+	# Combat's payout tier. Killing things is otherwise the one loop that does not
+	# feed the economy, and coins are what land costs — so this is the branch's answer
+	# to "why fight instead of mine".
+	_add(Skill.new(
+		"plunder", COMBAT, 3,
+		"Plunder",
+		"+25% chance of an extra gold coin from anything that drops one.",
+		"+25% coin find",
+		Types.Item.Coin, ["bone_turret"],
+		{"coin_find_bonus": 0.25}
+	))
 
 	# --- Building: shelter first, then the two quality-of-life passives that make
 	# roaming between nodes cheaper.
@@ -166,6 +220,17 @@ func _build() -> void:
 		"+60% pickup range",
 		Types.Item.Chest, ["light_step"],
 		{"pickup_radius_mult": 0.6}
+	))
+	# land_cost_mult multiplies the price of the next parcel, so the effect is a
+	# NEGATIVE delta on a base of 1.0 — PlayerStats sums deltas onto BASE, giving
+	# 0.75. Written as +0.25 it would make land more expensive.
+	_add(Skill.new(
+		"surveyor", BUILDING, 3,
+		"Surveyor",
+		"Every new parcel of land costs 25% less gold.",
+		"-25% land cost",
+		Types.Item.Ground, ["magnetism"],
+		{"land_cost_mult": -0.25}
 	))
 
 

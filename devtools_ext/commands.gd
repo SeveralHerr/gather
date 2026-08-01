@@ -20,7 +20,13 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("give_item", _cmd_give_item)
 	dev.register_command("add_xp", _cmd_add_xp)
 	dev.register_command("gather_stats", _cmd_gather_stats)
-	dev.register_command("wave_stats", _cmd_wave_stats)
+	dev.register_command("spawn_stats", _cmd_spawn_stats)
+	dev.register_command("coin_count", _cmd_coin_count)
+	dev.register_command("land_state", _cmd_land_state)
+	dev.register_command("buy_land", _cmd_buy_land)
+	dev.register_command("land_panel", _cmd_land_panel)
+	dev.register_command("splash", _cmd_splash)
+	dev.register_command("spawn_resource", _cmd_spawn_resource)
 	dev.register_command("goto_resource", _cmd_goto_resource)
 	dev.register_command("skill_panel", _cmd_skill_panel)
 	dev.register_command("learn_skill", _cmd_learn_skill)
@@ -56,6 +62,18 @@ func _skill_panel_open() -> bool:
 	return ui != null and ui.is_open()
 
 
+func _enemy_spawner() -> EnemySpawner:
+	return _dev.get_tree().root.get_node_or_null("Main/Node2D/EnemySpawner") as EnemySpawner
+
+
+func _land_manager() -> LandManager:
+	return _dev.get_tree().root.get_node_or_null("Main/LandManager") as LandManager
+
+
+func _land_panel() -> LandPurchaseUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI2/LandPurchaseUI") as LandPurchaseUi
+
+
 func _tile_map_handler() -> TileMapHandler:
 	for node in _dev.get_tree().get_nodes_in_group("TileMapHandler"):
 		if node is TileMapHandler:
@@ -74,6 +92,21 @@ func _status(_args: Dictionary) -> Dictionary:
 		"max_hp": player.health_manager.max_health,
 		"invulnerable": player.invulnerable,
 	}
+
+	# Gold and the live enemy count ride along on every reply: both are now the
+	# heartbeat of a run (enemies spawn forever, gold is what land costs), and a
+	# spawner that has stopped or an economy that never pays out is invisible in a
+	# response that only reports hp and xp.
+	status["gold"] = player.inventory_data.count_of_type(Types.Item.Coin)
+
+	var spawner := _enemy_spawner()
+	if spawner:
+		status["live_enemies"] = spawner.count_live_enemies()
+		status["spawner_running"] = not spawner.timer.is_stopped()
+
+	# Splashes free themselves on a tween; a count that only ever climbs is the shape
+	# a leak makes, and it is invisible in any other reading.
+	status["live_splashes"] = _live_splashes()
 
 	var level_up = _level_up_manager()
 	if level_up:
@@ -248,11 +281,16 @@ func _cmd_learn_skill(args: Dictionary) -> Dictionary:
 ## Teleports the player next to a live resource node. Gathering only engages when a
 ## node is within reach, so without this a gather test just stands in empty grass and
 ## proves nothing.
-func _cmd_goto_resource(_args: Dictionary) -> Dictionary:
+## `{"name": "Copper"}` narrows it to one resource. Without that the verb walks to
+## whatever is nearest the origin of the used-cell list — always a common node — so the
+## rare tiers could not be gather-tested at all.
+func _cmd_goto_resource(args: Dictionary) -> Dictionary:
 	var player := _player()
 	var handler := _tile_map_handler()
 	if player == null or handler == null:
 		return {"success": false, "message": "player or tilemap handler missing", "data": {}}
+
+	var wanted: String = str(args.get("name", "")).to_lower()
 
 	var resource_atlases := {}
 	for key in handler.resources.GetAllTypes():
@@ -265,10 +303,20 @@ func _cmd_goto_resource(_args: Dictionary) -> Dictionary:
 
 	for cell in handler.tileMap.get_used_cells(1):
 		var atlas = handler.tileMap.get_cell_atlas_coords(1, cell)
-		if resource_atlases.has(atlas):
-			target = handler.tileMap.map_to_local(cell)
-			target_name = resource_atlases[atlas]
-			break
+		if not resource_atlases.has(atlas):
+			continue
+		if wanted != "" and str(resource_atlases[atlas]).to_lower() != wanted:
+			continue
+		target = handler.tileMap.map_to_local(cell)
+		target_name = resource_atlases[atlas]
+		break
+
+	if target == null and wanted != "":
+		return {
+			"success": false,
+			"message": "no live '%s' node on the island" % wanted,
+			"data": {"census": handler.resource_node_census()},
+		}
 
 	if target == null:
 		for node in handler.tileMap.get_children():
@@ -294,22 +342,233 @@ func _cmd_goto_resource(_args: Dictionary) -> Dictionary:
 	}
 
 
-## Wave difficulty readout, for asserting the spawn interval floor and enemy cap.
-func _cmd_wave_stats(_args: Dictionary) -> Dictionary:
-	var manager = _dev.get_tree().current_scene.get_node_or_null("Node2D/EnemyWaveManager")
-	if manager == null:
-		return {"success": false, "message": "no EnemyWaveManager in the scene", "data": {}}
+## Spawn-pressure readout. Replaces the old wave_stats: there are no waves any more,
+## and the numbers that matter now are the island-scaled cap and whether the timer is
+## still firing at all. A spawner that has quietly stopped still answers every other
+## verb with well-formed zeros, which reads exactly like a calm island.
+func _cmd_spawn_stats(_args: Dictionary) -> Dictionary:
+	var spawner := _enemy_spawner()
+	if spawner == null:
+		return {"success": false, "message": "no EnemySpawner in the scene", "data": {}}
+
+	var handler := _tile_map_handler()
 
 	return {
 		"success": true,
 		"message": "ok",
 		"data": {
-			"wave": manager.wave,
-			"live_enemies": manager.count_live_enemies(),
-			"pending_spawns": manager.pending_spawns,
-			"enemy_cap": manager.MAX_LIVE_ENEMIES,
-			"spawn_interval": manager.timer.wait_time,
-			"min_spawn_interval": manager.MIN_SPAWN_INTERVAL,
+			"live_enemies": spawner.count_live_enemies(),
+			"pending_spawns": spawner.pending_spawns,
+			"enemy_cap": spawner.enemy_cap(),
+			"land_tiles": handler.count_land_tiles() if handler else 0,
+			"spawn_interval": spawner.spawn_interval(),
+			"base_interval": EnemySpawner.SPAWN_INTERVAL,
+			"min_spawn_distance": EnemySpawner.MIN_SPAWN_DISTANCE,
+			"timer_stopped": spawner.timer.is_stopped(),
+			"time_to_next_spawn": spawner.timer.time_left,
+		},
+	}
+
+
+## Coin economy readout. "Enemies drop coins" is otherwise only assertable from a
+## screenshot: coins are an ordinary inventory item, so nothing else reports them.
+func _cmd_coin_count(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player in the scene", "data": {}}
+
+	# The PickUps container holds shadows as well as drops, so every child has to be
+	# probed for slot_data rather than assumed to have one.
+	var world_coins := 0
+	var container := _dev.get_tree().root.get_node_or_null("Main/Node2D/PickUps")
+	if container:
+		for node in container.get_children():
+			var slot_data = node.get("slot_data")
+			if slot_data and slot_data.item and slot_data.item.type == Types.Item.Coin:
+				world_coins += slot_data.count
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"inventory_coins": player.inventory_data.count_of_type(Types.Item.Coin),
+			"world_coin_pickups": world_coins,
+		},
+	}
+
+
+## The land economy in one read. current_cost()/gold()/can_afford() are methods and
+## the island size lives on the handler, so get-state on LandManager alone answers
+## none of the questions a land test actually asks.
+func _cmd_land_state(_args: Dictionary) -> Dictionary:
+	var land := _land_manager()
+	if land == null:
+		return {"success": false, "message": "no LandManager in the scene", "data": {}}
+
+	var handler := _tile_map_handler()
+	var panel := _land_panel()
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"radius": land.radius,
+			"parcels_bought": land.parcels_bought,
+			"max_parcels": LandManager.MAX_PARCELS,
+			"current_cost": land.current_cost(),
+			"cost_mult": land.cost_mult(),
+			"gold": land.gold(),
+			"can_afford": land.can_afford(),
+			"is_maxed": land.is_maxed(),
+			"land_tiles": handler.count_land_tiles() if handler else 0,
+			"panel_open": panel.is_open() if panel else false,
+		},
+	}
+
+
+## Buys land and reports what the world actually did. purchase() returning true is
+## not proof the island grew — the expansion runs after the payment, so the tile
+## count before and after is the only honest evidence.
+func _cmd_buy_land(args: Dictionary) -> Dictionary:
+	var land := _land_manager()
+	var handler := _tile_map_handler()
+	if land == null or handler == null:
+		return {"success": false, "message": "no LandManager or TileMapHandler", "data": {}}
+
+	var count: int = maxi(1, int(args.get("count", 1)))
+	var radius_before := land.radius
+	var tiles_before := handler.count_land_tiles()
+	var gold_before := land.gold()
+
+	var bought := 0
+	for _i in count:
+		if not land.purchase():
+			break
+		bought += 1
+
+	return {
+		"success": bought > 0,
+		"message": "bought %d of %d parcel(s)" % [bought, count],
+		"data": {
+			"bought": bought,
+			"radius_before": radius_before,
+			"radius_after": land.radius,
+			"tiles_before": tiles_before,
+			"tiles_after": handler.count_land_tiles(),
+			"spent": gold_before - land.gold(),
+			"gold_left": land.gold(),
+			"next_cost": land.current_cost(),
+		},
+	}
+
+
+## Opens or closes the land panel. Mirrors skill_panel: goes through set_open() so the
+## mouse-mode and disable_input handshake runs exactly as a B press would.
+func _cmd_land_panel(args: Dictionary) -> Dictionary:
+	var panel := _land_panel()
+	if panel == null:
+		return {"success": false, "message": "no LandPurchaseUi in the scene", "data": {}}
+
+	if args.has("open"):
+		panel.set_open(bool(args["open"]))
+	else:
+		panel.toggle()
+
+	return {"success": true, "message": "ok", "data": {"open": panel.is_open()}}
+
+
+## Fires a splash on demand. The splash system is the one part of this pass that can
+## only be judged by eye, and grinding to a level threshold to see the level-up variant
+## is not a test loop.
+func _cmd_splash(args: Dictionary) -> Dictionary:
+	var player := _player()
+	var at: Vector2 = player.global_position if player else Vector2.ZERO
+	if args.has("x"):
+		at = Vector2(float(args.get("x", 0.0)), float(args.get("y", 0.0)))
+
+	var text: String = str(args.get("text", ""))
+	var big: bool = bool(args.get("big", false))
+
+	var node
+	if text == "":
+		node = SplashText.spawn_xp(_dev, at, int(args.get("amount", 3)))
+	else:
+		node = SplashText.spawn(
+			_dev, at, text,
+			SplashText.COLOR_LEVEL if big else SplashText.DEFAULT_COLOR,
+			SplashText.Emphasis.BIG if big else SplashText.Emphasis.NORMAL
+		)
+
+	return {
+		"success": node != null,
+		"message": "spawned" if node != null else "no splash produced",
+		"data": {"at": {"x": at.x, "y": at.y}, "live_splashes": _live_splashes()},
+	}
+
+
+func _live_splashes() -> int:
+	var container = _dev.get_tree().root.get_node_or_null("Main/Node2D/SplashTexts")
+	return container.get_child_count() if container else 0
+
+
+## Places a named resource node on a free tile near the player. Two things make this
+## worth a verb rather than a run-method call: set_resource() takes a GameResource
+## object, which cannot be expressed in JSON, and it takes a Vector2i, which run-method
+## cannot coerce (gather-6sp). It is also the only way to see a rare node — gold spawns
+## at weight 0.4 behind a tier-3 skill — without grinding for it.
+func _cmd_spawn_resource(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var wanted: String = str(args.get("name", ""))
+	var resource: GameResource = null
+	for key in handler.resources.GetAllTypes():
+		var candidate = handler.resources.Get(key)
+		if candidate.name.to_lower() == wanted.to_lower():
+			resource = candidate
+			break
+
+	if resource == null:
+		var known := []
+		for key in handler.resources.GetAllTypes():
+			known.append(handler.resources.Get(key).name)
+		return {
+			"success": false,
+			"message": "no resource named '%s'" % wanted,
+			"data": {"known": known},
+		}
+
+	# Search outward from the player so the node lands somewhere visible.
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var target = null
+	for ring in range(1, 8):
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				var cell := origin + Vector2i(dx, dy)
+				if not handler.is_occupied(cell, true):
+					target = cell
+					break
+			if target != null:
+				break
+		if target != null:
+			break
+
+	if target == null:
+		return {"success": false, "message": "no free tile near the player", "data": {}}
+
+	handler.resource_manager.set_resource(target, resource)
+
+	return {
+		"success": true,
+		"message": "placed %s" % resource.name,
+		"data": {
+			"resource": resource.name,
+			"cell": {"x": target.x, "y": target.y},
+			"tile_source_id": resource.tile_source_id,
+			"atlas": {"x": resource.atlas_location.x, "y": resource.atlas_location.y},
+			"census": handler.resource_node_census(),
 		},
 	}
 
@@ -335,7 +594,8 @@ func _cmd_gather_stats(_args: Dictionary) -> Dictionary:
 		"data": {
 			"live_nodes": handler.count_resource_nodes(),
 			"census": handler.resource_node_census(),
-			"cap": ResourceManager2.MAX_RESOURCE_NODES,
+			"cap": handler.resource_manager.resource_cap(),
+			"land_tiles": handler.count_land_tiles(),
 			"spawnable": spawnable,
 			"tuning": tuning,
 		},

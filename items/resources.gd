@@ -27,6 +27,16 @@ const TUNING = {
 	Types.Item.IronResource: {
 		"xp": 4, "yield_min": 1, "yield_max": 1, "spawn_weight": 1.0,
 	},
+	Types.Item.CopperResource: {
+		"xp": 6, "yield_min": 1, "yield_max": 2, "spawn_weight": 0.8,
+	},
+	# The rarest node on the island, and the only one that also pays currency: gold
+	# is what land costs, so a gold vein found while mining is the moment the map
+	# gets bigger.
+	Types.Item.GoldResource: {
+		"xp": 9, "yield_min": 1, "yield_max": 1, "spawn_weight": 0.4,
+		"secondary_drop": Types.Item.Coin, "secondary_drop_chance": 0.5,
+	},
 }
 
 
@@ -38,6 +48,12 @@ func _ready():
 	resources[Types.Item.StoneResourceTest] = GameResource.new(Vector2i(0, 0), 9, Types.Item.StoneResourceTest, 1, true, "Stone", Vector2i.ZERO, true, Types.Item.Stone, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
 	resources[Types.Item.StoneResourceTest].is_scene_tile = true
 	resources[Types.Item.CoalResource] = GameResource.new(Vector2i(3, 1), 4,Types.Item.CoalResource, 1, false, "Coal", Vector2i.ZERO, false, Types.Item.CoalOre, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
+
+	# Placeholder-art tiers on tileset source 10. Several lookups in main.gd match a
+	# resource by atlas coordinate alone, so these coordinates must stay unique
+	# across ALL resources, not just within their own source.
+	resources[Types.Item.CopperResource] = GameResource.new(Vector2i(0, 3), 10, Types.Item.CopperResource, 1, false, "Copper", Vector2i.ZERO, false, Types.Item.CopperOre, Vector2i(2, 3), GameSoundManager.SoundType.MINING)
+	resources[Types.Item.GoldResource] = GameResource.new(Vector2i(1, 3), 10, Types.Item.GoldResource, 1, false, "Gold", Vector2i.ZERO, false, Types.Item.GoldOre, Vector2i(3, 3), GameSoundManager.SoundType.MINING)
 
 	_apply_tuning()
 

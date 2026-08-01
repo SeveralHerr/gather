@@ -45,6 +45,12 @@ func _process(_delta):
 func _on_timeout():
 	count -= 1
 	PickUpManager.create_pickup(GameItems.get_item( selected_recipe.product), position + Vector2(0, 6))
+
+	# Every produced item scores, so a station ticking away pays out visibly. Found by
+	# group rather than exported so a station placed at runtime needs no wiring.
+	var level_up_manager := LevelUpManager.find(self)
+	if level_up_manager:
+		level_up_manager.add_xp(LevelUpManager.XP_CRAFT, global_position + Vector2(0, -8))
 	
 func _on_button_open_crafting_station():
 	var nodes = get_tree().get_nodes_in_group("CraftingUi")

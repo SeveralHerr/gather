@@ -15,6 +15,7 @@ signal destroy_input_release
 signal attack
 signal toggle_inventory
 signal toggle_skills
+signal toggle_land
 
 @export var isUiOpen = false
 var disable_input = false
@@ -57,3 +58,7 @@ func _input(event):
 	# or mid-respawn is harmless, and being locked out of it is not.
 	if Input.is_action_just_released("skills"):
 		toggle_skills.emit()
+	# Same reasoning as the skill panel: the land panel is a menu, and being locked
+	# out of it while dead or mid-respawn is worse than opening it there.
+	if Input.is_action_just_released("land"):
+		toggle_land.emit()

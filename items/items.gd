@@ -27,14 +27,38 @@ func _ready():
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItemBoneEnemy.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)
 	# Pickaxe tiers: power is the gather time in seconds, bonus_yield_chance is the
-	# odds of an extra drop. Each tier is faster AND more productive than the last.
+	# odds of an extra drop. Each tier is faster AND more productive than the last,
+	# and every tier is kept in this one block so that invariant is checkable by
+	# eye — the gold tier's art happens to live on the placeholder sheet (source 10),
+	# which is a rendering detail, not a reason to register it somewhere else.
+	#
+	# Gather time falls per tier (2.0 / 1.6 / 1.2 / 0.7 / 0.45) and the extra-drop
+	# chance climbs. The gold tier's step is deliberately the smallest of the ladder:
+	# it costs several times what the iron one does, so most of what the player is
+	# buying at the top is the +0.75 yield, not the speed.
+	#
+	# Copper sits between wood and bone. It exists because copper arrives with the
+	# furnace (Industry tier 1) and would otherwise be an ore with no tool of its own —
+	# the one tier you smelt purely to feed a later recipe.
 	item_list[Types.Item.WoodPickaxe] = GameItemPickaxe.new(Vector2i(12,0), 4, Types.Item.WoodPickaxe, 1, false, "Wooden Pickaxe", Vector2i.ZERO, false, 2.0, 0.0)
+	item_list[Types.Item.CopperPickaxe] = GameItemPickaxe.new(Vector2i(4, 3), 10, Types.Item.CopperPickaxe, 1, false, "Copper Pickaxe", Vector2i.ZERO, false, 1.6, 0.15)
 	item_list[Types.Item.BonePickaxe] = GameItemPickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1.2, 0.25)
 	item_list[Types.Item.IronPickaxe] = GameItemPickaxe.new(Vector2i(6,1), 4, Types.Item.IronPickaxe, 1, false, "Iron Pickaxe", Vector2i.ZERO, false, 0.7, 0.5)
+	item_list[Types.Item.GoldPickaxe] = GameItemPickaxe.new(Vector2i(5, 4), 10, Types.Item.GoldPickaxe, 1, false, "Gold Pickaxe", Vector2i.ZERO, false, 0.45, 0.75)
 	item_list[Types.Item.Food] = GameItemConsumable.new(Vector2i(15, 0), 4, Types.Item.Food, 1, false, "Food", Vector2i.ZERO, false, 4)
 	item_list[Types.Item.Sword] = GameItemSword.new(Vector2i(6, 0), 4, Types.Item.Sword, 1, false, "Sword", Vector2i.ZERO, false, 4)
 	item_list[Types.Item.X] = GameItem.new(Vector2i(16, 0), 4, Types.Item.X, 1, false, "X", Vector2i.ZERO, false)
-	
+
+	# --- Ore tiers and currency drawn from the generated placeholder sheet
+	# (tileset source 10). Swapping any of these onto real art is a two-value edit:
+	# change the atlas coordinate and the source id back to 4.
+	item_list[Types.Item.Coin] = GameItem.new(Vector2i(4, 4), 10, Types.Item.Coin, 1, false, "Gold Coin", Vector2i.ZERO, false)
+	item_list[Types.Item.CopperOre] = GameItem.new(Vector2i(0, 4), 10, Types.Item.CopperOre, 1, false, "Copper Ore", Vector2i.ZERO, false)
+	item_list[Types.Item.GoldOre] = GameItem.new(Vector2i(1, 4), 10, Types.Item.GoldOre, 1, false, "Gold Ore", Vector2i.ZERO, false)
+	item_list[Types.Item.CopperBar] = GameItem.new(Vector2i(2, 4), 10, Types.Item.CopperBar, 1, false, "Copper Bar", Vector2i.ZERO, false)
+	item_list[Types.Item.GoldBar] = GameItem.new(Vector2i(3, 4), 10, Types.Item.GoldBar, 1, false, "Gold Bar", Vector2i.ZERO, false)
+	# The gold pickaxe is registered with the rest of the pickaxe ladder above.
+
 	
 	
 	

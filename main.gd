@@ -28,6 +28,10 @@ var noise_threshold = 0.0
 var noise = FastNoiseLite.new() # Instance of OpenSimplexNoise
 var tile_index = 0 # You should set this to the appropriate tile index
 
+## Owns the island radius from the moment land becomes purchasable. Created in
+## _ready() rather than placed in main.tscn.
+var land_manager: LandManager
+
 var late_load = false
 
 var disableSetTile = false
@@ -56,46 +60,103 @@ func _ready():
 		tileMap.set_cell(0, cell, -1)
 	#noise.set_frequency(0.5)	
 	noise.set_seed(randi())
-	var lands = []
-	for x in range(-radius, radius + 1):
-		for y in range(-radius, radius + 1):
-			var tile_position = Vector2(x, y)
-			var distance = tile_position.length()
-
-			if distance <= radius:
-				var noise_value = noise.get_noise_2d(x * noise_scale, y * noise_scale)
-
-				if noise_value < noise_threshold:
-					# Place a tile at this position
-					#tileMap.set_cell(1, tile_position, 4, Vector2i(0, 15),1 )
-					lands.append(tile_position)
+	var lands := land_cells_for_radius(radius)
 	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
 
 	PlayerManager.player.position = tileMap.map_to_local(lands[0])
 	PlayerManager.player.set_spawn_position(PlayerManager.player.position)
 
+	_setup_land_purchase()
 
-func generate_island():
-	var tile_grid = tileMap.get_used_cells(0)
-	
-	for cell in tile_grid:
-		tileMap.set_cell(0, cell, -1)
-	#noise.set_frequency(0.5)	
-	noise.set_seed(randi())
-	var lands = []
-	for x in range(-radius, radius + 1):
-		for y in range(-radius, radius + 1):
-			var tile_position = Vector2(x, y)
-			var distance = tile_position.length()
 
-			if distance <= radius:
-				var noise_value = noise.get_noise_2d(x * noise_scale, y * noise_scale)
+## The land cells of an island of `island_radius`, straight out of the noise field.
+## Deterministic for a given seed, so the same call at a larger radius returns a
+## superset of the smaller one — which is what lets the island grow without the
+## coastline the player already owns changing shape.
+func land_cells_for_radius(island_radius: int) -> Array[Vector2i]:
+	var lands: Array[Vector2i] = []
+	for x in range(-island_radius, island_radius + 1):
+		for y in range(-island_radius, island_radius + 1):
+			if Vector2(x, y).length() > island_radius:
+				continue
+			if noise.get_noise_2d(x * noise_scale, y * noise_scale) < noise_threshold:
+				lands.append(Vector2i(x, y))
+	return lands
 
-				if noise_value < noise_threshold:
-					# Place a tile at this position
-					#tileMap.set_cell(1, tile_position, 4, Vector2i(0, 15),1 )
-					lands.append(tile_position)
+
+## Grows the island out to `new_radius` and returns how many land cells that
+## revealed. Non-destructive, and the two things that make it so are worth
+## spelling out:
+##
+##  - The noise instance and its seed are left alone. Reseeding would give the
+##    already-owned half of the island a different shape, stranding buildings in
+##    the sea.
+##  - Only layer 0 is written. Resources, walls and buildings live on layers 1
+##    and 2 and are never touched.
+##
+## The *whole* land set is handed to set_cells_terrain_connect, not just the new
+## ring: the old coastline tiles need to be re-solved as interior now that there
+## is land beyond them, and that only happens if they are in the set.
+func expand_island(new_radius: int) -> int:
+	if new_radius <= radius:
+		return 0
+
+	var before := land_cells_for_radius(radius).size()
+	radius = new_radius
+
+	var lands := land_cells_for_radius(radius)
 	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
+
+	return lands.size() - before
+
+
+## The seed the island's shape comes out of. randomize()d per session, so it has
+## to be saved alongside the land purchases: re-expanding a loaded island against
+## a fresh seed would grow a coastline that has nothing to do with the one the
+## player bought.
+func island_seed() -> int:
+	return noise.seed
+
+
+func set_island_seed(new_seed: int) -> void:
+	noise.set_seed(new_seed)
+
+
+## A bought parcel is stocked immediately rather than trickling in over the next ten
+## minutes — the land is what was paid for, and empty grass does not read as a purchase.
+func _on_land_purchased(_new_radius: int, _tiles_added: int) -> void:
+	resource_manager.seed_island()
+
+
+## The land economy and its panel. Both are created here rather than placed in
+## main.tscn so the scene file stays untouched; the panel goes in the UI2
+## CanvasLayer (screen space) and never under Player/Camera2D/UI, which is world
+## space at 0.23 scale for the diegetic HUD.
+func _setup_land_purchase() -> void:
+	land_manager = LandManager.new()
+	land_manager.name = "LandManager"
+	land_manager.tile_map_handler = self
+	add_child(land_manager)
+
+	# Stock the island the player is standing on, and every parcel they buy after it.
+	# ResourceManager2's own _ready() runs before this one — children are readied
+	# before their parent — so at that point there is no land to put anything on yet.
+	resource_manager.seed_island()
+	land_manager.land_purchased.connect(_on_land_purchased)
+
+	var ui2 := get_node_or_null("UI2")
+	if ui2 == null:
+		push_warning("TileMapHandler: no UI2 CanvasLayer, the land panel has nowhere to live")
+		return
+
+	var panel := LandPurchaseUi.new()
+	panel.name = "LandPurchaseUI"
+	panel.land_manager = land_manager
+	panel.tile_map_handler = self
+	panel.input_manager = input_manager
+	ui2.add_child(panel)
+
+
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(_delta):
 	if late_load == true:
@@ -156,25 +217,39 @@ func _on_mouse_left(isUiOpen: bool):
 func _on_resource_added(location: Vector2i, resource: GameResource):
 	set_tile(location,resource.tile_source_id, resource.atlas_location, resource.layer, resource.is_scene_tile)
 
+## Every ore node breaks with the same stone crack; only tree and the scene-based
+## nodes sound different.
+const STONE_SOUNDED_RESOURCES := [
+	Types.Item.StoneResource,
+	Types.Item.CoalResource,
+	Types.Item.IronResource,
+	Types.Item.CopperResource,
+	Types.Item.GoldResource,
+]
+
 func _on_resource_removed(location: Vector2i, resource: GameResource):
-	if resource.type == Types.Item.StoneResource or resource.type == Types.Item.CoalResource or resource.type == Types.Item.IronResource:
+	if resource.type in STONE_SOUNDED_RESOURCES:
 		sound_manager.play_sound(SoundManager.SoundType.STONE)
-	
+
 	clear_tile(tileMap.local_to_map(location))
 
 func _on_resource_removing(location: Vector2i, resource: GameResource):
 	# Add highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
-	
+
+	# The mid-gather frame lives on the same sheet as the node itself, so the source
+	# id has to come from the resource. It used to be hardcoded to 4, which drew
+	# whatever happened to sit at those coordinates on the hand-drawn sheet for any
+	# resource registered against another source.
 	if resource.gathering_atlas_location != Vector2i.ZERO:
-		tileMap.set_cell(1, tileMap.local_to_map(location), 4, resource.gathering_atlas_location)
-	
+		tileMap.set_cell(1, tileMap.local_to_map(location), resource.tile_source_id, resource.gathering_atlas_location)
+
 func _on_resource_removing_stop(location: Vector2i, resource: GameResource):
 	# Remove highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
-	
+
 	if resource.gathering_atlas_location != Vector2i.ZERO:
-		tileMap.set_cell(1, tileMap.local_to_map(location), 4, resource.atlas_location)
+		tileMap.set_cell(1, tileMap.local_to_map(location), resource.tile_source_id, resource.atlas_location)
 
 func clear_tile(location: Vector2i):
 	# Remove highlight
@@ -223,7 +298,7 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 		occupied = true
 		
 	# Check if trying to spawn on anything that is not grass
-	if tileMap.get_cell_atlas_coords(0, tilePos) != Vector2i(9, 17):
+	if tileMap.get_cell_atlas_coords(0, tilePos) != GRASS_ATLAS:
 		occupied = true
 	
 	
@@ -263,6 +338,26 @@ func resource_node_census() -> Dictionary:
 			census[resource_name] = census.get(resource_name, 0) + 1
 
 	return census
+
+
+## Plain grass. This exact tile is what "walkable, buildable land" means everywhere
+## in the project — spawn placement, occupancy and the island size all key off it.
+const GRASS_ATLAS := Vector2i(9, 17)
+
+
+## Every plain-grass ground cell on the island, in tilemap coordinates.
+func land_tiles() -> Array:
+	var tiles := []
+	for cell in tileMap.get_used_cells(0):
+		if tileMap.get_cell_atlas_coords(0, cell) == GRASS_ATLAS:
+			tiles.append(cell)
+	return tiles
+
+
+## How big the island is right now. Grows as land is bought, which is what the
+## resource and enemy population ceilings scale against.
+func count_land_tiles() -> int:
+	return land_tiles().size()
 
 
 ## Total live resource nodes. Used to cap spawning.
@@ -449,13 +544,8 @@ func rain():
 
 func get_random_tile():
 	# Get the used rectangle, which includes the area where tiles are placed
-	var used_tiles = []
-	var ground = tileMap.get_used_cells(0)
-	for i in ground.size():
-		var atlas = tileMap.get_cell_atlas_coords(0, ground[i])
-		if atlas == Vector2i(9, 17):
-			used_tiles.append(ground[i])
-		
+	var used_tiles = land_tiles()
+
 	if not used_tiles:
 		return
 	

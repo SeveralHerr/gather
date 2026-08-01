@@ -16,6 +16,8 @@ const BASE := {
 	"damage_bonus": 0,
 	"move_speed_mult": 1.0,
 	"pickup_radius_mult": 1.0,
+	"coin_find_bonus": 0.0,
+	"land_cost_mult": 1.0,
 }
 
 ## Multiplies the equipped pickaxe's gather time. Below 1.0 is faster; the caller
@@ -30,6 +32,12 @@ var max_health_bonus: int = 0
 var damage_bonus: int = 0
 var move_speed_mult: float = 1.0
 var pickup_radius_mult: float = 1.0
+
+## Added chance of an extra gold coin from anything that can drop one.
+var coin_find_bonus: float = 0.0
+
+## Multiplies the price of the next land parcel. Below 1.0 is cheaper.
+var land_cost_mult: float = 1.0
 
 
 func _init():
