@@ -78,9 +78,18 @@ func _load() -> void:
 		
 		# Get the Data
 		var node_data = json.get_data()
+		# A line that is not a dictionary, or a dictionary with no filepath, is a
+		# saveObject() that aborted mid-way: a typed `-> Dictionary` still returns {}
+		# when the body raises. Skipping it loses that one node's state, which is what
+		# already happened — reading ["filepath"] off it only added a second error on
+		# top and stopped the rest of the file being read.
+		if node_data is not Dictionary or not node_data.has("filepath"):
+			push_warning("SaveLoad: skipping an entry with no filepath (a saveObject likely failed)")
+			continue
+
 		if node_data.has("x") and node_data.has("y"):
 			loads.append(node_data)
-			
+
 		elif has_node(node_data["filepath"]) :
 			get_node(node_data["filepath"]).loadObject(node_data)
 			

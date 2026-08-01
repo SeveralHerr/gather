@@ -43,16 +43,27 @@ func create_pickup(item: GameItem, position: Vector2):
 func saveObject() -> Dictionary:
 	var world_item_data = {}
 	var pickups_in_world = get_node("/root/Main/Node2D/PickUps").get_children()
-	
-	for i in pickups_in_world.size():
-		var json = {
-			"itemType": pickups_in_world[i].slot_data.item.type,
-			"x": pickups_in_world[i].position.x,
-			"y": pickups_in_world[i].position.y
-		}
-		
-		world_item_data[i] = JSON.stringify(json)
-	
+
+	# create() parents a shadow Sprite2D next to every drop, so half of this
+	# container has no slot_data at all. Reading it unconditionally aborted the
+	# method on the first shadow — and because saveObject is declared
+	# `-> Dictionary`, GDScript still handed SaveLoad an empty {}. The result was a
+	# blank line in saveFile, an "invalid access to key 'filepath'" on the next
+	# load, and every item lying on the ground silently gone.
+	var saved := 0
+	for node in pickups_in_world:
+		var slot_data = node.get("slot_data")
+		if slot_data == null or slot_data.item == null:
+			continue
+
+		world_item_data[saved] = JSON.stringify({
+			"itemType": slot_data.item.type,
+			"x": node.position.x,
+			"y": node.position.y,
+		})
+		saved += 1
+
+
 	var dict := {
 		"filepath": get_path(),
 		"world_items": world_item_data
