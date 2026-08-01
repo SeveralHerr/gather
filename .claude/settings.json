@@ -10,6 +10,18 @@
         ],
         "matcher": ""
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python tools/check_devtools_log.py",
+            "timeout": 10,
+            "statusMessage": "Checking devtools log..."
+          }
+        ]
+      }
     ]
   }
 }
