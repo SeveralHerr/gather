@@ -364,3 +364,12 @@ Guidelines that make an entry useful later:
   The summary line alone reads as a clean pass; only the exit code and the `[ERR]` line say
   otherwise. `--import` then took the suite to `121 passed, exit 0`. This is the fix from
   the earlier "0 tests discovered, ALL TESTS PASSED" gap working exactly as intended.
+
+## 2026-08-01 — Commit step (window enlargement + in-flight mobile work)
+
+- No gaps this turn. Committing exercised no `/verify` or devtools surface. Worth noting for
+  the record only: two files (`project.godot`, `log-devtools.md`) carried both this session's
+  edits and concurrent work from outside it, and `git add -p` is unavailable to agents, so the
+  split was done by staging reconstructed blobs with `git hash-object -w` + `git update-index`.
+  That is a git-workflow constraint, not a harness gap, and it worked — `git diff HEAD` is
+  empty and `project.godot` reassembled with all eight sections intact.
