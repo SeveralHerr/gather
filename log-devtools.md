@@ -185,3 +185,10 @@ Guidelines that make an entry useful later:
     the harness repo's log, deduped by id. The prompt written this turn is the manual
     version of exactly that script, which is the strongest evidence yet that it should
     exist.
+
+## 2026-08-01 — commit the Forager pass
+
+- No gaps this turn. Branching, staging and three commits needed nothing the harness
+  provides; the pre-commit gate (`lint_project.gd` exit 0, `run_tests.gd` 114/114, zero
+  `SCRIPT ERROR` lines) was re-run against the committed tree and agreed with the
+  pre-commit run.
