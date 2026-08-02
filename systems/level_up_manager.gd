@@ -49,8 +49,30 @@ func _xp_bar_node() -> ProgressBar:
 ## level should cost more of it. Clearing the tree goes 465 -> 561, still one run. The
 ## first level is untouched at 10 — the growth rate is what lengthens the run, and making
 ## the opening skill cost more would only delay the tree becoming visible at all.
-const XP_FIRST_LEVEL := 10
-const XP_GROWTH := 1.30
+##
+## That last sentence was wrong, and 10/1.30 is what it cost (`gather-1n2`). A new player
+## banked six skill points within minutes of starting: the thresholds are cumulative — xp
+## is never reset — so they ran 10, 13, 17, 23, 30, 39, and a node pays a flat 1 xp. Six
+## points for under forty nodes reads as confetti, not progression, and the tree was fully
+## visible before the player had learned what any of it did.
+##
+## Every previous pass turned the growth rate because that was the dial that fixed the
+## tail. The opening is the other end of the curve and growth barely touches it, so this
+## pass moves the base instead — and *lowers* growth to pay for it, because compounding is
+## what would otherwise turn a high base into a four-figure tree. 40 with 1.19:
+##
+##   first point  10 -> 40 XP     the tree now appears after a real stretch of mining
+##   sixth point   39 -> 100 XP   2.6x slower, which is the whole point of this pass
+##   whole tree   561 -> 578 XP   +3%, i.e. still the same one long run it was
+##
+## 35/1.20 was the first proposal and lands the six-point mark at 90 (2.3x) — the tail is
+## equivalent, the opening is the thing being fixed, and 100 sits in the middle of the
+## intended band rather than under it. The whole-tree figure is what is actually being
+## held constant here; test_the_whole_tree_is_reachable_in_one_run's bound is unmoved at
+## 650 because 578 did not need it moved, and a bound that only ever follows the dial is
+## not a guard.
+const XP_FIRST_LEVEL := 40
+const XP_GROWTH := 1.19
 
 ## XP award table for everything that is not a resource node. Node xp lives in
 ## Resources.TUNING — a flat 1 for every node now, ore included — and is meant to stay
@@ -69,6 +91,19 @@ const XP_GROWTH := 1.30
 ##                 pays 1 xp and drops 1-2 items, so gathering keeps ~2/3 of the income
 ##                 from its own loop; per-drop xp at 1 each would have inverted that and
 ##                 made vacuuming, not mining, the fastest way to level.
+##
+## `gather-1n2` raised the thresholds and deliberately left this table alone. Every value
+## here is priced against a node's 1 xp, so scaling the curve scales all five together and
+## the ratios above still say what they said — retuning them as well would have been two
+## dials moving at once for one symptom.
+##
+## The one figure that does not survive re-reading is XP_PICKUP's "seasoning". A drop is
+## 0.33 xp and PickUpManager mints drops from more than node yields: the crafted product,
+## enemy loot, and — the one that is not a chain that has already paid out —
+## DestroyManager handing back the very tile that XP_BUILD just paid for. Place, destroy,
+## repeat is ~1.33 xp a cycle off a single item and no gathering at all. That is a faucet
+## in XP_BUILD's premise, not in the pickup rate, so it is not fixed by editing this
+## table; it wants a placement that only pays the first time. Left as found.
 const XP_KILL := 3
 const XP_CRAFT := 2
 const XP_BUILD := 1

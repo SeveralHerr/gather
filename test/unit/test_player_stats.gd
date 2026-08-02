@@ -115,6 +115,13 @@ func test_the_whole_tree_is_reachable_in_one_run() -> String:
 	# tuning dial, not a measurement, so it moves with the dial: 1.30 puts the tree at
 	# 561, and 650 leaves the next turn of the dial room to fail here rather than
 	# silently doubling the run again.
+	#
+	# gather-1n2 quadrupled XP_FIRST_LEVEL and cut XP_GROWTH to 1.19 to slow the opening,
+	# which lands the tree at 578 — inside the existing bound, so the bound has not moved.
+	# That is the intended outcome and not a coincidence: the pass was constrained to keep
+	# the tail where it was and only re-price the early levels. A bound that gets nudged
+	# up every time the dial turns is not a guard, so 650 stays until something genuinely
+	# argues for a longer run.
 	var levels_needed := tree.order.size() + 1
 	var xp_needed := LevelUpManager.xp_for_level(levels_needed)
 
@@ -124,10 +131,43 @@ func test_the_whole_tree_is_reachable_in_one_run() -> String:
 	)
 
 
-func test_the_first_level_is_cheap() -> String:
-	# The first skill should land within the opening minute or the tree does not
-	# read as part of the early game at all.
+func test_the_first_level_is_earned_not_given() -> String:
+	# This asserted XP_FIRST_LEVEL <= 12 on the theory that the tree has to appear inside
+	# the opening minute to read as part of the early game. gather-1n2 is the counter-
+	# example: at 10 XP against a node's flat 1 XP the panel opened before the player had
+	# used a pickaxe on more than a handful of things, and the first skill was a reward
+	# for nothing. The band is the intent now, not the floor of it — cheap enough that the
+	# tree is an early-game system, expensive enough that reaching it was a decision.
+	var first := LevelUpManager.XP_FIRST_LEVEL
+
+	var err: String = _T.assert_true(first >= 25, "the first level costs only %d XP" % first)
+	if err != "":
+		return err
+
+	return _T.assert_true(first <= 60, "the first level costs %d XP, which is a grind" % first)
+
+
+func test_the_opening_does_not_hand_out_six_points() -> String:
+	# The regression that produced gather-1n2, pinned directly: a player reached six
+	# banked skill points within minutes of starting. Thresholds are cumulative, so the
+	# sixth point is simply the level-7 threshold, and at 10/1.30 it was 39 XP — under
+	# forty resource nodes for a third of the tree.
+	#
+	# 90 is a floor on the *symptom*, not a restatement of the current constants (which
+	# put it at 100). It is roughly 2.3x the value that was reported as broken, so any
+	# future pair that drifts back toward the old pacing fails here rather than shipping.
+	# The ceiling is the other half: six points still have to be a session's opening, not
+	# its whole arc.
+	var sixth_point := LevelUpManager.xp_for_level(7)
+
+	var err: String = _T.assert_true(
+		sixth_point >= 90,
+		"six skill points cost %d XP, which is the pacing gather-1n2 was filed about" % sixth_point
+	)
+	if err != "":
+		return err
+
 	return _T.assert_true(
-		LevelUpManager.XP_FIRST_LEVEL <= 12,
-		"the first level costs %d XP" % LevelUpManager.XP_FIRST_LEVEL
+		sixth_point <= 160,
+		"six skill points cost %d XP, so the early tree is out of reach" % sixth_point
 	)
