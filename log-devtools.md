@@ -1434,3 +1434,24 @@ Guidelines that make an entry useful later:
     a union over the run rather than a single instant. A transient node — a splash, a
     particle, a projectile, a pickup — is exactly the kind of thing worth verifying at
     runtime and exactly the kind reach currently cannot credit.
+
+## 2026-08-02 — Committed the parallel splash-text work and closed the session out
+
+- Value: **warranted** — the gates were the only thing standing behind a commit message for
+  ~225 lines I did not write.
+  - Expected: the headless suite either covers the splash-text coalescing or it does not, and
+    that decides whether I can honestly commit someone else's in-flight work or have to leave
+    it in the tree.
+  - Got: `Total: 192 | Passed: 192`, with `git diff test/unit/test_splash_text.gd` naming five
+    new tests — `test_xp_awards_in_one_place_become_a_single_label`,
+    `..._walks_up_the_colour_ramp`, `..._swells`, `test_xp_far_away_gets_its_own_label`,
+    `test_a_finished_xp_label_does_not_absorb`. That last one is the load-bearing one: the
+    change adds a `static var _live_xp` holding a node across frames, and a static reference
+    to a freed node is exactly the leak this project already fixed once in HealthManager. A
+    test naming it meant the risk had been considered, so the commit could say so.
+  - Cheaper: reading the diff, which I did anyway and which is what let me describe the
+    generation-stamped guard accurately. The suite added the part reading cannot give — that
+    the five tests actually pass on this tree rather than on the tree they were written
+    against. Both were needed; neither alone was enough to commit code I had not authored.
+
+- Gap: no gaps this turn.
