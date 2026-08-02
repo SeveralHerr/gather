@@ -373,3 +373,59 @@ Guidelines that make an entry useful later:
   split was done by staging reconstructed blobs with `git hash-object -w` + `git update-index`.
   That is a git-workflow constraint, not a harness gap, and it worked — `git diff HEAD` is
   empty and `project.godot` reassembled with all eight sections intact.
+
+## 2026-08-01 — /simplify cleanup pass (mobile controls, camera HUD, CI, dead .bak files)
+
+- Gap: **the harness install predates `verify_ledger.py` and `harness-version`** — `/verify`
+  Phase 5 says to record the run, but:
+  ```
+  python tools/verify_ledger.py record --run .devtools/run.json
+  can't open file '...\tools\verify_ledger.py': [Errno 2] No such file or directory
+  ```
+  and `grep -m1 'harness-version:' tools/lint_project.gd` printed nothing, so the `harness:`
+  field every Phase 6 gap is supposed to carry cannot be filled either. The run was verified
+  but not recorded, which is exactly the history the ledger exists to accumulate.
+  - [G-023] status: open | seen: 1 | harness: unknown (no version marker installed)
+  - Improvement: re-run `/scaffold-godot-harness` to pick up `verify_ledger.py` +
+    `tools/upstream_gaps.py` + the version marker. Failing that, `/verify` should detect the
+    missing script and say "ledger not installed" rather than surfacing a raw Python traceback
+    that reads like a broken command.
+
+- Gap: **`gather_stats` cannot observe an in-progress gather** — the one verb named for the
+  gather loop returns only world state (`cap`, `census`, `land_tiles`, `live_nodes`,
+  `spawnable`, `tuning`). Holding the touch MINE button and re-reading it produced a
+  byte-identical response, so the hold was unobservable through the verb that exists for it:
+  ```
+  {'cap': 40, 'land_tiles': 111, 'live_nodes': 40, 'spawnable': [...], 'tuning': {...}}
+  ```
+  Falling back to `get-state --node /root/Main/ResourceManager --property hold_timer` returned
+  `@Timer@14:<Timer#92090140860>` — an opaque object id, not a remaining time. The hold was
+  verified indirectly instead (the ITEM button cycling `HotBarInventory.selected_index` 0 -> 1
+  proves the same touch -> `_input` -> `send_action` path).
+  - [G-024] status: open | seen: 1 | harness: unknown
+  - Improvement: add `is_gathering`, `hold_time_left` and `target_resource` to the
+    `gather_stats` payload — three fields off `ResourceManager2`, and the gather loop becomes
+    assertable at runtime instead of only in unit tests.
+
+- Gap: **git-bash rewrites `/root/...` node paths into Windows paths** — every `--node`
+  argument starting with `/root` is mangled by MSYS path conversion before Python sees it:
+  ```
+  Unknown property on C:/Program Files/Git/root/Main/ResourceManager: removing_resource
+  ```
+  `devtools.py` normalizes it back (the node resolved and `hold_timer` returned fine), but the
+  mangled path is echoed in every error message, so a genuine typo and a path-conversion
+  artifact look identical and the first instinct is to debug the wrong thing.
+  - [G-025] status: open | seen: 1 | harness: unknown
+  - Improvement: echo the *normalized* path in error messages, not the raw argv one.
+
+- Gap: **`.gdignore` does not exclude a directory from `validate-all`** — added
+  `addons/virtual_joystick/{previews,test}/.gdignore` so the vendored demo leaves the import
+  and lint scan, but the validator still walks it:
+  ```
+  res://addons/virtual_joystick/test/test.tscn:
+    [INFO] relative_nodepath: Node 'Player' property 'joystick_left' uses relative path: ...
+  ```
+  Two of the 28 validate-all findings are from a directory Godot itself is told to skip.
+  - [G-026] status: open | seen: 1 | harness: unknown
+  - Improvement: have `scene_validator.gd` skip any directory containing a `.gdignore`, the
+    same rule the engine applies.
