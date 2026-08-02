@@ -2129,3 +2129,24 @@ Guidelines that make an entry useful later:
   through `cmd island_census` / `cmd buy_land` in that very file. Net effect: `reached 4/7`
   on a run where 6 of the 7 were demonstrably exercised, which is a reach number that has to
   be explained in prose every time rather than read.
+
+## 2026-08-02 — Merged the island gating onto a main that had gained the bone worker
+
+- Value: **warranted** — the gates ran against the *merged* tree, which is a tree neither
+  parent had ever been verified as, and that is the only place a bad conflict resolution
+  shows up.
+  - Expected: resolving the `devtools_ext/commands.gd` conflict by deleting
+    `_walkable_from_home` while keeping 397 lines of bone-worker verbs either parses and
+    registers both verb sets, or silently drops one of them — a hand-resolved conflict in a
+    file that is one long list of function definitions can lose a whole feature's verbs
+    without changing a single line the diff would show as conflicting.
+  - Got: both sets present in one `list-commands` (`buy_land`, `island_census`,
+    `place_worker`, `worker_state`), 274/274 tests where each parent had 255 and 19+255, and
+    the merged build still reads `forest opened=False nodes=0`, `ore opened=False nodes=0`,
+    `boss alive False` at generation. Zero `ERROR:`/`SCRIPT ERROR` lines in the launch log.
+  - Cheaper: lint alone would have caught a parse error, and it ran in 12s — but not a
+    *dropped* verb, which parses fine and registers nothing. `list-commands` was the cheap
+    assertion that separated those two, and it is one call.
+
+- Gap: no gaps this turn. The merge exercised no harness capability that was missing;
+  `list-commands` answered the one question the conflict raised directly.
