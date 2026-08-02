@@ -136,8 +136,8 @@ func _build() -> void:
 	_add(Skill.new(
 		"smelting", INDUSTRY, 2,
 		"Smelting",
-		"Iron veins start appearing. Smelt iron bars, burn wood down to charcoal, and craft the iron pickaxe.",
-		"Iron + 3 recipes",
+		"Iron veins start appearing. Smelt iron bars, burn wood down to charcoal, craft the iron pickaxe, and build the bone worker.",
+		"Iron + 4 recipes",
 		Types.Item.IronBar, ["iron_age"], {},
 		[
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
@@ -146,6 +146,15 @@ func _build() -> void:
 			# the node that doubles coal consumption: from now on a bad roll on coal
 			# veins stalls the branch, and wood is the one thing never in short supply.
 			{"product": Types.Item.CoalOre, "station": Types.Item.Furnace},
+			# The bone worker rides this node instead of getting one of its own, the way
+			# the stone set rides light_step: every branch is a four-node chain and
+			# Industry's four slots are the ore ladder, which the worker is not part of.
+			# Tier 2 is nonetheless the right rung for it. It is the branch's first piece
+			# of automation and three points deep, so it cannot be an opening-hour buy;
+			# and pricing it in iron bars here means the recipe and its material arrive on
+			# the same purchase, rather than the hidden cross-tier dependency the bone
+			# turret's costs had to be repriced to escape.
+			{"product": Types.Item.BoneWorker, "station": Types.Item.Sawmill},
 		],
 		[Types.Item.IronResource]
 	))

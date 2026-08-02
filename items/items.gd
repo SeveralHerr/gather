@@ -23,6 +23,10 @@ func _ready():
 	item_list[Types.Item.Chest] = GameItemPlaceable.new(Vector2i(0,0), 8, Types.Item.Chest, 1, true, "Chest", Vector2i(11,2), true)
 	item_list[Types.Item.Bone] = GameItem.new(Vector2i(11,1), 4, Types.Item.Bone, 1, false, "Bone", Vector2i.ZERO, false)
 	item_list[Types.Item.BoneTurret] = GameItemPlaceable.new(Vector2i(0,0), 6, Types.Item.BoneTurret, 1, true, "Bone Turret", Vector2i(19,3), true)
+	# Scene tile on its own scenes-collection source (12), same shape as the turret.
+	# The icon is the unassembled base at tiles.png (20,2); the four chop frames sit
+	# next to it at (21,2)..(24,2) and are only ever drawn by the scene itself.
+	item_list[Types.Item.BoneWorker] = GameItemPlaceable.new(Vector2i(0,0), 12, Types.Item.BoneWorker, 1, true, "Bone Worker", Vector2i(20,2), true)
 	item_list[Types.Item.Net] = GameItemNet.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItemBoneEnemy.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)

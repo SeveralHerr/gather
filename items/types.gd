@@ -48,5 +48,6 @@ enum Item {
 	CopperPickaxe,
 	StonePickaxe,
 	StoneWall,
-	StoneFloor
+	StoneFloor,
+	BoneWorker
 }

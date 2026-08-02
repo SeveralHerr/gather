@@ -1,0 +1,77 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://world/tile_scenes/bone_worker.gd" id="1_bwrkr"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="2_tiles"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_base"]
+atlas = ExtResource("2_tiles")
+region = Rect2(320, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_chop0"]
+atlas = ExtResource("2_tiles")
+region = Rect2(336, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_chop1"]
+atlas = ExtResource("2_tiles")
+region = Rect2(352, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_chop2"]
+atlas = ExtResource("2_tiles")
+region = Rect2(368, 32, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_chop3"]
+atlas = ExtResource("2_tiles")
+region = Rect2(384, 32, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_chop"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_chop0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_chop1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_chop2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_chop3")
+}],
+"loop": true,
+"name": &"chop",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(10, 7)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_work"]
+radius = 40.0
+
+[node name="BoneWorker" type="StaticBody2D"]
+z_index = 1
+y_sort_enabled = true
+script = ExtResource("1_bwrkr")
+
+[node name="UnloadedSprite" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = SubResource("AtlasTexture_base")
+
+[node name="LoadedSprite" type="AnimatedSprite2D" parent="."]
+visible = false
+texture_filter = 1
+sprite_frames = SubResource("SpriteFrames_chop")
+animation = &"chop"
+
+[node name="WorkTimer" type="Timer" parent="."]
+
+[node name="WorkArea" type="Area2D" parent="."]
+collision_mask = 3145729
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WorkArea"]
+shape = SubResource("CircleShape2D_work")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 4.5)
+shape = SubResource("RectangleShape2D_body")

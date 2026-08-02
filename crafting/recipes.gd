@@ -197,7 +197,24 @@ func sawmill_recipes():
 	net_costs[Types.Item.Plank] = 2
 	net_costs[Types.Item.String] = 3
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Net, net_costs))
-	
+
+	# The one thing on the list that removes the player from a loop rather than
+	# speeding it up, so it is priced as a middle-of-the-run project, not a purchase.
+	# Bone is the load-bearing number: the skull that assembles this comes off a bone
+	# enemy, so the frame costs the same fight that fills it, and until now bone had
+	# exactly one sink in the whole game (the pickaxe, at 9) the way stone had only the
+	# furnace. Six leaves the pickaxe the larger single ask. The iron bars are what stop
+	# a second worker being an afterthought - three bars is three ore plus three coal
+	# against the iron pickaxe's five and five, so the tier's headline tool still wins
+	# a straight comparison - and the planks make the thing that farms wood cost wood.
+	# The real price is higher than the list: a worker is dead weight without a Net
+	# (Combat tier 2) and a skull captured with it.
+	var bone_worker_costs = {}
+	bone_worker_costs[Types.Item.Bone] = 6
+	bone_worker_costs[Types.Item.IronBar] = 3
+	bone_worker_costs[Types.Item.Plank] = 4
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
+
 	var furnace_costs = {}
 	furnace_costs[Types.Item.Stone] = 9
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Furnace, furnace_costs))

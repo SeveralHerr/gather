@@ -1,4 +1,4 @@
-[gd_resource type="TileSet" load_steps=28 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=30 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="1_fu67e"]
 [ext_resource type="Texture2D" uid="uid://bns0btag74h0k" path="res://assets/art/placeholder_tiles.png" id="10_plchd"]
@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://cdkk04ucq2q5o" path="res://assets/art/rain.png" id="7_t5t3u"]
 [ext_resource type="PackedScene" uid="uid://dw27q3ci821n5" path="res://world/tile_scenes/test_chest.tscn" id="8_oitce"]
 [ext_resource type="PackedScene" path="res://world/resource_nodes/stone_node.tscn" id="9_n6rxy"]
+[ext_resource type="PackedScene" path="res://world/tile_scenes/bone_worker.tscn" id="12_bwrkr"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -1942,6 +1943,9 @@ scenes/1/scene = ExtResource("8_oitce")
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_p8ekw"]
 scenes/1/scene = ExtResource("9_n6rxy")
 
+[sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_bwrkr"]
+scenes/1/scene = ExtResource("12_bwrkr")
+
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_plchd"]
 texture = ExtResource("10_plchd")
 texture_region_size = Vector2i(16, 16)
@@ -2597,4 +2601,5 @@ sources/8 = SubResource("TileSetScenesCollectionSource_cwg37")
 sources/9 = SubResource("TileSetScenesCollectionSource_p8ekw")
 sources/10 = SubResource("TileSetAtlasSource_plchd")
 sources/11 = SubResource("TileSetAtlasSource_stone")
+sources/12 = SubResource("TileSetScenesCollectionSource_bwrkr")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

@@ -2086,3 +2086,110 @@ Guidelines that make an entry useful later:
     This is the same gap [G-073] filed from the HUD side; if that entry is still open, these
     should be merged — [G-073] wanted the accumulated transform, this wants the filter with
     it, and they are one verb.
+
+## 2026-08-02 — installed the approved art and scaffolded the BoneWorker scene tile
+
+- Value: **warranted** (lint half; runtime pass still pending) — hand-editing a TileSet
+  `.tres` is the failure mode lint exists for, and this change hand-wrote three separate
+  things Godot normally authors: a `.tscn` with an inline `SpriteFrames`, a new
+  `TileSetScenesCollectionSource`, and the `sources/12` + `load_steps` bookkeeping.
+  - Expected: either a parse failure in `world_tile_set.tres` from a miscounted
+    `load_steps`, or a cascade of `Could not find type "BoneWorker"` if `--import` had
+    not regenerated `.godot/global_script_class_cache.cfg`.
+  - Got: `lint exit=0`, `UIDs: OK`, and `res://world/tile_scenes/bone_worker.tscn: OK` on
+    line 30 — the new scene was actually opened and resolved, not skipped. `grep BoneWorker
+    .godot/global_script_class_cache.cfg` confirmed the class registered, and the
+    `bone_worker.gd.uid` sidecar was generated (`uid://76vononphgej`).
+  - Cheaper: nothing. Reading the `.tres` back proves the text is what I typed, not that
+    Godot accepts it — `load_steps=30` is a number no amount of re-reading validates.
+
+- Gap: **no headless way to assert a tile is placeable end-to-end.** Lint says the scene
+  parses and the tileset loads, but the thing that actually matters — that
+  `Types.Item.BoneWorker` (source 12, atlas (0,0)) resolves to `bone_worker.tscn` when
+  `PlayerManager.place_tile` writes it — needs the running game, and the registry is built
+  imperatively in `_ready()` so no static reader can answer it either. The workaround is to
+  defer it to the orchestrator's runtime pass, which means three subagents are building on
+  a registration nobody has yet proved works.
+  - [G-075] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a headless runner mode that boots the autoload set (`GameItems`,
+    `Recipes`, …) without the main scene, so `item_list[type].tile_source_id` and the
+    tileset's `get_source(id)` can be asserted in a unit test. Today `test_dir` tests are
+    plain `RefCounted` with no autoloads, so anything registry-shaped is untestable
+    headlessly and gets pushed into the one runtime pass that must be serialised across
+    agents.
+
+- Gap: **fanning out agents forces all runtime verification through one serialised owner.**
+  Re-confirming the bridge constraint from a previous session: three concurrent agents
+  were each given an explicit "never launch the game" instruction and restricted to
+  disjoint file sets, because a second Godot instance silently answers another agent's
+  devtools request. This is a real tax on parallelism — the agents can lint and unit-test
+  but cannot check their own work against the running game, so every runtime finding
+  round-trips through the orchestrator.
+  - [G-046] status: open | seen: 3 | harness: 0.7.0
+  - Improvement: per-session bus isolation exists (`-- --devtools-session <id>` plus
+    `GODOT_USERDATA`), but it is not wired into the agent workflow — a subagent has no
+    documented recipe for claiming its own session. A `devtools.py session-claim` that
+    allocates an id and a userdata dir would let fanned-out agents verify independently.
+
+## 2026-08-02 — runtime pass on the BoneWorker feature (gather-yye)
+
+- Value: **warranted** — runtime produced four claims no unit test could, and one of them is
+  the whole point of the feature's main bug fix.
+  - Expected: that a BoneWorker tile placed from the registry actually instantiates through
+    tileset source 12 and swaps sprites when loaded, and that the whole
+    `_find_tree_cell`/`_fell`/`_deliver` path works against a real TileMap — none of which
+    any of the 265 headless tests reach, because the harness has no TileMap-backed world.
+  - Got: all of it, plus two invariants that only exist as live state. `place_worker`
+    returned `placed a bone worker at (-1, -2)` with `trees_in_range: 1`, and
+    `worker_state` resolved the instanced node at
+    `/root/Main/World/TileMap/BoneWorker/LoadedSprite` — the registry→tileset→scene wiring
+    is real. Across the run `trees_in_range` went `2 -> 0` while `wood_pickups_nearby` went
+    `0 -> 3` (two trees at the 1..2 tuning range), with `XP: 0 | level: 1` before *and*
+    after — the gather-5s5 faucet stays shut, which is a claim about a system the diff
+    deliberately routes around (`clear_tile` instead of `remove_resource`) and therefore
+    cannot show. `animating` was `true` with a tree in reach and `false` at zero trees,
+    proving the `_working` gate rather than `loaded` drives the animation. And the
+    gather-yye.3 fix asserted directly: with every machine already loaded,
+    `had_target_in_reach = False`, `skulls_spent = 0`, and an independent `worker_state`
+    read showed `skulls_held` still `1`. The old code removed the stack unconditionally.
+  - Cheaper: nothing. No headless test can build a TileMap-backed world, and "no xp was
+    awarded" and "the skull survived" are both absences — readable only as live state.
+
+- Gap: **reach cannot see RefCounted item classes, so it under-reports what ran.** The
+  ledger recorded `reached 3/9 changed file(s); NOT reached: … items/game_item_bone_enemy.gd
+  …`, but that file was exercised decisively — `had_target_in_reach: False` can only be
+  produced by `GameItemBoneEnemy.can_use()`, and the skull-preservation result by its
+  `use()`. Reach is computed by intersecting the diff against `script`/`scene_file` paths in
+  a `scene-tree` snapshot, and this project's entire item model is `GameItem` subclasses held
+  as plain RefCounted values in `items.gd`'s `item_list` — they are never any node's script,
+  so no amount of exercising them can register. The same applies to `items/types.gd` and to
+  `devtools_ext/commands.gd`, which ran on every single call in this session. The honest
+  residue after discounting those is `crafting/recipes.gd` and `systems/skill_tree.gd`, which
+  genuinely were not reached: the recipe cost and the Industry unlock were never opened in a
+  running game.
+  - [G-076] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have the game side report the set of script paths actually *loaded*
+    (`ResourceLoader`'s cache, or a `ClassDB`/`global_script_class_cache` walk) as a second
+    reach input alongside the scene tree, so non-Node scripts can register. Without it, any
+    project whose logic lives in Resources or RefCounted gets a permanently deflated reach
+    number, which trains readers to ignore the field — the opposite of why it exists.
+
+- Gap: **no verb places an arbitrary placeable tile, so the chest-delivery branch is
+  untestable.** `_deliver()` prefers a chest in reach and falls back to a ground pickup; only
+  the fallback got exercised. `place_build` refused with
+  `type must be one of ["woodwall", "stonewall", "woodfloor", "stonefloor"]`, and
+  `place_station` only maps `sawmill`/`furnace`. Driving the real path instead —
+  `select_slot(4)` then `_on_gather()` — left the player still holding `Chest x 1` with the
+  target cell reading `source -1` (empty), so placement silently no-opped exactly as
+  `GameItemPlaceable`'s own comment warns. The only `TestChest` in the world turned out to be
+  a worldgen chest at `(-552, 136)`, ~570px from the worker. Two smaller things compounded
+  it: `set-state --property position --value "[400,400]"` reported `State updated` and wrote
+  `(0, 0)` — the no-vector-coercion gap (gather-6sp) applying to `set-state`, not just
+  `run-method`, and silently writing a wrong value rather than failing — and `tile_at`
+  ignored its `x`/`y` arguments entirely, returning cell `(0, -1)` for all six cells queried.
+  - [G-077] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a generic `place_tile` verb taking an item name and a cell offset, built on
+    the same `handler.set_tile(cell, source_id, atlas)` call `place_worker` already uses.
+    Every placeable in the game is one registry lookup away, and the per-feature placer verbs
+    (`place_station`, `place_build`, now `place_worker`) are three partial reimplementations
+    of it that each cover their own author's case and nobody else's.

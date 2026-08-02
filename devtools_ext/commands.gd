@@ -39,6 +39,9 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("place_build", _cmd_place_build)
 	dev.register_command("tile_at", _cmd_tile_at)
 	dev.register_command("island_census", _cmd_island_census)
+	dev.register_command("place_worker", _cmd_place_worker)
+	dev.register_command("load_worker", _cmd_load_worker)
+	dev.register_command("worker_state", _cmd_worker_state)
 	dev.register_command("press_key", _cmd_press_key)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
@@ -1312,3 +1315,402 @@ func _walkable_from_home(handler: TileMapHandler, extra: Dictionary) -> Dictiona
 				frontier.append(next)
 
 	return seen
+
+
+## --- Bone worker -------------------------------------------------------------
+##
+## The worker is an automation unit: place the base, drop a captured skull on it, and it
+## chops nearby trees on a timer. Every step of that is unreachable from the generic
+## primitives. Placing it needs set_tile's two Vector2i arguments (gather-6sp); loading it
+## needs the player to have netted a skull and to be standing inside the base's WorkArea;
+## and the thing worth asserting - that it found a tree and delivered wood somewhere - is
+## a relationship between a node, a tilemap cell and a chest's inventory, which no single
+## get-state can express.
+
+
+## Every bone machine a skull can be dropped into, in a stable order. Turrets are here
+## because they share the load path (GameItemBoneEnemy loads whichever is closest), so
+## "the skull went to the right one" is not assertable against workers alone. Type-checked
+## rather than indexed: SaveChunks holds chests and every other persisted prop too.
+func _bone_machines() -> Array:
+	var found := []
+	for node in _dev.get_tree().get_nodes_in_group("SaveChunks"):
+		if node is BoneWorker or node is BoneTurret:
+			found.append(node)
+	found.sort_custom(func(a, b):
+		return a.position.y < b.position.y if a.position.y != b.position.y else a.position.x < b.position.x)
+	return found
+
+
+func _bone_workers() -> Array:
+	var found := []
+	for node in _bone_machines():
+		if node is BoneWorker:
+			found.append(node)
+	return found
+
+
+func _worker_at(args: Dictionary):
+	var workers := _bone_workers()
+	if workers.is_empty():
+		return null
+	var index: int = int(args.get("worker", 0))
+	if index < 0 or index >= workers.size():
+		return null
+	return workers[index]
+
+
+## The radius of the worker's WorkArea, read off the shape rather than assumed. The
+## chopping behaviour is tuned by editing that circle, so a hardcoded number here would
+## quietly start reporting trees the worker cannot actually reach.
+func _work_radius(worker) -> float:
+	var shape_node = worker.get_node_or_null("WorkArea/CollisionShape2D")
+	var shape = shape_node.shape if shape_node else null
+	if shape == null:
+		return 0.0
+	return float(shape.get("radius")) if shape.get("radius") != null else 0.0
+
+
+## Tree cells within `radius` of a global position, nearest first. Trees are tilemap cells
+## rather than nodes, so nothing in the scene tree reports them and an overlap query never
+## sees one - the cells have to be read off layer 1 by atlas.
+func _trees_near(handler: TileMapHandler, at: Vector2, radius: float) -> Array:
+	var tree = handler.resources.Get(Types.Item.Tree)
+	if tree == null or radius <= 0.0:
+		return []
+
+	var tile_map = handler.tileMap
+	var local: Vector2 = tile_map.to_local(at)
+	var origin: Vector2i = tile_map.local_to_map(local)
+	var tile_size: int = maxi(1, tile_map.tile_set.tile_size.x)
+	var reach: int = int(ceil(radius / float(tile_size))) + 1
+
+	var found := []
+	for dx in range(-reach, reach + 1):
+		for dy in range(-reach, reach + 1):
+			var cell: Vector2i = origin + Vector2i(dx, dy)
+			if tile_map.get_cell_source_id(1, cell) != tree.tile_source_id:
+				continue
+			if tile_map.get_cell_atlas_coords(1, cell) != tree.atlas_location:
+				continue
+			var distance: float = tile_map.map_to_local(cell).distance_to(local)
+			if distance <= radius:
+				found.append({"cell": {"x": cell.x, "y": cell.y}, "distance": distance})
+
+	found.sort_custom(func(a, b): return a["distance"] < b["distance"])
+	return found
+
+
+## Chests within `radius`, with what is actually in them. Delivery is the end of the
+## worker's loop and a counter on the worker only claims it happened; the chest's contents
+## are the evidence.
+func _chests_near(at: Vector2, radius: float) -> Array:
+	var found := []
+	for node in _dev.get_tree().get_nodes_in_group("external_inventory"):
+		if not (node is TestChest):
+			continue
+		var distance: float = node.global_position.distance_to(at)
+		if distance > radius:
+			continue
+		var contents := []
+		if node.inventory_data:
+			for slot in node.inventory_data.inventory_slot_datas:
+				contents.append("%s x%d" % [slot.item.name, slot.count] if slot else "empty")
+		found.append({
+			"position": {"x": node.position.x, "y": node.position.y},
+			"distance": distance,
+			"contents": contents,
+		})
+	found.sort_custom(func(a, b): return a["distance"] < b["distance"])
+	return found
+
+
+## Wood lying in the world within `radius` of a point. Delivery falls back to dropping a
+## pickup when no chest will take the wood, so without this half a working worker with no
+## chest beside it reads exactly like a worker that never chopped anything.
+func _wood_pickups_near(at: Vector2, radius: float) -> int:
+	var container := _dev.get_tree().root.get_node_or_null("Main/World/PickUps")
+	if container == null:
+		return 0
+	var total := 0
+	for child in container.get_children():
+		var slot_data = child.get("slot_data")
+		if slot_data == null or slot_data.item == null:
+			continue
+		if slot_data.item.type == Types.Item.Wood and child.global_position.distance_to(at) <= radius:
+			total += slot_data.count
+	return total
+
+
+## Every variable the worker's script declares, whatever they happen to be called.
+## The chopping behaviour lands separately from this verb, so naming its fields here would
+## either guess wrong or need a follow-up edit; enumerating the script's own property list
+## means a new `target` or `wood_produced` shows up the moment it exists.
+func _script_vars(node: Object) -> Dictionary:
+	var vars := {}
+	for prop in node.get_property_list():
+		if (int(prop.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0:
+			continue
+		vars[prop["name"]] = _json_safe(node.get(prop["name"]))
+	return vars
+
+
+## JSON-shaped view of an arbitrary property. Vectors become {x, y} rather than the
+## "(3, 4)" string Godot would otherwise serialise them as, and an object becomes its node
+## path - a bare object id in a response tells a caller nothing.
+func _json_safe(value):
+	match typeof(value):
+		TYPE_VECTOR2, TYPE_VECTOR2I:
+			return {"x": value.x, "y": value.y}
+		TYPE_ARRAY:
+			var out := []
+			for entry in value:
+				out.append(_json_safe(entry))
+			return out
+		TYPE_DICTIONARY:
+			var mapped := {}
+			for key in value:
+				mapped[str(key)] = _json_safe(value[key])
+			return mapped
+		TYPE_OBJECT:
+			# A freed node still reads as an object here. Saying so beats a crash, and a
+			# worker holding a freed tree target is itself worth seeing.
+			if not is_instance_valid(value):
+				return "<freed>"
+			if value is Node:
+				return str(value.get_path())
+			return value.get_class()
+	return value
+
+
+func _worker_report(handler: TileMapHandler, worker) -> Dictionary:
+	var radius := _work_radius(worker)
+	var trees := _trees_near(handler, worker.global_position, radius) if handler else []
+	var animation = worker.get_node_or_null("LoadedSprite")
+	var timer = worker.get_node_or_null("WorkTimer")
+
+	var report := {
+		"loaded": worker.loaded,
+		"position": {"x": worker.position.x, "y": worker.position.y},
+		"work_radius": radius,
+		"trees_in_range": trees.size(),
+		"nearest_tree": trees[0] if not trees.is_empty() else null,
+		"chests_in_range": _chests_near(worker.global_position, radius),
+		# Wood that reached the world rather than a chest. Together with the chest
+		# contents above this is the whole output side of the worker's loop.
+		"wood_pickups_nearby": _wood_pickups_near(worker.global_position, radius * 2.0),
+		# The chop animation is the only visible sign of work, and it is meant to run only
+		# while the worker is actually chopping - a loaded-but-idle worker that animates
+		# forever looks identical in every other reading.
+		"animating": animation.is_playing() if animation else false,
+		"animation_visible": animation.visible if animation else false,
+		"timer_stopped": timer.is_stopped() if timer else true,
+		"time_to_next_cycle": timer.time_left if timer else 0.0,
+		# Whatever the chopping behaviour tracks - target, wood produced, last delivery -
+		# without this verb having to know its field names in advance.
+		"script_vars": _script_vars(worker),
+	}
+
+	if handler:
+		var cell: Vector2i = handler.tileMap.local_to_map(handler.tileMap.to_local(worker.global_position))
+		report["cell"] = {"x": cell.x, "y": cell.y}
+
+	return report
+
+
+## Places a bone worker base, by default on a free tile that actually has a tree in reach -
+## a worker in empty grass runs its timer forever and proves nothing, which is the same
+## trap goto_resource exists to avoid for gathering.
+##
+## `{"dx": 1, "dy": 0}` places at an exact offset from the player instead.
+## `{"require_tree": false}` takes the first free tile whether or not trees are near.
+## `{"move_player": false}` leaves the player where they are; by default the player is
+## moved beside the base so that a later `load_worker --args '{"via":"item"}'` has the
+## overlap it needs (give the areas a `wait-frames 2` to register it).
+func _cmd_place_worker(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var item: GameItem = GameItems.get_item(Types.Item.BoneWorker)
+	if item == null:
+		return {"success": false, "message": "no BoneWorker registered in GameItems", "data": {}}
+
+	var require_tree: bool = bool(args.get("require_tree", true))
+	# The base's own WorkArea is not instanced yet, so reach is taken from the scene's
+	# shape via a placed worker when there is one, and from the tileset otherwise.
+	var reach: float = float(args.get("radius", 40.0))
+	var origin: Vector2i = handler.tileMap.local_to_map(handler.tileMap.to_local(player.global_position))
+
+	var cell = null
+	if args.has("dx") or args.has("dy"):
+		cell = origin + Vector2i(int(args.get("dx", 0)), int(args.get("dy", 0)))
+	else:
+		for ring in range(1, 9):
+			for dx in range(-ring, ring + 1):
+				for dy in range(-ring, ring + 1):
+					var candidate: Vector2i = origin + Vector2i(dx, dy)
+					if handler.is_occupied(candidate, true):
+						continue
+					var at: Vector2 = handler.tileMap.to_global(handler.tileMap.map_to_local(candidate))
+					if require_tree and _trees_near(handler, at, reach).is_empty():
+						continue
+					cell = candidate
+					break
+				if cell != null:
+					break
+			if cell != null:
+				break
+
+	if cell == null:
+		return {
+			"success": false,
+			"message": "no free tile with a tree within %.0f px of the player" % reach,
+			"data": {"trees_near_player": _trees_near(handler, player.global_position, reach).size()},
+		}
+
+	var position: Vector2 = handler.tileMap.to_global(handler.tileMap.map_to_local(cell))
+	# atlas_location, not tile_atlas_location: the latter is the inventory icon cell, and
+	# feeding it to a TileSetScenesCollectionSource writes a cell that instances nothing.
+	handler.set_tile(cell, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+	if bool(args.get("move_player", true)):
+		player.global_position = position + Vector2(6, 0)
+
+	# The tilemap instances the scene on its own schedule, so the node does not exist on
+	# this frame. Report the cell; worker_state picks it up next call.
+	return {
+		"success": true,
+		"message": "placed a bone worker at %s" % cell,
+		"data": {
+			"cell": {"x": cell.x, "y": cell.y},
+			"position": {"x": position.x, "y": position.y},
+			"trees_in_range": _trees_near(handler, position, reach).size(),
+			"workers_before": _bone_workers().size(),
+			"player_position": {"x": player.position.x, "y": player.position.y},
+		},
+	}
+
+
+## Loads a worker with a skull.
+##
+## `{"via": "direct"}` (the default) calls set_loaded(), the same call the item makes and
+## the one that owns the sprite swap - writing `loaded` straight would leave the base
+## sprite showing, a state the game itself cannot produce.
+##
+## `{"via": "item"}` drives the real chain instead - use_slot_data -> PlayerManager ->
+## GameItemBoneEnemy.use() - which targets whatever the player overlaps. That is the only
+## way to exercise the targeting, and it deliberately does not move the player: moving them
+## would hide exactly the failure the verb is there to catch. `{"give": false}` skips
+## handing the player a skull first, so the empty-handed path is assertable too.
+##
+## Skull counts are reported before and after either way. The stack used to be spent even
+## when the use loaded nothing, and a boolean `success` cannot show that.
+func _cmd_load_worker(args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player in the scene", "data": {}}
+
+	var worker = _worker_at(args)
+	if worker == null:
+		return {
+			"success": false,
+			"message": "no bone worker at that index (place_worker first)",
+			"data": {"workers": _bone_workers().size()},
+		}
+
+	var handler := _tile_map_handler()
+	var via: String = str(args.get("via", "direct")).to_lower()
+	var loaded_before: bool = worker.loaded
+	var skull: GameItem = GameItems.get_item(Types.Item.BoneEnemy)
+	var skulls_before: int = player.inventory_data.count_of_type(Types.Item.BoneEnemy)
+	var in_reach: bool = skull != null and skull.can_use()
+
+	if via == "item":
+		if skulls_before == 0 and bool(args.get("give", true)):
+			player.inventory_data.pick_up_slot_data(SlotData.new(skull, 1))
+		var index := _slot_index_of(player.inventory_data, Types.Item.BoneEnemy)
+		if index < 0:
+			return {
+				"success": false,
+				"message": "the player holds no skull to use",
+				"data": {"skulls": player.inventory_data.count_of_type(Types.Item.BoneEnemy)},
+			}
+		player.inventory_data.use_slot_data(index)
+	elif via == "direct":
+		worker.set_loaded()
+	else:
+		return {"success": false, "message": "via must be \"direct\" or \"item\"", "data": {}}
+
+	var skulls_after: int = player.inventory_data.count_of_type(Types.Item.BoneEnemy)
+	return {
+		"success": worker.loaded,
+		"message": "worker loaded" if worker.loaded else "worker still unloaded",
+		"data": {
+			"via": via,
+			"loaded_before": loaded_before,
+			"loaded": worker.loaded,
+			"skulls_before": skulls_before,
+			"skulls_after": skulls_after,
+			# The assertion for "a use that loads nothing must not eat the skull": with
+			# via=item and no machine overlapped, this has to stay 0.
+			"skulls_spent": maxi(0, skulls_before - skulls_after),
+			# What GameItemBoneEnemy.use() would have targeted, read before the use ran.
+			"had_target_in_reach": in_reach,
+			"state": _worker_report(handler, worker),
+		},
+	}
+
+
+## First slot holding `type`, or -1. use_slot_data works on an index, and nothing else
+## reports which index a given item landed in.
+func _slot_index_of(inventory: InventoryData, type: Types.Item) -> int:
+	for index in inventory.inventory_slot_datas.size():
+		var slot = inventory.inventory_slot_datas[index]
+		if slot and slot.item and slot.item.type == type:
+			return index
+	return -1
+
+
+## Every worker's state, or one with `{"worker": 0}`. Turrets ride along with their loaded
+## flag because they share the skull's load path: when a use loads the wrong machine, the
+## worker looks simply unloaded and this list is the only place the skull turns up.
+func _cmd_worker_state(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var workers := _bone_workers()
+
+	var turrets := []
+	for machine in _bone_machines():
+		if machine is BoneTurret:
+			turrets.append({
+				"position": {"x": machine.position.x, "y": machine.position.y},
+				"loaded": machine.loaded,
+			})
+
+	var reports := []
+	if args.has("worker"):
+		var worker = _worker_at(args)
+		if worker == null:
+			return {
+				"success": false,
+				"message": "no bone worker at that index",
+				"data": {"workers": workers.size()},
+			}
+		reports.append(_worker_report(handler, worker))
+	else:
+		for worker in workers:
+			reports.append(_worker_report(handler, worker))
+
+	var player := _player()
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"workers": workers.size(),
+			"turrets": turrets,
+			"skulls_held": player.inventory_data.count_of_type(Types.Item.BoneEnemy) if player else 0,
+			"wood_held": player.inventory_data.count_of_type(Types.Item.Wood) if player else 0,
+			"worker_states": reports,
+		},
+	}
