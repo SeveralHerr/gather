@@ -807,7 +807,9 @@ Guidelines that make an entry useful later:
   `step-time` was blocked by collision after ~9 units. Net result: `ui/recipe_card.gd`
   is the one changed file this run could not reach, and the crafting panel was verified
   only through its 5 passing unit tests plus a `set_title` readback of `SAWMILL`.
-  Filed as gather-1ph.
+  Filed as gather-7y9. (The commit that introduced this entry, 441668f, cites a
+  non-existent `gather-1ph` for the same bug — the id was written before the bead was
+  read back. gather-7y9 is the real one.)
   - [G-037] status: open | seen: 1 | harness: 0.7.0
   - Improvement: have `place_station` collect the candidate free cells and pick the one
     nearest the player rather than the first the scan hits, so the station lands inside
