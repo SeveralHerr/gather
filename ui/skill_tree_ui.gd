@@ -6,40 +6,87 @@ class_name SkillTreeUi
 ## .tscn: the layout is one column per branch and one card per skill, so a scene
 ## file would only be a second copy of the data that has to be edited in lockstep.
 ##
+## The chrome is PanelFrame's — backdrop, centred frame, title bar, and the close
+## button this panel never had. Before that, the only way out of the skill tree was
+## to press `K` a second time, which on a phone means finding the toolbar button
+## that opened it. The palette and every size come from UiTheme rather than from a
+## private copy of the constants.
+##
+## Sizes here are dense — four columns of cards and a detail pane — and the project
+## runs with `window/stretch/mode = "disabled"`, so a phone reports a genuinely
+## smaller viewport and anything typed in as a pixel count renders that much
+## smaller. Every font size and pad therefore goes through `UiTheme.scaled*` and is
+## re-derived by `_apply_scale()` on every window resize.
+##
 ## Lives in the UI2 CanvasLayer, not the camera-attached UI Control — that one is
 ## in world space at 0.23 scale and is sized for the diegetic HUD, not a full
-## screen menu.
+## screen menu. The HUD badge is the exception to "this file is a panel": it is a
+## always-on-screen corner readout and is deliberately not inside the frame.
 
 ## Width is deliberate — four columns of cards need it. Height is close to the
 ## content's natural height so the panel does not open with a band of dead space
-## between the last row of cards and the detail pane.
+## between the last row of cards and the detail pane. Both are pre-scale; the frame
+## multiplies them by the viewport factor.
 const PANEL_MIN_SIZE := Vector2(920, 494)
 
-const COLOR_BACKDROP := Color(0.02, 0.03, 0.05, 0.78)
-const COLOR_FRAME := Color("161a21")
-const COLOR_INSET := Color("11141a")
-const COLOR_TEXT := Color("f2f4f8")
-const COLOR_TEXT_DIM := Color("7d8494")
-const COLOR_POINTS := Color("ffd166")
+## Unscaled metrics for the pieces this file draws itself. Everything shared with
+## the other panels (pads, gaps, type sizes) comes from UiTheme instead.
+const XP_BAR_SIZE := Vector2(190, 9)
+const DETAIL_MIN_HEIGHT := 74.0
+const DETAIL_PAD := 10.0
+const CONNECTOR_SIZE := Vector2(3, 12)
+const BRANCH_GAP := 12.0
+const BADGE_WIDTH := 170.0
+## Distance from the badge to the two screen edges it hugs. A margin, not a
+## position: the badge is anchored to the top-right corner and this insets it.
+const BADGE_MARGIN := 14.0
+const BADGE_PAD := 6.0
+
+## The dark-gold fill behind the banked-point count. No UiTheme equivalent — it is
+## the only "this is currency" tint in the game, and COLOR_INSET behind a gold
+## border reads as an ordinary recessed box rather than as a purse.
+const COLOR_POINTS_BG := Color(0.16, 0.13, 0.05)
 
 var level_up_manager: LevelUpManager
 var input_manager: InputManager
 
-var _panel_root: Control
+## The shared chrome. Replaces the hand-built _panel_root / backdrop / centre /
+## frame / margin stack, and owns the panel's visibility — `is_open()` reads it
+## rather than a private flag.
+var _frame: PanelFrame
+
+var _column: VBoxContainer
+var _header: HBoxContainer
+var _branch_columns: HBoxContainer
 var _level_label: Label
 var _xp_bar: ProgressBar
 var _xp_label: Label
 var _points_label: Label
+var _points_style: StyleBoxFlat
+var _detail_box: PanelContainer
+var _detail_style: StyleBoxFlat
 var _detail_name: Label
 var _detail_body: Label
 var _detail_status: Label
 
 var _hud_badge: PanelContainer
+var _hud_badge_style: StyleBoxFlat
 var _hud_badge_label: Label
 
 ## skill id -> its card, and skill id -> the connector line above it.
 var _cards: Dictionary = {}
 var _connectors: Dictionary = {}
+## The CenterContainer each connector line sits in. Held only so a resize can
+## re-apply its height; the line alone cannot set it, the holder reserves the row.
+var _connector_holders: Array[Control] = []
+## The fixed gap under each branch tagline, same story.
+var _branch_gaps: Array[Control] = []
+
+## Every text control paired with the unscaled font size it was authored at, as
+## `[control, base_size]`. `_apply_scale()` walks this instead of the file growing
+## a field per label — and, more usefully, a label added later cannot be forgotten
+## by the resize handler as long as it is built through `_typed()`.
+var _typography: Array[Array] = []
 
 var _hovered_id := ""
 
@@ -75,146 +122,124 @@ func _ready():
 	if input_manager:
 		input_manager.toggle_skills.connect(toggle)
 
+	# Nothing here scales on its own — see the stretch-mode note at the top — so a
+	# resize has to re-run the whole derivation.
+	var viewport := get_viewport()
+	if viewport != null and not viewport.size_changed.is_connected(_apply_scale):
+		viewport.size_changed.connect(_apply_scale)
+
 	_refresh_all()
 
 
 # --- construction ------------------------------------------------------------
 
+## The corner readout that says a point is banked. Not part of the panel: it is on
+## screen whenever the player has something to spend, and it is the only cue that
+## a level happened now that levelling no longer seizes the screen.
 func _build_hud_badge() -> void:
 	_hud_badge = PanelContainer.new()
 	_hud_badge.name = "PointsBadge"
 	_hud_badge.visible = false
 	_hud_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Anchored to the corner; `_apply_scale()` supplies the inset from it. The
+	# offset is derived from the badge's own scaled width, never from a viewport
+	# dimension — that is the gather-6fx trap.
 	_hud_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_hud_badge.position = Vector2(-190, 14)
-	_hud_badge.custom_minimum_size = Vector2(170, 0)
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.07, 0.1, 0.85)
-	style.border_color = COLOR_POINTS
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(6)
-	_hud_badge.add_theme_stylebox_override("panel", style)
+	# It sits directly over the tilemap with no backdrop behind it, which is exactly
+	# what UiTheme's overlay chrome is for; `accent` gives it the gold border.
+	_hud_badge_style = UiTheme.overlay_style(true)
+	_hud_badge.add_theme_stylebox_override("panel", _hud_badge_style)
 
-	_hud_badge_label = Label.new()
+	# FONT_BODY rather than the smaller size this used to hardcode: the badge is
+	# read at a glance from across the screen, and on a phone the scale factor
+	# bottoms out at UiTheme.SCALE_MIN, so a "small" size here is simply unreadable.
+	_hud_badge_label = _typed(Label.new(), UiTheme.FONT_BODY) as Label
+	_hud_badge_label.name = "BadgeLabel"
 	_hud_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_badge_label.add_theme_font_size_override("font_size", 13)
-	_hud_badge_label.add_theme_color_override("font_color", COLOR_POINTS)
+	_hud_badge_label.add_theme_color_override("font_color", UiTheme.COLOR_GOLD)
 	_hud_badge.add_child(_hud_badge_label)
 
 	add_child(_hud_badge)
 
 
 func _build_panel() -> void:
-	_panel_root = Control.new()
-	# Named rather than left as @Control@19: these are the handles the devtools
-	# bridge addresses the panel by, and generated names shift with node count.
-	_panel_root.name = "Panel"
-	_panel_root.visible = false
-	_panel_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	_panel_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(_panel_root)
+	_frame = PanelFrame.new()
+	_frame.setup("SKILLS", PANEL_MIN_SIZE)
+	# The X, the backdrop and Escape all arrive here as one signal. Routing it
+	# through set_open() rather than straight to _frame.close() is what keeps the
+	# cursor / disable_input handshake running on every way out, including the two
+	# that did not exist before. A close that skipped it would hide the panel and
+	# leave the player unable to move — invisible to any visibility check.
+	_frame.close_requested.connect(_on_close_requested)
+	add_child(_frame)
 
-	var backdrop := ColorRect.new()
-	backdrop.color = COLOR_BACKDROP
-	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_panel_root.add_child(backdrop)
+	# PanelFrame.content is a plain VBoxContainer, valid the moment setup() returns.
+	_column = _frame.content
 
-	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_panel_root.add_child(center)
+	# The frame's title bar carries the "SKILLS" heading and the separator under it
+	# now, so this row is only the progress readout and starts at the level.
+	_column.add_child(_build_header())
+	_column.add_child(_build_branches())
+	_column.add_child(_build_detail())
+	_column.add_child(_build_footer())
 
-	var frame := PanelContainer.new()
-	frame.custom_minimum_size = PANEL_MIN_SIZE
-	frame.add_theme_stylebox_override("panel", _frame_style())
-	center.add_child(frame)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_bottom", 14)
-	frame.add_child(margin)
-
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
-	margin.add_child(column)
-
-	column.add_child(_build_header())
-	column.add_child(HSeparator.new())
-	column.add_child(_build_branches())
-	column.add_child(_build_detail())
-	column.add_child(_build_footer())
-
-
-func _frame_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_FRAME
-	style.border_color = Color("2c3340")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
-	return style
+	_apply_scale()
 
 
 func _build_header() -> Control:
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 14)
+	_header = HBoxContainer.new()
+	_header.name = "Header"
 
-	var title := Label.new()
-	title.text = "SKILLS"
-	title.add_theme_font_size_override("font_size", 22)
-	title.add_theme_color_override("font_color", COLOR_TEXT)
-	header.add_child(title)
+	_level_label = _typed(Label.new(), UiTheme.FONT_BODY) as Label
+	_level_label.name = "Level"
+	_level_label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_level_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_header.add_child(_level_label)
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(spacer)
-
-	_level_label = Label.new()
-	_level_label.add_theme_font_size_override("font_size", 15)
-	_level_label.add_theme_color_override("font_color", COLOR_TEXT)
-	_level_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	header.add_child(_level_label)
+	_header.add_child(spacer)
 
 	var xp_column := VBoxContainer.new()
+	xp_column.name = "Xp"
 	xp_column.add_theme_constant_override("separation", 2)
 	xp_column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 	_xp_bar = ProgressBar.new()
-	_xp_bar.custom_minimum_size = Vector2(190, 9)
+	_xp_bar.name = "XpBar"
 	_xp_bar.show_percentage = false
-	_xp_bar.add_theme_stylebox_override("background", _bar_style(COLOR_INSET))
-	_xp_bar.add_theme_stylebox_override("fill", _bar_style(Color("5aa9e6")))
+	_xp_bar.add_theme_stylebox_override("background", _bar_style(UiTheme.COLOR_INSET))
+	_xp_bar.add_theme_stylebox_override("fill", _bar_style(UiTheme.COLOR_ACCENT))
 	xp_column.add_child(_xp_bar)
 
-	_xp_label = Label.new()
-	_xp_label.add_theme_font_size_override("font_size", 11)
-	_xp_label.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_xp_label = _typed(Label.new(), UiTheme.FONT_SMALL) as Label
+	_xp_label.name = "XpLabel"
+	_xp_label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	_xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	xp_column.add_child(_xp_label)
 
-	header.add_child(xp_column)
+	_header.add_child(xp_column)
 
 	var points_box := PanelContainer.new()
+	points_box.name = "Points"
 	points_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var points_style := StyleBoxFlat.new()
-	points_style.bg_color = Color(0.16, 0.13, 0.05)
-	points_style.border_color = COLOR_POINTS
-	points_style.set_border_width_all(2)
-	points_style.set_corner_radius_all(4)
-	points_style.set_content_margin_all(6)
-	points_box.add_theme_stylebox_override("panel", points_style)
+	# Held as a field because the content margin is a size like any other and has to
+	# be re-derived on a resize; a StyleBox edited in place re-lays-out its owner.
+	_points_style = StyleBoxFlat.new()
+	_points_style.bg_color = COLOR_POINTS_BG
+	_points_style.border_color = UiTheme.COLOR_GOLD
+	_points_style.set_border_width_all(UiTheme.BORDER_WIDTH)
+	_points_style.set_corner_radius_all(UiTheme.RADIUS_CONTROL)
+	points_box.add_theme_stylebox_override("panel", _points_style)
 
-	_points_label = Label.new()
-	_points_label.add_theme_font_size_override("font_size", 14)
-	_points_label.add_theme_color_override("font_color", COLOR_POINTS)
+	_points_label = _typed(Label.new(), UiTheme.FONT_BODY) as Label
+	_points_label.name = "PointsLabel"
+	_points_label.add_theme_color_override("font_color", UiTheme.COLOR_GOLD)
 	points_box.add_child(_points_label)
-	header.add_child(points_box)
+	_header.add_child(points_box)
 
-	return header
+	return _header
 
 
 func _bar_style(color: Color) -> StyleBoxFlat:
@@ -225,14 +250,14 @@ func _bar_style(color: Color) -> StyleBoxFlat:
 
 
 func _build_branches() -> Control:
-	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 12)
-	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_branch_columns = HBoxContainer.new()
+	_branch_columns.name = "Branches"
+	_branch_columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	for branch in SkillTree.BRANCHES:
-		columns.add_child(_build_branch_column(branch))
+		_branch_columns.add_child(_build_branch_column(branch))
 
-	return columns
+	return _branch_columns
 
 
 func _build_branch_column(branch: String) -> Control:
@@ -240,26 +265,29 @@ func _build_branch_column(branch: String) -> Control:
 
 	var column := VBoxContainer.new()
 	column.name = "Branch_%s" % branch
+	# Deliberately 0: the connectors are what separate the cards, and a separation
+	# on top of them would break the column's read as one chain.
 	column.add_theme_constant_override("separation", 0)
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var title := Label.new()
+	var title := _typed(Label.new(), UiTheme.FONT_BODY) as Label
+	title.name = "Title"
 	title.text = branch.to_upper()
-	title.add_theme_font_size_override("font_size", 15)
 	title.add_theme_color_override("font_color", branch_color)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 
-	var tagline := Label.new()
+	var tagline := _typed(Label.new(), UiTheme.FONT_SMALL) as Label
+	tagline.name = "Tagline"
 	tagline.text = SkillTree.BRANCH_TAGLINES[branch]
-	tagline.add_theme_font_size_override("font_size", 10)
-	tagline.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	tagline.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(tagline)
 
 	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(0, 8)
+	gap.name = "Gap"
+	_branch_gaps.append(gap)
 	column.add_child(gap)
 
 	var first := true
@@ -276,6 +304,7 @@ func _build_branch_column(branch: String) -> Control:
 		column.add_child(card)
 
 	var tail := Control.new()
+	tail.name = "Tail"
 	tail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(tail)
 
@@ -286,11 +315,12 @@ func _build_branch_column(branch: String) -> Control:
 ## the node above it is learned, so a column reads as a chain rather than a list.
 func _build_connector(below_skill_id: String, branch_color: Color) -> Control:
 	var holder := CenterContainer.new()
-	holder.custom_minimum_size = Vector2(0, 12)
+	holder.name = "Link_%s" % below_skill_id
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_connector_holders.append(holder)
 
 	var line := ColorRect.new()
-	line.custom_minimum_size = Vector2(3, 12)
+	line.name = "Line"
 	line.color = branch_color.darkened(0.65)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(line)
@@ -300,60 +330,137 @@ func _build_connector(below_skill_id: String, branch_color: Color) -> Control:
 
 
 func _build_detail() -> Control:
-	var box := PanelContainer.new()
-	box.custom_minimum_size = Vector2(0, 74)
+	_detail_box = PanelContainer.new()
+	_detail_box.name = "Detail"
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_INSET
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(10)
-	box.add_theme_stylebox_override("panel", style)
+	_detail_style = UiTheme.inset_style()
+	_detail_box.add_theme_stylebox_override("panel", _detail_style)
 
 	var column := VBoxContainer.new()
+	column.name = "DetailColumn"
 	column.add_theme_constant_override("separation", 2)
-	box.add_child(column)
+	_detail_box.add_child(column)
 
-	_detail_name = Label.new()
-	_detail_name.add_theme_font_size_override("font_size", 15)
+	_detail_name = _typed(Label.new(), UiTheme.FONT_BODY) as Label
+	_detail_name.name = "DetailName"
 	column.add_child(_detail_name)
 
-	_detail_body = Label.new()
-	_detail_body.add_theme_font_size_override("font_size", 12)
-	_detail_body.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_detail_body = _typed(Label.new(), UiTheme.FONT_SMALL) as Label
+	_detail_body.name = "DetailBody"
+	_detail_body.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	_detail_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_detail_body)
 
-	_detail_status = Label.new()
-	_detail_status.add_theme_font_size_override("font_size", 12)
+	_detail_status = _typed(Label.new(), UiTheme.FONT_SMALL) as Label
+	_detail_status.name = "DetailStatus"
 	column.add_child(_detail_status)
 
-	return box
+	return _detail_box
 
 
 func _build_footer() -> Control:
-	var footer := Label.new()
-	footer.text = "[K] close        Click a highlighted skill to spend a point"
-	footer.add_theme_font_size_override("font_size", 11)
-	footer.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	# The frame now carries an X, the backdrop closes on a tap and Escape works, so
+	# the footer names all three rather than only the key a phone does not have.
+	var footer := _typed(Label.new(), UiTheme.FONT_SMALL) as Label
+	footer.name = "Footer"
+	footer.text = "Tap a highlighted skill to spend a point        [K] · [Esc] · tap outside to close"
+	footer.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return footer
+
+
+## Registers a text control's unscaled font size and hands it straight back, so a
+## build line stays a single statement.
+func _typed(control: Control, base_size: int) -> Control:
+	_typography.append([control, base_size])
+	return control
+
+
+# --- sizing ------------------------------------------------------------------
+
+## Re-derives every font size and pad from the current viewport. Runs once at build
+## time and again on every window resize. The badge is included: it is outside the
+## frame, so PanelFrame's own rescale never reaches it.
+func _apply_scale() -> void:
+	var factor := UiTheme.scale_for_node(self)
+	# UiTheme's helpers take a viewport size rather than a factor, so reconstruct
+	# the size that yields exactly this factor. Same round trip panel_frame.gd
+	# makes, which is why the frame's chrome and this content grow in step.
+	var vp := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
+
+	for entry in _typography:
+		var control: Control = entry[0]
+		control.add_theme_font_size_override("font_size", UiTheme.scaled_font(entry[1], vp))
+
+	_scale_badge(vp, factor)
+
+	if _frame == null:
+		return
+
+	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, vp))))
+	_header.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP * 1.75, vp))))
+	_branch_columns.add_theme_constant_override("separation", int(round(UiTheme.scaled(BRANCH_GAP, vp))))
+
+	_xp_bar.custom_minimum_size = XP_BAR_SIZE * factor
+	_points_style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP * 0.75, vp))
+
+	_detail_box.custom_minimum_size = Vector2(0, UiTheme.scaled(DETAIL_MIN_HEIGHT, vp))
+	_detail_style.set_content_margin_all(UiTheme.scaled(DETAIL_PAD, vp))
+
+	# A card is the thing a finger aims at in this panel, so its height takes the
+	# touch floor rather than the plain scale. SkillNodeButton sets the unscaled
+	# value in its constructor; this is the same property, re-derived.
+	var card_height := UiTheme.scaled_touch(float(SkillNodeButton.CARD_HEIGHT), vp)
+	for skill_id in _cards:
+		var card: SkillNodeButton = _cards[skill_id]
+		card.custom_minimum_size = Vector2(0, card_height)
+
+	var link_height := UiTheme.scaled(CONNECTOR_SIZE.y, vp)
+	for holder in _connector_holders:
+		holder.custom_minimum_size = Vector2(0, link_height)
+	for skill_id in _connectors:
+		var line: ColorRect = _connectors[skill_id]
+		line.custom_minimum_size = Vector2(UiTheme.scaled(CONNECTOR_SIZE.x, vp), link_height)
+
+	for gap in _branch_gaps:
+		gap.custom_minimum_size = Vector2(0, UiTheme.scaled(UiTheme.GAP, vp))
+
+
+func _scale_badge(vp: Vector2, factor: float) -> void:
+	if _hud_badge == null:
+		return
+
+	_hud_badge_style.set_content_margin_all(UiTheme.scaled(BADGE_PAD, vp))
+
+	var width := BADGE_WIDTH * factor
+	var margin := UiTheme.scaled(BADGE_MARGIN, vp)
+	_hud_badge.custom_minimum_size = Vector2(width, 0)
+	# Anchored top-right, so this position is measured from that corner and is made
+	# of the badge's own width plus its inset — no viewport dimension involved.
+	_hud_badge.position = Vector2(-(width + margin), margin)
 
 
 # --- open / close ------------------------------------------------------------
 
 func is_open() -> bool:
-	return _panel_root != null and _panel_root.visible
+	return _frame != null and _frame.is_open()
 
 
 func toggle() -> void:
 	set_open(not is_open())
 
 
+## The one place visibility changes. Kept as the public entry point because the
+## InputManager signal, the devtools `skill_panel` verb and the tests all drive the
+## panel through it; the frame only owns *how* it is drawn.
 func set_open(open: bool) -> void:
-	if _panel_root == null or _panel_root.visible == open:
+	if _frame == null or _frame.is_open() == open:
 		return
 
-	_panel_root.visible = open
+	if open:
+		_frame.open()
+	else:
+		_frame.close()
 
 	# Same handshake the inventory and crafting panels use: free the cursor and
 	# stop the player walking around behind the menu. Set rather than toggled, so
@@ -367,10 +474,11 @@ func set_open(open: bool) -> void:
 		_refresh_all()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if is_open() and event.is_action_pressed("ui_cancel"):
-		set_open(false)
-		get_viewport().set_input_as_handled()
+## Escape, the X and a tap on the backdrop all land here. The panel no longer
+## handles ui_cancel itself — PanelFrame does, and only while it is on screen, so
+## two open panels cannot both answer one press.
+func _on_close_requested() -> void:
+	set_open(false)
 
 
 # --- state -------------------------------------------------------------------
@@ -451,7 +559,7 @@ func _refresh_detail() -> void:
 
 	if _hovered_id == "" or not level_up_manager.tree.has_skill(_hovered_id):
 		_detail_name.text = "Skill tree"
-		_detail_name.add_theme_color_override("font_color", COLOR_TEXT)
+		_detail_name.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 		_detail_body.text = "Every level banks one point. Hover a skill to read it."
 		_detail_status.text = ""
 		return
@@ -471,19 +579,26 @@ func _refresh_detail() -> void:
 	var missing := level_up_manager.tree.missing_requirements(_hovered_id, level_up_manager.taken)
 	if not missing.is_empty():
 		_detail_status.text = "Requires %s" % ", ".join(missing)
-		_detail_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	elif level_up_manager.points > 0:
 		_detail_status.text = "Costs 1 point — click to learn"
-		_detail_status.add_theme_color_override("font_color", COLOR_POINTS)
+		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_GOLD)
 	else:
 		_detail_status.text = "Costs 1 point — none banked"
-		_detail_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 
 
 func _on_node_pressed(skill_id: String) -> void:
+	# Select first, buy second. A finger produces no hover, so on a phone a tap was
+	# the only way to read a card at all — and a tap on a locked or unaffordable one
+	# used to do nothing whatsoever, leaving the detail pane on whatever the mouse
+	# last touched. Selecting unconditionally costs the desktop player nothing:
+	# hovering already did exactly this.
+	_hovered_id = skill_id
+
 	if not level_up_manager.purchase(skill_id):
+		_refresh_detail()
 		return
 
 	GameSoundManager.play_sound(GameSoundManager.SoundType.POP)
-	_hovered_id = skill_id
 	_refresh_all()

@@ -3,21 +3,42 @@
 [ext_resource type="Script" path="res://inventory/hot_bar_inventory.gd" id="1_ai6us"]
 
 [node name="HotBarInventory" type="PanelContainer"]
-anchors_preset = 15
-anchor_right = 1.0
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_right = -1088.0
-offset_bottom = -584.0
+offset_left = -210.0
+offset_top = -90.0
+offset_right = 210.0
+offset_bottom = -10.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 script = ExtResource("1_ai6us")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer"]
+[node name="Row" type="HBoxContainer" parent="MarginContainer"]
 layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PrevButton" type="Button" parent="MarginContainer/Row"]
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Previous slot"
+text = "<"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/Row"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="NextButton" type="Button" parent="MarginContainer/Row"]
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Next slot"
+text = ">"

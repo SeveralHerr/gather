@@ -54,10 +54,10 @@ const JOYSTICK_CLAMPZONE := 75.0
 const JOYSTICK_DEADZONE := 10.0
 
 ## Button sizing, all derived from the viewport's shortest edge so the cluster is
-## thumb-sized on a phone and not absurd on a desktop window. BUTTON_REFERENCE_EDGE
-## is the short edge the joystick art was drawn for, used only as a scale ratio —
-## nothing here may be a viewport *position* (see CLAUDE.md).
-const BUTTON_REFERENCE_EDGE := 720.0
+## thumb-sized on a phone and not absurd on a desktop window. The reference edge
+## that ratio is taken against is `UiTheme.REFERENCE_EDGE`; this file used to
+## declare its own byte-identical 720.0, which is one more thing that could drift
+## away from the panels. Nothing here may be a viewport *position* (see CLAUDE.md).
 const BUTTON_BIG_FRACTION := 0.20
 const BUTTON_BIG_MIN := 52.0
 const BUTTON_BIG_MAX := 148.0
@@ -71,11 +71,11 @@ const LABEL_SIZE_MIN := 9
 const JOYSTICK_SCALE_MIN := 0.45
 const JOYSTICK_SCALE_MAX := 1.25
 
-const COLOR_BG := Color(0.086, 0.102, 0.129, 0.66)
-const COLOR_BORDER := Color(0.49, 0.52, 0.58, 0.55)
-const COLOR_BORDER_PRIMARY := Color("ffd166")
-const COLOR_LABEL := Color("f2f4f8")
-const PRESSED_MODULATE := Color(0.62, 0.72, 0.85, 1.0)
+# Colours come from `UiTheme` — the overlay's own near-duplicate palette was the
+# fourth copy of the same five values and the one that had already drifted (its
+# background was a shade more transparent than the panels'). `overlay_style()` is
+# the variant meant for chrome sitting directly over the world with no backdrop,
+# which is exactly what these buttons and the hotbar are.
 
 ## The button cluster, laid out in rows measured from a screen corner. Rows count
 ## away from the corner, and within a row buttons are placed right-to-left in the
@@ -89,12 +89,22 @@ const PRESSED_MODULATE := Color(0.62, 0.72, 0.85, 1.0)
 ##   action    open a chest / crafting station; without it the crafting half of the
 ##             game is unreachable on a phone.
 ##   destroy   removes a misplaced building. Held, same as gather.
-##   ITEM      cycles the hotbar selection. Not an action at all, but without it a
-##             phone player is stuck on slot 1 forever and can never place a
-##             building or swap to the sword.
+##   ITEM      cycles the hotbar selection forward. Not an action at all. The
+##             hotbar now carries its own < and > buttons and its slots are
+##             tappable, so this is no longer the only way to change slots — but
+##             it is the one that stays under the thumb already holding the right
+##             cluster, and one-handed portrait play is the case that made the
+##             overlay worth building. The hotbar's arrows are the *discoverable*
+##             affordance; this is the fast one. Both go through the same
+##             HotBarInventory.select_slot().
 ##   inventory / skills / land   the three panels. They are the progression UI, and
-##             on a phone they are also the only way to *close* themselves again,
-##             so they stay on top of everything (see the mount order in main.tscn).
+##             on a phone this cluster is the only way *into* them. It used to be
+##             the only way back out too, which is why the overlay was mounted on
+##             top of everything; every panel now closes from its own PanelFrame X,
+##             a tap on the backdrop, or Escape, so that constraint is gone and the
+##             overlay sits *beneath* the panels instead. handle_touch_event()
+##             declines presses while one is open so the two cannot both answer the
+##             same tap.
 ##
 ## Left off deliberately: `save` and `load` (debug bindings, and there are already
 ## Save/Load buttons in the camera HUD) and the mouse buttons (touch already
@@ -113,6 +123,11 @@ const BUTTON_SPECS := [
 ## The corners the layout walks, in the order rows stack away from each.
 const CORNERS := ["br", "tr"]
 
+## The buttons that open a panel rather than acting on the world. They stay live
+## while `disable_input` is raised for death and respawn, matching the keyboard
+## bindings in input_manager.gd. See _press_blocked_for().
+const MENU_ACTIONS := ["inventory", "skills", "land"]
+
 var _joystick: Control
 
 ## The generated button Controls, in BUTTON_SPECS order, and their metadata.
@@ -121,6 +136,12 @@ var _button_action: Dictionary = {}
 
 ## touch index -> the button that finger is currently holding.
 var _held: Dictionary = {}
+
+## The project's InputManager, resolved by relative path because main.tscn's root
+## belongs to every group and get_first_node_in_group() therefore returns the root
+## (see CLAUDE.md). Null in a test that instantiates this scene on its own, which
+## reads as "no panel is open" — the right answer there.
+var _input_manager: InputManager
 
 ## Last value read from DisplayServer, so _process only reacts to changes.
 var _touch_available := false
@@ -138,6 +159,10 @@ func _ready() -> void:
 	_joystick = get_node_or_null("VirtualJoystick") as Control
 	if _joystick == null:
 		push_error("MobileControls: no VirtualJoystick child; movement will have no touch input")
+
+	# UI2/MobileControls -> Main/InputManager. The same relative hop the rest of the
+	# UI2 nodes make.
+	_input_manager = get_node_or_null("../../InputManager") as InputManager
 
 	_build_buttons()
 	_layout()
@@ -214,15 +239,20 @@ func _input(event: InputEvent) -> void:
 
 ## The whole touch routing, split out from _input() so it can be driven directly
 ## without a live viewport. Returns true when the event was consumed.
+##
+## Presses are declined while a modal panel is open; releases never are. See
+## `_presses_blocked()` for why the two halves are not treated alike.
 func handle_touch_event(event: InputEvent) -> bool:
 	if not visible:
 		return false
+
+	var blocked := _presses_blocked()
 
 	var touch := event as InputEventScreenTouch
 	if touch != null:
 		if touch.pressed:
 			var button := _button_at(touch.position)
-			if button != null:
+			if button != null and not _press_blocked_for(button, blocked):
 				_press(touch.index, button)
 				return true
 		elif _held.has(touch.index):
@@ -236,10 +266,82 @@ func handle_touch_event(event: InputEvent) -> bool:
 		var over := _button_at(drag.position)
 		if over != _held[drag.index]:
 			_release(drag.index)
-			if over != null:
+			# ...unless a panel opened mid-drag, in which case letting go is all that
+			# is left to do.
+			if over != null and not _press_blocked_for(over, blocked):
 				_press(drag.index, over)
 			return true
 
+	return false
+
+
+## True while a modal panel owns the screen.
+##
+## The overlay hit-tests its own rects from `_input()`, which runs before the
+## viewport picks a Control, and marks the event handled. So a touch on the BAG /
+## SKILL / LAND cluster used to fire its action even with a panel painted over the
+## top of it: the player tapped what looked like the panel and something else
+## happened underneath. Declining the event (rather than consuming it) lets it fall
+## through to the panel's own GUI handling, which is what a tap there should hit.
+##
+## `InputManager.disable_input` is the signal because every panel already sets it
+## true on open and false on close through its `set_open()` handshake — there is no
+## second source of truth to keep in step.
+##
+## **Presses only.** A release for a finger already in `_held` is always processed,
+## even mid-panel. `gather` and `destroy` are holds: press starts
+## ResourceManager2's timer and the release is what calls
+## stop_removing_resource(). Swallow that release — because a panel opened under
+## the other thumb — and the action latches down forever with the tile stuck on its
+## animated mid-gather frame. That is gather-3zg, and it is why input_manager.gd's
+## own releases are ungated too.
+func _presses_blocked() -> bool:
+	if _input_manager == null:
+		return false
+	return bool(_input_manager.disable_input)
+
+
+## Whether this particular button declines the press, given the blanket
+## `_presses_blocked()` verdict.
+##
+## `disable_input` alone is very slightly too broad: `player.gd:respawn()` also
+## raises it for the half-second death-and-respawn window, and input_manager.gd is
+## explicit that the three menu toggles must *not* be gated on it — "opening a menu
+## while dead or mid-respawn is harmless, and being locked out of it is not". A flat
+## gate would have locked a phone player out of their own inventory every time they
+## died, which is precisely the complaint the keyboard build already fixed.
+##
+## So the two reasons to decline are separated:
+##   * a panel is genuinely on screen — decline everything, the cluster is buried
+##     under it and the panel carries its own close button now;
+##   * input is merely disabled (dead, mid-respawn) — decline the gameplay actions
+##     but let the menu buttons through, matching the keyboard.
+func _press_blocked_for(button: Control, blocked: bool) -> bool:
+	if _modal_panel_open():
+		return true
+	if not blocked:
+		return false
+	return not MENU_ACTIONS.has(str(_button_action.get(button, "")))
+
+
+## Whether a PanelFrame is currently on screen anywhere in this CanvasLayer.
+##
+## Asks the frames themselves rather than trusting `disable_input`, because that
+## flag answers "can the player act", not "is something covering the buttons", and
+## only the second question is the one draw order cannot settle.
+func _modal_panel_open() -> bool:
+	var parent := get_parent()
+	if parent == null:
+		return false
+
+	for sibling in parent.get_children():
+		if sibling == self:
+			continue
+		# owned = false: every panel builds its PanelFrame in code, so none of them
+		# are owned by a scene and an owned-only search finds nothing.
+		for frame in sibling.find_children("*", "PanelFrame", true, false):
+			if frame.visible:
+				return true
 	return false
 
 
@@ -297,7 +399,7 @@ func _release_all() -> void:
 
 
 func _set_pressed_look(button: Control, down: bool) -> void:
-	button.modulate = PRESSED_MODULATE if down else Color.WHITE
+	button.modulate = UiTheme.PRESSED_MODULATE if down else Color.WHITE
 
 
 ## Feeds one half of an action into the engine, exactly as the keyboard would. The
@@ -330,6 +432,12 @@ func send_action(action: String, pressed: bool) -> void:
 ## sending the same key it already listens for is the only way to drive it without
 ## copying its selection logic in here. The current slot is read back off the
 ## hotbar rather than tracked locally, so number keys and this button stay in sync.
+##
+## The hotbar has since grown a public `step_selection()` that this could call
+## directly, and every one of its own affordances goes through it. The key is kept
+## anyway: it is the one path that does not care where the hotbar is mounted or
+## whether this overlay can find it, and it now lands in exactly the same
+## `select_slot()` as the arrows and the taps, so there is nothing left to drift.
 func _cycle_hotbar() -> void:
 	var current := 0
 	var hotbar := _find_hotbar()
@@ -376,7 +484,7 @@ func _build_buttons() -> void:
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.add_theme_color_override("font_color", COLOR_LABEL)
+		label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 		button.add_child(label)
 		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -385,13 +493,66 @@ func _build_buttons() -> void:
 		_button_action[button] = str(spec["action"])
 
 
+## `primary` maps onto UiTheme's `accent`: the gold, one-pixel-thicker border the
+## hotbar's selected slot also wears, so "this is the important one" reads the
+## same everywhere.
 func _button_style(primary: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_BG
-	style.border_color = COLOR_BORDER_PRIMARY if primary else COLOR_BORDER
-	style.set_border_width_all(3 if primary else 2)
-	style.set_corner_radius_all(16)
-	return style
+	return UiTheme.overlay_style(primary)
+
+
+## The four lengths the whole layout is built out of, in one place so that
+## `_layout()` and anything asking how much screen the overlay covers cannot
+## derive them differently. `small` takes UiTheme's touch floor: at the bottom of
+## the range a secondary button worked out to 35px, well under the 48px
+## accessibility minimum the rest of the UI now clears.
+func _metrics(vp: Vector2) -> Dictionary:
+	var shortest := minf(vp.x, vp.y)
+	var big := clampf(shortest * BUTTON_BIG_FRACTION, BUTTON_BIG_MIN, BUTTON_BIG_MAX)
+	return {
+		"big": big,
+		"small": maxf(big * BUTTON_SMALL_RATIO, UiTheme.TOUCH_MIN),
+		"pad": big * BUTTON_PAD_RATIO,
+		"margin": clampf(shortest * MARGIN_FRACTION, MARGIN_MIN, MARGIN_MAX),
+	}
+
+
+func _joystick_scale(vp: Vector2) -> float:
+	return clampf(
+		minf(vp.x, vp.y) / UiTheme.REFERENCE_EDGE, JOYSTICK_SCALE_MIN, JOYSTICK_SCALE_MAX)
+
+
+## How many pixels up from the bottom edge this overlay is occupying, so other
+## bottom-anchored UI can sit clear of it. On a portrait phone the joystick and
+## the thumb cluster own both bottom corners and the hotbar is very nearly
+## screen-wide, so there is no bottom-centre gap for it to slip into — without
+## this the hotbar renders underneath MINE and HIT and a tap hits both.
+##
+## Zero while the overlay is hidden, which is the whole desktop session.
+func get_bottom_obstruction_height() -> float:
+	if not visible:
+		return 0.0
+
+	var vp := get_viewport_rect().size
+	if vp.x <= 0.0 or vp.y <= 0.0:
+		return 0.0
+
+	var metrics := _metrics(vp)
+	var big: float = metrics["big"]
+	var small: float = metrics["small"]
+	var pad: float = metrics["pad"]
+	var margin: float = metrics["margin"]
+
+	# Same walk `_layout()` makes over the bottom-right corner, so a row added to
+	# BUTTON_SPECS raises this by itself.
+	var cluster := margin
+	for indices in _rows_for("br"):
+		cluster += _row_height(indices, big, small) + pad
+
+	var joystick := 0.0
+	if _joystick != null:
+		joystick = margin + JOYSTICK_SIZE.y * _joystick_scale(vp)
+
+	return maxf(cluster, joystick)
 
 
 ## Sizes and positions everything from the current viewport, because the project
@@ -403,11 +564,11 @@ func _layout() -> void:
 	if vp.x <= 0.0 or vp.y <= 0.0:
 		return
 
-	var shortest := minf(vp.x, vp.y)
-	var big := clampf(shortest * BUTTON_BIG_FRACTION, BUTTON_BIG_MIN, BUTTON_BIG_MAX)
-	var small := big * BUTTON_SMALL_RATIO
-	var pad := big * BUTTON_PAD_RATIO
-	var margin := clampf(shortest * MARGIN_FRACTION, MARGIN_MIN, MARGIN_MAX)
+	var metrics := _metrics(vp)
+	var big: float = metrics["big"]
+	var small: float = metrics["small"]
+	var pad: float = metrics["pad"]
+	var margin: float = metrics["margin"]
 
 	# Rows stack away from their corner, each one inset by the ones before it. The
 	# groups come from BUTTON_SPECS, so a new row appears on screen the moment it is
@@ -422,8 +583,7 @@ func _layout() -> void:
 			inset += height + pad
 
 	if _joystick != null:
-		var scale_factor := clampf(
-			shortest / BUTTON_REFERENCE_EDGE, JOYSTICK_SCALE_MIN, JOYSTICK_SCALE_MAX)
+		var scale_factor := _joystick_scale(vp)
 		_joystick.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		_joystick.size = JOYSTICK_SIZE
 		_joystick.scale = Vector2(scale_factor, scale_factor)

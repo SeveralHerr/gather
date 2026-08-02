@@ -746,3 +746,69 @@ Guidelines that make an entry useful later:
     `Vector2i` when the target method's argument list says so — `Object.get_method_list()`
     exposes the parameter types, so the coercion can be driven off the signature rather
     than guessed.
+
+## 2026-08-01 — UI/UX overhaul: shared panel kit, close buttons, mobile sizing, joystick overlap
+
+- Value: **warranted** — runtime produced two claims the diff could not: the inventory
+  frame and the virtual joystick occupy disjoint rects, and the new close button hands
+  `disable_input` back rather than soft-locking the player.
+  - Expected: runtime will show whether the inventory panel now actually renders above
+    the joystick and centred, and — the thing no headless test can reach — whether
+    closing a panel via the new X button runs the `disable_input` handshake, or
+    soft-locks the player with movement disabled.
+  - Got: inventory frame `Rect: 616, 341, 688x397` against joystick
+    `Rect: 38, 667, 375x375` — disjoint in x, and the frame centre is exactly
+    (960, 540) on a 1920x1080 viewport. The old scene offsets computed to x 14..78,
+    y 902..966, which is inside the joystick rect, so the reported bug is confirmed and
+    fixed. On the handshake: `disable_input: true` with the panel open, then
+    `emit_signal("pressed")` on the `CloseButton` gave `visible: false` **and**
+    `disable_input: false`. The close button measures `51x51`, clearing the 48px floor.
+    Also confirmed the new press-gate both ways: tapping the BAG button at (1707, 88)
+    with the skill panel open left `InventoryInterface.visible: false`, while the same
+    tap with no panel open gave `visible: true`.
+  - Cheaper: nothing. Both facts only exist in a running game — the unit tests construct
+    panels in isolation, where there is no InputManager to hand input back to and no
+    joystick to overlap.
+
+- Gap: **A stale bus file in a shared `user://` answers requests with another build's
+  data, with no process running to explain it.** First `scene-tree` of the session
+  returned a `UI2` whose children were in the pre-change order *and* included an
+  `IslandCompass` node that does not exist anywhere in this worktree
+  (`grep -rl IslandCompass .` matched only the JSON I had just written). The game log
+  also showed a `_cmd_set_state` on camera zoom that I never sent
+  (`ERROR: Zoom level must be different from 0`, at `dev_tools.gd:707`).
+  `Get-CimInstance Win32_Process` showed exactly **one** Godot process, and it was mine —
+  so this was not the live-second-instance case in [G-009]; it was leftover
+  `devtools_commands.json` / `devtools_results.json` from an earlier session in the
+  shared `user://`. The existing id-echo "Crossed replies" check did not fire. I only
+  caught it because a node name happened not to exist in my source; had the stale tree
+  been merely *older* rather than foreign, I would have verified nothing and reported a
+  pass. Workaround: relaunch with `-- --devtools-session uiverify` and call with
+  `--session uiverify`, which gives a private file pair; `ping` then confirms
+  `session: uiverify`.
+  - [G-036] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have the DevTools autoload delete any pre-existing command/result file
+    for its own bus id during `_ready()`, and have `devtools.py` reject a result whose
+    request id it never issued instead of returning it. Note `GODOT_USERDATA` does not
+    help here — it redirects only the *client*; the game resolves `user://` from the
+    engine, so the two silently poll different directories and the error reads as a
+    dead game.
+
+- Gap: **`place_station` can drop a station outside the crafting panel's own keep-open
+  radius, making the panel unverifiable from the CLI.** `_cmd_place_station` ring-searches
+  from the player's tile but its `dx` loop starts at `-ring` and takes the first free
+  cell, biasing toward the far corner. Observed: player at (12.9, 8.9), station placed at
+  (24, 56) — 48 units away, while `crafting_ui.gd:640` closes the panel past 24. So
+  `cmd crafting_panel --args '{"open":true}'` returns `"open": true` and the very next
+  command reads `Visible: False` / `"panel_open": false`. `set-game-speed 0` does not
+  help (`_physics_process` still runs), and `set-state` cannot reposition the player
+  because it will not coerce a dict to `Vector2` — it silently wrote (0, 0), which is
+  [G-035] biting a second verb. Walking there with `input press move_down` +
+  `step-time` was blocked by collision after ~9 units. Net result: `ui/recipe_card.gd`
+  is the one changed file this run could not reach, and the crafting panel was verified
+  only through its 5 passing unit tests plus a `set_title` readback of `SAWMILL`.
+  Filed as gather-1ph.
+  - [G-037] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `place_station` collect the candidate free cells and pick the one
+    nearest the player rather than the first the scan hits, so the station lands inside
+    the interaction radius the panel itself requires.

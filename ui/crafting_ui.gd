@@ -10,28 +10,57 @@ class_name CraftingUi
 ## compensating scale (0.37, 0.25, 0.385...) and every offset was hand-tuned to a
 ## window size the project stopped using. Nothing here hardcodes a viewport dimension.
 ##
+## The chrome - dim backdrop, centring, frame, title bar, close button, and the three
+## ways back out - is PanelFrame's now. This file used to hand-roll the first three,
+## carried its own byte-identical copy of the COLOR_* palette, and had no close button
+## at all: on a phone, where there is no Escape key, the only way out of the crafting
+## panel was to walk back into the station's radius and press interact a second time.
+## The station's name goes in the title bar, which is the reason `set_title()` exists -
+## the panel is always opened against one specific machine.
+##
+## Every size on screen is derived from the live viewport through UiTheme.scaled*() in
+## `_apply_scale()`, re-run on `size_changed`. The raw integers this file used to carry
+## were chosen against one desktop window, and the recipe cards and their ingredient
+## rows - the densest text in the game - were the first thing to stop being readable on
+## a small one. Sizes only: positions still come from anchors and from PanelFrame's
+## CenterContainer (gather-6fx).
+##
 ## Crafting is station-bound because a station is a machine, not a menu: it pays the
 ## cost up front and then ticks one item per second onto the ground at its own feet.
 
+## The panel's size at the reference scale, capped again by the viewport in `_layout`.
+## Both are multiplied by UiTheme.scale_for(): the text inside grows with the window,
+## so a frame that did not would overflow rather than stay tidy.
 const PANEL_MAX := Vector2(1040, 620)
 ## Below this the detail pane cannot sit beside the grid, so the panel becomes two
-## pages instead of trying to reflow into an unreadable column.
+## pages instead of trying to reflow into an unreadable column. Scaled like PANEL_MAX,
+## so the threshold and the thing it measures move together.
 const COMPACT_WIDTH := 780.0
 
-const COLOR_BACKDROP := Color(0.02, 0.03, 0.05, 0.78)
-const COLOR_FRAME := Color("161a21")
-const COLOR_INSET := Color("11141a")
-const COLOR_TEXT := Color("f2f4f8")
-const COLOR_TEXT_DIM := Color("7d8494")
-const COLOR_SHORT := Color("e05a4f")
+## Panel-specific base metrics, pre-scale. Every one of these is fed through
+## UiTheme.scaled() or scaled_touch() before it reaches a control; none is used raw.
+const DETAIL_WIDTH := 330.0
+const STATION_ICON := 34.0
+const DETAIL_ICON := 48.0
+const ROW_ICON := 24.0
+const SEARCH_WIDTH := 220.0
+const QTY_WIDTH := 52.0
+## The steppers, the back button and the cancel button: small controls a finger still
+## has to hit, so they go through scaled_touch() rather than scaled().
+const BUTTON_SIDE := 34.0
+const CRAFT_HEIGHT := 38.0
+const STATUS_HEIGHT := 30.0
+const PROGRESS_HEIGHT := 10.0
 
 ## Each station is tinted with the skill branch that unlocks most of its recipes, so
-## the panel is coloured by the progression it belongs to.
+## the panel is coloured by the progression it belongs to. Sawmill green and the
+## default blue are UiTheme's own; the furnace amber is deliberately darker than
+## COLOR_GOLD, which is the currency colour and would read as "this is money".
 const STATION_ACCENTS := {
-	Types.Item.Sawmill: Color("6fcf6a"),
+	Types.Item.Sawmill: UiTheme.COLOR_GOOD,
 	Types.Item.Furnace: Color("e0a33c"),
 }
-const DEFAULT_ACCENT := Color("58a8e0")
+const DEFAULT_ACCENT := UiTheme.COLOR_ACCENT
 
 ## Injectable so the panel can be built headlessly, where no autoload exists.
 var recipes
@@ -41,25 +70,38 @@ var level_up_manager: LevelUpManager
 
 var station: CraftingStation
 
-var _panel_root: Control
+## The shared chrome, and its inner body. `_frame` is the PanelContainer that actually
+## carries the panel's size, so it is the node `_layout` writes the computed size onto
+## and the one the layout tests measure - the chrome's own root is a full-rect Control
+## and would answer every "does it fit" question with the window's own size.
+var _chrome: PanelFrame
 var _frame: PanelContainer
+
+var _header: HBoxContainer
 var _station_icon: TextureRect
-var _title: Label
 var _search: LineEdit
 var _body: HBoxContainer
 var _browser: ScrollContainer
 var _grid: GridContainer
 var _empty_hint: Label
 var _detail: PanelContainer
+var _detail_column: VBoxContainer
+var _product_row: HBoxContainer
 var _back_button: Button
 var _detail_icon: TextureRect
 var _detail_name: Label
 var _detail_rate: Label
+var _ingredients_heading: Label
 var _cost_rows: VBoxContainer
+var _qty_row: HBoxContainer
+var _minus_button: Button
+var _plus_button: Button
+var _max_button: Button
 var _qty_label: Label
 var _craft_button: Button
 var _status: Label
 var _queue_bar: PanelContainer
+var _queue_row: HBoxContainer
 var _queue_icon: TextureRect
 var _queue_label: Label
 var _queue_progress: ProgressBar
@@ -81,7 +123,8 @@ func _ready() -> void:
 	add_to_group("CraftingUi")
 
 	# The root only hosts the panel; it must not swallow clicks aimed at the world
-	# while the panel is closed.
+	# while the panel is closed. PanelFrame's backdrop does the swallowing when it is
+	# open, and does it deliberately.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -96,6 +139,9 @@ func _ready() -> void:
 
 	_build_panel()
 
+	# Connected *after* _build_panel, and that order matters: PanelFrame connects its
+	# own _apply_scale in its _ready (which runs inside the add_child above), so ours
+	# lands second and gets the last word on the frame's minimum size.
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 
@@ -103,137 +149,119 @@ func _ready() -> void:
 # --- construction ------------------------------------------------------------
 
 func _build_panel() -> void:
-	_panel_root = Control.new()
-	# Named rather than left as @Control@31: this is the handle the devtools bridge
-	# addresses the panel by, and generated names shift with node count.
-	_panel_root.name = "Panel"
-	_panel_root.visible = false
-	_panel_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	_panel_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(_panel_root)
+	_chrome = PanelFrame.new()
+	# No minimum passed: this panel measures itself against the viewport in _layout()
+	# rather than growing from a fixed base, because it has to fit a phone as well as
+	# a 4K window. The title is replaced with the station's name on open.
+	_chrome.setup("CRAFTING")
+	# The X, the backdrop and Escape all land here, and all three go through set_open()
+	# so the disable_input / mouse-mode / hotbar handshake runs exactly as it does when
+	# the player walks away or presses interact again. A close that only hid the frame
+	# would leave the player frozen with no menu on screen.
+	_chrome.close_requested.connect(close)
+	# PanelFrame re-applies its own scaling whenever it opens, which resets the frame
+	# minimum size it thinks it owns; re-running our layout on the same signal puts the
+	# viewport-derived size back, whoever did the opening.
+	_chrome.opened.connect(_layout)
+	add_child(_chrome)
 
-	var backdrop := ColorRect.new()
-	backdrop.color = COLOR_BACKDROP
-	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_panel_root.add_child(backdrop)
+	# Reached into on purpose. PanelFrame owns the chrome but not the policy for how big
+	# this particular panel should be, and its own minimum-size field is a fixed base
+	# multiplied by the scale - which a phone viewport can still overflow. `_layout()`
+	# writes the viewport-capped size straight onto the body instead, and gets the last
+	# word because our size_changed handler is connected after PanelFrame's.
+	_frame = _chrome._frame
 
-	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_panel_root.add_child(center)
-
-	_frame = PanelContainer.new()
-	_frame.add_theme_stylebox_override("panel", _frame_style())
-	center.add_child(_frame)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_bottom", 14)
-	_frame.add_child(margin)
-
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
-	margin.add_child(column)
-
-	column.add_child(_build_header())
-
-	var rule := HSeparator.new()
-	column.add_child(rule)
+	var content := _chrome.content
+	content.add_child(_build_header())
 
 	_body = HBoxContainer.new()
-	_body.add_theme_constant_override("separation", 12)
+	_body.name = "Body"
 	_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(_body)
+	content.add_child(_body)
 
 	_body.add_child(_build_browser())
 	_body.add_child(_build_detail())
 
 	_queue_bar = _build_queue_bar()
-	column.add_child(_queue_bar)
+	content.add_child(_queue_bar)
 
 	_footer = Label.new()
-	_footer.add_theme_font_size_override("font_size", 11)
-	_footer.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_footer.name = "Footer"
+	_footer.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(_footer)
+	content.add_child(_footer)
 
 
-func _frame_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_FRAME
-	style.border_color = Color(1, 1, 1, 0.08)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
-	return style
-
-
-func _inset_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_INSET
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(10)
+## UiTheme's recessed style plus the content margin a pane needs to keep its own
+## children off its edges. The margin is the only part that scales - the colour and
+## the corner radius are shared with every other inset in the game.
+func _inset_style(viewport_size: Vector2) -> StyleBoxFlat:
+	var style := UiTheme.inset_style()
+	style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP + 2.0, viewport_size))
 	return style
 
 
 func _build_header() -> Control:
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
+	_header = HBoxContainer.new()
+	_header.name = "Header"
 
 	_back_button = Button.new()
+	_back_button.name = "BackButton"
 	_back_button.text = "<"
 	_back_button.visible = false
-	_back_button.custom_minimum_size = Vector2(34, 0)
 	_back_button.pressed.connect(_show_grid_page)
-	header.add_child(_back_button)
+	UiTheme.style_button(_back_button)
+	_header.add_child(_back_button)
 
+	# The station's name lives in the title bar now, so this is the only identity mark
+	# the header still carries - it reads as a chip beside the search box rather than
+	# as a second, competing heading.
 	_station_icon = TextureRect.new()
-	_station_icon.custom_minimum_size = Vector2(34, 34)
+	_station_icon.name = "StationIcon"
 	_station_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_station_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_station_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	header.add_child(_station_icon)
-
-	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 22)
-	_title.add_theme_color_override("font_color", COLOR_TEXT)
-	header.add_child(_title)
+	_header.add_child(_station_icon)
 
 	var spacer := Control.new()
+	spacer.name = "HeaderSpacer"
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(spacer)
+	_header.add_child(spacer)
 
 	_search = LineEdit.new()
+	_search.name = "Search"
 	_search.placeholder_text = "Search"
-	_search.custom_minimum_size = Vector2(220, 0)
 	_search.clear_button_enabled = true
 	_search.text_changed.connect(_on_search_changed)
-	header.add_child(_search)
+	_header.add_child(_search)
 
-	return header
+	return _header
 
 
 func _build_browser() -> Control:
 	_browser = ScrollContainer.new()
+	_browser.name = "Browser"
 	_browser.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Vertical only. The recipe list is always taller than the panel on a phone, and
+	# the column count in _layout() is picked so the grid never needs the other axis.
 	_browser.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
 	var stack := VBoxContainer.new()
+	stack.name = "Stack"
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_browser.add_child(stack)
 
 	_grid = GridContainer.new()
+	_grid.name = "Grid"
 	_grid.columns = 5
-	_grid.add_theme_constant_override("h_separation", 8)
-	_grid.add_theme_constant_override("v_separation", 8)
 	stack.add_child(_grid)
 
 	_empty_hint = Label.new()
+	_empty_hint.name = "EmptyHint"
 	_empty_hint.visible = false
-	_empty_hint.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_empty_hint.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	stack.add_child(_empty_hint)
 
 	return _browser
@@ -241,140 +269,151 @@ func _build_browser() -> Control:
 
 func _build_detail() -> Control:
 	_detail = PanelContainer.new()
-	_detail.custom_minimum_size = Vector2(330, 0)
-	_detail.add_theme_stylebox_override("panel", _inset_style())
+	_detail.name = "Detail"
 
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
-	_detail.add_child(column)
+	_detail_column = VBoxContainer.new()
+	_detail_column.name = "DetailColumn"
+	_detail.add_child(_detail_column)
 
-	var product_row := HBoxContainer.new()
-	product_row.add_theme_constant_override("separation", 10)
-	column.add_child(product_row)
+	_product_row = HBoxContainer.new()
+	_product_row.name = "ProductRow"
+	_detail_column.add_child(_product_row)
 
 	_detail_icon = TextureRect.new()
-	_detail_icon.custom_minimum_size = Vector2(48, 48)
+	_detail_icon.name = "DetailIcon"
 	_detail_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_detail_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_detail_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	product_row.add_child(_detail_icon)
+	_product_row.add_child(_detail_icon)
 
 	var names := VBoxContainer.new()
+	names.name = "Names"
 	names.add_theme_constant_override("separation", 0)
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	product_row.add_child(names)
+	_product_row.add_child(names)
 
 	_detail_name = Label.new()
-	_detail_name.add_theme_font_size_override("font_size", 17)
-	_detail_name.add_theme_color_override("font_color", COLOR_TEXT)
+	_detail_name.name = "DetailName"
+	_detail_name.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 	names.add_child(_detail_name)
 
 	_detail_rate = Label.new()
-	_detail_rate.add_theme_font_size_override("font_size", 11)
-	_detail_rate.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_detail_rate.name = "DetailRate"
+	_detail_rate.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	names.add_child(_detail_rate)
 
-	column.add_child(HSeparator.new())
+	var rule := HSeparator.new()
+	rule.name = "DetailRule"
+	_detail_column.add_child(rule)
 
-	var heading := Label.new()
-	heading.text = "INGREDIENTS"
-	heading.add_theme_font_size_override("font_size", 11)
-	heading.add_theme_color_override("font_color", COLOR_TEXT_DIM)
-	column.add_child(heading)
+	_ingredients_heading = Label.new()
+	_ingredients_heading.name = "IngredientsHeading"
+	_ingredients_heading.text = "INGREDIENTS"
+	_ingredients_heading.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
+	_detail_column.add_child(_ingredients_heading)
 
 	_cost_rows = VBoxContainer.new()
-	_cost_rows.add_theme_constant_override("separation", 2)
-	column.add_child(_cost_rows)
+	_cost_rows.name = "CostRows"
+	_detail_column.add_child(_cost_rows)
 
 	var spacer := Control.new()
+	spacer.name = "DetailSpacer"
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(spacer)
+	_detail_column.add_child(spacer)
 
-	column.add_child(_build_quantity_row())
+	_detail_column.add_child(_build_quantity_row())
 
 	_craft_button = Button.new()
+	_craft_button.name = "CraftButton"
 	_craft_button.text = "CRAFT"
-	_craft_button.custom_minimum_size = Vector2(0, 38)
 	_craft_button.pressed.connect(_on_craft_pressed)
-	column.add_child(_craft_button)
+	UiTheme.style_button(_craft_button)
+	_detail_column.add_child(_craft_button)
 
 	_status = Label.new()
-	_status.add_theme_font_size_override("font_size", 12)
-	_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+	_status.name = "Status"
+	_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.custom_minimum_size = Vector2(0, 30)
-	column.add_child(_status)
+	_detail_column.add_child(_status)
 
 	return _detail
 
 
 func _build_quantity_row() -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	_qty_row = HBoxContainer.new()
+	_qty_row.name = "QuantityRow"
 
-	var minus := Button.new()
-	minus.text = "-"
-	minus.custom_minimum_size = Vector2(34, 0)
-	minus.pressed.connect(func(): _set_amount(_amount - 1))
-	row.add_child(minus)
+	_minus_button = Button.new()
+	_minus_button.name = "MinusButton"
+	_minus_button.text = "-"
+	_minus_button.pressed.connect(func(): _set_amount(_amount - 1))
+	UiTheme.style_button(_minus_button)
+	_qty_row.add_child(_minus_button)
 
 	_qty_label = Label.new()
+	_qty_label.name = "QuantityLabel"
 	_qty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_qty_label.custom_minimum_size = Vector2(52, 0)
-	_qty_label.add_theme_font_size_override("font_size", 16)
-	_qty_label.add_theme_color_override("font_color", COLOR_TEXT)
-	row.add_child(_qty_label)
+	_qty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_qty_label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_qty_row.add_child(_qty_label)
 
-	var plus := Button.new()
-	plus.text = "+"
-	plus.custom_minimum_size = Vector2(34, 0)
-	plus.pressed.connect(func(): _set_amount(_amount + 1))
-	row.add_child(plus)
+	_plus_button = Button.new()
+	_plus_button.name = "PlusButton"
+	_plus_button.text = "+"
+	_plus_button.pressed.connect(func(): _set_amount(_amount + 1))
+	UiTheme.style_button(_plus_button)
+	_qty_row.add_child(_plus_button)
 
 	var spacer := Control.new()
+	spacer.name = "QuantitySpacer"
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
+	_qty_row.add_child(spacer)
 
-	var max_button := Button.new()
-	max_button.text = "MAX"
-	max_button.pressed.connect(_set_amount_to_max)
-	row.add_child(max_button)
+	_max_button = Button.new()
+	_max_button.name = "MaxButton"
+	_max_button.text = "MAX"
+	_max_button.pressed.connect(_set_amount_to_max)
+	UiTheme.style_button(_max_button)
+	_qty_row.add_child(_max_button)
 
-	return row
+	return _qty_row
 
 
 func _build_queue_bar() -> PanelContainer:
 	var bar := PanelContainer.new()
+	bar.name = "QueueBar"
 	bar.visible = false
-	bar.add_theme_stylebox_override("panel", _inset_style())
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	bar.add_child(row)
+	_queue_row = HBoxContainer.new()
+	_queue_row.name = "QueueRow"
+	bar.add_child(_queue_row)
 
 	_queue_icon = TextureRect.new()
-	_queue_icon.custom_minimum_size = Vector2(24, 24)
+	_queue_icon.name = "QueueIcon"
 	_queue_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_queue_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_queue_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	row.add_child(_queue_icon)
+	_queue_row.add_child(_queue_icon)
 
 	_queue_label = Label.new()
-	_queue_label.add_theme_font_size_override("font_size", 13)
-	_queue_label.add_theme_color_override("font_color", COLOR_TEXT)
-	row.add_child(_queue_label)
+	_queue_label.name = "QueueLabel"
+	_queue_label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
+	_queue_row.add_child(_queue_label)
 
 	_queue_progress = ProgressBar.new()
+	_queue_progress.name = "QueueProgress"
 	_queue_progress.show_percentage = false
-	_queue_progress.custom_minimum_size = Vector2(0, 10)
 	_queue_progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_queue_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(_queue_progress)
+	_queue_row.add_child(_queue_progress)
 
 	_cancel_button = Button.new()
+	_cancel_button.name = "CancelButton"
 	_cancel_button.text = "CANCEL"
 	_cancel_button.pressed.connect(_on_cancel_pressed)
-	row.add_child(_cancel_button)
+	# The destructive variant: cancelling throws away a work order the player paid for.
+	UiTheme.style_button(_cancel_button, true)
+	_queue_row.add_child(_cancel_button)
 
 	return bar
 
@@ -392,19 +431,125 @@ func _layout() -> void:
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return
 
-	var margin: float = clampf(minf(viewport_size.x, viewport_size.y) * 0.035, 8.0, 40.0)
-	var panel_size := Vector2(
-		minf(PANEL_MAX.x, viewport_size.x - margin * 2.0),
-		minf(PANEL_MAX.y, viewport_size.y - margin * 2.0))
-	_frame.custom_minimum_size = panel_size
-	_frame.size = panel_size
+	_apply_scale(viewport_size)
 
-	_set_compact(panel_size.x < COMPACT_WIDTH)
+	var factor := UiTheme.scale_for(viewport_size)
 
-	var browser_width: float = panel_size.x - 36.0
+	# PANEL_MAX is unscaled: PanelFrame multiplies it by the same factor and then
+	# clamps the result to the viewport, so it is the single writer of the frame's
+	# size. This used to write _frame.custom_minimum_size directly, which left two
+	# writers racing on one property and a correctness argument that rested on
+	# signal-connection order.
+	_chrome.set_panel_size(PANEL_MAX)
+	var panel_size := _chrome.panel_size()
+
+	_set_compact(panel_size.x < COMPACT_WIDTH * factor)
+
+	# What is left for the card grid once the frame's own padding, its border and (in
+	# the wide layout) the detail pane have taken their share.
+	var gap := UiTheme.scaled(UiTheme.GAP, viewport_size)
+	var browser_width: float = panel_size.x \
+		- UiTheme.scaled(UiTheme.PAD_PANEL, viewport_size) * 2.0 \
+		- float(UiTheme.BORDER_WIDTH) * 2.0
 	if not _compact:
-		browser_width -= _detail.custom_minimum_size.x + 12.0
-	_grid.columns = clampi(int(browser_width / (RecipeCard.CARD_SIZE.x + 8.0)), 2, 6)
+		browser_width -= _detail.custom_minimum_size.x + gap
+	_grid.columns = clampi(
+		int(browser_width / (UiTheme.scaled_touch(RecipeCard.CARD_SIZE.x, viewport_size) + gap)),
+		2, 6)
+
+
+## Re-derives every font size, pad and control size in the panel from the viewport.
+## Same job as PanelFrame's own `_apply_scale`, for the parts of the panel PanelFrame
+## does not own, and driven by the same `size_changed`.
+func _apply_scale(viewport_size: Vector2) -> void:
+	if _chrome == null:
+		return
+
+	var gap := int(round(UiTheme.scaled(UiTheme.GAP, viewport_size)))
+	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, viewport_size)
+	var font_small := UiTheme.scaled_font(UiTheme.FONT_SMALL, viewport_size)
+	var button_side := UiTheme.scaled_touch(BUTTON_SIDE, viewport_size)
+
+	# PanelFrame scales its own column but not the container it hands us, so the gaps
+	# between our header, body, queue bar and footer are ours to keep in step.
+	_chrome.content.add_theme_constant_override("separation", gap)
+	_header.add_theme_constant_override("separation", gap)
+	_body.add_theme_constant_override("separation", gap)
+	_grid.add_theme_constant_override("h_separation", gap)
+	_grid.add_theme_constant_override("v_separation", gap)
+	_detail_column.add_theme_constant_override("separation", gap)
+	_product_row.add_theme_constant_override("separation", gap)
+	_qty_row.add_theme_constant_override("separation", gap)
+	_queue_row.add_theme_constant_override("separation", gap)
+	_cost_rows.add_theme_constant_override("separation", int(round(UiTheme.scaled(2.0, viewport_size))))
+
+	var station_icon := UiTheme.scaled(STATION_ICON, viewport_size)
+	_station_icon.custom_minimum_size = Vector2(station_icon, station_icon)
+
+	_search.custom_minimum_size = Vector2(UiTheme.scaled(SEARCH_WIDTH, viewport_size), button_side)
+	_search.add_theme_font_size_override("font_size", font_body)
+
+	_empty_hint.add_theme_font_size_override("font_size", font_body)
+	_footer.add_theme_font_size_override("font_size", font_small)
+
+	# The detail pane and the queue bar are the panel's two recessed areas; their
+	# content margin is the only scaled part of the shared inset style.
+	_detail.add_theme_stylebox_override("panel", _inset_style(viewport_size))
+	_queue_bar.add_theme_stylebox_override("panel", _inset_style(viewport_size))
+	_detail.custom_minimum_size.x = _detail_width(viewport_size)
+
+	var detail_icon := UiTheme.scaled(DETAIL_ICON, viewport_size)
+	_detail_icon.custom_minimum_size = Vector2(detail_icon, detail_icon)
+	# The detail pane's own heading, one step up from the body text around it so the
+	# selected product reads as the subject of the pane.
+	_detail_name.add_theme_font_size_override(
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_TITLE, viewport_size))
+	_detail_rate.add_theme_font_size_override("font_size", font_small)
+	_ingredients_heading.add_theme_font_size_override("font_size", font_small)
+
+	_qty_label.custom_minimum_size = Vector2(UiTheme.scaled(QTY_WIDTH, viewport_size), button_side)
+	_qty_label.add_theme_font_size_override("font_size", font_body)
+
+	_status.custom_minimum_size = Vector2(0, UiTheme.scaled(STATUS_HEIGHT, viewport_size))
+	_status.add_theme_font_size_override("font_size", font_small)
+
+	var row_icon := UiTheme.scaled(ROW_ICON, viewport_size)
+	_queue_icon.custom_minimum_size = Vector2(row_icon, row_icon)
+	_queue_label.add_theme_font_size_override("font_size", font_body)
+	_queue_progress.custom_minimum_size = Vector2(0, UiTheme.scaled(PROGRESS_HEIGHT, viewport_size))
+
+	# Every button in the panel is a finger target, so each one takes the touch floor
+	# on the axis that would otherwise collapse to its label's height.
+	_back_button.custom_minimum_size = Vector2(button_side, button_side)
+	_minus_button.custom_minimum_size = Vector2(button_side, button_side)
+	_plus_button.custom_minimum_size = Vector2(button_side, button_side)
+	_max_button.custom_minimum_size = Vector2(button_side, button_side)
+	_cancel_button.custom_minimum_size = Vector2(0, button_side)
+	_craft_button.custom_minimum_size = Vector2(
+		0, UiTheme.scaled_touch(CRAFT_HEIGHT, viewport_size))
+	for button in [_back_button, _minus_button, _plus_button,
+			_max_button, _craft_button, _cancel_button]:
+		button.add_theme_font_size_override("font_size", font_body)
+
+	# The cards are the panel's primary touch target and the reason any of this
+	# matters; they carry their own scaling so a card built mid-session gets it too.
+	for card in _cards:
+		card.apply_scale(viewport_size)
+
+	# Rebuilt rather than restyled: the rows are thrown away on every refresh anyway,
+	# and they read the scale from the viewport when they are made.
+	_refresh_detail_if_open()
+
+
+## Zero in compact mode, where the detail pane is a page of its own and must be free to
+## use the whole panel width.
+func _detail_width(viewport_size: Vector2) -> float:
+	return 0.0 if _compact else UiTheme.scaled(DETAIL_WIDTH, viewport_size)
+
+
+func _refresh_detail_if_open() -> void:
+	if station != null and is_open():
+		_refresh_detail()
 
 
 func _set_compact(value: bool) -> void:
@@ -415,7 +560,7 @@ func _set_compact(value: bool) -> void:
 	# Two pages rather than a reflow: swapping the body between an HBox and a VBox at
 	# runtime means reparenting live children, and a detail pane stacked under a grid
 	# is unreadable at the width that triggers this anyway.
-	_detail.custom_minimum_size.x = 0 if _compact else 330
+	_detail.custom_minimum_size.x = _detail_width(get_viewport_rect().size)
 	_search.visible = not _compact
 	_footer.visible = not _compact
 	if _compact:
@@ -445,7 +590,7 @@ func _show_detail_page() -> void:
 # --- open / close ------------------------------------------------------------
 
 func is_open() -> bool:
-	return _panel_root != null and _panel_root.visible
+	return _chrome != null and _chrome.is_open()
 
 
 func open_station(new_station: CraftingStation) -> void:
@@ -454,14 +599,18 @@ func open_station(new_station: CraftingStation) -> void:
 
 
 func set_open(open: bool) -> void:
-	if _panel_root == null or _panel_root.visible == open:
+	if _chrome == null or _chrome.is_open() == open:
 		return
 
-	_panel_root.visible = open
+	if open:
+		_chrome.open()
+	else:
+		_chrome.close()
 
 	# Set, never toggled. The handler this replaced flipped disable_input, so opening
 	# the crafting panel on top of the inventory handed control back to the player and
-	# closing it disabled input for good.
+	# closing it disabled input for good. The early return above keeps a second
+	# set_open(true) from doing any of this twice.
 	if input_manager:
 		input_manager.disable_input = open
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
@@ -481,14 +630,6 @@ func set_open(open: bool) -> void:
 
 func close() -> void:
 	set_open(false)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not is_open():
-		return
-	if event.is_action_pressed("ui_cancel"):
-		set_open(false)
-		get_viewport().set_input_as_handled()
 
 
 func _process(_delta: float) -> void:
@@ -573,6 +714,11 @@ func _rebuild_grid() -> void:
 		card.queue_free()
 	_cards.clear()
 
+	# The search box is cleared on open, but setting `text` does not emit text_changed,
+	# so the "no recipe matches" line would otherwise still be up from the last session
+	# with a full grid of cards behind it.
+	_empty_hint.visible = false
+
 	if station == null or recipes == null:
 		return
 
@@ -591,9 +737,13 @@ func _rebuild_grid() -> void:
 		else:
 			blocked.append(recipe)
 
+	var viewport_size := get_viewport_rect().size if is_inside_tree() else Vector2.ZERO
 	for recipe in ready_now + blocked + locked:
 		var card := RecipeCard.new(
 			recipe.product, _item_name(recipe.product), _icon_for(recipe.product), _accent())
+		# Sized for this viewport before it is ever drawn; _apply_scale() re-runs this
+		# for every live card when the window changes.
+		card.apply_scale(viewport_size)
 		card.chosen.connect(_on_card_chosen)
 		_grid.add_child(card)
 		_cards.append(card)
@@ -655,8 +805,10 @@ func _refresh() -> void:
 
 	var item = _item(station.type)
 	_station_icon.texture = _icon_for(station.type)
-	_title.text = (item.name if item else "Crafting").to_upper()
-	_footer.text = "[ESC] close     Shift+click a recipe to fill the quantity"
+	# The station's name is the panel's heading now. It answers "which machine am I
+	# standing at" from the title bar, where a player already looks for it.
+	_chrome.set_title((item.name if item else "Crafting").to_upper())
+	_footer.text = "[ESC] or the X closes     Shift+click a recipe to fill the quantity"
 
 	_refresh_cards()
 	_refresh_detail()
@@ -741,41 +893,52 @@ func _refresh_detail() -> void:
 
 	if not unlocked:
 		_status.text = "Locked - learn %s" % _unlock_hint(_selected.product)
-		_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+		_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 	elif not affordable:
 		_status.text = "Not enough %s" % _shortfall_text(_selected).split(" ")[-1]
-		_status.add_theme_color_override("font_color", COLOR_SHORT)
+		_status.add_theme_color_override("font_color", UiTheme.COLOR_BAD)
 	else:
 		_status.text = ""
-		_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
+		_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 
 
+## Built fresh on every refresh, so it reads its own sizes from the viewport rather
+## than waiting for _apply_scale() to come round and restyle it.
 func _build_cost_row(type: Types.Item, have: int, need: int) -> Control:
+	var viewport_size := get_viewport_rect().size if is_inside_tree() else Vector2.ZERO
+	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, viewport_size)
+	var icon_side := UiTheme.scaled(ROW_ICON, viewport_size)
+
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.name = "CostRow"
+	row.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, viewport_size))))
 
 	var icon := TextureRect.new()
+	icon.name = "Icon"
 	icon.texture = _icon_for(type)
-	icon.custom_minimum_size = Vector2(24, 24)
+	icon.custom_minimum_size = Vector2(icon_side, icon_side)
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	row.add_child(icon)
 
 	var name_label := Label.new()
+	name_label.name = "Name"
 	name_label.text = _item_name(type)
-	name_label.add_theme_font_size_override("font_size", 13)
-	name_label.add_theme_color_override("font_color", COLOR_TEXT)
+	name_label.add_theme_font_size_override("font_size", font_body)
+	name_label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 	row.add_child(name_label)
 
 	var spacer := Control.new()
+	spacer.name = "Spacer"
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
 
 	var value := Label.new()
+	value.name = "Value"
 	value.text = "%d/%d" % [have, need]
-	value.add_theme_font_size_override("font_size", 13)
-	value.add_theme_color_override("font_color", COLOR_SHORT if have < need else COLOR_TEXT)
+	value.add_theme_font_size_override("font_size", font_body)
+	value.add_theme_color_override("font_color", UiTheme.COLOR_BAD if have < need else UiTheme.COLOR_TEXT)
 	row.add_child(value)
 
 	return row
