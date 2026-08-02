@@ -1925,3 +1925,164 @@ Guidelines that make an entry useful later:
   4px where 2.5s of wall-clock `input press` + `sleep` moved it ~55px. Not filed as a gap
   because the docs only promise `step-time` advances the clock, not that polled input state
   survives it; worth knowing before using it to walk anything anywhere.
+
+## 2026-08-02 — Advisory: where the Fable model earns its cost in this repo
+
+- Value: **inconclusive** — the harness was not exercised this turn; the question was
+  strategic (which workloads justify a 2x-priced model), and the evidence came from
+  `bd list`/`bd stats`, the gap corpus in this file, and file sizes.
+  - Expected: that the repo's answerable-by-harness work (the P2/P3 bug backlog) would
+    turn out to be the *wrong* target for an expensive model, and the unmeasured
+    cross-cutting work would be the right one.
+  - Got: 26 open issues, 24 of which name their own fix in the title; against 72 open
+    `[G-NNN]` gaps in this log that nobody has ever clustered. The asymmetry is the
+    recommendation.
+  - Cheaper: nothing — `bd list` + `grep -c "status: open"` was already the cheap path,
+    and no runtime state was in question.
+
+- Gap: **no gaps this turn** — the harness was not run, so it had no opportunity to fall
+  short. Filing nothing rather than manufacturing an entry.
+
+## 2026-08-02 — Crispness fix for DamageNumber, plus the stale-4.935 comment sweep
+
+- Value: **warranted** — headless lint + tests were the only affordable check here (the
+  devtools bridge was owned by another process this session), and they were enough to
+  settle the one thing the diff could not: that routing `DamageNumber` through
+  `SplashText.pixel_scale` does not break the class-resolution order between two
+  `class_name` scripts in `ui/`.
+  - Expected: lint clean; tests green except whatever `test_splash_text.gd` is doing
+    while it is being edited concurrently.
+  - Got: `lint: 0 error(s), 7 warning(s) -> exit 0`, and
+    `Total: 246 | Passed: 245 | Failed: 1 | Skipped: 0` with the single failure being
+    `[FAIL] test_a_coalesced_label_walks_up_the_colour_ramp` in the concurrently-edited
+    file. stderr carried 3 pre-existing `ERROR: Cannot get path of node as it is not in
+    a scene tree` from `level_up_manager.gd:364` / `recipes.gd:274`, none from the diff.
+  - Cheaper: nothing much — lint alone (4s) would have caught a broken static call, and
+    that was the only real risk. The test run mostly bought the confirmation that the
+    one red test was not mine.
+
+- Gap: **no gaps this turn** — the work was comment text plus one constant family, and
+  headless lint/tests reached all of it. The only thing runtime could have added is a
+  screenshot of the number, and the bridge was unavailable by instruction, not by defect.
+
+## 2026-08-02 — 1:1 rasterization for the corner "+N xp" readout (ui/floating_text.gd)
+
+- Value: **warranted** — the fix hinges on an arithmetic claim about a product of three
+  numbers living in three files (XpLabel's `scale = 0.45` in `main.tscn`, the camera's
+  zoom 8, and `CameraHud`'s viewport legibility factor), and reading the diff alone had
+  already produced the wrong figure once.
+  - Expected: lint clean; the new `test_floating_text.gd` to fail on
+    `test_the_offset_grows_with_the_type`, because `Control.position` is written and read
+    back on a Label that never enters the tree and `get_parent_anchorable_rect()` returns
+    an empty rect outside it.
+  - Got: all six new tests green, including the offset round-trip —
+    `Selected: 6 of 252 discovered`, exit 0. Offsets do resolve outside the tree against a
+    zero parent rect, so the whole styling path is assertable statically. The full suite
+    was `Total: 252 | Passed: 251 | Failed: 1`, the one failure being
+    `[FAIL] test_a_coalesced_label_walks_up_the_colour_ramp` in the concurrently-edited
+    `test_splash_text.gd` (identical to the entry above, which saw it at 246 discovered).
+    stderr: the same 3 pre-existing `Cannot get path of node` from
+    `level_up_manager.gd:364` / `recipes.gd:274`, none from this diff.
+  - Cheaper: reading `camera_hud.gd:40` + `:105-115` was what actually produced the
+    finding (`FloatingText`, not `XpLabel`, is the node whose transform the HUD rewrites,
+    so the on-screen magnification was 5.4x and not the 3.6x the scene file suggests) —
+    that was free. The test run bought the *invariant*: font size now reproduces the old
+    on-screen height across the whole `SCALE_MIN..SCALE_MAX` band, which no amount of
+    reading establishes.
+
+- Gap: **no way to assert an accumulated CanvasItem transform headlessly** — the property
+  that actually matters here is `XpLabel.get_global_transform_with_canvas().get_scale()`
+  against the camera zoom, i.e. the product across `HUD -> FloatingText -> XpLabel`. In a
+  `--script` run there is no camera transform applied to the root viewport, so the test
+  can only assert the one factor it passes in and trust that nothing above multiplies it.
+  The workaround was to make `style_xp_label()` static and total (it takes the zoom
+  reciprocal and the legibility factor as arguments), plus a comment in
+  `camera_hud.gd:37-48` saying why `FloatingText` must stay out of `SCALED_CHILDREN` — a
+  convention, not a gate. A future edit re-adding it would make the label blurry again and
+  every test here would still pass.
+  - [G-073] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `run-method`-free bridge verb (or a headless helper) that reports a
+    node's accumulated canvas transform scale, so "these glyphs rasterize 1:1" is one
+    assertion against the live tree rather than an argument reconstructed from three
+    files. `node-bounds` reports position/size but not the accumulated scale.
+
+## 2026-08-02 — drafted the bone-worker base + assembled sprites (no project code touched)
+
+- Value: **inconclusive** — the harness was never run, correctly: nothing under `res://`
+  changed. The whole turn produced two PNGs and a generator in the session scratchpad,
+  pending art approval before any scene, script or beads work starts.
+  - Expected: nothing. A sprite that has not been imported into the project cannot fail
+    lint, cannot fail a test, and cannot be reached by a runtime assertion.
+  - Got: n/a — no `/verify`, no lint, no test run. `git status` for the repo is unchanged
+    apart from this log entry.
+  - Cheaper: this *was* the cheap path. The feedback loop that mattered was PIL rendering
+    a 10x nearest-neighbour preview strip and reading it back, which took six iterations
+    and never involved Godot. Running lint would have asserted a diff that does not exist.
+
+- Gap: **no way to preview a candidate sprite against real game tiles without importing
+  it.** Judging 16x16 pixel art needs it seen at game scale, on the tileset's own grass,
+  next to a tileset tree — otherwise the axe head reads as a floating grey brick (it did,
+  for three iterations). The workaround was a throwaway `mockup.py` that opens
+  `assets/art/tiles.png` with PIL, crops the pine at `(80,48,96,80)` and the grass green
+  `(90,197,79)` by scanning the land tiles for the modal colour, and composites the
+  candidate over it. Finding those two coordinates cost four crop-and-look rounds, because
+  nothing in the project states where anything sits in the 400x400 atlas.
+  - [G-074] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `tile_at` style verb — or a headless `tools/atlas_map.gd` — that dumps
+    the registry's `atlas_location` + `tile_source_id` per `Types.Item`, so "where is the
+    tree tile" is one query instead of a binary search by cropping. The registry already
+    holds this; it is just not readable from outside a running game. Would also have made
+    the palette sampling one command rather than four PIL one-liners.
+
+## 2026-08-02 — XP splash: crispness fix, juice pass, pickup-XP removal, corner readout deleted
+
+- Value: **warranted** — runtime produced three claims the diff could not, and one of them
+  reversed a design decision.
+  - Expected: the splash's transform scale reads exactly 0.125 (=1/8) from the live Camera2D
+    rather than the old 0.2, its container's texture_filter is NEAREST, an xp streak grows
+    font_size (not scale) up to the cap while scale stays pinned, and the new procedural
+    `_process` driver still frees every label — with no tween left, a stranded splash would
+    show as a climbing `live_splashes`.
+  - Got: all four held, and the streak assertion is the one worth quoting. Six `cmd splash`
+    calls at one spot produced `text: +12 XP`, `theme_override_font_sizes/font_size: 33`,
+    `theme_override_constants/outline_size: 6`, `scale: {"x": 0.125, "y": 0.125}` — i.e. the
+    swell re-rasterized (22→33, the exact `round(22 * 1.5)` for five absorbs) while the
+    transform never moved. Ten ticks hit the cap dead on: `font_size: 60` = `round(34*1.75)`.
+    Separately, gathering five nodes moved `LevelUpManager.xp` 0→5 with `PickUps` draining to
+    0 children, which is the evidence that removing the pickup award left the gather income
+    intact rather than double-counting or under-counting it.
+  - Cheaper: nothing. The unit tests pin the sizing arithmetic and did catch a real ordering
+    bug (below), but they cannot see `texture_filter`, cannot see the live camera zoom — the
+    stale-constant bug that caused the blur is *invisible* to a test that hardcodes the same
+    stale constant — and cannot count xp across a real gather-and-vacuum cycle.
+
+- Gap: **`verify_ledger reach` cannot see transient nodes, so it under-reports runtime
+  coverage for anything short-lived.** `reach` reported `ui/splash_text.gd` and
+  `items/pick_up.gd` as NOT reached, in the same run where I read live state off
+  `/root/Main/World/SplashTexts/SplashText` (`font_size: 60`, `text: +10 XP`) and watched
+  `PickUps` go to 0 children. Both files unquestionably executed. Reach intersects the diff
+  against `script`/`scene_file` in a `scene-tree` snapshot, and both snapshots are taken at
+  phase boundaries — by then every splash had freed itself (`live_splashes: 0`, which is the
+  *pass condition* for this change) and every drop was collected. The failure mode is
+  perverse: **the better the cleanup, the worse the reported reach**, so a leak-free
+  short-lived node can never be credited.
+  - [G-074] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `dev_tools.gd` accumulate a set of every script path seen on any node
+    across the session (hook `node_added`, or union the script paths on each `scene-tree`
+    call into a persistent set) and expose it as a `scripts-seen` verb. `reach` should union
+    that with the snapshots. A one-line addition to the status provider — `"scripts_seen": N`
+    — would also make it visible that the set is being collected.
+
+- Gap: **no way to assert a fractional-scale/filter combination, which is the actual bug
+  class here.** The whole defect was "a 16px glyph atlas magnified 1.6x through a LINEAR
+  filter". I can read `texture_filter: 1` and `scale: {"x": 0.125}` separately and do the
+  multiplication in my head against a zoom I fetched from a third node, but nothing asserts
+  the *product*. A future edit that changes the camera zoom re-breaks every world-space label
+  in the game and every check here still passes.
+  - [G-075] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `canvas-scale --node PATH` verb returning the accumulated
+    `get_global_transform_with_canvas().get_scale()` plus the effective texture filter, so
+    "this text rasterizes 1:1" is one assertion instead of three reads and an inference.
+    This is the same gap [G-073] filed from the HUD side; if that entry is still open, these
+    should be merged — [G-073] wanted the accumulated transform, this wants the filter with
+    it, and they are one verb.

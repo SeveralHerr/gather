@@ -87,31 +87,27 @@ const XP_GROWTH := 1.19
 ##                 worth watching without out-earning the pickaxe.
 ##   XP_BUILD 1  - placing a tile consumes an item that was itself gathered or crafted,
 ##                 so this is the tail end of a chain that has already paid out.
-##   XP_PICKUP 1 every PICKUPS_PER_XP drops - a drop is worth ~0.33 xp. A common node
-##                 pays 1 xp and drops 1-2 items, so gathering keeps ~2/3 of the income
-##                 from its own loop; per-drop xp at 1 each would have inverted that and
-##                 made vacuuming, not mining, the fastest way to level.
+##   A PICKUP pays NOTHING. It used to pay 1 xp every third drop, on the reasoning that
+##   loot is part of a gather's income. That was wrong twice over. The drop was already
+##   paid for when the node was broken, so collecting it paid a second time for one act;
+##   and PickUpManager mints drops from more than node yields - crafted products, enemy
+##   loot, and DestroyManager handing back the very tile a build just paid for. Worse, it
+##   was the wrong FEEL: the vacuum sweeps a yield in about a second, so the xp splash
+##   spent a gather counting items off the floor rather than reacting to the swing that
+##   earned them. See items/pick_up.gd, where the award used to live.
 ##
 ## `gather-1n2` raised the thresholds and deliberately left this table alone. Every value
 ## here is priced against a node's 1 xp, so scaling the curve scales all five together and
 ## the ratios above still say what they said — retuning them as well would have been two
 ## dials moving at once for one symptom.
 ##
-## The one figure that did not survive re-reading is XP_PICKUP's "seasoning". A drop is
-## 0.33 xp and PickUpManager mints drops from more than node yields: the crafted product,
-## enemy loot, and — the one that is not a chain that has already paid out —
-## DestroyManager handing back the very tile that XP_BUILD just paid for. Place, destroy,
-## repeat was ~1.33 xp a cycle off a single item and no gathering at all.
-##
-## That is a faucet in XP_BUILD's premise rather than in the pickup rate, so it was not
-## fixable by editing this table, and `gather-5s5` fixed it where it actually lived:
-## building now pays per CELL rather than per placement (see built_cells). The table is
-## unchanged and the ratios above still hold.
+## Place-destroy-repeat was the other faucet this table used to leak through: DestroyManager
+## hands the tile back, so a cycle cost nothing and paid XP_BUILD every time. `gather-5s5`
+## fixed it where it lived rather than by retuning here - building pays per CELL now, once
+## ever (see built_cells) - and dropping the pickup award closed the second half of it.
 const XP_KILL := 3
 const XP_CRAFT := 2
 const XP_BUILD := 1
-const XP_PICKUP := 1
-const PICKUPS_PER_XP := 3
 
 ## Ids that were renamed when the flat upgrade list became a tree. Applied on load
 ## so saves written before the rework keep their progress.
@@ -205,8 +201,11 @@ func add_xp(amount: int, world_position: Vector2 = Vector2.INF) -> int:
 	var granted := int(round(amount * multiplier))
 
 	xp += granted
-	# The corner XpLabel (ui/floating_text.gd) listens to this. The world splash below
-	# is a second view of the same event, not a second award.
+	# "An award happened", as distinct from xp_changed's "the total moved". Nothing listens
+	# to it today: the corner XpLabel that used to was a second "+N xp" on screen competing
+	# with the world splash, and it was deleted rather than restyled. The signal stays
+	# because a single award is a genuinely different event from a total, and the splash
+	# below is the one view of it.
 	added_xp.emit(granted)
 
 	# Not necessarily a new label: SplashText.spawn_xp folds an award into the xp splash

@@ -144,7 +144,7 @@ Three things about this are load-bearing and easy to undo:
   above `UI` and those are still null: a first-frame crash whose stack points at
   `hot_bar_inventory.gd`, nowhere near the edit that caused it.
 - **`UI` (screen space) and `HUD` (world space) are different things.** `HUD` hangs off
-  `Camera2D` at the camera's `4.935` zoom; a full-screen panel put there is drawn into
+  `Camera2D` at the camera's `8` zoom; a full-screen panel put there is drawn into
   the world. These were `UI2` and `UI` respectively, which is why so many scripts still
   carry a comment warning you not to confuse them.
 - **`LandManager`, `IslandManager` and the `Ocean` CanvasLayer are created by `main.gd`
@@ -216,7 +216,7 @@ time and bonus yield, consumable heal values), `crafting/recipes.gd` (recipe cos
 **Window size and UI layout.** The window is `1920x1080` with `window/stretch/mode`
 explicitly `"disabled"` (`[display]` in `project.godot`), so growing the window shows
 *more world* rather than scaling the same view up — sprites stay pixel-exact at the
-camera's `4.935` zoom. Nothing may hardcode a viewport dimension:
+camera's `8` zoom. Nothing may hardcode a viewport dimension:
 
 - Screen-space UI goes in the `UI` CanvasLayer and must be anchored to a viewport
   edge or centred, never placed at absolute pixels. `skill_tree_ui.gd` and
@@ -231,7 +231,8 @@ camera's `4.935` zoom. Nothing may hardcode a viewport dimension:
   the group and leave the offsets of the things inside it alone.
 - Anchors were retrofitted in `gather-6fx`. Before it every offset was hand-tuned to
   the old `1152x648` window (the HUD's left edge was literally `x = -115`, one unit
-  inside `1152 / 4.935 / 2`), and every element drifted toward the middle of the
+  inside `1152 / 4.935 / 2` at the `4.935` zoom the camera ran at back then — it is `8`
+  now), and every element drifted toward the middle of the
   screen the moment the window grew. If you see a raw `-115` or a `470` in a layout,
   it is a leftover of that and is a bug at any other size.
 
@@ -343,7 +344,7 @@ nothing.
 It reports every region's tile and node counts, the per-region resource census, the boss
 and its chest, and — via a flood fill — whether each island is walkable now and whether it
 will be once all the land is bought. `count_land_tiles` is a single scalar that reads the
-same whether the world is one landmass or four, and a screenshot only shows the ~24x14
+same whether the world is one landmass or four, and a screenshot only shows the ~15x8
 tiles around the player, which is less than the distance to the nearest island.
 
 ## Conventions & Patterns

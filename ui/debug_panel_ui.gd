@@ -5,8 +5,8 @@ class_name DebugPanelUi
 ##
 ## Built in code rather than as a .tscn, matching the skill, land and crafting panels.
 ## It lives in the UI CanvasLayer (screen space) and must never be parented under
-## Player/Camera2D/HUD: that Control is world space at the camera's 4.935x zoom and is
-## sized for the diegetic HUD, so a full-screen panel there renders at about a fifth
+## Player/Camera2D/HUD: that Control is world space at the camera's 8x zoom and is
+## sized for the diegetic HUD, so a full-screen panel there renders at about an eighth
 ## size and scrolls with the camera.
 ##
 ## main.gd only builds this behind OS.is_debug_build(), so in an export the node does

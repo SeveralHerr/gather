@@ -27,7 +27,7 @@ const SHEET_CELLS := Vector2i(6, 5)
 
 ## Copper reads as a warm brown-orange, gold as a bright yellow. Both are pushed
 ## well away from the greys of stone and the blue-grey of iron so a node's tier is
-## readable at the game's ~5x zoom without a legend.
+## readable at the game's 8x zoom without a legend.
 const COPPER := Color(0.87, 0.47, 0.22)
 const GOLD := Color(1.0, 0.81, 0.24)
 

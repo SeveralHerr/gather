@@ -3,7 +3,7 @@ class_name IslandCompass
 
 ## Edge markers pointing at the islands the player cannot see.
 ##
-## The viewport is 1920x1080 at camera zoom 4.935, so about 24x14 tiles are on screen at
+## The viewport is 1920x1080 at camera zoom 8, so about 15x8 tiles are on screen at
 ## once. The nearest island sits 20 tiles from the home island's centre and the furthest
 ## 36, which means all three are off screen from anywhere the player can stand early on.
 ## Without a marker they are not content the player has not reached yet - they are content

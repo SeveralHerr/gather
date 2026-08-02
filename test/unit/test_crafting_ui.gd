@@ -3,7 +3,7 @@ extends RefCounted
 ## Layout guards for the crafting panel.
 ##
 ## The panel this replaced lived under Player/Camera2D/HUD — world space at the
-## camera's ~5x zoom — with every offset hand-tuned to a 1152x648 window and every
+## camera's 8x zoom — with every offset hand-tuned to a 1152x648 window and every
 ## child carrying a compensating scale. It could not survive a resize, and nothing
 ## caught that because a wrongly-sized panel still parses, still lints and still
 ## opens. These tests are the thing that would have.

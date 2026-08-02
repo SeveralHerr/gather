@@ -14,7 +14,6 @@
 [ext_resource type="Script" uid="uid://ddpttmqelyfug" path="res://player/states/player_gather.gd" id="8_rb0ym"]
 [ext_resource type="Script" uid="uid://b17r3anwi01ws" path="res://world/camera.gd" id="9_3scwu"]
 [ext_resource type="Script" uid="uid://cnryocio6tv5a" path="res://player/states/player_attack.gd" id="9_acc7j"]
-[ext_resource type="Script" uid="uid://c2h2mk5u7mn6d" path="res://ui/floating_text.gd" id="11_uoapv"]
 [ext_resource type="Script" uid="uid://b4fvt1w8c4i5x" path="res://player/states/player_net.gd" id="11_xxb2o"]
 [ext_resource type="Script" uid="uid://db88ep045yu2k" path="res://ui/crafting_ui.gd" id="12_bqf2j"]
 [ext_resource type="Script" uid="uid://dggt1av586qyh" path="res://systems/level_up_manager.gd" id="12_hyjmf"]
@@ -555,25 +554,6 @@ scale = Vector2(0.275, 0.275)
 text = "fps 
 "
 script = ExtResource("16_um00x")
-
-[node name="FloatingText" type="Control" parent="World/Player/Camera2D/HUD" unique_id=1648822859]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_right = 40.0
-offset_bottom = 40.0
-script = ExtResource("11_uoapv")
-
-[node name="XpLabel" type="Label" parent="World/Player/Camera2D/HUD/FloatingText" unique_id=2012603454]
-layout_mode = 0
-offset_left = 3.0
-offset_top = -11.0
-offset_right = 43.0
-offset_bottom = 12.0
-scale = Vector2(0.45, 0.45)
 
 [node name="PlayerInfo" type="Control" parent="World/Player/Camera2D/HUD" unique_id=1051641251]
 anchors_preset = 0

@@ -36,6 +36,17 @@ func setup() -> void:
 	source.name = "Source"
 	world.add_child(source)
 
+	# `SplashText._sparkle` is a static var that deliberately outlives any one splash, and
+	# teardown() hard-free()s the world it parents itself to. Reset it here rather than
+	# relying on that free, so the sparkle assertions below never depend on which test ran
+	# first (the runner does not promise an order).
+	if SplashText._sparkle != null and is_instance_valid(SplashText._sparkle):
+		var stale_parent := SplashText._sparkle.get_parent()
+		if stale_parent != null:
+			stale_parent.remove_child(SplashText._sparkle)
+		SplashText._sparkle.free()
+	SplashText._sparkle = null
+
 
 func teardown() -> void:
 	if host and is_instance_valid(host):
@@ -65,6 +76,18 @@ func _settle() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	await tree.process_frame
 	await tree.process_frame
+
+
+## How many shared sparkle emitters are parked on the world host. Matched by prefix, not by
+## equality: Godot silently renames a second child that wants a name already in use
+## ("SplashSparkle2"), so an exact-name count is exactly the count that would fail to notice
+## the leak this asserts against.
+func _sparkle_children() -> int:
+	var found := 0
+	for child in world.get_children():
+		if String(child.name).begins_with(SplashText.SPARKLE_NAME):
+			found += 1
+	return found
 
 
 # --- pure helpers ---
@@ -113,6 +136,102 @@ func test_splash_colour_ramp_warms_up() -> String:
 		SplashText.color_for_xp(SplashText.XP_LARGE_AT + 5),
 		SplashText.COLOR_XP_LARGE,
 		"a gold vein burns hot"
+	)
+
+
+func test_tier_for_xp_marks_the_band_edges() -> String:
+	# tier_for_xp is the single definition of the thresholds and color_for_xp is written in
+	# terms of it, so the two can never disagree - which is exactly the thing worth pinning,
+	# because the tier-up sparkle fires off the tier while the player judges it by the colour.
+	var cases := [
+		[SplashText.XP_MEDIUM_AT - 1, 0, SplashText.COLOR_XP_SMALL],
+		[SplashText.XP_MEDIUM_AT, 1, SplashText.COLOR_XP_MEDIUM],
+		[SplashText.XP_LARGE_AT - 1, 1, SplashText.COLOR_XP_MEDIUM],
+		[SplashText.XP_LARGE_AT, 2, SplashText.COLOR_XP_LARGE],
+	]
+
+	for case in cases:
+		var amount: int = case[0]
+		var err: String = _T.assert_eq(
+			SplashText.tier_for_xp(amount), case[1], "the tier at %d xp" % amount
+		)
+		if err != "":
+			return err
+
+		err = _T.assert_eq(
+			SplashText.color_for_xp(amount), case[2], "the colour agrees with the tier at %d xp" % amount
+		)
+		if err != "":
+			return err
+
+	return ""
+
+
+# --- pixel scale ---
+
+func test_pixel_scale_falls_back_when_there_is_no_camera() -> String:
+	var err: String = _T.assert_float_eq(
+		SplashText.pixel_scale(null), SplashText.WORLD_SCALE, 0.0001, "a null source"
+	)
+	if err != "":
+		return err
+
+	var orphan := Node2D.new()
+	err = _T.assert_float_eq(
+		SplashText.pixel_scale(orphan), SplashText.WORLD_SCALE, 0.0001, "a source outside the tree"
+	)
+	orphan.free()
+	if err != "":
+		return err
+
+	# The test world has no Camera2D, which is the case every other test in this file runs in.
+	return _T.assert_float_eq(
+		SplashText.pixel_scale(source), SplashText.WORLD_SCALE, 0.0001, "in the tree, but no camera"
+	)
+
+
+func test_pixel_scale_reads_the_live_camera_zoom() -> String:
+	# THIS IS THE ASSERTION THAT WOULD HAVE CAUGHT THE ORIGINAL BLUR BUG. The splash scale was
+	# a hardcoded constant tuned for a camera at zoom 4.935; main.tscn moved to zoom 8 and the
+	# constant did not, so every splash was a 16px glyph atlas magnified 1.6x through a linear
+	# filter. pixel_scale asks the live camera instead, and 1/zoom is the only value that draws
+	# one rasterized glyph pixel on one screen pixel.
+	var camera := Camera2D.new()
+	camera.name = "TestCamera"
+	camera.zoom = Vector2(8.0, 8.0)
+	world.add_child(camera)
+	camera.make_current()
+
+	var err: String = _T.assert_float_eq(
+		SplashText.pixel_scale(source),
+		0.125,
+		0.0001,
+		"a zoom-8 camera must give exactly 1/8, or splashes are resampled and go soft"
+	)
+	if err != "":
+		return err
+
+	# A second zoom, because 1/8 happens to equal WORLD_SCALE: without this the test would
+	# still pass if pixel_scale ignored the camera and returned the fallback constant, which
+	# is precisely the failure mode above.
+	camera.zoom = Vector2(4.0, 4.0)
+	err = _T.assert_float_eq(
+		SplashText.pixel_scale(source),
+		0.25,
+		0.0001,
+		"the scale follows the live camera rather than a constant that can go stale"
+	)
+	if err != "":
+		return err
+
+	# And a splash spawned under that camera adopts it, so the wiring is not just the helper.
+	var splash := SplashText.spawn(source, Vector2.ZERO, "+1 XP")
+	err = _T.assert_true(splash != null, "the splash was created")
+	if err != "":
+		return err
+
+	return _T.assert_float_eq(
+		splash.scale.x, 0.25, 0.0001, "spawn() pins the transform to the camera's 1/zoom"
 	)
 
 
@@ -228,12 +347,31 @@ func test_a_coalesced_label_walks_up_the_colour_ramp() -> String:
 
 
 func test_a_coalesced_label_swells() -> String:
+	# This asserts FONT SIZE and not transform scale, on purpose, and it also asserts that the
+	# transform scale does NOT move. A Label rasterizes its glyphs once at `font_size` and the
+	# GPU resamples that atlas through the transform, so growing a splash by growing `scale`
+	# is magnifying a bitmap - that was the "the xp text looks soft" bug. The scale is now
+	# pinned to 1/zoom so glyphs draw 1:1, and every size change re-rasterizes instead.
+	# If a future reader is tempted to point these assertions back at `_base_scale`: that is
+	# the regression, not the fix.
 	var splash := SplashText.spawn_xp(source, Vector2.ZERO, 1)
-	var before: float = splash._base_scale
+	var before_px: int = splash.get_theme_font_size("font_size")
+	var before_scale: float = splash._base_scale
 
 	SplashText.spawn_xp(source, Vector2.ZERO, 1)
 
-	var err: String = _T.assert_gt(splash._base_scale, before, "each tick makes it juicier")
+	var err: String = _T.assert_gt(
+		splash.get_theme_font_size("font_size"), before_px, "each tick re-rasterizes larger"
+	)
+	if err != "":
+		return err
+
+	err = _T.assert_float_eq(
+		splash._base_scale,
+		before_scale,
+		0.0001,
+		"absorbing must leave the transform scale pinned at 1/zoom - scale-based growth is blur"
+	)
 	if err != "":
 		return err
 
@@ -241,10 +379,85 @@ func test_a_coalesced_label_swells() -> String:
 	for i in range(60):
 		SplashText.spawn_xp(source, Vector2.ZERO, 1)
 
-	return _T.assert_true(
-		splash._base_scale <= SplashText.WORLD_SCALE * SplashText.XP_STACK_SCALE_MAX + 0.0001,
-		"the growth is capped at XP_STACK_SCALE_MAX, got %.4f" % splash._base_scale
+	var capped := int(round(float(SplashText.FONT_SIZE) * SplashText.XP_STACK_SCALE_MAX))
+	var grown: int = splash.get_theme_font_size("font_size")
+	err = _T.assert_true(
+		grown <= capped,
+		"the growth is capped at XP_STACK_SCALE_MAX (%d px), got %d" % [capped, grown]
 	)
+	if err != "":
+		return err
+
+	return _T.assert_float_eq(
+		splash._base_scale,
+		before_scale,
+		0.0001,
+		"and 60 absorbs later the scale is still 1/zoom, not 1.75x of it"
+	)
+
+
+func test_the_swell_re_rasterizes_the_outline_too() -> String:
+	# The tell that a swell is a re-rasterization and not a transform scale: a scaled label
+	# keeps its 4px outline constant and lets the GPU blow it up, while a re-rasterized one
+	# has to redraw a proportionally thicker halo. If the outline stopped tracking the font,
+	# the glyphs are being magnified again.
+	var splash := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	var err: String = _T.assert_eq(
+		splash.get_theme_constant("outline_size"), SplashText.OUTLINE_SIZE, "one tick is the base halo"
+	)
+	if err != "":
+		return err
+
+	for i in range(20):
+		SplashText.spawn_xp(source, Vector2.ZERO, 1)
+
+	err = _T.assert_gt(
+		splash.get_theme_font_size("font_size"), SplashText.FONT_SIZE, "the streak swelled the glyphs"
+	)
+	if err != "":
+		return err
+
+	return _T.assert_gt(
+		splash.get_theme_constant("outline_size"),
+		SplashText.OUTLINE_SIZE,
+		"and the outline grew with them rather than staying a fixed slab"
+	)
+
+
+func test_a_tier_up_creates_exactly_one_shared_sparkle() -> String:
+	# The emitter is a static, created on first use and never freed - a node per burst is the
+	# orphan-budget leak the gather emitters were fixed for. setup() resets that static, so
+	# this counts from a known zero regardless of test order.
+	var splash := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	var err: String = _T.assert_true(splash != null, "the first award made a splash")
+	if err != "":
+		return err
+
+	err = _T.assert_eq(_sparkle_children(), 0, "a lone +1 XP is not a celebration")
+	if err != "":
+		return err
+
+	# Cross XP_MEDIUM_AT, then XP_LARGE_AT: two tier-ups folded into one label.
+	SplashText.spawn_xp(source, Vector2.ZERO, SplashText.XP_MEDIUM_AT)
+	err = _T.assert_eq(_sparkle_children(), 1, "crossing a colour band lights the emitter")
+	if err != "":
+		return err
+
+	SplashText.spawn_xp(source, Vector2.ZERO, SplashText.XP_LARGE_AT)
+	err = _T.assert_eq(
+		_sparkle_children(), 1, "the second band restarts the same emitter instead of adding one"
+	)
+	if err != "":
+		return err
+
+	# It parks on the world host, NOT in the splash container: devtools reports `live_splashes`
+	# as that container's child count and a permanent resident reads as a leak that never drains.
+	var container := splash.get_parent()
+	for child in container.get_children():
+		if String(child.name).begins_with(SplashText.SPARKLE_NAME):
+			return "the sparkle must not live in %s - it would read as a stuck splash" % SplashText.CONTAINER_NAME
+
+	return ""
 
 
 func test_xp_far_away_gets_its_own_label() -> String:
@@ -282,12 +495,54 @@ func test_a_finished_xp_label_does_not_absorb() -> String:
 
 
 func test_splash_big_emphasis_is_visibly_larger() -> String:
+	# Emphasis is a font-size difference, not a transform difference. Both labels sit at
+	# exactly 1/zoom so their glyphs rasterize 1:1; a milestone is bigger because it is
+	# rasterized bigger. The equal `scale.x` below is asserted deliberately - it is the
+	# crispness invariant, so "fixing" this back to assert_gt on scale reintroduces the blur.
 	var normal := SplashText.spawn(source, Vector2.ZERO, "+1 XP")
 	var big := SplashText.spawn(
 		source, Vector2.ZERO, "LEVEL 7!", SplashText.COLOR_LEVEL, SplashText.Emphasis.BIG
 	)
 
-	return _T.assert_gt(big.scale.x, normal.scale.x, "a level-up outsizes an ordinary gain")
+	var err: String = _T.assert_gt(
+		big.get_theme_font_size("font_size"),
+		normal.get_theme_font_size("font_size"),
+		"a level-up outsizes an ordinary gain"
+	)
+	if err != "":
+		return err
+
+	return _T.assert_float_eq(
+		big.scale.x, normal.scale.x, 0.0001, "both draw 1:1; only the rasterized size differs"
+	)
+
+
+func test_a_splash_with_no_streak_never_rattles() -> String:
+	# The wobble is the reward for a run of gathers. A single event must sit dead straight, or
+	# every "+1 XP" in the game acquires a permanent tilt.
+	var plain := SplashText.spawn(source, Vector2.ZERO, "+1 XP")
+	var single := SplashText.spawn_xp(source, Vector2(200.0, 0.0), 1)
+
+	var err: String = _T.assert_true(plain != null and single != null, "both splashes were created")
+	if err != "":
+		return err
+
+	# Rotation is only written from _process, so this has to run a couple of frames.
+	await _settle()
+
+	err = _T.assert_true(
+		is_instance_valid(plain) and is_instance_valid(single), "both are still in the air"
+	)
+	if err != "":
+		return err
+
+	err = _T.assert_float_eq(plain.rotation, 0.0, 0.0001, "an ordinary splash does not rattle")
+	if err != "":
+		return err
+
+	return _T.assert_float_eq(
+		single.rotation, 0.0, 0.0001, "and neither does an xp label that has absorbed nothing"
+	)
 
 
 func test_splash_outside_the_tree_is_a_no_op() -> String:

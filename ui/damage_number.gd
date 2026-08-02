@@ -16,12 +16,28 @@ class_name DamageNumber
 const CONTAINER_NAME := "DamageNumbers"
 const WORLD_HOST_PATH := "Main/World"
 
-# The camera runs at ~4.9x zoom, so world-space sizes are multiplied by ~5 on
-# screen. font_size 16 * WORLD_SCALE 0.2 * 4.9 zoom ~= 16 screen pixels.
-const FONT_SIZE := 16
-const WORLD_SCALE := 0.2
+# The transform scale is pinned to exactly 1/zoom, read from the live camera, so the
+# glyphs rasterize 1:1 on screen and `font_size` *is* the on-screen pixel height. See
+# `SplashText.pixel_scale` for why this is not a hardcoded constant any more - the
+# number here went stale once already when the camera moved from 4.935 to 8, which is
+# the entire "the damage numbers look soft" bug.
+
+## Rasterized glyph height, and - because the net scale is 1.0 - the on-screen pixel
+## height too. Tiles are 16px at zoom 8, i.e. 128 screen px, so this has to be well
+## clear of 16 to read at all. It sits under SplashText's 22 on purpose: a hit number
+## fires far more often than an xp splash and must not out-shout it.
+const FONT_SIZE := 18
+
+## Fallback transform scale, used only when there is no camera to ask (a unit test, or
+## the split second before one exists). 1/8 because `main.tscn`'s Camera2D is at zoom 8.
+const WORLD_SCALE := 0.125
+
 const OUTLINE_SIZE := 6
-const BOX := Vector2(48.0, 20.0)
+
+## Screen pixels, since the net scale is 1.0. Wide enough for four digits at FONT_SIZE
+## plus the outline on both sides; the label is centred on its pivot and `mouse_filter`
+## is IGNORE, so surplus box costs nothing.
+const BOX := Vector2(96.0, 36.0)
 
 const RISE := 16.0
 const LIFETIME := 0.7
@@ -29,6 +45,10 @@ const POP_TIME := 0.12
 const SPAWN_OFFSET := Vector2(0.0, -10.0)
 const TEXT_COLOR := Color(1.0, 0.95, 0.55)
 const OUTLINE_COLOR := Color(0.05, 0.03, 0.05, 1.0)
+
+## The settled transform scale, always exactly 1/zoom. The pop overshoot below settles
+## back onto this; it is deliberately not how the number changes size.
+var _base_scale := WORLD_SCALE
 
 var _freed_by_guard := false
 
@@ -44,7 +64,7 @@ static func spawn(source: Node, world_position: Vector2, amount: int) -> DamageN
 		return null
 
 	var number := DamageNumber.new()
-	number._configure(amount)
+	number._configure(amount, SplashText.pixel_scale(source))
 	container.add_child(number)
 	number._launch(world_position)
 	return number
@@ -70,20 +90,26 @@ static func _get_container(source: Node) -> Node2D:
 	container.y_sort_enabled = false
 	# Draw above the world; enemies sit at z_index 1.
 	container.z_index = 100
+	# NEAREST, not the project-default LINEAR. At the settled 1:1 scale the two are
+	# equivalent, but the pop is a fractional transform and linear filtering turns that
+	# into a soft smear. Children inherit it through TEXTURE_FILTER_PARENT_NODE, so this
+	# one line covers every number.
+	container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	host.add_child(container)
 	return container
 
 
-func _configure(amount: int) -> void:
+func _configure(amount: int, scale_factor: float = WORLD_SCALE) -> void:
 	name = "DamageNumber"
 	text = str(amount)
+	_base_scale = scale_factor
 	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	clip_text = false
 	size = BOX
 	pivot_offset = BOX * 0.5
-	scale = Vector2.ONE * WORLD_SCALE
+	scale = Vector2.ONE * _base_scale
 
 	add_theme_font_size_override("font_size", FONT_SIZE)
 	add_theme_color_override("font_color", TEXT_COLOR)
@@ -109,8 +135,11 @@ func _launch(world_position: Vector2) -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "position:x", position.x + drift, LIFETIME) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "scale", Vector2.ONE * WORLD_SCALE, POP_TIME) \
-		.from(Vector2.ONE * WORLD_SCALE * 1.7) \
+	# A transform tween, deliberately: the 1.7 overshoot is fractional and therefore soft,
+	# but softness for POP_TIME during an impact is motion, not blur. It settles onto
+	# _base_scale, where the glyphs are 1:1 again.
+	tween.tween_property(self, "scale", Vector2.ONE * _base_scale, POP_TIME) \
+		.from(Vector2.ONE * _base_scale * 1.7) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "modulate:a", 0.0, LIFETIME * 0.45) \
 		.set_delay(LIFETIME * 0.55)

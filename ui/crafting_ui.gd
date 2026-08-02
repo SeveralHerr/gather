@@ -6,7 +6,7 @@ class_name CraftingUi
 ## scene file would only be a second copy of data that has to be edited in lockstep.
 ##
 ## Lives in the UI CanvasLayer. The panel this replaced sat under Player/Camera2D/HUD,
-## which is world space at the camera's ~5x zoom - every child carried its own
+## which is world space at the camera's 8x zoom - every child carried its own
 ## compensating scale (0.37, 0.25, 0.385...) and every offset was hand-tuned to a
 ## window size the project stopped using. Nothing here hardcodes a viewport dimension.
 ##

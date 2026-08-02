@@ -107,7 +107,6 @@ func _physics_process(delta):
 			# Before the free, and from the manager's shared emitter rather than a child of
 			# this node — a burst parented here would be freed on the same frame it started.
 			PickUpManager.collect_sparkle(global_position)
-			_award_pickup_xp()
 			shadow.queue_free()
 			queue_free()
 		else:
@@ -164,23 +163,13 @@ func _apply_sprite_transform() -> void:
 	sprite_2d.scale = s
 
 
-## Vacuuming loot ticks xp, but at a third of a point per drop: see the award table in
-## LevelUpManager for why. XP is an integer, so instead of rounding 0.33 down to nothing
-## (or up to 1, which would have made hoovering out-earn mining) every PICKUPS_PER_XP-th
-## drop pays a whole point. A shared counter rather than a per-drop random roll, so the
-## rate is exact and the splash cadence is predictable.
-static var _pickups_since_xp := 0
-
-
-func _award_pickup_xp() -> void:
-	_pickups_since_xp += 1
-	if _pickups_since_xp < LevelUpManager.PICKUPS_PER_XP:
-		return
-	_pickups_since_xp = 0
-
-	var level_up_manager := LevelUpManager.find(self)
-	if level_up_manager:
-		level_up_manager.add_xp(LevelUpManager.XP_PICKUP, global_position)
+# Picking a drop up pays NO xp, deliberately. It used to pay 1 every third drop, and the
+# problem was never the rate - it was that a pickup is not an accomplishment. The drop was
+# already paid for when the node it came off was broken, so vacuuming it paid a second time
+# for the same act, and because the vacuum sweeps a whole yield in about a second the xp
+# splash spent most of a gather counting loot off the floor instead of reacting to the swing
+# that earned it. XP now comes from the four things the player actually does: gathering,
+# killing, crafting and building.
 
 
 func _on_body_entered(body: Node2D):

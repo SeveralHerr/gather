@@ -59,6 +59,26 @@ func play_sound(type: SoundType, volume_db: float = 0.0, loop: bool = false):
 		if not loop:
 			player.connect("finished", Callable(player, "queue_free"))
 			
+## A one-shot at an EXACT pitch, with none of the random variation `play_sound` applies.
+##
+## The variation exists so a sound retriggered dozens of times (a footstep, a pickaxe) does
+## not read as a machine, and it is the right default. It is wrong when the pitch is the
+## message: the xp splash blips a rising three-note scale as the running total crosses each
+## colour band, and +/-10% on each note is enough to invert two of the intervals - the tune
+## comes out different every gather, which sounds like a bug rather than a flourish.
+func play_sound_pitched(type: SoundType, pitch: float, volume_db: float = 0.0) -> void:
+	var sound_resource = sound_library.get(type)
+	if sound_resource == null:
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = sound_resource
+	player.volume_db = volume_db
+	player.pitch_scale = maxf(0.01, pitch)
+	add_child(player)
+	player.play()
+	player.finished.connect(player.queue_free)
+
+
 func play_sound_queue(type: SoundType, player: AudioStreamPlayer, volume_db: float = 0.0, _loop: bool = false):
 	var sound_resource = sound_library[type]
 	player.autoplay = false

@@ -9,8 +9,9 @@ class_name CameraHud
 ## it hangs off Camera2D in world space, so its own rect is whatever the scene says
 ## and nothing recomputes it when the window changes. Before this script the HUD
 ## children carried camera-local offsets hand-tuned to the 1152x648 window (the left
-## edge was literally x = -115, one unit inside 1152 / 4.935 / 2), and every one of
-## them drifted toward the middle of the screen the moment the window grew.
+## edge was literally x = -115, one unit inside 1152 / 4.935 / 2 at the 4.935 zoom the
+## camera ran at back then), and every one of them drifted toward the middle of the
+## screen the moment the window grew.
 ##
 ## With the rect kept in sync, anchoring is normal: 0 is the left/top screen edge, 1
 ## is the right/bottom one, 0.5 is the centre, at any window size and any camera zoom.
@@ -19,13 +20,13 @@ class_name CameraHud
 ##
 ## ## Why anything here needs scaling at all
 ##
-## The camera's zoom is fixed at 4.935 and the project's stretch mode is "disabled",
-## so a HUD unit is always 4.935 screen pixels no matter how large the window is.
-## Everything under here therefore has a *constant pixel size*: the HP bar is 26
-## HUD units wide, which is 128 screen pixels on a phone and 128 screen pixels on a
-## 4K monitor. That is a third of a portrait phone's width and a rounding error on a
-## desktop, and the desktop end is the complaint — the bars and labels are far too
-## small on the window size the game actually ships with (1920x1080).
+## The camera's zoom is fixed at 8 and the project's stretch mode is "disabled", so a
+## HUD unit is always 8 screen pixels no matter how large the window is. Everything
+## under here therefore has a *constant pixel size*: the HP bar is 26 HUD units wide,
+## which is 208 screen pixels on a phone and 208 screen pixels on a 4K monitor. That is
+## nearly half a portrait phone's width and a rounding error on a desktop, and the
+## desktop end is the complaint — the bars and labels are far too small on the window
+## size the game actually ships with (1920x1080).
 ##
 ## `_apply_legibility_scale()` multiplies the readable groups by UiTheme's viewport
 ## factor, floored at 1.0 so a small screen never ends up with *less* than the sizes
@@ -33,11 +34,19 @@ class_name CameraHud
 ## the group is measured from the top-left corner, so nothing here computes an
 ## on-screen position from a viewport dimension — that is the gather-6fx bug.
 
-## The children whose contents are read at a glance: the fps readout, the HP/XP
-## group, and the floating xp popup. Since `gather-ue3` that is *every* child of this
-## Control — the invisible LevelUpManager model node moved out to `Systems`, so
-## nothing under here is anything but HUD.
-const SCALED_CHILDREN := ["FpsLabel", "PlayerInfo", "FloatingText"]
+## The children whose contents are read at a glance and are sized by *transform*: the
+## fps readout and the HP/XP group.
+##
+## `FloatingText` was the third entry. Both it and the node are gone: it was a second
+## "+N xp" readout duplicating the world splash, and being transform-scaled it was the
+## ugly one — glyphs reaching the screen at 0.45 (its own scale) * 8 (camera zoom) * 1.5
+## (this factor), i.e. a rasterized atlas magnified 5.4x under the HUD's NEAREST filter.
+##
+## The lesson outlives the node. Scaling the *transform* of something made of glyphs
+## resamples an atlas; scaling its `font_size` re-rasterizes. Anything added to this list
+## that is text should size itself the second way (see `ui/splash_text.gd`, which pins its
+## transform to 1/zoom for exactly this reason). This list is for bars and boxes.
+const SCALED_CHILDREN := ["FpsLabel", "PlayerInfo"]
 
 ## Never shrink below what the scene authored. UiTheme.SCALE_MIN is 0.85, which on
 ## a phone would make an already-constant-pixel HUD smaller than it is today for no
@@ -94,8 +103,16 @@ func _resize_to_view() -> void:
 	_apply_legibility_scale()
 
 
+## The factor the HUD grows its readable groups by on this viewport. Public and static
+## because a child that sizes itself in `font_size` rather than by transform (the xp
+## readout) still has to arrive at the same on-screen size as the rest of the HUD, and
+## two copies of `maxf(1.0, UiTheme.scale_for_node(...))` would be two chances to drift.
+static func legibility_scale(node: Node) -> float:
+	return maxf(MIN_LEGIBILITY_SCALE, UiTheme.scale_for_node(node))
+
+
 func _apply_legibility_scale() -> void:
-	var factor := maxf(MIN_LEGIBILITY_SCALE, UiTheme.scale_for_node(self))
+	var factor := legibility_scale(self)
 
 	for child_name in SCALED_CHILDREN:
 		var child := get_node_or_null(NodePath(child_name)) as Control

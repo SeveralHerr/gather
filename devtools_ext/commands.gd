@@ -1159,7 +1159,7 @@ func _wall_run_sizes(handler: TileMapHandler) -> Dictionary:
 ## to meet them, and whether that ever happens is decided by a noise field - so it is a
 ## property of the seed, not of the code, and it cannot be settled by reading the diff.
 ## `count_land_tiles` is a single scalar and reads the same whether the world is one
-## landmass or four, and a screenshot only ever shows the ~24x14 tiles around the player,
+## landmass or four, and a screenshot only ever shows the ~15x8 tiles around the player,
 ## which is less than the distance to the nearest island. Neither can answer the only
 ## question that matters: is this island connected?
 ##
