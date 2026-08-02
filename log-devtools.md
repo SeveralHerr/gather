@@ -1192,3 +1192,17 @@ Guidelines that make an entry useful later:
     carry the panel-open flags (it already carries `skill_panel_open`) so state can be
     read without dispatching a mutation. Asserting on a mutating verb is a mistake the
     reply cannot warn you about.
+
+## 2026-08-02 — pushed main to origin
+
+- Value: **overkill** — ran nothing. The tree being pushed is the one verified two entries
+  above (import, lint, 174/174 tests and the post-merge runtime checks), and `git fetch`
+  confirmed origin had moved zero commits since, so there was no new content for a runtime
+  check to reach.
+  - Expected: nothing; the only open question was whether the push was still a
+    fast-forward, which is a git question.
+  - Got: `commits on origin/main not local: 0` after a fetch, and `## main...origin/main
+    [ahead 10]` — a clean fast-forward with no rebase or merge needed.
+  - Cheaper: this was the cheapest check — one `git fetch` plus one `git rev-list --count`.
+
+- No gaps this turn.
