@@ -1848,3 +1848,26 @@ Guidelines that make an entry useful later:
   `Engine.time_scale == Juice.HIT_STOP_SCALE` headlessly, and hit-stop is a static function
   with no scene dependency, so the headless assertion is strictly stronger than a screenshot
   of the same moment. The gap was real about the bus and irrelevant to the code.
+
+## 2026-08-02 — drop particles were hiding the drops
+
+- Value: **warranted** — the fix is two numbers and a z_index, and runtime is the only thing
+  that could confirm either half.
+  - Expected: the report was "you can no longer see the item on the ground due to the
+    particles", which reads as a particle-count problem. I expected to be trimming amounts.
+  - Got: the count was only half of it. `items/pick_up.tscn` puts drops at `z_index = 1` and
+    both emitters were created at `z_index = 60` — so the break burst rendered *above* the
+    very items the break had just produced, and no amount of trimming would have fixed the
+    ordering. Confirmed live afterwards: `GatherBurst z_index: 0, amount: 6, lifetime: 0.3`,
+    `CollectSparkle z_index: 0, amount: 4, lifetime: 0.22`, and a screenshot at the break
+    showing the stone drop drawn on top of the burst with slot 6 going to x2.
+  - Cheaper: reading `pick_up.tscn` for the drops' z_index next to the two `z_index = 60`
+    lines would have found the ordering bug in about a minute, without launching anything.
+    The running game was still needed to confirm the drop is now on top, but the *diagnosis*
+    was available statically and I went to the game first.
+
+- Gap: **no gaps this turn.** The bridge did everything asked. Two notes on technique rather
+  than on the harness: `set-game-speed 0.08` is what made a 0.3s burst catchable by a
+  screenshot at all, and it distorts what it shows — the XP splash looked enormous under it
+  purely because `_absorb_xp`'s stacking tween was stretched eight-fold. A slow-motion
+  screenshot is good for "is this drawn in front of that" and bad for "is this too big".

@@ -37,8 +37,9 @@ func collect_sparkle(world_position: Vector2) -> void:
 		_sparkle.amount = Juice.PICKUP_SPARKLE_AMOUNT
 		_sparkle.lifetime = Juice.PICKUP_SPARKLE_LIFETIME
 		_sparkle.emitting = false
-		# Above the drops themselves (z_index 1) but below the damage numbers (100).
-		_sparkle.z_index = 60
+		# Below the drops (z_index 1), not above them. See Juice.PARTICLE_Z_INDEX — the
+		# sparkle for one collect was covering the drops still on the ground beside it.
+		_sparkle.z_index = Juice.PARTICLE_Z_INDEX
 		host.add_child(_sparkle)
 
 	_sparkle.global_position = world_position

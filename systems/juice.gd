@@ -337,12 +337,31 @@ const GATHER_PULSE_SCALE := 0.35
 ## with a changing `amount`: writing `amount` reallocates the particle buffer, and doing that
 ## several times a second during a gather is exactly the per-frame allocation this project
 ## gates on.
+##
+## The burst was 12 at 0.5s and that was too much: the drops a node yields are thrown from
+## the same cell the burst fires at, on the same frame, so a dozen particles living half a
+## second sat directly on top of the item and the player could not see what they had just
+## earned. The effect was competing with the thing it was meant to celebrate. 6 at 0.3s
+## still reads as a break — the z_index fix in resource_manager2.gd is what actually
+## uncovers the drop, and this is the half that stops the burst being a cloud.
 const GATHER_CHIP_AMOUNT := 4
-const GATHER_BURST_AMOUNT := 12
+const GATHER_BURST_AMOUNT := 6
 
 ## Lifetime of a chip and of a break-burst particle, in seconds.
 const GATHER_CHIP_LIFETIME := 0.35
-const GATHER_BURST_LIFETIME := 0.5
+const GATHER_BURST_LIFETIME := 0.3
+
+## Where the gather emitters and the collect sparkle draw, relative to their parent.
+##
+## Below the drops, which sit at z_index 1 (items/pick_up.tscn). Both emitters were at 60,
+## chosen to clear the tilemap without reaching the damage numbers at 100 — but that also
+## put them above every pickup, which is why a break hid its own loot.
+##
+## 0 is above layer_0 (-1) and level with the object layer, and at equal z the later draw
+## wins: a TileMapLayer draws before the TileMap's node children, so a chip still appears
+## over the tile it came off. Particles behind the item, item on top. Do not raise this to
+## fix a "particles are hidden" report without checking what it does to the drops.
+const PARTICLE_Z_INDEX := 0
 
 
 ## How many swings a gather of `gather_seconds` is divided into. Pure, so the cadence is
@@ -385,8 +404,12 @@ const PICKUP_LAND_TIME := 0.16
 ## collect (see items/pick_up_manager.gd) — a burst of three simultaneous collects lands in
 ## nearly the same place, so sharing costs nothing visually and a node per collect would cost
 ## the orphan budget.
-const PICKUP_SPARKLE_AMOUNT := 6
-const PICKUP_SPARKLE_LIFETIME := 0.3
+##
+## Trimmed from 6 at 0.3s alongside the break burst, and for the same reason: a collect
+## fires several times a second while the vacuum works through a yield, so the sparkles
+## overlap into a haze around the player exactly where the remaining drops still are.
+const PICKUP_SPARKLE_AMOUNT := 4
+const PICKUP_SPARKLE_LIFETIME := 0.22
 
 ## Overshoot coefficient of `ease_out_back`. 1.70158 is the classic Penner value; it puts the
 ## peak of the overshoot at ~1.1x the target, which is a pop rather than a bounce.

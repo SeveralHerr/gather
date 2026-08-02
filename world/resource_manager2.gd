@@ -132,8 +132,9 @@ func _make_emitter(emitter_name: String, amount: int, lifetime: float) -> GPUPar
 	emitter.amount = amount
 	emitter.lifetime = lifetime
 	emitter.emitting = false
-	# Above the tilemap and its y-sorted children, below the damage numbers (100).
-	emitter.z_index = 60
+	# Below the drops (z_index 1), not above them. See Juice.PARTICLE_Z_INDEX — at 60 the
+	# break burst covered the very items the break had just produced.
+	emitter.z_index = Juice.PARTICLE_Z_INDEX
 	tile_map_handler.tileMap.add_child(emitter)
 	return emitter
 
