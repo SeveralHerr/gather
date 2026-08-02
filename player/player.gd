@@ -103,11 +103,13 @@ func _ready():
 	input_manager.connect("move_up", Callable(self, "_move_up"))
 	input_manager.connect("move_left", Callable(self, "_move_left"))
 	input_manager.connect("move_right", Callable(self, "_move_right"))
-	input_manager.connect("mouse_button_left", Callable(self, "_mouse_button_left"))
-	input_manager.connect("mouse_button_right", Callable(self, "_mouse_button_right"))
-	input_manager.connect("gather_input_press", Callable(self, "_gather_input_press"))
+	# _mouse_button_left, _mouse_button_right and _gather_input_press were connected here
+	# too. None of the three has ever existed on this class, so Object.connect rejected
+	# the callable and logged an error at every boot — noise in the one log that carries
+	# this project's real failure signal. Nothing regressed by removing them: the gather
+	# press reaches the game through HotBarInventory (hot_bar_inventory.gd:39), and
+	# mouse_button_left is consumed by main.gd:54.
 	input_manager.connect("gather_input_release", Callable(self, "_gather_input_release"))
-	input_manager.gather_input_press.connect(_on_gather)
 	input_manager.connect("destroy_input_press", Callable(self, "_destroy_input_press"))
 	input_manager.connect("destroy_input_release", Callable(self, "_destroy_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
@@ -294,10 +296,6 @@ func _process_movement():
 	v = Vector2.ZERO
 	
 	move_and_slide()
-	
-func _on_gather():
-	#$StateMachine.change_to("PlayerGather")
-	pass
 	
 func _process(_delta):		
 	

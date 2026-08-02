@@ -258,6 +258,13 @@ func _button_at(point: Vector2) -> Control:
 
 
 func _press(index: int, button: Control) -> void:
+	# A dropped touch-up (a browser gesture, an itch.io iframe scroll, a touch that began
+	# while the overlay was hidden) leaves the old binding in _held. The browser then
+	# reuses that identifier for the next finger, and without this the old button's action
+	# — `gather`, typically — would be overwritten and never released.
+	if _held.has(index):
+		_release(index)
+
 	_held[index] = button
 	_set_pressed_look(button, true)
 	send_action(_button_action.get(button, ""), true)
@@ -279,6 +286,14 @@ func _release_all() -> void:
 	# keys() is a fresh array, so erasing inside the loop is safe.
 	for index in _held.keys():
 		_release(index)
+
+	# The joystick keeps its own _touch_index and its own latched move_* actions, and
+	# nothing here ever touched them: after a tab switch with a thumb on the stick the
+	# player kept walking, and — worse — the stale index made the joystick swallow the
+	# touch-up of whichever finger next held it, which latches `gather` down for good
+	# (see the guard in virtual_joystick.gd:_input).
+	if _joystick != null and _joystick.has_method("reset"):
+		_joystick.reset()
 
 
 func _set_pressed_look(button: Control, down: bool) -> void:

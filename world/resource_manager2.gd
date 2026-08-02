@@ -26,6 +26,13 @@ const MIN_RESOURCE_CAP := 40
 # Floor on gather time so a fast tool can never hand Timer a zero wait_time.
 const MIN_GATHER_TIME := 0.1
 
+# How close the player has to stand for a scene-backed node to count as the gather
+# target. Both branches of start_removing_resource use it; only one of them used to.
+const SCENE_TILE_REACH := 20.0
+
+# How long the scene-node break effect runs before the resource is actually removed.
+const SCENE_BREAK_TIME := 0.3
+
 var hold_timer = Timer.new()
 var removing_info
 var is_holding_e = false
@@ -201,7 +208,31 @@ func remove_resource(location, resource: GameResource):
 	#tile_map_handler.clear_tile(location)
 	emit_signal("resource_removed", location, resource)
 
+## Emits the stop for whatever is being gathered right now and forgets it, so the two
+## tilemap cells main.gd wrote for that target are always undone by someone.
+##
+## start_removing_resource() used to overwrite removing_info outright. That orphaned the
+## previous tile's layer-3 selector and its layer-1 mid-gather frame with no code path
+## left holding a reference to either, and hold_timer was restarted so the tile was never
+## gathered away and cleared that way either. The mid-gather cells are *animated in the
+## tileset* (source 4, 4:3 is four frames for Tree, 3:5 is five for StoneResource) and
+## Godot loops a tile animation for as long as the cell holds that atlas coord — so an
+## orphaned cell is a resource that visibly mines itself forever.
+func _release_target() -> void:
+	if removing_info != null:
+		emit_signal("resource_removing_stop", removing_info.location, removing_info.resource)
+	removing_info = null
+	# Never carried across a retarget: it is only ever set by the scene-tile branch, and
+	# a stale one sent the next tile-based gather down the scene path at _on_hold_timer_timeout.
+	removing_node = null
+
+
 func start_removing_resource(pickaxe: GameItemPickaxe):
+	# Before anything else, and before the lookup below overwrites removing_info: a second
+	# press is cheap to come by (PlayerGather.enter() starts a gather on every entry), and
+	# the previous target's cells have to be handed back first.
+	_release_target()
+
 	is_holding_e = true
 	removing_tool = pickaxe
 	# Swift Hands scales the tool's own gather time. The MIN_GATHER_TIME floor still
@@ -214,7 +245,12 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 	if removing_info != null:
 		if removing_info.resource.type == Types.Item.StoneResourceTest:
 			var node = tile_map_handler.get_nearest_scene_tile()
-			if node is GameSceneResource:
+			# get_nearest_scene_tile() searches the whole island, so it needs the same
+			# reach check the else branch below already applies. Without it a cell that
+			# merely resolves to StoneResourceTest by atlas coords retargets the gather
+			# onto a scene stone the player may be nowhere near, and draws the selector
+			# there.
+			if node is GameSceneResource and (player.global_position - node.position).length() < SCENE_TILE_REACH:
 				removing_info.location = node.position
 				removing_info.resource = resources.get_item_or_resource_by_type(node.resource_type)
 				removing_node = node
@@ -227,7 +263,7 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 		var node = tile_map_handler.get_nearest_scene_tile()
 		if node and node is GameSceneResource:
 			#if node.resource_type == removing_info.resource.type:
-			if (player.global_position - node.position).length() < 20:
+			if (player.global_position - node.position).length() < SCENE_TILE_REACH:
 				removing_info = { "resource" :resources.get_item_or_resource_by_type(node.resource_type),  "location": node.position }
 				removing_node = node
 			
@@ -243,36 +279,45 @@ func stop_removing_resource():
 	gather_progress.finish()
 	if removing_info != null:
 		GameSoundManager.stop_gathering_sound()
-		emit_signal("resource_removing_stop", removing_info.location, removing_info.resource)
+	# Also nulls removing_info. Leaving it set meant a second stop re-emitted for an
+	# already-cleared cell, and main.gd answers a stop by rewriting the resource's idle
+	# tile - which resurrected a node that had just been gathered away.
+	_release_target()
+
 
 func _on_hold_timer_timeout():
 	gather_progress.finish()
-	if is_holding_e and removing_info != null:
-		#tile_map_handler.find_nearest_resource_to_location(player.global_position)
-		if removing_node and removing_node is GameSceneResource:
-			var test = removing_node.animated_sprite_2d
-			#removing_node.animated_sprite_2d.play("Destroy")
-			camera.apply_shake(1)
+	if not is_holding_e or removing_info == null:
+		return
 
-			removing_node.hit_particles.emitting = true
-			await get_tree().create_timer(0.3).timeout
-			removing_node.hit_particles.emitting = false
-			#removing_node.animated_sprite_2d.animation_finished.connect(_animation_done)
-			_animation_done()
-			removing_node = null
-		else:
-			remove_resource(removing_info.location, removing_info.resource)
-			removing_info = null
-		
-func _animation_done():
-	#await get_tree().create_timer(0.3).timeout
-
-
-	remove_resource(removing_info.location, removing_info.resource)
-
-	tile_map_handler.tileMap.set_cell(removing_info.resource.layer, removing_info.location, -1)#, removing_info.resource.atlas_location, removing_info.resource.is_scene_tile)
+	# Detach the target before the await below. Both fields are mutable, and all three
+	# things that can happen during those 0.3s used to be read back afterwards: a release
+	# was ignored and the resource gathered anyway; a retarget stranded the first tile's
+	# cells; and a retarget that found nothing left removing_info null, so the resume
+	# dereferenced it. That last one aborted the coroutine part-way, and because this
+	# method returns void the abort was silent in the web build, leaving hit_particles
+	# emitting forever and removing_node still set to mis-route the next gather.
+	var info = removing_info
+	var node = removing_node
 	removing_info = null
-	
+	removing_node = null
+
+	if node and node is GameSceneResource:
+		camera.apply_shake(1)
+		node.hit_particles.emitting = true
+		await get_tree().create_timer(SCENE_BREAK_TIME).timeout
+		# The node can be freed while the timer runs (save load, land regeneration).
+		if is_instance_valid(node):
+			node.hit_particles.emitting = false
+
+	# remove_resource emits resource_removed, which main.gd answers with
+	# clear_tile(local_to_map(location)) - that clears both the layer-1 tile and the
+	# layer-3 selector at the right cell. The scene branch used to *also* call set_cell
+	# with the raw local position, i.e. pixels where map coords were wanted, clearing a
+	# cell tens of tiles away. Redundant as well as wrong, so it is gone.
+	remove_resource(info.location, info.resource)
+
+
 func _resource_found( resource: GameResource, location: Vector2i):
 	remove_resource(location, resource)
 

@@ -34,6 +34,30 @@ func _physics_process(_delta):
 	if Input.is_action_pressed(&"move_up") and not disable_input:
 		move_up.emit()
 
+## Every action test below reads the EVENT, never Input's own state.
+##
+## This used to poll Input.is_action_just_pressed() / is_action_just_released() from in
+## here, and that is a frame-scoped question asked from a per-event callback:
+## just_pressed stays true for the whole frame, while _input() runs once for every event
+## that arrives in it. So each signal fired once per event in the press frame, not once
+## per press.
+##
+## On a keyboard that was invisible — a gather press is one InputEventKey and nothing
+## else lands that frame. On touch a single tap on the MINE button delivers an emulated
+## mouse-down (emulate_mouse_from_touch defaults to true), the InputEventScreenTouch, and
+## the InputEventAction the overlay synthesises; the virtual joystick then adds an
+## InputEventScreenDrag every frame the thumb moves. Three to four events per frame, and
+## a non-deterministic count because mouse emulation only follows whichever finger
+## landed first.
+##
+## The duplicate gather_input_press re-entered PlayerGather, which restarted
+## ResourceManager2 against a freshly looked-up tile and stranded the previous tile's
+## layer-3 selector and its animated layer-1 mid-gather cell — the phone bug in
+## gather-3zg. Reading the event makes each signal exactly 1:1 with the input that
+## caused it, on every platform.
+##
+## is_action_pressed() also ignores echo events by default, so a held key no longer
+## re-triggers on the OS repeat rate.
 func _input(event):
 
 	if event is InputEventMouseButton:
@@ -41,24 +65,31 @@ func _input(event):
 			mouse_button_right.emit()
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not disable_input:
 			mouse_button_left.emit(isUiOpen)
-	if Input.is_action_just_pressed("gather") and not disable_input:
+	if event.is_action_pressed("gather") and not disable_input:
 		gather_input_press.emit()
-	if Input.is_action_just_pressed("attack") and not disable_input:
+	if event.is_action_pressed("attack") and not disable_input:
 		attack.emit()
-	if Input.is_action_just_released("gather") and not disable_input:
+	# Releases are deliberately NOT gated on disable_input, while the presses above are.
+	# A release is the half that *stops* something, and swallowing it strands whatever the
+	# press started: hold MINE with one thumb, open a panel with the other (the panel
+	# toggles below are ungated on purpose, and they set disable_input), and the lift used
+	# to be dropped — so stop_removing_resource() never ran and the tile stayed on its
+	# animated mid-gather frame with the selector on it, permanently, even after the panel
+	# closed. Two-thumb play makes that the ordinary case on a phone rather than a curio.
+	if event.is_action_released("gather"):
 		gather_input_release.emit()
 		gather.emit()
-	if Input.is_action_just_pressed("destroy") and not disable_input:
+	if event.is_action_pressed("destroy") and not disable_input:
 		destroy_input_press.emit()
-	if Input.is_action_just_released("destroy") and not disable_input:
+	if event.is_action_released("destroy"):
 		destroy_input_release.emit()
-	if Input.is_action_just_released("inventory"):
+	if event.is_action_released("inventory"):
 		toggle_inventory.emit()
 	# Not gated on disable_input, matching the inventory: opening a menu while dead
 	# or mid-respawn is harmless, and being locked out of it is not.
-	if Input.is_action_just_released("skills"):
+	if event.is_action_released("skills"):
 		toggle_skills.emit()
 	# Same reasoning as the skill panel: the land panel is a menu, and being locked
 	# out of it while dead or mid-respawn is worse than opening it there.
-	if Input.is_action_just_released("land"):
+	if event.is_action_released("land"):
 		toggle_land.emit()

@@ -35,3 +35,8 @@ screenshots/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Agent worktrees. `git worktree add` under .claude/ leaves a nested checkout here;
+# it is not ignored by default, so `git add .` would try to commit a second copy of
+# the whole project (and the project linter scans it too).
+.claude/worktrees/

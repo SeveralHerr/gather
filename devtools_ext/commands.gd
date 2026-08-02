@@ -20,6 +20,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("give_item", _cmd_give_item)
 	dev.register_command("add_xp", _cmd_add_xp)
 	dev.register_command("gather_stats", _cmd_gather_stats)
+	dev.register_command("gather_state", _cmd_gather_state)
 	dev.register_command("spawn_stats", _cmd_spawn_stats)
 	dev.register_command("coin_count", _cmd_coin_count)
 	dev.register_command("land_state", _cmd_land_state)
@@ -652,6 +653,86 @@ func _cmd_gather_stats(_args: Dictionary) -> Dictionary:
 			"land_tiles": handler.count_land_tiles(),
 			"spawnable": spawnable,
 			"tuning": tuning,
+		},
+	}
+
+
+## In-flight gather state, and — the part that matters — the two tilemap artefacts a
+## gather leaves behind: the layer-3 selector tile and the layer-1 mid-gather frame.
+##
+## Both are written by main.gd:_on_resource_removing and undone only by
+## _on_resource_removing_stop, so a press whose stop never fires strands them on the
+## tile forever. Nothing else can see that: gather_stats counts nodes (a stranded
+## highlight is not a node), get-state on the TileMap reports no cell contents, and a
+## screenshot shows a selector box that looks exactly like a legitimately selected
+## tile. `stranded` is the assertion — highlight cells while nothing is being gathered.
+func _cmd_gather_state(_args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var manager: ResourceManager2 = handler.resource_manager
+	var tile_map = handler.tileMap
+
+	# Reverse map of the mid-gather atlas cell back to the resource, so a layer-1 cell
+	# left on the gathering frame can be named rather than just counted.
+	var mid_gather := {}
+	for key in handler.resources.GetAllTypes():
+		var resource = handler.resources.Get(key)
+		if resource.gathering_atlas_location != Vector2i.ZERO:
+			mid_gather[resource.gathering_atlas_location] = resource.name
+
+	var highlights := []
+	for cell in tile_map.get_used_cells(3):
+		highlights.append({"x": cell.x, "y": cell.y})
+
+	var mid_gather_cells := []
+	for cell in tile_map.get_used_cells(1):
+		var atlas = tile_map.get_cell_atlas_coords(1, cell)
+		if mid_gather.has(atlas):
+			mid_gather_cells.append({"x": cell.x, "y": cell.y, "resource": mid_gather[atlas]})
+
+	var info = manager.removing_info
+	var target = null
+	if info != null:
+		target = {
+			"resource": info.resource.name if info.resource else "",
+			"location": str(info.location),
+		}
+
+	# A gather is only legitimately in flight while the hold timer is running. Anything
+	# drawn on the map outside that window is a leak, whatever the player is doing.
+	var gathering: bool = manager.is_holding_e and not manager.hold_timer.is_stopped()
+
+	# player.gd:_process redraws a layer-3 highlight on the nearest chest every frame,
+	# so a highlight is legitimate while one is in range. Without this the verb would
+	# report `stranded` for every player standing next to a chest and the flag would be
+	# worthless exactly where a gather test puts the player.
+	var chest_in_range: bool = player.nearest_chest != null
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"is_holding": manager.is_holding_e,
+			"timer_stopped": manager.hold_timer.is_stopped(),
+			"time_left": manager.hold_timer.time_left,
+			"wait_time": manager.hold_timer.wait_time,
+			"gathering": gathering,
+			"removing_info": target,
+			"removing_node": manager.removing_node != null,
+			"removing_tool": manager.removing_tool.name if manager.removing_tool else "",
+			"progress_visible": manager.gather_progress.visible if manager.gather_progress else false,
+			"action_pressed": Input.is_action_pressed("gather"),
+			"chest_in_range": chest_in_range,
+			"highlight_cells": highlights,
+			"mid_gather_cells": mid_gather_cells,
+			# The whole point of the verb: tilemap artefacts with no gather behind them.
+			# A mid-gather frame is never legitimate outside a gather, so it counts on its
+			# own; a highlight only counts when no chest is claiming it.
+			"stranded": not gathering and (
+				mid_gather_cells.size() > 0 or (highlights.size() > 0 and not chest_in_range)),
 		},
 	}
 

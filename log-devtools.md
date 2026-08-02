@@ -582,3 +582,96 @@ Guidelines that make an entry useful later:
 - No gaps this turn. [G-028] did not bite: the `--import` calls in this session left
   `project.godot` untouched, which is consistent with the earlier note that the test suite
   never dirties it and narrows that gap further toward "import only, and not every import".
+
+## 2026-08-01 — Hunting the mobile stuck-gather bug (gather-3zg)
+
+- Value: **warranted** — the headless suite passing is itself the narrowing claim this turn
+  needed: `test_mobile_controls` asserts press+release symmetry *at the overlay boundary*, so
+  a green run exonerates `MobileControls` and puts the defect downstream of it.
+  - Expected: either a red test naming the stuck gather, or a green suite proving the overlay
+    is not where the release is lost.
+  - Got: `Total: 137 | Passed: 137 | Failed: 0`, exit 0, zero `SCRIPT ERROR` in stderr, and
+    specifically `test_gather_button_sends_a_press_and_a_release` green — "the press sends
+    exactly one action" / "finger up releases gather". So the overlay emits both halves; the
+    loss is in `InputManager` or `ResourceManager2`.
+  - Cheaper: nothing. Reading `mobile_controls.gd` alone would have shown the code *intends*
+    to send both halves; only the run shows the assertion still holds.
+
+- Gap: **no way to exercise "N input events in one frame" from a test** — the leading
+  hypothesis is that `systems/input_manager.gd:44` calls `Input.is_action_just_pressed()`
+  from inside `_input()`, which is frame-scoped while `_input()` is per-event. Reproducing
+  that needs a test that dispatches several `InputEvent`s within one frame and counts signal
+  emissions. `_T` offers `instantiate_ui` / `free_ui` and `await tree.process_frame`, but
+  nothing to push a batch of events through a viewport in a single frame, and
+  `Input.parse_input_event` from a headless test does not reach a `_input()` handler without
+  a live viewport. Workaround this turn: static tracing plus a new `gather_state` project verb
+  to assert the *consequence* (stranded tilemap cells) at runtime instead of the cause.
+  - [G-031] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `_T.dispatch_events(viewport, [events])` helper that pushes an array of
+    events through `Viewport.push_input` without yielding between them, so frame-scoped vs
+    event-scoped input bugs — a whole class, and the one that only bites on touch where the
+    joystick emits a drag every frame — become unit-testable at all.
+
+## 2026-08-01 — Fixing the gather re-entrancy defects (gather-3zg.1/.3/.4/.7)
+
+- Value: **overkill** — lint and the suite confirmed only that a careful edit compiled and
+  broke nothing. Neither could see the bug being fixed: the defect is a *tilemap cell left
+  behind*, and no headless assertion reaches the tilemap.
+  - Expected: green, because the change is a refactor of bookkeeping the tests never touched.
+  - Got: `lint: 0 error(s), 7 warning(s) -> exit 0`, `Total: 137 | Passed: 137 | Failed: 0`,
+    `grep -c 'SCRIPT ERROR'` = 0. Then 5 new tests green:
+    `test_retargeting_hands_back_the_previous_tile` — "it released the tile it had, not the
+    new one".
+  - Cheaper: lint alone, ~25s. The suite re-run added nothing over it here.
+  - Honest caveat on the new tests: `_release_target()` did not exist before this change, so
+    they could not have been red on the old code. They lock the invariant going forward; they
+    did not catch the bug. Runtime is still owed.
+
+- Gap: **nothing can assert tilemap cell contents** — the whole bug is "a cell is left set",
+  and `get-state` on the TileMap reports no cell contents, `gather_stats` counts *nodes* (a
+  stranded highlight is not a node), and a screenshot of a stuck selector is pixel-identical
+  to a legitimately selected tile. `validate-all` returned 0 issues throughout. Workaround:
+  wrote a project verb, `gather_state`, that reads `get_used_cells(3)` and scans layer 1 for
+  cells sitting on a `gathering_atlas_location`, with a `stranded` flag. Writing it also
+  surfaced why a generic verb would not have done: the flag has to discount the chest
+  highlight `player.gd:_process` legitimately redraws every frame, which is game knowledge.
+  - [G-032] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a generic `tilemap-cells --node PATH --layer N` verb returning used cells
+    with their source id and atlas coords. Tile-based games keep real state in cells, and it
+    is currently the one part of the scene the bridge cannot read at all — every project
+    hitting this has to hand-roll its own verb.
+
+## 2026-08-01 — Runtime A/B of the mobile stuck-gather fix (gather-3zg)
+
+- Value: **warranted** — the harness produced the one claim nothing else could: it reproduced
+  the reported bug on the pre-fix build and showed it gone on the fixed one, from the same
+  command sequence. Static tracing by three agents agreed on the mechanism but could not
+  demonstrate it.
+  - Expected: the pre-fix build would strand a tilemap cell after a retarget; the fixed build
+    would not.
+  - Got: pre-fix, after `goto_resource Tree` → press → `goto_resource Stone` → press → release:
+    `highlight=[{'x': -3, 'y': -5}] mid_gather=[{'resource': 'Tree', ...}] stranded=True`
+    — the orphaned Tree cell survived the release, on its animated mid-gather frame. Fixed
+    build, identical sequence: one cell at each step, `stranded=False` throughout. Separately,
+    pre-fix `input press gather` left `is_holding=False` — a live reproduction of gather-9p6 —
+    while post-fix it drives the loop.
+  - Cheaper: nothing. The whole defect is a cell left on a tilemap after a specific two-press
+    sequence; no static read and no unit test in this project can reach it.
+
+- The stash-based A/B is worth repeating as a technique: `git stash push <one file>`, relaunch,
+  run the same script, `git stash pop`. The first attempt stashed only `input_manager.gd` and
+  the bug did **not** reproduce, because the damage lives in `resource_manager2.gd` — a false
+  "already fixed" that would have been easy to report as success. Stash *every* file in the
+  causal chain, or the A/B silently tests the wrong thing.
+
+- Gap: **`get-state` cannot read a `_panel_root.visible` behind an `is_open()`** — while
+  testing the `disable_input` path I read `skill_panel` state that disagreed with
+  `disable_input`, concluded the release was being swallowed, and said so before a clean
+  re-run showed it was not. The verb reports `open` from `is_open()`, but `set_open()`
+  early-returns on `_panel_root.visible == open`, so a panel whose root and wrapper disagree
+  answers confidently and wrongly. Workaround: re-ran the sequence from a known-closed state
+  and asserted every step instead of trusting the first reading.
+  - [G-033] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: for state a verb derives from a method, also report the raw fields it derives
+    from (here `_panel_root.visible` alongside `open`), so a disagreement is visible in the
+    reply rather than inferred three commands later. Same argument as the status provider.

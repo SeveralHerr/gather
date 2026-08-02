@@ -104,7 +104,16 @@ func _input(event: InputEvent) -> void:
 					_tip.modulate = pressed_color
 					_update_joystick(event.position)
 					get_viewport().set_input_as_handled()
-		elif event.index == _touch_index:
+		elif event.index == _touch_index and _touch_index != -1:
+			# LOCAL PATCH (gather): the `_touch_index != -1` half.
+			# This branch is index-gated only — unlike the press above it does not check
+			# that the touch is anywhere near the joystick — and it consumes the event.
+			# So while _touch_index is stale the joystick eats the touch-up of whichever
+			# *other* finger holds that index, MobileControls never sees the lift, and a
+			# gather started on the MINE button stays latched down forever. -1 is the one
+			# index that is never a real finger and is what _reset() leaves behind, so
+			# guarding it closes the window between a reset and the next grab. The other
+			# half of this fix is the reset() call in mobile_controls.gd:_release_all().
 			_reset()
 			if visibility_mode == Visibility_mode.WHEN_TOUCHED:
 				hide()
@@ -169,6 +178,15 @@ func _update_joystick(touch_position: Vector2) -> void:
 		else:
 			Input.action_release(action_down)
 			Input.action_press(action_up, -output.y)
+## LOCAL PATCH (gather): public entry point for _reset().
+## The browser never delivers the touch-up for a finger that was down when the tab lost
+## focus, so without an outside-in reset the joystick keeps _touch_index, is_pressed and
+## the latched move_* actions forever — the player walks off on their own and the stale
+## index then starts eating other fingers' releases (see _input above).
+func reset() -> void:
+	_reset()
+
+
 func _reset():
 	is_pressed = false
 	output = Vector2.ZERO

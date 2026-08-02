@@ -246,10 +246,16 @@ func _on_resource_removing(location: Vector2i, resource: GameResource):
 
 func _on_resource_removing_stop(location: Vector2i, resource: GameResource):
 	# Remove highlight
-	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+	var cell := tileMap.local_to_map(location)
+	tileMap.set_cell(3, cell, -1)
 
 	if resource.gathering_atlas_location != Vector2i.ZERO:
-		tileMap.set_cell(1, tileMap.local_to_map(location), resource.tile_source_id, resource.atlas_location)
+		# Only put the idle frame back if the cell is still showing the mid-gather one.
+		# This used to write unconditionally, so a stop that arrived for a location whose
+		# cell had already been cleared *recreated* the resource tile — a node that looked
+		# alive with nothing behind it.
+		if tileMap.get_cell_atlas_coords(1, cell) == resource.gathering_atlas_location:
+			tileMap.set_cell(1, cell, resource.tile_source_id, resource.atlas_location)
 
 func clear_tile(location: Vector2i):
 	# Remove highlight
