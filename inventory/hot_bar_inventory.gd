@@ -11,12 +11,16 @@ extends PanelContainer
 ## ways in, all of them through `select_slot()`:
 ##
 ##   * the number keys 1..6, unchanged;
-##   * Q / E and the mouse wheel, which work with the cursor captured (the game
-##     runs in MOUSE_MODE_CAPTURED, so a desktop player cannot click anything
-##     here — see player.gd:61);
+##   * the Left / Right arrow keys and the mouse wheel, which step the row one slot
+##     at a time;
 ##   * a tap or click on a slot;
 ##   * the < and > buttons flanking the row, which is the affordance that makes
 ##     the direction of travel visible rather than implied.
+##
+## The last two only started working on desktop when the cursor stopped being
+## captured (player.gd). Before that they were drawn but unclickable, and Q / E
+## existed to route around them — E being also the `gather` key, which meant every
+## swing of the pickaxe stepped the hotbar. See `_unhandled_key_input`.
 ##
 ## Everything it draws is sized from the viewport in `_apply_layout()` rather
 ## than from the scene, because the project runs with
@@ -34,6 +38,15 @@ const INVENTORY_SLOT = preload("res://inventory/inventory_slot.tscn")
 ## The hotbar mirrors the first six inventory slots. KEY_1..KEY_6 and
 ## MobileControls.HOTBAR_SLOT_COUNT both assume this number.
 const SLOT_COUNT := 6
+
+## The two keys that step the selection, as constants rather than literals inside
+## `_unhandled_key_input`, so `test_hotbar_selection.gd` can check them against the
+## InputMap. Every key this file claims is a *raw keycode* — it deliberately does not
+## go through the InputMap — which means nothing stops one of them also being bound
+## to a gameplay action, and nothing reports it when one is. That is exactly how E
+## ended up being both `gather` and "next slot".
+const STEP_PREV_KEY := KEY_LEFT
+const STEP_NEXT_KEY := KEY_RIGHT
 
 ## Base sizes, pre-scale, in the sense UiTheme means: multiplied by
 ## `UiTheme.scale_for()` and floored at `UiTheme.TOUCH_MIN` where a finger has to
@@ -136,13 +149,21 @@ func _unhandled_key_input(event):
 		select_slot(event.keycode - KEY_1)
 		return
 
-	# Q / E exist because the game plays with Input.mouse_mode == CAPTURED, so on
-	# desktop the < and > buttons are decoration: there is no cursor to press them
-	# with. Neither key is an InputMap action, matching the number keys above and
-	# MobileControls' comment about why it synthesises a raw key.
-	if event.keycode == KEY_Q:
+	# The arrow keys, and deliberately NOT Q / E.
+	#
+	# E is `gather`. Nothing in the gather path marks the event handled, so it fell
+	# through to here and stepped the selection as well — every single swing of the
+	# pickaxe silently advanced the hotbar by one slot. That is why this pair is gone
+	# rather than merely rebound: the collision was invisible in the binding table,
+	# because `gather` is an InputMap action and this was a raw keycode, and the two
+	# never appear in the same place.
+	#
+	# Left / Right are raw keycodes for the same reason the number keys above are:
+	# they are hotbar selection, not an engine-level UI action, and going through
+	# ui_left / ui_right would hand them to Control focus navigation first.
+	if event.keycode == STEP_PREV_KEY:
 		step_selection(-1)
-	elif event.keycode == KEY_E:
+	elif event.keycode == STEP_NEXT_KEY:
 		step_selection(1)
 
 func _unhandled_input(event):

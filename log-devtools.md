@@ -1187,7 +1187,7 @@ Guidelines that make an entry useful later:
   extension rather than the harness core, but the shape is general: several verbs here
   (`skill_panel`, `land_panel`, `crafting_panel`) are setter-or-toggle depending on
   whether a key is present, and none of them has a pure reader.
-  - [G-047] status: open | seen: 1 | harness: 0.7.0
+  - [G-047] status: open | seen: 2 | harness: 0.7.0
   - Improvement: give the toggle verbs a read-only sibling, or make the status provider
     carry the panel-open flags (it already carries `skill_panel_open`) so state can be
     read without dispatching a mutation. Asserting on a mutating verb is a mistake the
@@ -1206,3 +1206,92 @@ Guidelines that make an entry useful later:
   - Cheaper: this was the cheapest check — one `git fetch` plus one `git rev-list --count`.
 
 - No gaps this turn.
+
+## 2026-08-02 — HUD toolbar for the skill/land/bag panels, and freeing the cursor
+
+- Value: **warranted** — runtime produced two claims the diff could not, and the second
+  was a bug that predates this change by months.
+  - Expected: that the strip really lands in UI2 with three on-screen buttons inside the
+    viewport and clear of the hotbar and the points badge; that clicking one drives the
+    existing InputManager path all the way to the panel opening; that the strip then hides
+    itself and comes back on close; and that the cursor is MOUSE_MODE_VISIBLE during play.
+  - Got: all four, plus the one nobody was looking for. `get-state --node
+    /root/Main/UI2/SkillTreeUI/PointsBadge --property global_position` answered
+    `{"x": -276.0, "y": 87.0}` on a 1920-wide viewport — the banked-points badge, the only
+    cue that a level-up handed out a skill point, has been rendering 276px off the *left*
+    edge of the screen for its entire existence. `_scale_badge()` anchored it TOP_RIGHT and
+    then wrote `position = Vector2(-(width + margin), …)`, but `Control.position` is
+    relative to the parent's top-left whatever the anchors say. Filed `gather-5p3`, fixed
+    by writing offsets from the anchor; the badge now reads `{"x": 1644.0, "y": 87.0}` and
+    is visible in the screenshot. Also: a real pointer event, `touch press --pos 1850,42`,
+    opened the land panel — which is the whole point, because under the old
+    MOUSE_MODE_CAPTURED no pointer event could reach a Control at all.
+  - Cheaper: nothing. The badge bug exists only in a laid-out Control, and no unit test in
+    this repo can build a `SkillTreeUi` — see the gap below. Lint, the 180-test suite and
+    reading `skill_tree_ui.gd:429` all pass it silently; the comment on the line even
+    asserts the wrong semantics out loud ("this position is measured from that corner").
+
+- Gap: **`cmd skill_panel --args '{}'` toggles, so using it to read state changes it** —
+  hit again, twice. `skill_panel --args '{}'` and `land_panel --args '{}'` were both called
+  to check whether a toolbar button had opened a panel, and both reported `"open": false`
+  because the read itself had closed what the button opened. The workaround was to stop
+  using the verbs entirely and read `node-bounds …/PanelFrame | grep Visible`, which is a
+  pure read and worked first time.
+  - [G-047] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged from the original entry — give the toggle verbs a read-only
+    sibling, or put the panel-open flags in the status provider.
+
+- Gap: **no way to stand up a Control whose collaborators come from deep `@onready` node
+  paths, so the badge bug could not be turned into a unit test** — `SkillTreeUi._ready()`
+  builds the badge only after finding a `LevelUpManager` in the tree, and `LevelUpManager`
+  resolves `$"../PlayerInfo/XpBar"` and `$"../../../../../ResourceManager"` at ready time.
+  Standing up the second means a `ResourceManager2`, whose own `_ready()` dereferences
+  `tile_map_handler.resource_found` and `tile_map_handler.tileMap` — so the fixture for a
+  50-line badge is most of `main.tscn`. `_T.instantiate_ui()` takes a Node and handles the
+  viewport, which is the hard half, but there is nothing for "give this node the neighbours
+  its `@onready`s expect". The bug was therefore verified at runtime and left with no
+  regression guard; `test_hud_toolbar.gd` covers the strip but cannot touch the badge.
+  - [G-048] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `_T.stub_tree({"../PlayerInfo/XpBar": ProgressBar, …})` helper that
+    materialises placeholder nodes at a set of node paths before the node under test enters
+    the tree. It cannot satisfy a typed `@onready` that needs a real class, but it would
+    cover the common case — a path that exists only so `get_node` does not error — which is
+    what four of the five paths above are.
+
+## 2026-08-02 — removed Q/E hotbar stepping, moved it to the arrow keys
+
+- Value: **warranted** — the run existed because no existing primitive could deliver the
+  event under test, and building the missing one is what proved the fix.
+  - Expected: that Left/Right really step the hotbar through `_unhandled_key_input`, that Q
+    and E no longer do, and that E still gathers — none of which the existing input verbs
+    could reach, because they all dispatch `InputEventAction` and `_unhandled_key_input`
+    only sees `InputEventKey`.
+  - Got: exactly that, but only after adding the verb. The first attempt, `input tap gather`
+    five times, reported `selected_index: 0` before and after — which looks like a pass and
+    proves nothing, because the old buggy code would have reported the same. With
+    `cmd press_key`: Right took the selection `0 -> 1 -> 2`, Left `2 -> 1`, the number key
+    `4` selected index 3, and Q and E both left it at 3. `E` still gathers — `xp 0 -> 1`
+    with the pickaxe held — so removing the hotbar's claim on it did not disturb the
+    binding. The mutation check is the strongest evidence: putting `STEP_NEXT_KEY` back to
+    `KEY_E` fails all three assertions of the new `test_hotbar_selection.gd`, one of them
+    naming `gather` as the clashing action.
+  - Cheaper: the new unit test alone came close and is the durable guard, but it checks the
+    binding *table*, not the routing — it cannot show that Left actually reaches
+    `step_selection` through the event pipeline. Nothing cheaper covered both.
+
+- Gap: **the bridge has no raw-key primitive, so every raw-keycode handler in the project
+  is unreachable from it** — `list-commands` offers `input_press` / `input_release` /
+  `input_tap` / `input_sequence` / `input_actions`, and all of them dispatch an
+  `InputEventAction`. `_unhandled_key_input` is only ever called with an `InputEventKey`,
+  so the hotbar's number keys, its step keys and the Q/E pair were all invisible to the
+  harness. That is not a small corner: it is why `E` being simultaneously `gather` and
+  "next hotbar slot" — every pickaxe swing advancing the hotbar a slot — survived lint, the
+  full unit suite and a complete `/verify` run earlier the same day.
+  - [G-049] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a generic `key <press|release|tap> --key NAME` verb in the harness core,
+    taking the name `OS.find_keycode_from_string` accepts and setting both `keycode` and
+    `physical_keycode` (projects split between the two — this one compares `keycode` in
+    GDScript while `project.godot` binds by `physical_keycode`). Worked around by
+    registering `press_key` in `devtools_ext/commands.gd`; it is ~25 lines and nothing in
+    it is project-specific, so it belongs upstream rather than in every project that
+    reads a raw key.
