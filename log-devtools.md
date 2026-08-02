@@ -565,3 +565,20 @@ Guidelines that make an entry useful later:
     `script` paths — autoload scripts are enumerable from `/root`, and a "not a node script,
     reach cannot speak to this" bucket (which already exists for `.uid`/`.png`) would stop
     Resource and RefCounted scripts from reading as untested code.
+
+## 2026-08-01 — Commit + merge + push of the crafting rework
+
+- Value: **overkill** — the post-merge re-run confirmed exactly what the pre-merge run had
+  already established. Worth the ~40s anyway because the merge commit is what ships and no
+  earlier run had ever evaluated that tree, but it produced no new claim.
+  - Expected: nothing new; a `--no-ff` merge of a branch whose tip was already green should be
+    green, and the only real risk was `--import` having dirtied `project.godot` ([G-028]).
+  - Got: `lint: 0 error(s), 7 warning(s) -> exit 0`, `Total: 137 | Passed: 137 | Failed: 0`,
+    `grep -c 'SCRIPT ERROR'` = 0, and `git status --short project.godot` empty — so the
+    renderer/`.web` override survived this session's three `--import` runs.
+  - Cheaper: `git status --short project.godot` alone, 0.2s. That was the only question this
+    turn could actually answer that the branch run had not.
+
+- No gaps this turn. [G-028] did not bite: the `--import` calls in this session left
+  `project.godot` untouched, which is consistent with the earlier note that the test suite
+  never dirties it and narrows that gap further toward "import only, and not every import".
