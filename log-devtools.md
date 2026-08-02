@@ -881,7 +881,58 @@ Guidelines that make an entry useful later:
   without arguments to install from the Microsoft Store". CLAUDE.md warns to probe by
   running it, and I still spent a launch cycle on it because the harness docs and the
   `/verify` skill both spell `python3`.
-  - [G-040] status: open | seen: 1 | harness: 0.7.0
+  - [G-040] status: open | seen: 2 | harness: 0.7.0
   - Improvement: ship a `tools/devtools` shim (or have the skill resolve the interpreter
     once and cache it) so the documented invocation is interpreter-agnostic; the Store stub
     exits 9009 with a message on stdout, which is detectable.
+
+## 2026-08-02 — slowed the spawn cadences, cut kill xp, flattened ore xp, steepened the level curve
+
+- Value: **warranted** — the two edits that could not be checked by reading were both scene
+  edits, and runtime is the only thing that reads a `.tscn` the way the engine does.
+  - Expected: the two hand-edited .tscn Timer hunks landed on the nodes I meant —
+    ResourceTimer.wait_time == 24.0 and the EnemySpawner timer re-rolling into 16-26s —
+    plus add_xp granting the new XP_KILL of 3 against a level-2 threshold of 13.
+  - Got: `wait_time: 24.0` on ResourceTimer and `spawn_stats` reporting
+    `"base_interval": 21.0, "spawn_interval": 20.8669`, so both hunks hit their intended
+    Timer. `_on_died` moved xp `11 -> 14`, exactly XP_KILL. The curve claim needed pushing
+    past level 4 to be worth anything — 1.28 and 1.30 agree on the first three thresholds
+    (10/13/17) — and at level 5 the live game reported `next_level: 30`, where the old
+    growth gives 29. After the ore edit, `gather_stats` reported `xp: 1` for all six
+    resources (proving `_apply_tuning` reaches `GameResource`, not just that the dict was
+    edited), and a real 6-second `input press gather` on a coal node moved xp `6 -> 7`
+    where coal used to pay 3.
+  - Cheaper: a unit test over `Resources.TUNING` would have settled the ore half in ~40s
+    headless. Nothing cheaper covers the two `main.tscn` Timer hunks — a scene edit can
+    only be shown to have hit the intended node by loading the scene.
+
+- Gap: **an `input tap` that engages nothing is indistinguishable from one that works** —
+  `python tools/devtools.py input tap gather --hold 3.0` printed `Tapped: gather (hold:
+  3.0s)` and xp did not move; `player_state` afterwards showed `"state": "PlayerIdle"`, so
+  the press had been and gone without the gather ever starting. The reply is the same
+  string whether the action reached a handler or fell on the floor. Workaround was to
+  re-anchor with `goto_resource` and drive it as `input press` + `step-time --seconds 6` +
+  `input release`, sampling state between each.
+  - [G-041] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `input tap`/`press` return the count of handlers the dispatched
+    `InputEventAction` was consumed by (`get_viewport().set_input_as_handled` already
+    distinguishes this), or at minimum echo the acting node's state machine state before
+    and after, so "nothing listened" is visible in the reply.
+
+- Gap: **no way to hold xp income still while asserting an xp delta** — the ambient world
+  pays xp on its own (pickups at 1 per 3 drops, and enemies the spawner trickles in), so
+  between `get-state ... --property xp` and the gather it drifted `3 -> 4 -> 6` unprompted.
+  Every xp assertion in this run had to be read as "at least/at most", and the coal
+  assertion (+1) is only conclusive because the old value (3) is above the noise floor. A
+  smaller change than 3->1 would not have been measurable this way at all.
+  - [G-042] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a project verb `xp_ledger` returning the last N awards as
+    `{source, amount}` rather than a running total — the awards are already individually
+    routed through `LevelUpManager.add_xp`, so attribution exists at the call site and is
+    thrown away. Failing that, a generic `freeze_ambient` that pauses spawners and pickup
+    collection for the duration of an assertion.
+
+- [G-040] bit again (`seen` bumped to 2): `python3` is the Store alias stub on this
+  machine, and the `/verify` skill still spells `python3` in every command block. Its own
+  Phase 0 probe found `python` correctly — the cost is that every copied command block has
+  to be edited by hand afterwards.

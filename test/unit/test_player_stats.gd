@@ -110,11 +110,16 @@ func test_the_whole_tree_is_reachable_in_one_run() -> String:
 	# One point per level, so clearing every node means reaching level (nodes + 1).
 	# Under the old doubling curve that threshold was over 20000 XP, against the
 	# 1-4 XP a resource node pays. This is the guard against that regressing.
+	#
+	# The bound was 500 while XP_GROWTH was 1.28. It is the ceiling on a deliberate
+	# tuning dial, not a measurement, so it moves with the dial: 1.30 puts the tree at
+	# 561, and 650 leaves the next turn of the dial room to fail here rather than
+	# silently doubling the run again.
 	var levels_needed := tree.order.size() + 1
 	var xp_needed := LevelUpManager.xp_for_level(levels_needed)
 
 	return _T.assert_true(
-		xp_needed < 500,
+		xp_needed < 650,
 		"clearing the tree costs %d XP, which is too far out of reach" % xp_needed
 	)
 

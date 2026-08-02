@@ -178,7 +178,7 @@ func add_random_resource(region: LandRegion = null) -> bool:
 	if tile_map_handler == null:
 		return false
 
-	# No region named means the eight-second respawn timer, which restocks wherever the
+	# No region named means the ambient respawn timer, which restocks wherever the
 	# world is thinnest rather than one fixed island.
 	if region == null:
 		region = pick_ambient_region()
