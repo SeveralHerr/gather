@@ -1077,3 +1077,17 @@ Guidelines that make an entry useful later:
   - Cheaper: this was already the cheapest path — `git log`/`git status` alone.
 
 - No gaps this turn.
+
+## 2026-08-02 — merged tune/slower-spawns-and-xp into main (92938bf)
+
+- Value: **overkill** — deliberately ran nothing. `git diff --stat main
+  tune/slower-spawns-and-xp` came back empty after the merge, so main's tree is
+  byte-identical to the branch tip that the run two entries above already verified at
+  runtime. Re-running lint, tests and the game would have re-derived a known result.
+  - Expected: nothing; the question this turn was whether the merge changed any content,
+    which is a git question rather than a runtime one.
+  - Got: empty `git diff --stat` between main and the branch, and `--no-ff` produced a
+    merge commit with no conflicts (`22 files changed, 1482 insertions(+), 45 deletions(-)`).
+  - Cheaper: this was the cheapest check — one `git diff --stat`, no Godot launch.
+
+- No gaps this turn.
