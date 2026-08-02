@@ -398,6 +398,11 @@ func _install(definition: Dictionary, centre: Vector2i, island_radius: int, angl
 	region.min_resources = ISLAND_MIN_RESOURCES
 	region.ambient_resources = definition["ambient_resources"]
 	region.ambient_enemies = definition["ambient_enemies"]
+	# Islands start closed. Nothing is placed here and nothing wanders in until the home
+	# coastline reaches the island; refresh_connections is what opens it. Carried over from
+	# the previous region on a reload, because _install is also how a loaded island is
+	# rebuilt and an island the player has already walked to must not close behind them.
+	region.connected = _connected_state(definition["id"])
 
 	tile_map_handler.register_region(region)
 	islands[definition["id"]] = {
@@ -405,8 +410,17 @@ func _install(definition: Dictionary, centre: Vector2i, island_radius: int, angl
 		"radius": island_radius,
 		"angle": angle,
 		"region": region,
+		"connected": region.connected,
 	}
 	return region
+
+
+## What an island's `connected` should come back as when its region is rebuilt: whatever it
+## was, defaulting to closed for one that has never been recorded.
+func _connected_state(id: String) -> bool:
+	if not islands.has(id):
+		return false
+	return bool(islands[id].get("connected", false))
 
 
 ## An island's land: a disc with a ragged edge.
@@ -516,23 +530,62 @@ static func _corridor(from: Vector2i, to: Vector2i, seed_value: int) -> Array[Ve
 	return cells
 
 
-## Stocks every island that opted into ambient resources. Separate from generate() because
-## loading a save must redraw the islands without restocking them - the nodes come back
-## through the tilemap replay.
-func seed_islands() -> void:
+## Opens every island the home island can now be walked to, and stocks each one as it opens.
+##
+## This is the only thing that ever puts an island's contents down. Called once at world
+## generation - where it normally opens nothing, the islands being twenty-odd tiles beyond a
+## starting coastline of radius 8 - and again after every land purchase and after a load.
+##
+## An island is stocked on the tick it opens rather than trickling in afterwards, for the
+## same reason a bought parcel is: the player has just walked across, and an empty grove
+## does not read as arriving somewhere. Everything ambient takes over from there.
+##
+## Deliberately one-way. Land is only ever bought, never sold, so an open island cannot
+## close again - and a re-check that could close one would strip a coastline the player is
+## standing on the moment a flood fill disagreed with itself by a tile.
+func refresh_connections() -> void:
+	if tile_map_handler == null:
+		return
+
+	var walkable := tile_map_handler.walkable_cells_from_home()
+
+	for id in islands:
+		var region: LandRegion = islands[id]["region"]
+		if region == null or region.connected:
+			continue
+		if not _region_is_walkable(region, walkable):
+			continue
+
+		region.connected = true
+		islands[id]["connected"] = true
+		_stock(id, region)
+
+
+## Whether any of a region's cells can be walked to from home. Any single cell is enough:
+## the island's own interior is one connected patch of grass, so reaching a tile of it is
+## reaching the island.
+static func _region_is_walkable(region: LandRegion, walkable: Dictionary) -> bool:
+	for cell in region.cells:
+		if walkable.has(cell):
+			return true
+	return false
+
+
+## Everything that goes onto an island the moment it opens.
+func _stock(id: String, region: LandRegion) -> void:
 	if resource_manager == null:
 		return
 
 	# Before the ambient fill, so the veins take the cells they were placed for and the
 	# fill counts them toward the island's node ceiling rather than stacking on top of it.
-	seed_ore_veins()
+	if id == SEEDED_VEIN_ISLAND:
+		seed_ore_veins()
 
-	for id in islands:
-		var region: LandRegion = islands[id]["region"]
-		if region != null and region.ambient_resources:
-			resource_manager.seed_island(region)
+	if region.ambient_resources:
+		resource_manager.seed_island(region)
 
-	populate_boss_island()
+	if id == BOSS_ID:
+		populate_boss_island()
 
 
 ## Puts SEEDED_VEINS on the ore island, once ever.
@@ -548,6 +601,11 @@ func seed_ore_veins() -> void:
 	if resource_manager == null or resource_manager.resources == null or tile_map_handler == null:
 		return
 	if not islands.has(SEEDED_VEIN_ISLAND):
+		return
+	# Never before the player can walk over here. The flag below is once-ever and is set even
+	# when a cell is skipped, so a call made while the island is still across the water would
+	# spend the whole seeding pass on ground nobody can reach and record it as done.
+	if not _connected_state(SEEDED_VEIN_ISLAND):
 		return
 
 	var island: Dictionary = islands[SEEDED_VEIN_ISLAND]
@@ -663,6 +721,12 @@ static func _is_interior(cell: Vector2i, land: Dictionary) -> bool:
 func populate_boss_island() -> void:
 	if boss_defeated or not islands.has(BOSS_ID):
 		return
+	# The arena is the last thing the progression opens, so the elite waits for it. Spawning
+	# it at world generation put a boss on the far side of the water for the whole game: it
+	# counts against nothing and threatens nobody, but it is on screen from the first frame
+	# and its reward chest is sitting there filled.
+	if not _connected_state(BOSS_ID):
+		return
 
 	var centre: Vector2i = islands[BOSS_ID]["centre"]
 	if _live_boss() == null:
@@ -769,13 +833,23 @@ func reassert_after_load() -> void:
 
 		var region := _install(definition, island["centre"], island["radius"], island["angle"], home_reach)
 
-		if region.ambient_resources and tile_map_handler.count_resource_nodes_in(region) == 0:
+		# Only for an island already open. A closed one has nothing to restore - it never had
+		# contents - and the emptiness check cannot tell those two apart.
+		if region.connected and region.ambient_resources and tile_map_handler.count_resource_nodes_in(region) == 0:
 			resource_manager.seed_island(region)
 
 	# A no-op for any save written since the veins existed - the flag comes back true and
 	# the tiles came back with the replay. It fires exactly once, for a save written before
-	# them, whose ore island has no veins for the replay to restore.
+	# them, whose ore island has no veins for the replay to restore, and only if that ore
+	# island has been reached.
 	seed_ore_veins()
+
+	# Last, because it reads the terrain this method has just put back. It is also what opens
+	# an island for a save written before the gating existed: those carry no `connected` and
+	# come back closed, so the flood fill is what recognises the ones the player had already
+	# walked to. The stocking that follows tops each up rather than doubling it - seed_island
+	# counts what is already standing there, and the veins and the boss are both idempotent.
+	refresh_connections()
 
 
 func saveObject() -> Dictionary:
@@ -788,6 +862,10 @@ func saveObject() -> Dictionary:
 			"y": island["centre"].y,
 			"radius": island["radius"],
 			"angle": island["angle"],
+			# Saved rather than re-derived, so a load does not re-open an island the player
+			# has already walked to. Re-opening is not harmless: opening is what stocks, and
+			# an island the player has half cleared would be topped back up on every load.
+			"connected": island.get("connected", false),
 		}))
 
 	return {
@@ -831,6 +909,10 @@ func loadObject(loadedDict: Dictionary) -> void:
 			"centre": Vector2i(int(data.get("x", 0)), int(data.get("y", 0))),
 			"radius": int(data.get("radius", definition["radius"])),
 			"angle": float(data.get("angle", 0.0)),
+			# Defaults closed, which is what a save written before the gating existed reads
+			# as. reassert_after_load's flood fill re-opens whichever of those the player had
+			# in fact already reached, so an old save does not lose an island it had earned.
+			"connected": bool(data.get("connected", false)),
 			"region": null,
 		}
 

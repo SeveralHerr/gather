@@ -154,12 +154,13 @@ func spawn_interval() -> float:
 ##
 ## Counting every grass tile on the map would let a region that opts out of ambient
 ## spawning still raise the ceiling - the boss arena would buy extra wandering enemies
-## for the mainland while staying empty itself.
+## for the mainland while staying empty itself. An island the home coastline has not yet
+## reached is excluded for the same reason: until it opens, its grass is scenery.
 func enemy_cap() -> int:
 	var land := 0
 	if tilemap_handler:
 		for region in tilemap_handler.regions:
-			if region.ambient_enemies:
+			if region.accepts_ambient_enemies():
 				land += tilemap_handler.count_land_tiles_in(region)
 	return cap_for_land_tiles(land)
 
@@ -181,8 +182,9 @@ func _pick_spawn_tile():
 		if tile == null:
 			return null
 
-		# A region can refuse ambient enemies; the boss arena stays the boss's.
-		if not tilemap_handler.region_for_cell(tile).ambient_enemies:
+		# A region can refuse ambient enemies; the boss arena stays the boss's, and an island
+		# the player cannot reach yet stays empty.
+		if not tilemap_handler.region_for_cell(tile).accepts_ambient_enemies():
 			continue
 
 		if player_pos != null:

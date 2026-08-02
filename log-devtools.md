@@ -1347,7 +1347,7 @@ Guidelines that make an entry useful later:
   reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
   the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
   object model, not the run.
-  - [G-050] status: open | seen: 1 | harness: 0.7.0
+  - [G-050] status: open | seen: 2 | harness: 0.7.0
   - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
     touched it — the client already knows every verb it invoked, so recording the invoked
     verb names in the run row and letting projects map verb -> files would cover both
@@ -1495,7 +1495,7 @@ Guidelines that make an entry useful later:
   - Improvement: in the `SceneState` pass, resolve each NodePath against the set of node paths declared in the same `.tscn`. Report `ERROR` when the path is rooted in this scene and matches nothing; keep the current advisory `INFO` only when it crosses into an instanced sub-scene it genuinely cannot see.
 
 - Gap: **`reach` cannot see code that runs but owns no node** — the ledger reported `NOT reached: devtools_ext/commands.gd`, yet every assertion this run made went through it (`add_xp`, `goto_resource`, `gather_state`, `island_census`, `player_state`). Same for `items/pick_up_manager.gd`, whose pickups were created and vacuumed between two snapshots. Reach is computed by intersecting the diff against `script`/`scene_file` paths in a `scene-tree` snapshot, so an autoload, a devtools extension, or a transient node is structurally invisible to it and lands in the "not reached" list beside files that genuinely were not loaded.
-  - [G-053] status: open | seen: 1 | harness: 0.7.0
+  - [G-053] status: open | seen: 3 | harness: 0.7.0
   - Improvement: fold the autoload list (`project.godot [autoload]`) and the configured `extension_script` into the reached set, and report transient-node scripts separately as `reached-transient` rather than as not reached — so the not-reached list stays a list of things that actually went unverified.
 
 ## 2026-08-02 — Moved LevelUpManager out of the camera HUD into Systems
@@ -2086,3 +2086,46 @@ Guidelines that make an entry useful later:
     This is the same gap [G-073] filed from the HUD side; if that entry is still open, these
     should be merged — [G-073] wanted the accumulated transform, this wants the filter with
     it, and they are one verb.
+
+## 2026-08-02 — Gated island spawning on the home coastline actually reaching the island
+
+- Value: **warranted** — the gate turns on a flood fill over a per-seed coastline, so "which
+  parcel opens which island" is not a property of the diff at all, and the four worlds this
+  run drew disagreed with each other about it.
+  - Expected: at generation the islands report 0 resource nodes and no boss; buying the
+    parcel that first reaches an island opens exactly that island and stocks it on the same
+    tick, veins and boss included - none of which the diff can settle, because which parcel
+    reaches which island is a property of the noise seed.
+  - Got: exactly that, and the spread across seeds is the part reading the diff would have
+    missed. Seed 2629016503 opened `forest` on parcel 2 and `ore` on parcel 6; seed
+    3487495103 had `forest` already open at generation (its pre-drawn isthmus ran into the
+    starting coastline) and opened `boss` on parcel 11; seed 150278244 opened nothing until
+    parcel 4; the verify seed opened all three at once on the twelfth and last parcel, with
+    `"bought 1 of 1 parcel(s), opened [\"boss\", \"ore\", \"forest\"]"`. At generation
+    `island_census` read `forest opened=False nodes=0`, `ore opened=False nodes=0`, `boss
+    opened=False nodes=0` with `boss {'alive': False, 'chest': []}` — and after the last
+    parcel `ore {"Coal": 12, "Copper": 9, "Gold": 2, "Iron": 4, "Stone": 3}` (the seeded
+    veins, arriving on opening rather than at generation) and `boss {'alive': True, 'hp': 90,
+    'chest': ['Gold Coin x40', 'Gold Ore x8', 'Iron Ore x12']}`. `enemy_cap` moved 3 -> 11 ->
+    25 as land became reachable, which is the ceiling half of the change and has no other
+    readout. The save/load leg was the one I expected to break and did not: censuses either
+    side of `[` / `]` were byte-identical (`forest 19 nodes`, `ore 19 nodes` with `Gold 2,
+    Iron 4` un-doubled), and a purchase made *after* the load still opened the boss island on
+    a region the loader had rebuilt from scratch.
+  - Cheaper: nothing for the seed-dependence. `test_island_gating.gd` settles the flag's
+    truth table and its save roundtrip in 4s and is the durable guard, but it cannot say that
+    a parcel bought in a real world reaches a real coastline — and the one thing I would have
+    got wrong from reading alone is that a pre-drawn isthmus sometimes makes the forest island
+    walkable before the first purchase, which no test asserts and which changes how the
+    feature plays on that seed.
+
+- Gap: no new gaps this turn. Two known ones bit again and had their counts bumped rather
+  than being re-filed: [G-050] (`reach` cannot see a `RefCounted`) reported `NOT reached:
+  world/land_region.gd`, which is the file holding the `connected` flag this entire change is
+  about — `LandRegion` extends `RefCounted` and is never any node's script, so it is
+  unreachable by construction even though `island_census` printed its `accepts_ambient_*`
+  results back to me on every call. [G-053] (`reach` cannot see code that runs but owns no
+  node) reported `NOT reached: devtools_ext/commands.gd` while every assertion above went
+  through `cmd island_census` / `cmd buy_land` in that very file. Net effect: `reached 4/7`
+  on a run where 6 of the 7 were demonstrably exercised, which is a reach number that has to
+  be explained in prose every time rather than read.

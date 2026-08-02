@@ -568,6 +568,7 @@ func _cmd_buy_land(args: Dictionary) -> Dictionary:
 	var radius_before := land.radius
 	var tiles_before := handler.count_land_tiles()
 	var gold_before := land.gold()
+	var open_before := _open_islands(handler)
 
 	var bought := 0
 	for _i in count:
@@ -575,9 +576,17 @@ func _cmd_buy_land(args: Dictionary) -> Dictionary:
 			break
 		bought += 1
 
+	# Which islands this purchase opened, i.e. what it actually unlocked rather than how many
+	# tiles it drew. Growing the coastline into an island is the one thing a parcel does that
+	# no other reading here shows: the tile count moves by the same amount either way.
+	var opened := []
+	for id in _open_islands(handler):
+		if not open_before.has(id):
+			opened.append(id)
+
 	return {
 		"success": bought > 0,
-		"message": "bought %d of %d parcel(s)" % [bought, count],
+		"message": "bought %d of %d parcel(s)%s" % [bought, count, ", opened %s" % [opened] if opened else ""],
 		"data": {
 			"bought": bought,
 			"radius_before": radius_before,
@@ -587,8 +596,18 @@ func _cmd_buy_land(args: Dictionary) -> Dictionary:
 			"spent": gold_before - land.gold(),
 			"gold_left": land.gold(),
 			"next_cost": land.current_cost(),
+			"islands_opened": opened,
 		},
 	}
+
+
+## The ids of every island currently open to spawning, as a lookup.
+func _open_islands(handler: TileMapHandler) -> Dictionary:
+	var open := {}
+	for region in handler.island_regions:
+		if region.connected:
+			open[region.id] = true
+	return open
 
 
 ## Opens or closes the land panel. Mirrors skill_panel: goes through set_open() so the
@@ -1172,14 +1191,14 @@ func _cmd_island_census(_args: Dictionary) -> Dictionary:
 	if handler == null:
 		return {"success": false, "message": "no TileMapHandler in the scene", "data": {}}
 
-	var reachable_now := _walkable_from_home(handler, {})
+	var reachable_now := handler.walkable_cells_from_home()
 
 	# The home island as it will be at maximum size, so an island that is stranded today
 	# but reachable after twelve parcels reads as a pass rather than a failure.
 	var final_home := {}
 	for cell in handler.land_cells_for_radius(LandManager.radius_for(LandManager.MAX_PARCELS)):
 		final_home[cell] = true
-	var reachable_at_max := _walkable_from_home(handler, final_home)
+	var reachable_at_max := handler.walkable_cells_from_home(final_home)
 
 	var regions := {}
 	var all_connected := true
@@ -1207,6 +1226,16 @@ func _cmd_island_census(_args: Dictionary) -> Dictionary:
 			"ambient_enemies": region.ambient_enemies,
 			"connected_to_home": now > 0,
 			"connects_at_max_land": connects,
+			# The gate, and deliberately reported next to the flood fill that decides it.
+			# `opened` is what the game believes; `connected_to_home` is what the terrain
+			# says. They agree unless something has failed to call refresh_connections, and
+			# an island stuck closed next to open ground is otherwise indistinguishable from
+			# one whose spawn rolls happen to be unlucky.
+			"opened": region.connected,
+			"stocking": {
+				"resources": region.accepts_ambient_resources(),
+				"enemies": region.accepts_ambient_enemies(),
+			},
 		}
 
 	return {
@@ -1287,28 +1316,7 @@ func _census_by_region(handler: TileMapHandler) -> Dictionary:
 	return by_region
 
 
-## Flood fill across walkable grass from the player's spawn cell, treating `extra` as land
-## as well. Cells are walkable when they are plain grass - every other terrain variant is
-## coastline and carries a collision polygon, so it is a wall in practice.
-func _walkable_from_home(handler: TileMapHandler, extra: Dictionary) -> Dictionary:
-	var walkable := {}
-	for cell in handler.land_tiles():
-		walkable[cell] = true
-	for cell in extra:
-		walkable[cell] = true
-
-	var start = TileMapHandler.cell_nearest_to(walkable.keys(), handler.HOME_CENTRE)
-	if start == null:
-		return {}
-
-	var seen := {start: true}
-	var frontier := [start]
-	while not frontier.is_empty():
-		var cell: Vector2i = frontier.pop_back()
-		for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var next: Vector2i = cell + step
-			if walkable.has(next) and not seen.has(next):
-				seen[next] = true
-				frontier.append(next)
-
-	return seen
+## The flood fill this census reads lives on TileMapHandler rather than here, because the
+## game itself now runs it: it is what decides whether an island has opened. A debug copy
+## would be free to drift from the one the gate uses, and the reading that matters most in
+## this response is the two agreeing.
