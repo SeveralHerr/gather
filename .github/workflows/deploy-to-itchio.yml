@@ -6,33 +6,78 @@ on:
       - main
   workflow_dispatch:
 
+# Only the newest push to main can reach itch.io, so letting an older run finish
+# means paying for a full build-and-deploy whose artifact is immediately replaced.
+concurrency:
+  group: deploy-itchio
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      # The release tag, and the directory name Godot expects templates under —
+      # they differ only in the separator, and both are needed.
+      GODOT_VERSION: 4.7-stable
+      GODOT_TEMPLATE_DIR: 4.7.stable
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    # The engine and the templates are ~50 MB and ~1 GB, and neither changes until
+    # GODOT_VERSION does, so both keys are stable and every run after the first is a
+    # restore instead of a download.
+    - name: Cache Godot editor
+      id: cache-godot
+      uses: actions/cache@v4
+      with:
+        path: ~/godot-bin
+        key: godot-editor-${{ env.GODOT_VERSION }}-linux
+
     - name: Download Godot
+      if: steps.cache-godot.outputs.cache-hit != 'true'
       run: |
-        wget https://github.com/godotengine/godot/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip -O godot.zip
+        wget https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip -O godot.zip
         unzip godot.zip -d godot
-        mv godot/Godot_v4.7-stable_linux.x86_64 /usr/local/bin/godot
-        chmod +x /usr/local/bin/godot
+        mkdir -p ~/godot-bin
+        mv godot/Godot_v${GODOT_VERSION}_linux.x86_64 ~/godot-bin/godot
+        chmod +x ~/godot-bin/godot
+
+    - name: Put Godot on PATH
+      run: echo "$HOME/godot-bin" >> $GITHUB_PATH
+
+    - name: Cache Godot export templates
+      id: cache-templates
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/godot/export_templates
+        key: godot-templates-${{ env.GODOT_VERSION }}
 
     - name: Download Godot Export Templates
+      if: steps.cache-templates.outputs.cache-hit != 'true'
       run: |
-        wget https://github.com/godotengine/godot/releases/download/4.7-stable/Godot_v4.7-stable_export_templates.tpz -O templates.zip
-        mkdir -p ~/.local/share/godot/export_templates/4.7.stable
-        unzip templates.zip -d ~/.local/share/godot/export_templates/4.7.stable
-        mv ~/.local/share/godot/export_templates/4.7.stable/templates/* ~/.local/share/godot/export_templates/4.7.stable/
-        rmdir ~/.local/share/godot/export_templates/4.7.stable/templates
+        wget https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz -O templates.zip
+        mkdir -p ~/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}
+        unzip templates.zip -d ~/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}
+        mv ~/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/templates/* ~/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/
+        rmdir ~/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/templates
 
-    # `.godot/` is gitignored, so a fresh checkout has no import cache and no
-    # global script class cache. Without this the export produces a broken or
-    # empty build. The first pass can legitimately fail while it is still
-    # resolving `class_name` declarations, so run it twice.
+    # `.godot/` is gitignored, so a fresh checkout reimports every texture and scene
+    # from scratch. Key on the sources that invalidate it; restore-keys means an
+    # near-miss still seeds the cache instead of starting from nothing.
+    - name: Cache imported resources
+      uses: actions/cache@v4
+      with:
+        path: .godot
+        key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('**/*.gd', '**/*.tscn', '**/*.tres', '**/*.import', 'project.godot') }}
+        restore-keys: |
+          godot-import-${{ env.GODOT_VERSION }}-
+
+    # Without an import cache the export produces a broken or empty build. The first
+    # pass can legitimately fail while it is still resolving `class_name`
+    # declarations, so run it twice. On a cache hit both passes are near no-ops.
     - name: Import project resources
       run: |
         godot --headless --path . --import || true
