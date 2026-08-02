@@ -11,10 +11,6 @@ extends RefCounted
 
 const SCENE_PATH := "res://ui/mobile_controls.tscn"
 
-## Every InputMap action the overlay can latch. Released in teardown so a failed
-## test cannot leak a held action into the next one.
-const DRIVEN_ACTIONS := ["gather", "attack", "action", "destroy", "inventory", "skills", "land"]
-
 var _T
 
 var controls
@@ -27,7 +23,11 @@ func teardown() -> void:
 	controls = null
 	sent = []
 
-	for action in DRIVEN_ACTIONS:
+	# Release anything a failed test left latched, so it cannot leak into the next
+	# one. Read off BUTTON_SPECS rather than a hand-listed copy of it: a new button
+	# that a test fails while holding would otherwise stay held for the whole suite.
+	for spec in MobileControls.BUTTON_SPECS:
+		var action := str(spec["action"])
 		if InputMap.has_action(action) and Input.is_action_pressed(action):
 			Input.action_release(action)
 
@@ -73,16 +73,14 @@ func test_overlay_instantiates_with_a_joystick_bound_to_gathers_move_actions() -
 
 	# AtomicRobot's joystick drives ui_left/ui_right/...; gather has its own actions
 	# and getting this wrong is a silently unmoving player, not an error.
-	err = _T.assert_eq(joystick.action_left, "move_left", "joystick drives move_left")
-	if err != "":
-		return err
-	err = _T.assert_eq(joystick.action_right, "move_right", "joystick drives move_right")
-	if err != "":
-		return err
-	err = _T.assert_eq(joystick.action_up, "move_up", "joystick drives move_up")
-	if err != "":
-		return err
-	return _T.assert_eq(joystick.action_down, "move_down", "joystick drives move_down")
+	for direction in ["left", "right", "up", "down"]:
+		err = _T.assert_eq(
+			joystick.get("action_" + direction), "move_" + direction,
+			"joystick drives move_%s" % direction)
+		if err != "":
+			return err
+
+	return ""
 
 
 func test_gather_button_sends_a_press_and_a_release() -> String:
@@ -179,12 +177,15 @@ func test_buttons_stay_inside_a_small_phone_viewport() -> String:
 	# and a fixed pixel layout would push the cluster off screen.
 	var overlay = await _make_overlay(Vector2i(720, 360))
 
+	# Read the bound back off the viewport rather than restating the size, so the
+	# assertion cannot drift from the viewport the overlay actually laid itself out in.
+	var screen := Rect2(Vector2.ZERO, overlay.get_viewport_rect().size)
+
 	for action in overlay.get_actions():
 		var rect: Rect2 = overlay.get_button_for(action).get_global_rect()
 		var err: String = _T.assert_true(
-			rect.position.x >= 0.0 and rect.position.y >= 0.0
-				and rect.end.x <= 720.0 and rect.end.y <= 360.0,
-			"'%s' is on screen at 720x360 (got %s)" % [action, str(rect)])
+			screen.encloses(rect),
+			"'%s' is on screen at %s (got %s)" % [action, str(screen.size), str(rect)])
 		if err != "":
 			return err
 

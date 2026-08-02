@@ -607,48 +607,46 @@ scale = Vector2(0.45, 0.45)
 
 [node name="PlayerInfo" type="Control" parent="Node2D/Player/Camera2D/UI"]
 layout_mode = 0
-offset_left = 116.7173
-offset_top = 65.6535
-offset_right = 156.7173
-offset_bottom = 105.6535
+offset_right = 40.0
+offset_bottom = 40.0
 
 [node name="HpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 modulate = Color(1, 0, 0, 1)
 layout_mode = 0
-offset_left = -108.0
-offset_top = -62.0
-offset_right = -82.0
-offset_bottom = -58.0
+offset_left = 8.7173
+offset_top = 3.6535
+offset_right = 34.7173
+offset_bottom = 7.6535
 theme_override_styles/background = SubResource("StyleBoxFlat_xor0l")
 theme_override_styles/fill = SubResource("StyleBoxFlat_w1viy")
 show_percentage = false
 
 [node name="XpBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 layout_mode = 0
-offset_left = -108.0
-offset_top = -57.0
-offset_right = -82.0
-offset_bottom = -53.0
+offset_left = 8.7173
+offset_top = 8.6535
+offset_right = 34.7173
+offset_bottom = 12.6535
 theme_override_styles/background = SubResource("StyleBoxFlat_hl7mt")
 theme_override_styles/fill = SubResource("StyleBoxFlat_k26bf")
 show_percentage = false
 
 [node name="Label" type="Label" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 layout_mode = 0
-offset_left = -115.0
-offset_top = -63.0
-offset_right = -75.0
-offset_bottom = -40.0
+offset_left = 1.7173
+offset_top = 2.6535
+offset_right = 41.7173
+offset_bottom = 25.6535
 scale = Vector2(0.275, 0.275)
 text = "HP
 "
 
 [node name="Label2" type="Label" parent="Node2D/Player/Camera2D/UI/PlayerInfo"]
 layout_mode = 0
-offset_left = -115.0
-offset_top = -58.0
-offset_right = -75.0
-offset_bottom = -35.0
+offset_left = 1.7173
+offset_top = 7.6535
+offset_right = 41.7173
+offset_bottom = 30.6535
 scale = Vector2(0.275, 0.275)
 text = "XP
 "

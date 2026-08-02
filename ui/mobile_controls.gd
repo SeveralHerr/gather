@@ -39,6 +39,13 @@ const HOTBAR_CYCLE := "@hotbar_cycle"
 ## hot_bar_inventory.gd matches `range(KEY_1, KEY_7)`, i.e. slots 1..6.
 const HOTBAR_SLOT_COUNT := 6
 
+## How often the overlay re-checks for a touchscreen. DisplayServer exposes no
+## signal for it, and the self-test harness's `set-feature --touchscreen true`
+## flips it mid-run, so it has to be polled — but once a second is imperceptible
+## to a human and costs nothing next to a per-frame query that runs for the whole
+## life of the game on every platform.
+const TOUCH_POLL_INTERVAL := 1.0
+
 ## The addon joystick scene is authored at 300x300 with a 200px base centred in it.
 ## Both numbers are baked into its own layout, so the overlay scales the control
 ## rather than resizing it.
@@ -46,14 +53,34 @@ const JOYSTICK_SIZE := Vector2(300.0, 300.0)
 const JOYSTICK_CLAMPZONE := 75.0
 const JOYSTICK_DEADZONE := 10.0
 
+## Button sizing, all derived from the viewport's shortest edge so the cluster is
+## thumb-sized on a phone and not absurd on a desktop window. BUTTON_REFERENCE_EDGE
+## is the short edge the joystick art was drawn for, used only as a scale ratio —
+## nothing here may be a viewport *position* (see CLAUDE.md).
+const BUTTON_REFERENCE_EDGE := 720.0
+const BUTTON_BIG_FRACTION := 0.20
+const BUTTON_BIG_MIN := 52.0
+const BUTTON_BIG_MAX := 148.0
+const BUTTON_SMALL_RATIO := 0.68
+const BUTTON_PAD_RATIO := 0.16
+const MARGIN_FRACTION := 0.035
+const MARGIN_MIN := 10.0
+const MARGIN_MAX := 40.0
+const LABEL_SIZE_RATIO := 0.22
+const LABEL_SIZE_MIN := 9
+const JOYSTICK_SCALE_MIN := 0.45
+const JOYSTICK_SCALE_MAX := 1.25
+
 const COLOR_BG := Color(0.086, 0.102, 0.129, 0.66)
 const COLOR_BORDER := Color(0.49, 0.52, 0.58, 0.55)
 const COLOR_BORDER_PRIMARY := Color("ffd166")
 const COLOR_LABEL := Color("f2f4f8")
 const PRESSED_MODULATE := Color(0.62, 0.72, 0.85, 1.0)
 
-## The button cluster, laid out in rows measured from a screen corner. `col` 0 is
-## the rightmost button in its row; rows count away from the corner.
+## The button cluster, laid out in rows measured from a screen corner. Rows count
+## away from the corner, and within a row buttons are placed right-to-left in the
+## order this table declares them. Adding a button is a one-line edit here: _layout
+## derives the set of (corner, row) groups from the table itself.
 ##
 ## Which of gather's actions earn a button, and why:
 ##   gather    the whole game — mine a node, and (through HotBarInventory) place
@@ -73,15 +100,18 @@ const PRESSED_MODULATE := Color(0.62, 0.72, 0.85, 1.0)
 ## Save/Load buttons in the camera HUD) and the mouse buttons (touch already
 ## emulates a left click).
 const BUTTON_SPECS := [
-	{"name": "GatherButton", "action": "gather", "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0, "col": 0},
-	{"name": "AttackButton", "action": "attack", "label": "HIT", "big": true, "primary": false, "corner": "br", "row": 0, "col": 1},
-	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1, "col": 0},
-	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "br", "row": 1, "col": 1},
-	{"name": "HotbarButton", "action": HOTBAR_CYCLE, "label": "ITEM", "big": false, "primary": false, "corner": "br", "row": 1, "col": 2},
-	{"name": "SkillsButton", "action": "skills", "label": "SKILL", "big": false, "primary": false, "corner": "tr", "row": 0, "col": 0},
-	{"name": "InventoryButton", "action": "inventory", "label": "BAG", "big": false, "primary": false, "corner": "tr", "row": 0, "col": 1},
-	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0, "col": 2},
+	{"name": "GatherButton", "action": "gather", "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
+	{"name": "AttackButton", "action": "attack", "label": "HIT", "big": true, "primary": false, "corner": "br", "row": 0},
+	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1},
+	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "br", "row": 1},
+	{"name": "HotbarButton", "action": HOTBAR_CYCLE, "label": "ITEM", "big": false, "primary": false, "corner": "br", "row": 1},
+	{"name": "SkillsButton", "action": "skills", "label": "SKILL", "big": false, "primary": false, "corner": "tr", "row": 0},
+	{"name": "InventoryButton", "action": "inventory", "label": "BAG", "big": false, "primary": false, "corner": "tr", "row": 0},
+	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0},
 ]
+
+## The corners the layout walks, in the order rows stack away from each.
+const CORNERS := ["br", "tr"]
 
 var _joystick: Control
 
@@ -119,12 +149,19 @@ func _ready() -> void:
 	_touch_available = DisplayServer.is_touchscreen_available()
 	_apply_visibility()
 
+	# DisplayServer.is_touchscreen_available() is a query, not a signal, so the only
+	# way to notice `set-feature --touchscreen true` (which drives
+	# Input.set_emulate_touch_from_mouse) is to ask again. Reading it once here would
+	# mean the overlay never appears for a desktop test run.
+	var poll := Timer.new()
+	poll.name = "TouchPoll"
+	poll.wait_time = TOUCH_POLL_INTERVAL
+	poll.timeout.connect(_poll_touch_available)
+	add_child(poll)
+	poll.start()
 
-func _process(_delta: float) -> void:
-	# DisplayServer.is_touchscreen_available() is a query, not a signal, and the
-	# self-test harness's `set-feature --touchscreen true` flips it at runtime
-	# (it drives Input.set_emulate_touch_from_mouse). Reading it once in _ready()
-	# would mean the overlay never appears for a desktop test run.
+
+func _poll_touch_available() -> void:
 	var now := DisplayServer.is_touchscreen_available()
 	if now != _touch_available:
 		_touch_available = now
@@ -138,28 +175,30 @@ func set_forced_visible(on: bool) -> void:
 	_apply_visibility()
 
 
-func is_forced_visible() -> bool:
-	return _force_visible
-
-
 ## The generated Control for an InputMap action (or HOTBAR_CYCLE), or null.
 func get_button_for(action: String) -> Control:
-	for button in _buttons:
-		if _button_action.get(button, "") == action:
-			return button
+	for i in mini(BUTTON_SPECS.size(), _buttons.size()):
+		if str(BUTTON_SPECS[i]["action"]) == action:
+			return _buttons[i]
 	return null
 
 
 ## Every action this overlay can send, HOTBAR_CYCLE included.
 func get_actions() -> Array[String]:
 	var out: Array[String] = []
-	for button in _buttons:
-		out.append(str(_button_action.get(button, "")))
+	for spec in BUTTON_SPECS:
+		out.append(str(spec["action"]))
 	return out
 
 
 func _apply_visibility() -> void:
 	var want := _force_visible or _touch_available
+
+	# On desktop the overlay is hidden for the entire session. Without this, every
+	# mouse-motion event in the game would still make the trip into _input() just to
+	# be turned away by the `not visible` guard.
+	set_process_input(want)
+
 	if want == visible:
 		return
 
@@ -219,18 +258,9 @@ func _button_at(point: Vector2) -> Control:
 
 
 func _press(index: int, button: Control) -> void:
-	var action: String = _button_action.get(button, "")
-	if action == HOTBAR_CYCLE:
-		# A one-shot: the slot changes on finger-down and there is nothing to hold.
-		_held[index] = button
-		_set_pressed_look(button, true)
-		_cycle_hotbar()
-		action_sent.emit(HOTBAR_CYCLE, true)
-		return
-
 	_held[index] = button
 	_set_pressed_look(button, true)
-	send_action(action, true)
+	send_action(_button_action.get(button, ""), true)
 
 
 func _release(index: int) -> void:
@@ -242,12 +272,7 @@ func _release(index: int) -> void:
 		return
 
 	_set_pressed_look(button, false)
-	var action: String = _button_action.get(button, "")
-	if action == HOTBAR_CYCLE:
-		action_sent.emit(HOTBAR_CYCLE, false)
-		return
-
-	send_action(action, false)
+	send_action(_button_action.get(button, ""), false)
 
 
 func _release_all() -> void:
@@ -260,20 +285,28 @@ func _set_pressed_look(button: Control, down: bool) -> void:
 	button.modulate = PRESSED_MODULATE if down else Color.WHITE
 
 
-## Feeds one half of an InputMap action into the engine, exactly as the keyboard
-## would. Public because the gather/destroy holds are the part most worth driving
-## from a test or a devtools verb.
+## Feeds one half of an action into the engine, exactly as the keyboard would. The
+## single place that knows what a button's `action` means, so HOTBAR_CYCLE and any
+## future non-InputMap button cost one branch here rather than one in each of
+## _press() and _release(). Public because the gather/destroy holds are the part
+## most worth driving from a test or a devtools verb.
 func send_action(action: String, pressed: bool) -> void:
-	if action == "" or action == HOTBAR_CYCLE:
+	if action == "":
 		return
-	if not InputMap.has_action(action):
+
+	if action == HOTBAR_CYCLE:
+		# A one-shot: the slot changes on finger-down and there is nothing to hold.
+		if pressed:
+			_cycle_hotbar()
+	elif InputMap.has_action(action):
+		var event := InputEventAction.new()
+		event.action = action
+		event.pressed = pressed
+		Input.parse_input_event(event)
+	else:
 		push_error("MobileControls: no InputMap action named '%s'" % action)
 		return
 
-	var event := InputEventAction.new()
-	event.action = action
-	event.pressed = pressed
-	Input.parse_input_event(event)
 	action_sent.emit(action, pressed)
 
 
@@ -292,18 +325,14 @@ func _cycle_hotbar() -> void:
 
 	var next: int = posmod(current + 1, HOTBAR_SLOT_COUNT)
 
-	var down := InputEventKey.new()
-	down.keycode = KEY_1 + next
-	down.physical_keycode = KEY_1 + next
-	down.pressed = true
-	Input.parse_input_event(down)
-
-	# Nothing binds KEY_1..KEY_6, but leaving a key logically down is still a trap.
-	var up := InputEventKey.new()
-	up.keycode = KEY_1 + next
-	up.physical_keycode = KEY_1 + next
-	up.pressed = false
-	Input.parse_input_event(up)
+	# Both halves: nothing binds KEY_1..KEY_6, but leaving a key logically down is
+	# still a trap.
+	for pressed in [true, false]:
+		var event := InputEventKey.new()
+		event.keycode = KEY_1 + next
+		event.physical_keycode = event.keycode
+		event.pressed = pressed
+		Input.parse_input_event(event)
 
 
 func _find_hotbar() -> Node:
@@ -360,17 +389,26 @@ func _layout() -> void:
 		return
 
 	var shortest := minf(vp.x, vp.y)
-	var big := clampf(shortest * 0.20, 52.0, 148.0)
-	var small := big * 0.68
-	var pad := big * 0.16
-	var margin := clampf(shortest * 0.035, 10.0, 40.0)
+	var big := clampf(shortest * BUTTON_BIG_FRACTION, BUTTON_BIG_MIN, BUTTON_BIG_MAX)
+	var small := big * BUTTON_SMALL_RATIO
+	var pad := big * BUTTON_PAD_RATIO
+	var margin := clampf(shortest * MARGIN_FRACTION, MARGIN_MIN, MARGIN_MAX)
 
-	_layout_row("br", 0, vp, big, small, pad, margin)
-	_layout_row("br", 1, vp, big, small, pad, margin)
-	_layout_row("tr", 0, vp, big, small, pad, margin)
+	# Rows stack away from their corner, each one inset by the ones before it. The
+	# groups come from BUTTON_SPECS, so a new row appears on screen the moment it is
+	# added to the table — the previous form listed the three groups here by hand and
+	# a fourth would have been built, hit-tested and left sitting at (0, 0).
+	for corner in CORNERS:
+		var inset := margin
+		for indices in _rows_for(corner):
+			var height := _row_height(indices, big, small)
+			var top := (vp.y - inset - height) if corner == "br" else inset
+			_layout_row(indices, vp.x, top, height, big, small, pad, margin)
+			inset += height + pad
 
 	if _joystick != null:
-		var scale_factor := clampf(shortest / 720.0, 0.45, 1.25)
+		var scale_factor := clampf(
+			shortest / BUTTON_REFERENCE_EDGE, JOYSTICK_SCALE_MIN, JOYSTICK_SCALE_MAX)
 		_joystick.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		_joystick.size = JOYSTICK_SIZE
 		_joystick.scale = Vector2(scale_factor, scale_factor)
@@ -382,31 +420,44 @@ func _layout() -> void:
 		_joystick.set("deadzone_size", JOYSTICK_DEADZONE * scale_factor)
 
 
-## Lays one row out from the right edge, walking leftwards in `col` order.
-func _layout_row(corner: String, row: int, vp: Vector2, big: float, small: float, pad: float, margin: float) -> void:
-	var row_height := big if row == 0 and corner == "br" else small
-
-	var top := 0.0
-	if corner == "br":
-		# Row 0 sits on the bottom margin; each further row stacks above it.
-		top = vp.y - margin - big
-		if row > 0:
-			top -= float(row) * (small + pad)
-	else:
-		top = margin + float(row) * (small + pad)
-
-	var right := vp.x - margin
-	for spec in BUTTON_SPECS:
-		if str(spec["corner"]) != corner or int(spec["row"]) != row:
+## BUTTON_SPECS indices for one corner, grouped into rows and ordered by row number.
+func _rows_for(corner: String) -> Array:
+	var rows := {}
+	for i in BUTTON_SPECS.size():
+		var spec: Dictionary = BUTTON_SPECS[i]
+		if str(spec["corner"]) != corner:
 			continue
+		var row := int(spec["row"])
+		if not rows.has(row):
+			rows[row] = []
+		rows[row].append(i)
 
-		var button := _button_named(str(spec["name"]))
-		if button == null:
-			continue
+	var numbers := rows.keys()
+	numbers.sort()
 
-		var side := big if spec["big"] == true else small
-		# `col` is authored left-to-right within the row, so walking BUTTON_SPECS in
-		# order and consuming from the right edge places them correctly.
+	var out := []
+	for number in numbers:
+		out.append(rows[number])
+	return out
+
+
+## A row is as tall as its tallest button, so a row of small buttons does not
+## reserve the height of a big one.
+func _row_height(indices: Array, big: float, small: float) -> float:
+	var height := 0.0
+	for i in indices:
+		height = maxf(height, big if BUTTON_SPECS[i]["big"] == true else small)
+	return height
+
+
+## Lays one row out from the right edge, walking leftwards in table order.
+func _layout_row(indices: Array, view_width: float, top: float, row_height: float,
+		big: float, small: float, pad: float, margin: float) -> void:
+	var right := view_width - margin
+	for i in indices:
+		# _build_buttons appends in BUTTON_SPECS order, so the index is the button.
+		var button := _buttons[i]
+		var side := big if BUTTON_SPECS[i]["big"] == true else small
 		right -= side
 		button.position = Vector2(right, top + (row_height - side) * 0.5)
 		button.size = Vector2(side, side)
@@ -414,11 +465,5 @@ func _layout_row(corner: String, row: int, vp: Vector2, big: float, small: float
 
 		var label := button.get_node_or_null("Label") as Label
 		if label != null:
-			label.add_theme_font_size_override("font_size", maxi(9, int(side * 0.22)))
-
-
-func _button_named(button_name: String) -> Control:
-	for button in _buttons:
-		if button.name == button_name:
-			return button
-	return null
+			label.add_theme_font_size_override(
+				"font_size", maxi(LABEL_SIZE_MIN, int(side * LABEL_SIZE_RATIO)))

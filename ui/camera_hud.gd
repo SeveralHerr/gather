@@ -21,6 +21,12 @@ var _camera: Camera2D
 
 func _ready() -> void:
 	_camera = get_parent() as Camera2D
+	if _camera == null:
+		# The one way to misconfigure this script, and otherwise it fails silently:
+		# the rect keeps whatever the scene authored and the HUD drifts exactly as it
+		# did before the script existed.
+		push_error("CameraHud: parent is not a Camera2D, so the HUD rect will not track the view")
+
 	get_viewport().size_changed.connect(_resize_to_view)
 	_resize_to_view()
 
