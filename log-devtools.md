@@ -1251,7 +1251,7 @@ Guidelines that make an entry useful later:
   viewport, which is the hard half, but there is nothing for "give this node the neighbours
   its `@onready`s expect". The bug was therefore verified at runtime and left with no
   regression guard; `test_hud_toolbar.gd` covers the strip but cannot touch the badge.
-  - [G-048] status: open | seen: 1 | harness: 0.7.0
+  - [G-048] status: open | seen: 2 | harness: 0.7.0
   - Improvement: a `_T.stub_tree({"../PlayerInfo/XpBar": ProgressBar, …})` helper that
     materialises placeholder nodes at a set of node paths before the node under test enters
     the tree. It cannot satisfy a typed `@onready` that needs a real class, but it would
@@ -1506,3 +1506,296 @@ Guidelines that make an entry useful later:
   - Cheaper: nothing. Ready order is not visible in a diff — `main.tscn` says nothing about which branch registers its groups first, and the unit suite never instantiates the scene, so both breaks were reachable only by booting.
 
 - Gap: no new gaps this turn — [G-052] (lint cannot tell a genuinely unresolvable scene NodePath from its own false positives) was not re-triggered because this change moved a node rather than repointing an exported NodePath, and [G-053] (reach cannot see code that runs but owns no node) reported the same eleven files again but did not obstruct anything.
+
+## 2026-08-02 — Re-tuned the XP curve so the opening stops handing out six skill points
+
+- Value: **overkill** (runtime half not attempted — the orchestrator forbade launching the
+  game, since another agent held the single-file DevTools bus). The change is two integers
+  and a lot of prose; the curve is pure arithmetic behind two `static func`s, so the
+  headless unit suite reaches 100% of what changed and a running game would only have
+  re-derived the same numbers slower.
+  - Expected: `XP_FIRST_LEVEL 10 -> 40` and `XP_GROWTH 1.30 -> 1.19` produce thresholds
+    40, 48, 58, 70, 84, 100 and a 16th-point total of 578 — predicted from a PowerShell
+    model of `int(ceil(t * growth))` before running anything, and predicted to still clear
+    `test_the_whole_tree_is_reachable_in_one_run`'s unmoved 650 bound.
+  - Got: the engine printed `CURVE: 40, 48, 58, 70, 84, 100, 119, 142, 169, 202, 241, 287,
+    342, 407, 485, 578` — identical to the model, which is the one thing worth having
+    checked, because `ceil()` on a float product is exactly where a hand-computed curve
+    goes wrong (the issue text itself quotes 10/1.30 as "10, 13, 17, 22, 29, 38"; the
+    engine's real values are 10, 13, 17, 23, 30, 39, so the reported "38" was already off).
+    Full suite `Total: 193 | Passed: 193 | Failed: 0`, exit 0, zero `SCRIPT ERROR` in
+    stderr; lint `0 error(s), 7 warning(s) -> exit 0`, all seven the documented
+    `SceneState: … NodePath unresolved` false positives.
+  - Cheaper: the PowerShell model alone, ~2s — it turned out to agree exactly. What it
+    could *not* have told me is that it agreed, which is the whole reason the engine was
+    asked. Reading `xp_for_level()` (12 lines) plus running the one test file would have
+    been the honest minimum, and is roughly what was done.
+
+- Gap: **no way to evaluate an expression against project classes headlessly** — needed a
+  single value (`LevelUpManager.xp_for_level(n)` for n in 2..17) straight from the engine
+  rather than from a model of it. There is no verb for this: `run-method` is bridge-only
+  and the bridge was off-limits, and `run_tests.gd` only runs discovered `test_*` methods.
+  Workaround was writing `test/unit/test_zzz_scratch_curve.gd` whose whole body is
+  `return _T.assert_true(false, "CURVE: " + ", ".join(out))`, running it with
+  `--file test_zzz_scratch_curve` to read the value out of the *failure* message
+  (`Selected: 1 of 194 discovered`, exit 1), then deleting the file. Abusing a failing
+  assert as a print statement means the artifact that answers the question is one that
+  must never be committed, and a forgotten cleanup ships a permanently-red suite.
+  - [G-054] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a headless `tools/eval.gd` taking a GDScript expression on the command
+    line, resolving `class_name` globals, and printing the result — the no-game sibling of
+    `run-method`. `godot --headless --path . --script res://tools/eval.gd -- --expr
+    'LevelUpManager.xp_for_level(7)'`. Cheap to build (one `Expression.parse/execute`) and
+    it removes the only reason to ever create a scratch test file.
+
+## 2026-08-02 — Seeded a fixed handful of iron and gold onto the ore island (gather-frv)
+
+- Value: **insufficient** (runtime half forbidden — the orchestrator held the single-file
+  DevTools bus for another agent, so headless only). Reach decides this, not impression:
+  the 200-seed sweep executes `IslandManager.vein_cells` and the constants, which is the
+  genuinely uncertain half, but nothing in the suite ever executes `seed_ore_veins()`, the
+  `is_occupied` guard, the `set_resource -> _on_resource_added -> set_tile` write, or the
+  `ore_veins_seeded` save round-trip. "Four iron and two gold are visibly standing on the
+  ore island of a fresh world, and are still there after `[` then `]`" remains an argument
+  from reading the code, not an observation.
+  - Expected: the sweep would show whether ring-2/ring-3 candidates survive
+    `ISLAND_EDGE_BITE` biting into a radius-6 disc — i.e. whether the inward walk and the
+    all-eight-neighbours interior test are ever actually needed, and whether any seed ends
+    up short of six veins or with two veins on one cell.
+  - Got: `[PASS] test_ore_island_veins_land_on_solid_ground_across_many_seeds (32ms)` —
+    200 seeds against 200 distinct ore-island centres taken right around the placement
+    ring, six distinct interior cells every time, none outside the 3-tile ring. It also
+    caught a real defect on the first run, in my own assertion rather than in the feature:
+    `seed 4001: vein at (29, 3) is 3.6 tiles out, past the 3-tile ring` — a ring-3 cell is
+    `cos/sin` rounded to the grid, so it can be `(2, 3)`, Euclidean 3.606. That is exactly
+    the off-by-geometry mistake a sweep surfaces and one playthrough never would. Full
+    suite `Total: 189 | Passed: 189 | Failed: 0`; lint `0 error(s), 7 warning(s) -> exit 0`
+    with `UIDs: OK`.
+  - Cheaper: for the constants, the counts and the prose — reading them, 0s. For the
+    placement, nothing cheaper existed: the island's shape is a noise field resampled per
+    seed and per centre, and CLAUDE.md is right that one run is one seed. What would have
+    been cheaper than *this* work is a way to run the seeding pass itself headlessly; see
+    the gaps below.
+
+- Gap: **[G-048] again, from the world-generation side rather than the UI side** — the same
+  "the fixture for a small change is most of `main.tscn`" wall, hit by a non-Control. Unit-
+  testing `seed_ore_veins()` needs a `ResourceManager2` (whose `_ready` dereferences
+  `tile_map_handler.resource_found` and `tile_map_handler.tileMap`), a `TileMapHandler` with
+  a real terrain-solving TileMap, and the `GameItems`/`Resources` registries, so the reachable
+  surface stops at the one `static func` I could carve out. The workaround was to design for
+  it — `vein_cells` is deliberately static and pure so that the seed-dependent half is
+  testable at all — which is a good shape but it is a shape the harness forced, and the
+  imperative half (place, guard, flag, persist) is guarded by nothing.
+  - [G-048] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: as filed — plus the observation that the helper wants to cover plain
+    `Node`s, not only `Control`s: `_T.stub_tree()` framed around `instantiate_ui` would not
+    have helped here.
+
+- Gap: **a `--file` selector cannot report its own result when an unrelated test script
+  fails to compile** — `run_tests.gd -- --file test_island_manager` printed
+  `Selected: 7 of 189 discovered (file 'test_island_manager')` and
+  `Total: 189 | Passed: 7 | Failed: 0`, then `RUNNER ERROR - the suite did not run to
+  completion (exit 2)`. The 2 came entirely from `res://test/unit/test_mobile_controls.gd`,
+  which another agent's in-flight `ui/mobile_controls.gd` (`Identifier "HOTBAR_CYCLE" not
+  declared`) breaks — a file my diff does not touch and my selector did not select.
+  Discovery loads every script before the selector is applied, so exit 2 is contagious: in a
+  parallel-agent repo the documented "2 means you verified nothing" reading is wrong here,
+  because the selected 7 verifiably ran and passed. Workaround was reading the per-test
+  lines and the `Selected:` line and disregarding the exit code, which is precisely the
+  habit the exit codes exist to prevent.
+  - [G-055] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: score the exit code over the *selected* set. A discovery-time compile
+    failure in an unselected script should be a printed `[ERR]` and a distinct signal (a
+    `Discovery errors: N` line, or exit 3), never the same 2 that means "your run did not
+    happen". With a selector active, exit 1 if a selected test failed, 0 if none did, and
+    let the unselected wreckage be reported without being fatal.
+
+## 2026-08-02 — merged the mobile MINE/HIT/BREAK buttons into one contextual primary (gather-mxf)
+
+- Value: **warranted** — the unit run produced the one claim the diff genuinely could not,
+  and it is the claim the whole change turns on.
+  - Expected: that the risky half of a contextual hold button is the *release*, and that
+    `send_action(_button_action.get(button), false)` would happily send `attack` to close a
+    press that had sent `gather` the moment the world moved under the finger — leaving
+    `ResourceManager2`'s hold timer with nothing left to stop it (gather-3zg from a new
+    direction). I wrote `_latched_action` before running anything, predicting the test would
+    only confirm it.
+  - Got: it confirmed it, but the run's real contribution was the *reverse* direction I had
+    not thought to guard. `test_a_context_flip_mid_hold_still_releases_the_action_it_pressed`
+    asserts `sent[1] == ["attack", false]` after the context flips back to gather mid-swing,
+    and then that "the next press re-resolves" — which is what caught that the latch has to
+    be erased in `_release()` *after* the last finger and not in `_press()`, and that
+    `_release()`'s early return for a second finger on the same button must not erase it.
+    `test_sliding_off_the_button_releases_what_it_pressed` covers the drag path, which is a
+    second, separate call site into `_release()` that a press/release-only test never reaches.
+  - Cheaper: nothing meaningfully cheaper. Lint (`0 error(s), 7 warning(s) -> exit 0`, 4s)
+    settled the syntax and would have said nothing about pairing; reading `_press`/`_release`
+    is what produced the hypothesis but not the second call site.
+
+- Gap: **the live half of the resolution rule is unreachable from a headless test, so the
+  test seam I added to make it testable is also what lets the real code go unrun** —
+  `resolve_primary(item, enemy_in_reach)` is static and pure and its 12-row table is walked
+  exhaustively, but the two functions that *supply* those arguments in the game,
+  `_held_item()` (walks `get_parent().get_node_or_null("HotBarInventory")` then
+  `Object.get("selected_slot_data")`) and `_enemy_in_reach()` (filters
+  `get_tree().get_nodes_in_group("SaveLoad")` by `is Enemy` against `PlayerManager.player`),
+  are executed by no test in the suite. `instantiate_ui` gives the overlay a `SubViewport`
+  with no sibling `HotBarInventory`, no `PlayerManager.player` and no `Enemy`, so both return
+  their null-guard answers and the whole live path is a straight line to
+  `resolve_primary(null, false)`. `run_tests.gd -- --file test_mobile_controls` reports
+  `Selected: 14 of 203 discovered (file 'test_mobile_controls')`, `Total: 203 | Passed: 14 |
+  Failed: 0 | Skipped: 189`, exit 0 — a clean pass that is silent about whether the button
+  can read the world at all. The workaround was `var primary_resolver: Callable`, injected by
+  every test that needs a non-default answer; it makes the *pairing* assertable, which is the
+  part that can strand a timer, and explicitly gives up on the *reading*. A typo in the
+  `"selected_slot_data"` string literal would pass this entire suite.
+  - [G-056] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `_T.stub_siblings({name: Node})` that mounts named siblings alongside the
+    control `instantiate_ui` creates, plus a documented way to populate an autoload field
+    (`PlayerManager.player`) and a group for the duration of one test. Both `_held_item()` and
+    `_enemy_in_reach()` would then be one three-line fixture away from being asserted, and the
+    resolver seam could go back to being a convenience rather than the only route in. This is
+    the same shortfall [G-048] describes from the world-generation side — "the reachable
+    surface stops at the one `static func` I could carve out" — arriving at a UI file, which
+    suggests the fixture, not the file, is what is missing.
+
+- Gap: **no runtime pass at all this turn, by instruction** — the orchestrator forbade
+  launching the game or running `/verify` because the DevTools bridge is a single shared
+  command/result file pair and sibling agents were live (the same collision [G-055] was filed
+  against from the other side: another agent's `--file` run took exit 2 from *this* file
+  mid-edit). So `.devtools/verify-runs.jsonl` gets no row for a change that is entirely about
+  what a thumb sees and does, and the three things only the running game can answer —
+  whether `CONTEXT_POLL_INTERVAL = 0.15` repaints fast enough to be believed, whether
+  `ENEMY_REACH = 28.0` flips at the moment it should rather than across the clearing, and
+  whether BREAK at the top-right is actually reachable one-handed — are unverified by
+  anything but argument. Not a harness defect; recorded so the ledger's denominator is not
+  quietly wrong about a diff of this shape.
+  - [G-057] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: the per-session bus already exists (`-- --devtools-session <id>` +
+    `--session <id>`), but `user://` is still shared for screenshots, baselines and the
+    `.godot/` import cache, so it is not enough on its own and the standing advice is a
+    manual project copy plus `GODOT_USERDATA`. A `devtools.py launch --isolated` that does the
+    copy, the session id and the userdata dir in one command would make "verify inline" the
+    default in a parallel-agent repo instead of something an orchestrator has to forbid.
+
+## 2026-08-02 — Juice pass: trauma shake, per-swing gather impact, pickup pop, hit-stop (gather-ydm)
+
+- Value: **insufficient** — lint and 228 tests both went green and neither of them can see a
+  single thing this change is *for*. Reach was zero by construction: no game was launched, so
+  `.devtools/verify-runs.jsonl` gets no row and nothing observed a pixel move.
+  - Expected: that headless would settle the two invariants that fail *silently* (shake
+    reaching exactly zero; `Engine.time_scale` always being handed back) and would be unable
+    to say anything at all about the ~12 tween/particle/procedural effects that are the
+    actual deliverable.
+  - Got: exactly that, and the split is worth quoting. `test_shake_decays_to_exactly_zero`
+    asserts `camera.offset == Vector2.ZERO` after `SHAKE_DURATION + 0.1`, which the *old*
+    implementation could never have passed — `lerpf(x, 0, k)` is geometric, its `if
+    shake_strength > 0` guard therefore stayed true forever, and no line in the file ever
+    assigned `Vector2.ZERO`, so the camera was being given a fresh random offset every frame
+    for the rest of the session after the first hit. That is a real claim the diff alone does
+    not make. `test_hit_stop_survives_the_trigger_being_freed` is the other one. Against that:
+    the gather squash, the chip bursts, the pickup pop and land squash, the collect sparkle,
+    the death pop, the knockback squash, both screen flashes and the gather-bar pulse have
+    **zero** assertions between them, because headless pumps no frames and has no viewport.
+    25 of 25 passed and I still do not know whether the game feels different.
+  - Cheaper: for the shake and hit-stop halves, nothing — those needed the tests and got real
+    value from them. For everything else, `/verify` with a screenshot and a `step-time 0.4`
+    mid-gather would have been the *only* thing worth running, and it is the one thing that
+    was off the table.
+
+- Gap: **[G-057] again — no runtime pass at all, by instruction, on a change that is 100%
+  visual.** Same collision as last turn: the bridge is one shared command/result file pair, a
+  sibling agent was live, so `godot --path .`, `/verify` and every `devtools.py` verb were
+  forbidden. Last turn this cost a mobile-controls diff its runtime row; this turn it costs a
+  diff whose *entire* acceptance criterion is "does a five-year-old notice". The harness
+  version came from lint's own banner (`lint: godot-selftest-harness 0.7.0`) rather than
+  `harness-version`, because even that verb was out of bounds.
+  - [G-057] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged from last turn — `devtools.py launch --isolated` doing the project
+    copy, the session id and `GODOT_USERDATA` in one command. Two consecutive turns have now
+    shipped un-runtime-verified work for the same reason, which is the strongest argument for
+    it so far.
+
+- Gap: **the harness owns `Engine.time_scale` and has no way to say so, or to ask who else
+  does.** `dev_tools.gd:1412` (`_cmd_set_game_speed`) writes it unconditionally and reports
+  `previous_scale`; `dev_tools.gd:1469` (`_cmd_step_time`) pins it to 1.0 and restores
+  `previous_scale` afterwards. Neither has any notion of the *game* also driving it, which is
+  exactly what hit-stop does. Two concrete failure modes fall out of reading those two
+  handlers, and I had to design around both without being able to observe either: a
+  `set-game-speed` issued during a dip has its `previous_scale` recorded as `0.12` and would
+  be "restored" to a value that was never the session's intent; and a `step-time` sampling
+  across a dip has its process clock stretched, which surfaces as the `budget_exhausted`
+  warning — i.e. as a *starved tree*, which is a completely different diagnosis from "the game
+  deliberately slowed down for 100ms". My mitigation was to make `Juice.hit_stop` refuse to
+  engage unless `Engine.time_scale` is already exactly 1.0, so the two never overlap in the
+  engaging direction; that is a decision I made from source-reading, and it is untested
+  against the actual verbs.
+  - [G-058] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `time-scale` status field in the standard status provider (who set it, and
+    when), plus `step-time` reporting `time_scale_changed_during: bool` instead of folding a
+    deliberate game-side dip into `budget_exhausted`. That turns "is this a hitch or is this
+    hit-stop?" from an argument into a field.
+
+## 2026-08-02 — runtime pass over the four-stream session (XP curve, ore veins, juice, mobile primary button)
+
+- Value: **warranted** — runtime produced three claims the diff could not, one of which
+  invalidated my own measuring instrument mid-run.
+  - Expected: the camera returns to exactly Vector2.ZERO after a shake decays (the old code
+    never did), Engine.time_scale returns to exactly 1.0 after overlapping hit-stops and
+    cannot be left stuck, and the ore island carries 4 iron + 2 gold on a fresh world — none
+    of which any headless test executes.
+  - Got: all three, plus one I had not predicted. `island_census` returned
+    `"ore": {"Coal":2,"Copper":8,"Gold":2,"Iron":4,"Stone":2}` while `gather_stats.spawnable`
+    returned `["Stone","Tree","Stone","Coal","Copper"]` — the veins are present *and* the roll
+    still cannot produce them, which is the whole design in two readings. Camera went
+    `trauma: 0.0 / offset {0.0, 0.0}` and was byte-identical 3s later. Hit-stop: after two
+    overlapping `_on_died()` calls the trauma-decay probe read `0.666680`, against `0.666666`
+    for a known-1.0 clock and `0.933333` for a known-0.2 clock. The unpredicted one: a single
+    150 XP award moved `points: 0 -> 9`, i.e. the `SceneTreeTimer` refactor of
+    `_splash_level_up` did not break multi-level banking inside `add_xp`'s threshold loop.
+  - Cheaper: nothing. The seeding path, the live `time_scale` writes and the live
+    `_held_item()` resolution are all absent from the headless suite by construction — 228
+    unit tests passed without touching any of them.
+
+- Gap: **`wait-frames` is time_scale-independent, which silently invalidates it as a clock probe**
+  — I used `time python tools/devtools.py wait-frames 60` to check whether hit-stop had left
+  `Engine.time_scale` stuck, and got `real 0m0.729s` after a kill against `0m0.745s` at rest.
+  That reads as a clean pass. It is not evidence of anything: calibrating against a *known*
+  slow clock gave `set-game-speed 0.2` → `wait-frames 60` = `0m0.680s`, identical. Godot's
+  `time_scale` scales delta, not the tick rate, so physics still ticks 60x per real second and
+  the verb cannot see the clock at all. Had I not calibrated, I would have reported the
+  hit-stop safety property as verified on the strength of a measurement that could not fail.
+  Workaround: used camera `trauma` decay as the probe instead — it advances on scaled delta,
+  and discriminated 0.667 / 0.933 / (0.96 predicted for a stuck 0.12 dip) cleanly.
+  - [G-059] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `performance` report `Engine.time_scale` in its output. It is one line,
+    it is the state most likely to be left dirty by a test run, and there is currently **no**
+    verb that reads it — `set_game_speed` only writes. A `get-state` on a node cannot reach
+    `Engine`, so today the only way to know the game's clock is to infer it.
+
+- Gap: **transient effects shorter than the bus round-trip are unobservable** — `HIT_STOP_MAX`
+  is 0.25s and a devtools call round-trips in ~0.7s, so I could confirm the dip *ended*
+  correctly but never that it *engaged*. `run-method _on_died` then `get-state` always lands
+  after the deadline. This is the same shape as G-058 but from the opposite side (that one is
+  about `step-time` across a dip; this is about sampling inside one).
+  - [G-060] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `--after-frames N` flag on `get-state`, so the read is scheduled inside the
+    game at a known frame offset from the triggering call rather than racing the file bus.
+
+- Gap: **G-056 closed by this run, not by a code change** — the mobile primary button's live
+  resolution path (`_held_item()` / `_enemy_in_reach()`), which every unit test stubs via
+  `primary_resolver`, was exercised for real by sweeping `select_slot(0..5)` and reading back
+  `_primary_action` / `_primary_label`: slot 0 pickaxe → `gather/MINE`, slot 1 sword →
+  `attack/HIT`, slot 2 placeable → `gather/BUILD`. The stub was never the problem; nobody had
+  driven the real thing.
+  - [G-056] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged — the resolver seam is right, but the log should record that the
+    live path is verifiable in ~6 bridge calls and is worth doing once per change to it.
+
+- Note (not a gap): reach reports `systems/juice.gd` NOT reached. It is a static `RefCounted`
+  with no `class_name` node ever instanced, so it cannot appear in a `scene-tree` snapshot by
+  construction — reach measures node scripts. Its behaviour was verified through observable
+  effects on `world/camera.gd` and on `Engine.time_scale`. Same applies to `ui/splash_text.gd`,
+  `ui/damage_number.gd` and `items/pick_up_manager.gd`, all of which spawn transients that had
+  been freed before the snapshot. Do not read those four as unverified; do not read them as
+  verified either without saying which effect stood in for them.
