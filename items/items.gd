@@ -63,6 +63,16 @@ func _ready():
 	item_list[Types.Item.GoldBar] = GameItem.new(Vector2i(3, 4), 10, Types.Item.GoldBar, 1, false, "Gold Bar", Vector2i.ZERO, false)
 	# The gold pickaxe is registered with the rest of the pickaxe ladder above.
 
+	# --- The stone building set, on its own generated sheet (tileset source 11,
+	# tools/generate_stone_build_art.gd). Both are recolours of the wood pair above and
+	# behave identically: the floor is an ordinary layer-2 placeable, and the wall
+	# autotiles off the atlas coordinate below, which is the top-left cell of its blob
+	# exactly as (0, 11) is for the wood wall. main.gd's WALL_TYPES is what ties that
+	# coordinate to terrain 2 - registering a wall here alone would place a single
+	# unconnected tile.
+	item_list[Types.Item.StoneFloor] = GameItemFloor.new(Vector2i(0, 6), GameItem.STONE_BUILD_SOURCE_ID, Types.Item.StoneFloor, 2, true, "Stone Floor", Vector2i.ZERO)
+	item_list[Types.Item.StoneWall] = GameItemWall2.new(Vector2i(0, 4), GameItem.STONE_BUILD_SOURCE_ID, Types.Item.StoneWall, 1, true, "Stone Wall", Vector2i.ZERO)
+
 	
 	
 	

@@ -220,13 +220,21 @@ func _build() -> void:
 			{"product": Types.Item.WoodDoor, "station": Types.Item.Sawmill},
 		]
 	))
+	# The stone set hangs off this node rather than getting one of its own: the branch
+	# only has four slots and the wall/floor pair is a material upgrade to what tier 0
+	# already unlocked, not a new capability. It lands here rather than on wood_decor
+	# so the first purchase still teaches planks before stone makes them optional.
 	_add(Skill.new(
 		"light_step", BUILDING, 1,
 		"Light Step",
-		"Move 15% faster.",
-		"+15% move speed",
-		Types.Item.WoodFloor, ["wood_decor"],
-		{"move_speed_mult": 0.15}
+		"Move 15% faster, and build in stone as well as wood.",
+		"+15% speed, stone set",
+		Types.Item.StoneWall, ["wood_decor"],
+		{"move_speed_mult": 0.15},
+		[
+			{"product": Types.Item.StoneFloor, "station": Types.Item.Sawmill},
+			{"product": Types.Item.StoneWall, "station": Types.Item.Sawmill},
+		]
 	))
 	_add(Skill.new(
 		"magnetism", BUILDING, 2,

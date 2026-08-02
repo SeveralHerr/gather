@@ -558,7 +558,7 @@ Guidelines that make an entry useful later:
   Workaround: computed the depth by hand
   (`max depth in snapshot: 10`, `recipe_card.gd -> False`) and reported reach with the
   structural blind spots named, rather than reporting 6/18 as if it were a coverage number.
-  - [G-030] status: open | seen: 1 | harness: 0.7.0
+  - [G-030] status: open | seen: 2 | harness: 0.7.0
   - Improvement: three things, cheapest first — (1) exclude paths deleted in the diff from the
     denominator; (2) have `scene-tree` take a depth argument for the reach snapshots, or have
     `reach` warn when the tree hit its depth cap; (3) widen the reach signal beyond node
@@ -635,11 +635,16 @@ Guidelines that make an entry useful later:
   cells sitting on a `gathering_atlas_location`, with a `stranded` flag. Writing it also
   surfaced why a generic verb would not have done: the flag has to discount the chest
   highlight `player.gd:_process` legitimately redraws every frame, which is game knowledge.
-  - [G-032] status: open | seen: 1 | harness: 0.7.0
+  - [G-032] status: open | seen: 2 | harness: 0.7.0
   - Improvement: a generic `tilemap-cells --node PATH --layer N` verb returning used cells
     with their source id and atlas coords. Tile-based games keep real state in cells, and it
     is currently the one part of the scene the bridge cannot read at all — every project
     hitting this has to hand-roll its own verb.
+  - Seen again by the stone-wall work, which needed to prove a placed wall had been
+    autotiled — i.e. that its cell held one of 47 solved atlas coords rather than the blob's
+    base. Same conclusion, second hand-rolled verb: `tile_at`, reading `get_cell_source_id`
+    and `get_cell_atlas_coords` at an offset from the player. Two independent gathers of the
+    same missing primitive in one day is the argument for the generic verb.
 
 ## 2026-08-01 — Runtime A/B of the mobile stuck-gather fix (gather-3zg)
 
@@ -675,3 +680,69 @@ Guidelines that make an entry useful later:
   - Improvement: for state a verb derives from a method, also report the raw fields it derives
     from (here `_panel_root.visible` alongside `open`), so a disagreement is visible in the
     reply rather than inferred three commands later. Same argument as the status provider.
+## 2026-08-01 — Stone wall + stone floor: generated art, a second wall terrain, recipes
+
+- Value: **warranted** — runtime is the only place the new terrain could be shown to
+  autotile, because nothing in the diff says whether Godot's solver accepts a blob
+  copied cell-for-cell into a second atlas source.
+  - Expected: placing a stone wall writes a cell that is *not* the registered `(0,4)`
+    base but one of the 47 solved blob cells on source 11 — proving terrain 2 actually
+    autotiles rather than dropping a single unconnected tile; and a stone wall adjacent
+    to a wood wall leaves both runs unjoined. Neither is decidable from the diff; the
+    tileset terrain data and Godot's solver decide it.
+  - Got: three stone walls placed in a row came back as `source 11 atlas (1,4)`,
+    `(2,4)`, `(3,4)` with `is_unsolved_base: False` on all three — left cap, middle,
+    right cap, so the solver ran on terrain 2. The guard held too: after dropping a
+    wood wall immediately to the left of the run, the stone left cap was still `(1,4)`
+    and not the middle piece `(2,4)`, with `runs={'Stone Wall': 3, 'Wood Wall': 1}` —
+    two separate runs, no cross-material blending. The floor case that the whole
+    coordinate layout was designed around also held: `place_build StoneFloor` landed
+    `layer 2 ... atlas (0,6) wall=''` and left `Stone Wall: 3` unchanged, i.e. it was
+    not swept into the wall run by the source+rect classifier.
+  - Cheaper: nothing. Unit tests can assert the WALL_TYPES table is self-consistent
+    (and eight new ones now do), but "does `set_cells_terrain_connect` pick tiles from
+    a second atlas source for a terrain index that did not exist an hour ago" has no
+    headless expression — the TileSet only resolves terrains with a live TileMap.
+
+- Gap: **`verify_ledger reach` under-reports for anything that is not a node script**
+  — same shape as before, this run said `reached 2/9`, listing `crafting/recipes.gd`,
+  `systems/skill_tree.gd`, `items/game_item.gd`, `items/types.gd` and
+  `devtools_ext/commands.gd` as NOT reached. All five ran: `craft_state` returned
+  `"unlocked_recipes": [... "Stone Floor", "Stone Wall"]` after `learn_skill light_step`,
+  which is recipes.gd and skill_tree.gd end to end; `commands.gd` is the extension every
+  `cmd` call in this run went through; `game_item.gd` supplied the
+  `STONE_BUILD_SOURCE_ID` the placements keyed off. Bumped the existing entry rather
+  than filing a second one.
+  - [G-030] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: as recorded on G-030 — a "not a node script, reach cannot speak to
+    this" bucket, which the tool already has for `.uid`/`.png`, would stop autoload and
+    RefCounted scripts from reading as untested code.
+
+- Gap: **`lint_project.gd` does not compile-check scripts, so a broken `main.gd` passed
+  lint clean** — after the wall refactor, lint reported `lint: 0 error(s), 7 warning(s)
+  -> exit 0` while `main.gd` had three real parse errors (`Identifier "wall_tiles_min"
+  not declared`, and two `Cannot use subscript operator on a base of type "null"`). They
+  only surfaced on the *next* phase, as `Failed to load script "res://items/items.gd"`
+  buried in the unit-test log — and that log still printed `Total: 145 | ALL TESTS
+  PASSED | exit 0`, because the tests that depend on items.gd were the ones that failed
+  to load rather than to run. Two gates in a row reported success on a project that
+  could not boot. Workaround: grepped the test log for `SCRIPT ERROR` by hand, which is
+  the only reason it was caught at all.
+  - [G-034] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: lint already walks every `.gd` under `scan_root` for the UID pass —
+    have it `load()` each one and report a failed compile as a lint *error*. Failing
+    that, `run_tests.gd` should exit 2 when any `Failed to load script` appears on
+    stderr, on the same reasoning that already makes an unparseable test script exit 2:
+    a suite that could not load half its dependencies verified nothing.
+
+- Gap: **no way to place a building tile through the generic primitives** — `set_tile`
+  takes two `Vector2i`, and `run-method` hands raw JSON to `callv` with no vector
+  coercion (the project's own `gather-6sp`), so the entire build path was undrivable.
+  Workaround: added `place_build` and `tile_at` project verbs, which is the documented
+  answer and worked first try — recording it because the *generic* gap is real and
+  every project hits it independently.
+  - [G-035] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: teach `run-method` to coerce a 2-element JSON array into `Vector2`/
+    `Vector2i` when the target method's argument list says so — `Object.get_method_list()`
+    exposes the parameter types, so the coercion can be driven off the signature rather
+    than guessed.

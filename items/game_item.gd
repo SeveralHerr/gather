@@ -45,11 +45,16 @@ func equals(incoming_atlas_location, incoming_tile_source_id):
 ## assets/tilesets/world_tile_set.tres.
 const PLACEHOLDER_SOURCE_ID := 10
 
+## Atlas source id of the generated stone building set (walls + floor), same file.
+const STONE_BUILD_SOURCE_ID := 11
+
 ## Icon sheet per tileset source. Everything hand-drawn lives on one sheet; the
-## generated placeholder ores are on a second one (tools/generate_placeholder_art.gd),
-## so the icon lookup has to key off the source id rather than assume the first.
+## generated placeholder ores are on a second one (tools/generate_placeholder_art.gd)
+## and the generated stone building set on a third (generate_stone_build_art.gd), so
+## the icon lookup has to key off the source id rather than assume the first.
 const SOURCE_ATLASES := {
 	PLACEHOLDER_SOURCE_ID: "res://assets/tilesets/placeholder_items_atlas.tres",
+	STONE_BUILD_SOURCE_ID: "res://assets/tilesets/stone_build_atlas.tres",
 }
 const DEFAULT_ATLAS := "res://assets/tilesets/game_items_atlas.tres"
 

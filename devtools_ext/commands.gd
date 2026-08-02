@@ -36,6 +36,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("craft_state", _cmd_craft_state)
 	dev.register_command("queue_craft", _cmd_queue_craft)
 	dev.register_command("advance_crafting", _cmd_advance_crafting)
+	dev.register_command("place_build", _cmd_place_build)
+	dev.register_command("tile_at", _cmd_tile_at)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -986,3 +988,94 @@ func _pickup_count() -> int:
 		if child.get("slot_data") != null:
 			total += 1
 	return total
+
+
+## --- Building set -----------------------------------------------------------
+##
+## Walls and floors are placed through TileMapHandler.set_tile, which takes two
+## Vector2i arguments. run-method hands raw JSON to callv with no vector coercion
+## (gather-6sp), so there is no way to drive that path generically - hence a verb.
+
+const BUILD_ITEMS := {
+	"woodwall": Types.Item.WoodWall,
+	"stonewall": Types.Item.StoneWall,
+	"woodfloor": Types.Item.WoodFloor,
+	"stonefloor": Types.Item.StoneFloor,
+}
+
+
+## The cell `dx`,`dy` away from the player, in tilemap coordinates.
+func _cell_near_player(handler: TileMapHandler, args: Dictionary) -> Vector2i:
+	var origin: Vector2i = handler.tileMap.local_to_map(_player().global_position)
+	return origin + Vector2i(int(args.get("dx", 0)), int(args.get("dy", 0)))
+
+
+## Places one building tile at an offset from the player. Goes through set_tile, the
+## same call player_manager.place_tile makes, so the wall run and the terrain solve
+## happen exactly as they do for a real placement.
+func _cmd_place_build(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	if handler == null or _player() == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var wanted: String = str(args.get("type", "")).to_lower()
+	if not BUILD_ITEMS.has(wanted):
+		return {"success": false, "message": "type must be one of %s" % [BUILD_ITEMS.keys()], "data": {}}
+
+	var item: GameItem = GameItems.get_item(BUILD_ITEMS[wanted])
+	var cell := _cell_near_player(handler, args)
+	handler.set_tile(cell, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+	return {
+		"success": true,
+		"message": "placed %s at %s" % [item.name, cell],
+		"data": {"type": item.name, "cell": {"x": cell.x, "y": cell.y}},
+	}
+
+
+## Reads back what is actually on the tilemap at an offset from the player, plus how
+## main.gd classifies it. `atlas` is the cell the terrain solver chose, which is the
+## only evidence that autotiling ran at all - a wall that failed to connect sits on
+## its blob's `base` cell forever.
+func _cmd_tile_at(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	if handler == null or _player() == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var cell := _cell_near_player(handler, args)
+	var layer: int = int(args.get("layer", 1))
+	var source: int = handler.tileMap.get_cell_source_id(layer, cell)
+	var atlas: Vector2i = handler.tileMap.get_cell_atlas_coords(layer, cell)
+
+	var wall := handler.wall_type_at(atlas, source)
+	var wall_name := ""
+	var is_base := false
+	if not wall.is_empty():
+		wall_name = GameItems.get_item(wall["item"]).name
+		is_base = atlas == wall["base"]
+
+	return {
+		"success": true,
+		"message": "layer %d at %s: source %d atlas %s" % [layer, cell, source, atlas],
+		"data": {
+			"cell": {"x": cell.x, "y": cell.y},
+			"layer": layer,
+			"source": source,
+			"atlas": {"x": atlas.x, "y": atlas.y},
+			"wall_type": wall_name,
+			# True means the solver never ran: the run is still flattened to its base.
+			"is_unsolved_base": is_base,
+			"tracked_runs": _wall_run_sizes(handler),
+		},
+	}
+
+
+## How many cells main.gd is tracking per wall type. Two walls of different materials
+## must stay in separate runs - a single merged run is what a shared terrain index
+## would produce, and it is invisible in a screenshot.
+func _wall_run_sizes(handler: TileMapHandler) -> Dictionary:
+	var sizes := {}
+	for wall in handler.WALL_TYPES:
+		var name: String = GameItems.get_item(wall["item"]).name
+		sizes[name] = (handler.wall_cells[wall["item"]] as Array).size() if handler.wall_cells.has(wall["item"]) else 0
+	return sizes

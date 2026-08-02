@@ -7,7 +7,6 @@ signal resource_found(resource, location)
 @export var tileMap: TileMap
 @export var items: Items
 @export var specialTiles = []
-var wallTiles = []
 @export var resource_manager: ResourceManager2
 @export var resources: Resources
 @export var sound_manager: SoundManager
@@ -16,8 +15,38 @@ var wallTiles = []
 @onready var destroy_manager = $DestroyManager
 var chest = preload("res://world/tile_scenes/chest.tscn")
 
-var wall_tiles_min = Vector2(0,7)
-var wall_tiles_max = Vector2(11,11)
+## Every autotiling wall. A placed wall is identified by its atlas SOURCE plus the
+## rect its 47-tile blob occupies on that sheet - neither half is sufficient alone.
+## The source alone is not, because the wood blob shares tiles.png with every other
+## hand-drawn tile; the rect alone is not, because the generated stone sheet starts
+## its blob at (0, 0) and those coordinates are already stone, plank and wood-floor
+## on the hand-drawn sheet.
+##
+## `base` is the blob's top-left cell, which is what a whole run is reset to before
+## set_cells_terrain_connect recomputes the joins, and it is also the coordinate the
+## matching GameItem is registered under in items.gd. `terrain` is the index in
+## terrain set 0, and it is per wall type on purpose: two terrains means a stone wall
+## meeting a wood wall reads as two walls butting together rather than one blended run.
+const WALL_TYPES := [
+	{
+		"item": Types.Item.WoodWall,
+		"source": 4,
+		"rect": Rect2i(0, 7, 12, 5),
+		"terrain": 0,
+		"base": Vector2i(0, 11),
+	},
+	{
+		"item": Types.Item.StoneWall,
+		"source": GameItem.STONE_BUILD_SOURCE_ID,
+		"rect": Rect2i(0, 0, 12, 5),
+		"terrain": 2,
+		"base": Vector2i(0, 4),
+	},
+]
+
+## Placed wall cells per wall type, keyed by Types.Item. Filled lazily by
+## _wall_cells_for so a wall type that has never been built carries no entry.
+var wall_cells := {}
 
 var ground_tiles_min = Vector2(0,15)
 var ground_tiles_max = Vector2(11,18)
@@ -187,24 +216,48 @@ func _on_destroy_added(location: Vector2i, item: GameItem):
 func _on_destroy_removed(location: Vector2i, item: GameItem):
 	tileMap.set_cell(item.layer,tileMap.local_to_map(location), -1)
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
-	print(tileMap.local_to_map(location))
-	
-	if is_wall_tile(item.atlas_location):
 
-		var index = wallTiles.find(tileMap.local_to_map(location))
-		if index != -1:
-			wallTiles.remove_at(index)
-			print(wallTiles)
-			print(tileMap.local_to_map(player.global_position))
-	replace_tiles()
-	tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 , false)
-	#tileMap.set_cells_terrain_path(1, [Vector2i(-3,-3), Vector2i(-3, -2)], 0, 0 , false)
+	var wall := wall_type_at(item.atlas_location, item.tile_source_id)
+	if wall.is_empty():
+		return
+
+	var cells: Array = _wall_cells_for(wall)
+	var index = cells.find(tileMap.local_to_map(location))
+	if index != -1:
+		cells.remove_at(index)
+
+	# Only the type that lost a cell needs re-solving; the other wall's run is on its
+	# own terrain and cannot have changed shape.
+	reconnect_walls(wall)
 
 
-func replace_tiles():
-	for tile in wallTiles:
-		tileMap.set_cell(1, tile, 4, Vector2i(0, 11) )
-	
+## The wall type a tile belongs to, or an empty Dictionary. Both halves of the match
+## matter - see WALL_TYPES. Empty rather than null so callers can subscript the result
+## without GDScript's analyser collapsing the return type to null.
+func wall_type_at(atlas_location: Vector2i, source_id: int) -> Dictionary:
+	for wall in WALL_TYPES:
+		if wall["source"] == source_id and wall["rect"].has_point(atlas_location):
+			return wall
+	return {}
+
+
+func _wall_cells_for(wall: Dictionary) -> Array:
+	if not wall_cells.has(wall["item"]):
+		wall_cells[wall["item"]] = []
+	return wall_cells[wall["item"]]
+
+
+## Resets one wall type's run to its blob's top-left cell and lets the terrain solver
+## recompute every join. Both steps are needed: set_cells_terrain_connect only looks at
+## which cells are in the run, so a cell still showing a previously-solved corner keeps
+## drawing that corner if it is not flattened back to `base` first.
+func reconnect_walls(wall: Dictionary) -> void:
+	var cells: Array = _wall_cells_for(wall)
+	for tile in cells:
+		tileMap.set_cell(1, tile, wall["source"], wall["base"])
+	tileMap.set_cells_terrain_connect(1, cells, 0, wall["terrain"], false)
+
+
 func _on_destroy_removing_stop(location: Vector2i, _item: GameItem):
 	# Remove highlight
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
@@ -272,20 +325,32 @@ func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i,
 	play_audio(location, tile_source_id, atlas_location, layer, is_scene)
 	tileMap.set_cell(layer, location, tile_source_id, atlas_location, is_scene)
 
-	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
-		atlas_location = Vector2(0, 11)
-		wallTiles.append(location)
-		tileMap.set_cells_terrain_connect(1, wallTiles, 0, 0 )
-		
-func is_wall_tile(atlas_location):
-	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
-		return true
-	return false
-		
+	var wall := wall_type_at(atlas_location, tile_source_id)
+	if not wall.is_empty():
+		var cells: Array = _wall_cells_for(wall)
+		if not cells.has(location):
+			cells.append(location)
+		reconnect_walls(wall)
+
+func is_wall_tile(atlas_location, source_id: int) -> bool:
+	return not wall_type_at(atlas_location, source_id).is_empty()
+
+
+## Things built out of stone land with the stone sound rather than the wood one, which
+## is the only place the two building sets differ in behaviour rather than in art.
+const STONE_SOUNDED_BUILDS := [Types.Item.StoneWall, Types.Item.StoneFloor]
+
 func play_audio(_location: Vector2i, tile_source_id: int, atlas_location: Vector2i, _layer: int, _is_scene: bool = false):
 	var item = items.get_item_by_data(atlas_location, tile_source_id)
-	if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
-		sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
+
+	var wall := wall_type_at(atlas_location, tile_source_id)
+	if not wall.is_empty():
+		sound_manager.play_sound(
+			sound_manager.SoundType.STONE if wall["item"] in STONE_SOUNDED_BUILDS
+			else sound_manager.SoundType.WOOD_PLACE
+		)
+	elif item and item.type in STONE_SOUNDED_BUILDS:
+		sound_manager.play_sound(sound_manager.SoundType.STONE)
 	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
@@ -450,10 +515,6 @@ func get_location_of_nearby_item_to_destroy(location):
 		if tile_atlas == Vector2i(-1,-1):
 			continue
 
-		if tile_atlas.x >= wall_tiles_min.x and tile_atlas.y >= wall_tiles_min.y and tile_atlas.x <= wall_tiles_max.x and tile_atlas.y <= wall_tiles_max.y:
-			tile_atlas = Vector2i(0, 11)
-
-
 		var dir = player.global_position - tileMap.map_to_local(tilePos)
 		var dist = dir.length()
 		if dist < nearestDistance:
@@ -470,9 +531,15 @@ func get_location_of_nearby_item_to_destroy(location):
 	if distance < activation_distance and distance > 0:
 		var tile_atlas = tileMap.get_cell_atlas_coords(1, nearestPos)
 		var tile_source_id = tileMap.get_cell_source_id(1, nearestPos)
+
+		# A placed wall is showing whichever of its 47 cells the terrain solver chose,
+		# and only the blob's top-left cell is registered as an item - so normalise
+		# back to it before looking the item up.
+		var wall := wall_type_at(tile_atlas, tile_source_id)
+		if not wall.is_empty():
+			tile_atlas = wall["base"]
+
 		for key in items.get_all_types():
-			if tile_atlas.x >= wall_tiles_min.x and tile_atlas.y >= wall_tiles_min.y and tile_atlas.x <= wall_tiles_max.x and tile_atlas.y <= wall_tiles_max.y:
-				tile_atlas = Vector2i(0, 11)
 			if items.get_item(key).atlas_location == tile_atlas and items.get_item(key).tile_source_id == tile_source_id:
 				return { "item": items.get_item(key),  "location": tileMap.map_to_local(nearestPos) }
 
@@ -538,7 +605,7 @@ func place_auto_tile( atlas_location):
 	tileMap.set_cell(3, Vector2i(0, 2), 4, atlas_location) 
 	# Update the bitmasks to apply auto-tiling rules.
 	#tileMap.bitma(cell_position - Vector2(1, 1), cell_position + Vector2(1, 1))
-	tileMap.set_cells_terrain_connect(3, wallTiles, 0, 0 )
+	tileMap.set_cells_terrain_connect(3, _wall_cells_for(WALL_TYPES[0]), 0, WALL_TYPES[0]["terrain"])
 
 
 func rain():
@@ -586,8 +653,12 @@ func saveObject() -> Dictionary:
 			var atlas_location = tileMap.get_cell_atlas_coords(layer, cell)
 			var source_id = tileMap.get_cell_source_id (layer, cell)
 			var item = resources.get_item_or_resource(atlas_location, source_id)
-			if atlas_location.x >= wall_tiles_min.x and atlas_location.y >= wall_tiles_min.y and atlas_location.x <= wall_tiles_max.x and atlas_location.y <= wall_tiles_max.y:
-				item = items.get_item(Types.Item.WoodWall)
+			var wall := wall_type_at(atlas_location, source_id)
+			if not wall.is_empty():
+				# Saved as the wall type itself, never as the solved cell: the joins are
+				# recomputed from the run on load, so which of the 47 it happens to be
+				# showing right now is not worth persisting.
+				item = items.get_item(wall["item"])
 			elif  atlas_location.x >= ground_tiles_min.x and atlas_location.y >= ground_tiles_min.y and atlas_location.x <= ground_tiles_max.x and atlas_location.y <= ground_tiles_max.y:
 				item = items.get_item(Types.Item.Ground)
 			
@@ -612,7 +683,7 @@ func saveObject() -> Dictionary:
 func loadObject(loadedDict: Dictionary) -> void:	
 	var layers = tileMap.get_layers_count()
 	var tile_grid = tileMap.get_used_cells(0)
-	wallTiles = []
+	wall_cells.clear()
 	var ground_tiles = []
 	
 	for layer in layers:

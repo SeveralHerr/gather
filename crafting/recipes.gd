@@ -135,6 +135,22 @@ func sawmill_recipes():
 	chest_costs[Types.Item.Plank] = 4
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Chest, chest_costs))
 
+	# The stone building set. Priced in raw stone rather than in a worked intermediate
+	# because stone has no sawmill step of its own - the plank is what makes the wood
+	# set cost two gathers, and here the second gather is simply more stone. Both sit
+	# a little above their wood twin (3 vs 2 planks for the wall, 2 vs 1 for the floor)
+	# so the tier reads as the sturdier, more expensive option rather than a reskin,
+	# but stone outspawns trees by a wide margin in Resources.TUNING, so in practice
+	# this is the cheaper wall to actually build - which is the point of putting it
+	# one tier up the Building branch rather than gating it behind the furnace.
+	var stone_floor_costs = {}
+	stone_floor_costs[Types.Item.Stone] = 2
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
+
+	var stone_wall_costs = {}
+	stone_wall_costs[Types.Item.Stone] = 3
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
+
 	# The first tool the player can build, and the first thing stone is for. Stone and
 	# scene-stone together are roughly half of everything that spawns (spawn_weight
 	# 4.0 + 4.0 out of 16.7 in Resources.TUNING), and before this its only sink in the

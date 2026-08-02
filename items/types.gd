@@ -46,5 +46,7 @@ enum Item {
 	GoldBar,
 	GoldPickaxe,
 	CopperPickaxe,
-	StonePickaxe
+	StonePickaxe,
+	StoneWall,
+	StoneFloor
 }
