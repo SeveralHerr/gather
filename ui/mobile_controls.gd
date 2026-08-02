@@ -5,6 +5,15 @@ class_name MobileControls
 ## joystick on the left driving move_left / move_right / move_up / move_down, and
 ## a cluster of action buttons on the right driving gather's own InputMap actions.
 ##
+## The right thumb gets **one** big contextual button, not a menu of verbs. It used
+## to get five — MINE, HIT, USE, BREAK and ITEM, all the same shape, all the same
+## size — and watching a small child play made the problem obvious: they could not
+## tell MINE from HIT, and choosing wrong produces no feedback whatsoever, so the
+## game reads as broken rather than as mis-aimed. The primary button now resolves to
+## `gather` or `attack` from what is in the player's hand and what is standing next
+## to them (resolve_primary()), and its face changes to say which. BREAK moved to the
+## opposite corner, ITEM is gone. See BUTTON_SPECS for the full accounting.
+##
 ## No gameplay lives here. Every button synthesises the *same* InputMap action the
 ## keyboard sends, with Input.parse_input_event(InputEventAction), so the existing
 ## InputManager -> Player -> HotBarInventory -> ResourceManager2 chain runs
@@ -18,6 +27,8 @@ class_name MobileControls
 ## what calls stop_removing_resource() (via Player._gather_input_release). So the
 ## gather button sends press on finger-down and release on finger-up. A one-shot
 ## tap would leave the mining timer running forever. The same is true of `destroy`.
+## A contextual button makes that trap sharper, not softer — the answer can change
+## between the press and the release — which is what `_latched_action` is for.
 ##
 ## Buttons are hit-tested from _input() on InputEventScreenTouch rather than being
 ## real Button nodes, so a second finger works while the first one is holding the
@@ -28,16 +39,24 @@ class_name MobileControls
 ## world-space at 0.23 scale for the diegetic HUD (see CLAUDE.md).
 
 ## Emitted alongside every synthesised action, so a test can assert that a hold
-## button really produced both halves without depending on frame timing.
+## button really produced both halves without depending on frame timing. The
+## primary button emits the action it *resolved to* (`gather` / `attack`), never
+## its PRIMARY_ACTION sentinel.
 signal action_sent(action: String, pressed: bool)
 
-## Sentinel "action" for the hotbar cycle button. It is not an InputMap action —
-## hot_bar_inventory.gd selects slots from _unhandled_key_input on KEY_1..KEY_6 and
-## exposes no action — so it is handled separately in _press().
-const HOTBAR_CYCLE := "@hotbar_cycle"
+## Emitted whenever the primary button's face changes, so anything watching the
+## overlay can react without polling it in turn. Carries the resolved action and
+## the label now painted on the button.
+signal primary_changed(action: String, label: String)
 
-## hot_bar_inventory.gd matches `range(KEY_1, KEY_7)`, i.e. slots 1..6.
-const HOTBAR_SLOT_COUNT := 6
+## Sentinel "action" for the one contextual button. It is not an InputMap action:
+## `_action_for()` resolves it to `gather` or `attack` at the moment a finger lands.
+const PRIMARY_ACTION := "@primary"
+
+## The InputMap actions PRIMARY_ACTION can resolve to. `get_actions()` expands the
+## sentinel into these, so callers that ask "what can this overlay send" still get
+## real action names.
+const PRIMARY_ACTIONS := ["gather", "attack"]
 
 ## How often the overlay re-checks for a touchscreen. DisplayServer exposes no
 ## signal for it, and the self-test harness's `set-feature --touchscreen true`
@@ -45,6 +64,24 @@ const HOTBAR_SLOT_COUNT := 6
 ## to a human and costs nothing next to a per-frame query that runs for the whole
 ## life of the game on every platform.
 const TOUCH_POLL_INTERVAL := 1.0
+
+## How often the primary button re-reads the world to decide what it will do. The
+## things it reads — the hotbar's selected slot and whether an enemy has walked up
+## — change from gameplay, not from an event this node can subscribe to, so this is
+## polled for the same reason TOUCH_POLL_INTERVAL is. Much faster than that one
+## because it drives what the button *says*: a label that lags a second behind is a
+## label that lies, and the whole point of merging MINE and HIT into one button is
+## that the face is now the only thing telling the player which they are about to
+## get. The poll only runs while the overlay is visible, i.e. never on desktop.
+const CONTEXT_POLL_INTERVAL := 0.15
+
+## How close an enemy has to be, in world pixels, before the primary button flips to
+## `attack`. A tile is 16px and `enemy.gd`'s own `lunge_distance` is 18, so this is a
+## little past the range at which the enemy is already committing to hit you — the
+## button changes just before the first blow lands, not after. Deliberately far
+## short of `detection_range` (100): a skeleton that has merely noticed you across
+## the clearing must not take the pickaxe out of the player's hands.
+const ENEMY_REACH := 28.0
 
 ## The addon joystick scene is authored at 300x300 with a 200px base centred in it.
 ## Both numbers are baked into its own layout, so the overlay scales the control
@@ -83,20 +120,18 @@ const JOYSTICK_SCALE_MAX := 1.25
 ## derives the set of (corner, row) groups from the table itself.
 ##
 ## Which of gather's actions earn a button, and why:
-##   gather    the whole game — mine a node, and (through HotBarInventory) place
-##             the held building. Held.
-##   attack    the only way to fight the enemy waves.
+##   PRIMARY   one big contextual button in the bottom-right corner, under the
+##             thumb. It resolves to `gather` or `attack` from what the player is
+##             holding and what is standing next to them — see resolve_primary().
+##             This replaced two same-sized neighbours labelled MINE and HIT, which
+##             is the change this whole file was reshaped for: a small child cannot
+##             tell those two apart, and picking the wrong one does nothing visible
+##             at all, so the game reads as broken rather than as mis-aimed.
 ##   action    open a chest / crafting station; without it the crafting half of the
-##             game is unreachable on a phone.
-##   destroy   removes a misplaced building. Held, same as gather.
-##   ITEM      cycles the hotbar selection forward. Not an action at all. The
-##             hotbar now carries its own < and > buttons and its slots are
-##             tappable, so this is no longer the only way to change slots — but
-##             it is the one that stays under the thumb already holding the right
-##             cluster, and one-handed portrait play is the case that made the
-##             overlay worth building. The hotbar's arrows are the *discoverable*
-##             affordance; this is the fast one. Both go through the same
-##             HotBarInventory.select_slot().
+##             game is unreachable on a phone. One row up from the primary so a
+##             thumb reaching for the big button cannot clip it.
+##   destroy   removes a misplaced building. Held, same as gather. Moved out of the
+##             thumb cluster and up to the top-right corner (see below).
 ##   inventory / skills / land   the three panels. They are the progression UI, and
 ##             on a phone this cluster is the only way *into* them. It used to be
 ##             the only way back out too, which is why the overlay was mounted on
@@ -106,18 +141,35 @@ const JOYSTICK_SCALE_MAX := 1.25
 ##             declines presses while one is open so the two cannot both answer the
 ##             same tap.
 ##
+## `destroy` kept its button but not its place. It is the only *destructive* verb on
+## the overlay — a mis-tap deletes a building the player meant to keep — and it is
+## also the rarest, so it was the worst possible neighbour for the button a thumb
+## is aiming at forty times a minute. Deleting it outright was the other option and
+## was rejected: nothing else on a phone can undo a misplaced wall, and "you can
+## build but never unbuild" is a dead end a child reaches within a minute of getting
+## walls. Top-right, one row below the panel buttons, is deliberately awkward: it
+## costs a reach across the screen, which is exactly right for an action you want on
+## purpose and never by accident.
+##
+## The ITEM button is gone. It cycled the hotbar selection forward by one, and it was
+## the single button on this overlay whose effect happened *somewhere else on the
+## screen* — the same "I pressed it and nothing happened" failure that MINE-vs-HIT
+## produced. The hotbar now has its own < and > arrows and every slot is directly
+## tappable (hot_bar_inventory.gd), and tapping the picture of the thing you want is
+## strictly more legible than cycling blind. Removing it also deleted the only place
+## in the project that forged raw InputEventKey KEY_1..KEY_6 to drive the hotbar,
+## which is what gather-shz was filed to fix.
+##
 ## Left off deliberately: `save` and `load` (debug bindings, and there are already
 ## Save/Load buttons in the camera HUD) and the mouse buttons (touch already
 ## emulates a left click).
 const BUTTON_SPECS := [
-	{"name": "GatherButton", "action": "gather", "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
-	{"name": "AttackButton", "action": "attack", "label": "HIT", "big": true, "primary": false, "corner": "br", "row": 0},
+	{"name": "PrimaryButton", "action": PRIMARY_ACTION, "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
 	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1},
-	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "br", "row": 1},
-	{"name": "HotbarButton", "action": HOTBAR_CYCLE, "label": "ITEM", "big": false, "primary": false, "corner": "br", "row": 1},
 	{"name": "SkillsButton", "action": "skills", "label": "SKILL", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "InventoryButton", "action": "inventory", "label": "BAG", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0},
+	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "tr", "row": 1},
 ]
 
 ## The corners the layout walks, in the order rows stack away from each.
@@ -137,6 +189,28 @@ var _button_action: Dictionary = {}
 ## touch index -> the button that finger is currently holding.
 var _held: Dictionary = {}
 
+## button -> the action its current press resolved to.
+##
+## This is the whole reason the merged button is safe. `gather` and `destroy` are
+## holds: the press starts ResourceManager2's timer and the *release* is what calls
+## stop_removing_resource(). The primary button's meaning is read from the world, and
+## the world moves while a finger is down — mine a node to nothing, or let a skeleton
+## wander into reach, and a re-resolution at release time would answer `attack` for a
+## press that had sent `gather`. The engine would then never see the gather release
+## and the mining timer would run forever: gather-3zg again, arrived at from a new
+## direction. So the resolution is latched on finger-down and every later read of that
+## press — including the release, including _release_all() on focus loss — returns the
+## latched answer. Entries live exactly as long as the press does.
+var _latched_action: Dictionary = {}
+
+## Test seam: a Callable returning the same {action, label} Dictionary
+## resolve_primary() does. Left invalid in the game, where the real world is the
+## input. A unit test has no player, no hotbar and no enemies, so without this the
+## resolution would only ever be exercised in its default branch — and the case
+## worth asserting is precisely the one where the answer *changes* between the two
+## halves of a press.
+var primary_resolver: Callable = Callable()
+
 ## The project's InputManager, resolved by relative path because main.tscn's root
 ## belongs to every group and get_first_node_in_group() therefore returns the root
 ## (see CLAUDE.md). Null in a test that instantiates this scene on its own, which
@@ -146,6 +220,15 @@ var _input_manager: InputManager
 ## Last value read from DisplayServer, so _process only reacts to changes.
 var _touch_available := false
 var _force_visible := false
+
+## The context poll, started and stopped with visibility so a desktop session never
+## walks the enemy list at all.
+var _context_poll: Timer
+
+## What the primary button's face currently says, so a poll that resolves to the same
+## answer costs nothing.
+var _primary_action := ""
+var _primary_label := ""
 
 
 func _ready() -> void:
@@ -185,6 +268,17 @@ func _ready() -> void:
 	add_child(poll)
 	poll.start()
 
+	# Same reasoning, different question and a much shorter period — see
+	# CONTEXT_POLL_INTERVAL. Created stopped; _apply_visibility() owns whether it runs.
+	_context_poll = Timer.new()
+	_context_poll.name = "ContextPoll"
+	_context_poll.wait_time = CONTEXT_POLL_INTERVAL
+	_context_poll.timeout.connect(refresh_primary)
+	add_child(_context_poll)
+
+	refresh_primary()
+	_apply_context_poll()
+
 
 func _poll_touch_available() -> void:
 	var now := DisplayServer.is_touchscreen_available()
@@ -200,19 +294,32 @@ func set_forced_visible(on: bool) -> void:
 	_apply_visibility()
 
 
-## The generated Control for an InputMap action (or HOTBAR_CYCLE), or null.
+## The generated Control for an InputMap action, or null. `gather` and `attack` both
+## answer with the primary button, since that is the button which sends them — asking
+## for either by name is how the devtools bridge and the tests address it, and neither
+## should have to know about the PRIMARY_ACTION sentinel.
 func get_button_for(action: String) -> Control:
 	for i in mini(BUTTON_SPECS.size(), _buttons.size()):
 		if str(BUTTON_SPECS[i]["action"]) == action:
 			return _buttons[i]
+
+	if PRIMARY_ACTIONS.has(action):
+		return get_button_for(PRIMARY_ACTION)
 	return null
 
 
-## Every action this overlay can send, HOTBAR_CYCLE included.
+## Every InputMap action this overlay can send. The primary button's sentinel is
+## expanded into the two real actions it resolves to, so every entry here is a name
+## InputMap actually knows.
 func get_actions() -> Array[String]:
 	var out: Array[String] = []
 	for spec in BUTTON_SPECS:
-		out.append(str(spec["action"]))
+		var action := str(spec["action"])
+		if action == PRIMARY_ACTION:
+			for real in PRIMARY_ACTIONS:
+				out.append(str(real))
+		else:
+			out.append(action)
 	return out
 
 
@@ -230,6 +337,21 @@ func _apply_visibility() -> void:
 	visible = want
 	if not want:
 		_release_all()
+	else:
+		refresh_primary()
+	_apply_context_poll()
+
+
+## The context poll runs only while the overlay is on screen. On desktop that is
+## never, so a keyboard session pays nothing for a button it cannot see.
+func _apply_context_poll() -> void:
+	if _context_poll == null:
+		return
+	if visible:
+		if _context_poll.is_stopped():
+			_context_poll.start()
+	else:
+		_context_poll.stop()
 
 
 func _input(event: InputEvent) -> void:
@@ -369,25 +491,56 @@ func _press(index: int, button: Control) -> void:
 
 	_held[index] = button
 	_set_pressed_look(button, true)
-	send_action(_button_action.get(button, ""), true)
+	send_action(_action_for(button), true)
 
 
 func _release(index: int) -> void:
 	var button: Control = _held[index]
 	_held.erase(index)
 
-	# A second finger may still be on the same button.
+	# A second finger may still be on the same button — and if it is, the latch has to
+	# survive, because that finger's press is still outstanding.
 	if _held.values().has(button):
 		return
 
 	_set_pressed_look(button, false)
-	send_action(_button_action.get(button, ""), false)
+	send_action(_action_for(button), false)
+	_latched_action.erase(button)
+
+	# The world has almost certainly moved on during the hold; repaint the face now
+	# rather than up to CONTEXT_POLL_INTERVAL later.
+	refresh_primary()
+
+
+## The InputMap action a press on `button` sends.
+##
+## For everything except the primary button this is just the table lookup. For the
+## primary button it resolves the context *once*, on the first finger down, and
+## returns that same answer for every subsequent read until the last finger lifts.
+## See `_latched_action` for what goes wrong without the latch.
+func _action_for(button: Control) -> String:
+	var declared := str(_button_action.get(button, ""))
+	if declared != PRIMARY_ACTION:
+		return declared
+
+	if _latched_action.has(button):
+		return str(_latched_action[button])
+
+	var resolved := str(_resolve_primary().get("action", "gather"))
+	_latched_action[button] = resolved
+	return resolved
 
 
 func _release_all() -> void:
 	# keys() is a fresh array, so erasing inside the loop is safe.
 	for index in _held.keys():
 		_release(index)
+
+	# Belt and braces. _release() drops each latch as its last finger lifts, so this is
+	# already empty — but a latch that outlived its press would freeze the primary
+	# button's face permanently, and this is the one place that can say for certain
+	# that no finger is down.
+	_latched_action.clear()
 
 	# The joystick keeps its own _touch_index and its own latched move_* actions, and
 	# nothing here ever touched them: after a tab switch with a thumb on the stick the
@@ -403,59 +556,194 @@ func _set_pressed_look(button: Control, down: bool) -> void:
 
 
 ## Feeds one half of an action into the engine, exactly as the keyboard would. The
-## single place that knows what a button's `action` means, so HOTBAR_CYCLE and any
-## future non-InputMap button cost one branch here rather than one in each of
-## _press() and _release(). Public because the gather/destroy holds are the part
-## most worth driving from a test or a devtools verb.
+## single place that turns a resolved action name into an event, so the primary
+## button costs one lookup in _action_for() rather than a branch in each of _press()
+## and _release(). Public because the gather/destroy holds are the part most worth
+## driving from a test or a devtools verb.
 func send_action(action: String, pressed: bool) -> void:
 	if action == "":
 		return
 
-	if action == HOTBAR_CYCLE:
-		# A one-shot: the slot changes on finger-down and there is nothing to hold.
-		if pressed:
-			_cycle_hotbar()
-	elif InputMap.has_action(action):
-		var event := InputEventAction.new()
-		event.action = action
-		event.pressed = pressed
-		Input.parse_input_event(event)
-	else:
+	if not InputMap.has_action(action):
 		push_error("MobileControls: no InputMap action named '%s'" % action)
 		return
+
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = pressed
+	Input.parse_input_event(event)
 
 	action_sent.emit(action, pressed)
 
 
-## Advances the hotbar selection by one slot. hot_bar_inventory.gd selects from
-## _unhandled_key_input on KEY_1..KEY_6 and publishes no InputMap action, so
-## sending the same key it already listens for is the only way to drive it without
-## copying its selection logic in here. The current slot is read back off the
-## hotbar rather than tracked locally, so number keys and this button stay in sync.
+# --- the contextual primary button -------------------------------------------
+
+## What the primary button will do, as `{"action": String, "label": String}`.
 ##
-## The hotbar has since grown a public `step_selection()` that this could call
-## directly, and every one of its own affordances goes through it. The key is kept
-## anyway: it is the one path that does not care where the hotbar is mounted or
-## whether this overlay can find it, and it now lands in exactly the same
-## `select_slot()` as the arrows and the taps, so there is nothing left to drift.
-func _cycle_hotbar() -> void:
-	var current := 0
+## ## The rule
+##
+## **What you are holding decides. A nearby enemy only gets a say when the held item
+## has nothing of its own to offer.**
+##
+##   held item          action    label    why
+##   ---------------------------------------------------------------------------
+##   sword              attack    HIT      a weapon is a statement of intent
+##   consumable         gather    EAT      `gather` is "use the held item", and the
+##                                         moment you need to eat is the moment an
+##                                         enemy is next to you — proximity must not
+##                                         take the food away
+##   placeable          gather    BUILD    `gather` places the building through
+##                                         HotBarInventory; walling a monster out is
+##                                         a legitimate answer to it being there
+##   net                gather    NET
+##   pickaxe / empty    attack    HIT      *only if* an enemy is within ENEMY_REACH
+##   pickaxe / empty    gather    MINE     otherwise
+##
+## `gather` is doing double duty throughout — it is really "use whatever is in the
+## selected hotbar slot", which is why mining, building, eating and the net all come
+## out of the same InputMap action and only the label differs.
+##
+## ## The trade-off, stated plainly
+##
+## The pickaxe row is the one that can feel like a betrayal, and it is the case worth
+## being explicit about: the player is holding MINE down on a tree, a skeleton walks
+## into reach, and the button's face changes to HIT. The next press swings instead of
+## mining. That is a real cost and it was chosen on purpose, because the alternative
+## is worse: a child holding the game's default tool who *cannot fight back* dies
+## over and over with a button in front of them that keeps chopping wood. Three
+## things keep the flip honest rather than surprising:
+##
+##   * the label changes, visibly, up to CONTEXT_POLL_INTERVAL after the enemy
+##     arrives and before the player's next press;
+##   * it can never happen *during* a press — `_latched_action` freezes the answer
+##     for the whole hold, so a gather that started always finishes as a gather;
+##   * ENEMY_REACH is tight. The flip means "this thing is close enough to be hitting
+##     you", not "there is a skeleton somewhere on screen".
+##
+## Static and pure — every input is an argument — so a test can walk the whole table
+## without a world, a player or an enemy.
+static func resolve_primary(item: GameItem, enemy_in_reach: bool) -> Dictionary:
+	if item != null:
+		if item is GameItemSword:
+			return {"action": "attack", "label": "HIT"}
+		if item is GameItemConsumable:
+			return {"action": "gather", "label": "EAT"}
+		# `is_placeable` rather than `is GameItemPlaceable`: it is the same flag
+		# hot_bar_inventory.gd's update_placed_slot() reads to decide whether to draw
+		# the ghost tile in front of the player, so the button and the ghost cannot
+		# disagree about whether the player is in building mode.
+		if item.is_placeable:
+			return {"action": "gather", "label": "BUILD"}
+		if item is GameItemNet:
+			return {"action": "gather", "label": "NET"}
+
+	if enemy_in_reach:
+		return {"action": "attack", "label": "HIT"}
+	return {"action": "gather", "label": "MINE"}
+
+
+## The live resolution, or whatever `primary_resolver` says when a test has installed
+## one.
+func _resolve_primary() -> Dictionary:
+	if primary_resolver.is_valid():
+		var out: Variant = primary_resolver.call()
+		if out is Dictionary:
+			return out
+	return resolve_primary(_held_item(), _enemy_in_reach())
+
+
+## Repaints the primary button's face from the current context.
+##
+## Does nothing while the button is held: the action is latched for the duration of
+## the press (see `_latched_action`), so relabelling mid-hold would put a word on the
+## button that contradicts the event its release is going to send.
+##
+## Public because it is the handle the context poll, the visibility switch and a test
+## all drive this through, and because a caller that has just changed the hotbar
+## selection can repaint immediately instead of waiting out the poll.
+func refresh_primary() -> void:
+	var button := get_button_for(PRIMARY_ACTION)
+	if button == null:
+		return
+	if _latched_action.has(button):
+		return
+
+	var resolved := _resolve_primary()
+	var action := str(resolved.get("action", "gather"))
+	var label_text := str(resolved.get("label", "MINE"))
+	if action == _primary_action and label_text == _primary_label:
+		return
+
+	_primary_action = action
+	_primary_label = label_text
+
+	var label := button.get_node_or_null("Label") as Label
+	if label != null:
+		label.text = label_text
+		# Colour as well as text. The two words are the same length and a child is not
+		# reading them so much as recognising them, so the face has to differ by more
+		# than its letters.
+		label.add_theme_color_override(
+			"font_color", UiTheme.COLOR_BAD if action == "attack" else UiTheme.COLOR_TEXT)
+
+	primary_changed.emit(action, label_text)
+
+
+## What the primary button's face says right now. For tests and the devtools bridge.
+func primary_label() -> String:
+	return _primary_label
+
+
+## The action the primary button would send if a finger landed on it now — or the one
+## it has latched, if a finger is already down.
+func primary_action() -> String:
+	var button := get_button_for(PRIMARY_ACTION)
+	if button != null and _latched_action.has(button):
+		return str(_latched_action[button])
+	return str(_resolve_primary().get("action", "gather"))
+
+
+## The GameItem in the selected hotbar slot, or null.
+##
+## Read through `Object.get()` because hot_bar_inventory.gd declares no `class_name`,
+## so there is no type to annotate this against; `selected_slot_data` is a property
+## with a getter and `get()` runs it. An empty stack reads as no item, matching the
+## hotbar's own `count <= 0` test in populate_hot_bar().
+func _held_item() -> GameItem:
 	var hotbar := _find_hotbar()
-	if hotbar != null:
-		var idx: Variant = hotbar.get("selected_index")
-		if typeof(idx) == TYPE_INT:
-			current = idx
+	if hotbar == null:
+		return null
 
-	var next: int = posmod(current + 1, HOTBAR_SLOT_COUNT)
+	var slot := hotbar.get("selected_slot_data") as SlotData
+	if slot == null or slot.count <= 0:
+		return null
+	return slot.item
 
-	# Both halves: nothing binds KEY_1..KEY_6, but leaving a key logically down is
-	# still a trap.
-	for pressed in [true, false]:
-		var event := InputEventKey.new()
-		event.keycode = KEY_1 + next
-		event.physical_keycode = event.keycode
-		event.pressed = pressed
-		Input.parse_input_event(event)
+
+## Whether anything hostile is within ENEMY_REACH of the player.
+##
+## Enemies are not in a group of their own — `enemy.gd` only joins `SaveLoad` — so
+## this filters that group by type rather than adding one, because enemies/ belongs to
+## other work. The group is short (a dozen or so world systems plus the live enemies,
+## which enemy_spawner.gd caps at MAX_ENEMY_CAP) and this runs once every
+## CONTEXT_POLL_INTERVAL only while the overlay is visible.
+func _enemy_in_reach() -> bool:
+	var player := PlayerManager.player
+	if player == null or not is_instance_valid(player):
+		return false
+
+	var tree := get_tree()
+	if tree == null:
+		return false
+
+	var reach_squared := ENEMY_REACH * ENEMY_REACH
+	for node in tree.get_nodes_in_group("SaveLoad"):
+		var enemy := node as Enemy
+		if enemy == null or not is_instance_valid(enemy):
+			continue
+		if enemy.global_position.distance_squared_to(player.global_position) <= reach_squared:
+			return true
+	return false
 
 
 func _find_hotbar() -> Node:
