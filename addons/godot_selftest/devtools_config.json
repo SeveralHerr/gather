@@ -24,5 +24,68 @@
   ],
   "log_check_globs": [],
   "log_check_block": false,
-  "mute": true
+  "mute": true,
+  "uid_check_ignore": [
+    "res://addons/",
+    "res://tools/"
+  ],
+  "log_check_dated_entry": true,
+  "log_check_value": true,
+  "_scaffold_defaults": {
+    "note": "Written by /scaffold-godot-harness. 'values' is what scaffold last left here and 'owned' lists the keys it may still update; edit a key and it becomes yours permanently. Safe to commit; delete to reset the tracking.",
+    "harness_version": "0.7.0",
+    "owned": [
+      "entry_hook",
+      "entry_points",
+      "extension_script",
+      "fps_min",
+      "log_check_block",
+      "log_check_dated_entry",
+      "log_check_globs",
+      "log_check_value",
+      "log_files",
+      "mute",
+      "orphan_growth_max",
+      "orphan_max",
+      "safe_area_inset",
+      "scan_root",
+      "test_dir",
+      "uid_check_ignore",
+      "validator_script"
+    ],
+    "values": {
+      "validator_script": "res://addons/godot_selftest/scene_validator.gd",
+      "extension_script": "res://devtools_ext/commands.gd",
+      "hud_layer_name": "UI2",
+      "test_dir": "res://test/unit",
+      "scan_root": "res://",
+      "uid_check_ignore": [
+        "res://addons/",
+        "res://tools/"
+      ],
+      "fps_min": 30,
+      "orphan_max": 0,
+      "orphan_growth_max": 20,
+      "safe_area_inset": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0
+      },
+      "main_scene": "res://main.tscn",
+      "entry_hook": {
+        "node_path": "",
+        "method": ""
+      },
+      "entry_points": {},
+      "log_files": [
+        "log-devtools.md"
+      ],
+      "log_check_globs": [],
+      "log_check_block": false,
+      "log_check_dated_entry": true,
+      "log_check_value": true,
+      "mute": true
+    }
+  }
 }

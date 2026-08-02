@@ -14,11 +14,24 @@ extends Node
 ## extension loads AFTER the generic handlers, a project may override a generic
 ## verb by registering the same action string (last-writer-wins).
 
+# harness-version: 0.7.0
 # --- Constants ---
 
+## Version of the godot-selftest-harness these files were copied from. Reported by the
+## `harness_version` verb and stamped into every copied tool script, so a gap logged
+## against a project can name the version it was seen on, and a refresh can tell a
+## stale file from a customized one. Bump with .claude-plugin/plugin.json.
+const HARNESS_VERSION: String = "0.7.0"
+
+## Default bus filenames. With a session id (see _resolve_session) the id is spliced in
+## before the extension, so two instances can each own a bus in the same user:// dir.
 const COMMANDS_PATH: String = "user://devtools_commands.json"
 const RESULTS_PATH: String = "user://devtools_results.json"
 const LOG_PATH: String = "user://devtools_log.jsonl"
+
+## Command-line flag and environment variable that name this instance's bus.
+const SESSION_ARG: String = "--devtools-session"
+const SESSION_ENV: String = "GODOT_DEVTOOLS_SESSION"
 const CONFIG_PATH: String = "res://addons/godot_selftest/devtools_config.json"
 
 ## Frames to let elapse after _ready() before sampling the orphan-node baseline, so
@@ -63,6 +76,14 @@ const DEFAULT_CONFIG: Dictionary = {
 
 # --- Variables ---
 
+## Bus paths in use. These are the session-resolved forms of COMMANDS_PATH / RESULTS_PATH
+## / LOG_PATH and are what every read and write actually goes through - the consts are
+## only the sessionless defaults.
+var _commands_path: String = COMMANDS_PATH
+var _results_path: String = RESULTS_PATH
+var _log_path: String = LOG_PATH
+## Session id, or "" for the shared default bus.
+var _session: String = ""
 var _commands_abs_path: String
 var _results_abs_path: String
 var _log_abs_path: String
@@ -98,9 +119,13 @@ var _extension: RefCounted = null
 # --- Lifecycle ---
 
 func _ready() -> void:
-	_commands_abs_path = ProjectSettings.globalize_path(COMMANDS_PATH)
-	_results_abs_path = ProjectSettings.globalize_path(RESULTS_PATH)
-	_log_abs_path = ProjectSettings.globalize_path(LOG_PATH)
+	# Session resolution comes first: it decides which files every later step reads,
+	# writes and clears. _process_command_line_args() runs much later and is far too
+	# late to influence the paths.
+	_resolve_session()
+	_commands_abs_path = ProjectSettings.globalize_path(_commands_path)
+	_results_abs_path = ProjectSettings.globalize_path(_results_path)
+	_log_abs_path = ProjectSettings.globalize_path(_log_path)
 
 	_load_config()
 	_register_generic_handlers()
@@ -111,6 +136,7 @@ func _ready() -> void:
 		"commands_path": _commands_abs_path,
 		"results_path": _results_abs_path,
 		"handlers": _handlers.size(),
+		"session": _session,
 	})
 
 	_process_command_line_args()
@@ -166,6 +192,41 @@ func register_status_provider(provider: Callable) -> void:
 
 # --- Setup ---
 
+## Resolves this instance's bus id from `--devtools-session <id>` (after a bare `--`)
+## or the GODOT_DEVTOOLS_SESSION environment variable, the flag winning. Empty means
+## the shared default bus, which is exactly the old behavior.
+##
+## Why: the bridge is one command file and one result file in one user:// directory, so
+## a second running instance answers the first client's commands and neither notices.
+## That makes parallel runtime verification impossible - agents working concurrently
+## have to be forbidden from launching the game at all. A session id gives each instance
+## its own pair of filenames, so N instances can share a user:// dir without crossing.
+##
+## The id is sanitized to [A-Za-z0-9_-] because it becomes part of a filename; anything
+## else is dropped rather than escaped, and an id that sanitizes away is ignored.
+func _resolve_session() -> void:
+	var raw: String = ""
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	for i: int in args.size():
+		if args[i] == SESSION_ARG and i + 1 < args.size():
+			raw = args[i + 1]
+			break
+	if raw.is_empty():
+		raw = OS.get_environment(SESSION_ENV)
+
+	var clean: String = ""
+	for c: String in raw:
+		if (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or (c >= "0" and c <= "9") or c == "_" or c == "-":
+			clean += c
+	if clean.is_empty():
+		return
+
+	_session = clean
+	_commands_path = "user://devtools_commands_%s.json" % clean
+	_results_path = "user://devtools_results_%s.json" % clean
+	_log_path = "user://devtools_log_%s.jsonl" % clean
+
+
 func _load_config() -> void:
 	_config = DEFAULT_CONFIG.duplicate(true)
 	if not FileAccess.file_exists(CONFIG_PATH):
@@ -217,6 +278,7 @@ func _register_generic_handlers() -> void:
 	register_command("save_ui_baseline", _cmd_save_ui_baseline)
 	register_command("ui_snapshot_diff", _cmd_ui_snapshot_diff)
 	register_command("list_commands", _cmd_list_commands)
+	register_command("harness_version", _cmd_harness_version)
 
 
 func _load_extension() -> void:
@@ -249,10 +311,10 @@ func _load_extension() -> void:
 # --- Command Processing ---
 
 func _check_for_commands() -> void:
-	if not FileAccess.file_exists(COMMANDS_PATH):
+	if not FileAccess.file_exists(_commands_path):
 		return
 
-	var json_text: String = FileAccess.get_file_as_string(COMMANDS_PATH)
+	var json_text: String = FileAccess.get_file_as_string(_commands_path)
 	DirAccess.remove_absolute(_commands_abs_path)
 
 	if json_text.is_empty():
@@ -310,7 +372,7 @@ func _write_result(action: String, result: Dictionary) -> void:
 	var status: Dictionary = _collect_status()
 	if not status.is_empty():
 		response["status"] = status
-	var file: FileAccess = FileAccess.open(RESULTS_PATH, FileAccess.WRITE)
+	var file: FileAccess = FileAccess.open(_results_path, FileAccess.WRITE)
 	if file == null:
 		_write_log("error", "Failed to write result file", {"error": FileAccess.get_open_error()})
 		return
@@ -346,11 +408,15 @@ func _process_command_line_args() -> void:
 
 # --- Command Handlers ---
 
+## Wire contract - data keys: timestamp (float), session (String, "" on the default bus).
 func _cmd_ping(_args: Dictionary) -> Dictionary:
 	return {
 		"success": true,
 		"message": "pong",
-		"data": {"timestamp": Time.get_unix_time_from_system()},
+		"data": {
+			"timestamp": Time.get_unix_time_from_system(),
+			"session": _session,
+		},
 	}
 
 
@@ -396,10 +462,25 @@ func _cmd_scene_tree(args: Dictionary) -> Dictionary:
 
 
 func _serialize_node(node: Node, depth: int) -> Dictionary:
+	# `script` is the node's script resource path, or "" when it has none (or has a
+	# built-in one, which has no path). It exists so a caller can answer "did this run
+	# actually touch the file I changed?" by intersecting a scene-tree snapshot with a
+	# diff, instead of asking a human or a model to remember. `tools/verify_ledger.py`
+	# is that caller. Keep the key present-but-empty rather than absent: a missing key
+	# and "no script" must not look the same to the client.
+	var script_path: String = ""
+	var node_script: Script = node.get_script() as Script
+	if node_script != null:
+		script_path = node_script.resource_path
+
+	# `scene_file` is set by Godot on the root of an instanced scene, so a changed
+	# .tscn is reachable the same way a changed .gd is. Empty for ordinary nodes.
 	var data: Dictionary = {
 		"name": node.name,
 		"type": node.get_class(),
 		"path": str(node.get_path()),
+		"script": script_path,
+		"scene_file": node.scene_file_path,
 	}
 
 	if node is Node2D:
@@ -752,6 +833,29 @@ func _cmd_list_commands(_args: Dictionary) -> Dictionary:
 		"success": true,
 		"message": "%d commands registered" % actions.size(),
 		"data": {"actions": actions},
+	}
+
+
+## Reports which harness revision the installed files came from. Without this, deciding
+## whether a refresh was a no-op or a real upgrade meant diffing template files against
+## the plugin repo by hand, and a gap logged before an upgrade could not be told apart
+## from a regression after one.
+##
+## Wire contract - data keys: harness_version (String), handlers (int),
+## extension_loaded (bool), config_path (String), session (String),
+## commands_path (String).
+func _cmd_harness_version(_args: Dictionary) -> Dictionary:
+	return {
+		"success": true,
+		"message": "harness %s" % HARNESS_VERSION,
+		"data": {
+			"harness_version": HARNESS_VERSION,
+			"handlers": _handlers.size(),
+			"extension_loaded": _extension != null,
+			"config_path": CONFIG_PATH,
+			"session": _session,
+			"commands_path": _commands_abs_path,
+		},
 	}
 
 
@@ -1975,10 +2079,10 @@ func _write_log(category: String, message: String, data: Variant = null) -> void
 	if data != null:
 		entry["data"] = data
 
-	var file: FileAccess = FileAccess.open(LOG_PATH, FileAccess.READ_WRITE)
+	var file: FileAccess = FileAccess.open(_log_path, FileAccess.READ_WRITE)
 	if file == null:
 		# File may not exist yet; create it.
-		file = FileAccess.open(LOG_PATH, FileAccess.WRITE)
+		file = FileAccess.open(_log_path, FileAccess.WRITE)
 	if file == null:
 		return
 	file.seek_end()
@@ -2063,7 +2167,7 @@ func _parse_vector2_or_null(value: Variant) -> Variant:
 
 
 func _clear_stale_files() -> void:
-	if FileAccess.file_exists(COMMANDS_PATH):
+	if FileAccess.file_exists(_commands_path):
 		DirAccess.remove_absolute(_commands_abs_path)
-	if FileAccess.file_exists(RESULTS_PATH):
+	if FileAccess.file_exists(_results_path):
 		DirAccess.remove_absolute(_results_abs_path)

@@ -317,6 +317,13 @@ godot --headless --path . --script res://tools/run_tests.gd      # unit tests (t
 Exit codes (both): `0` pass, `1` findings, `2` **the runner couldn't run** — a `2` means you
 verified nothing. Redirect to a file and read it back; the Windows Godot build often prints
 nothing to the console, so a failed run looks like silent success.
+Test flags (after `--`): `--filter NAME` (matches method name **or** test script filename),
+`--file NAME` (one script; combines with `--filter` via AND), `--json`. A selector matching
+nothing is exit `2` (`SELECTED NOTHING — …selected 0 of N discovered`), never a pass — check
+the `Selected: N of M discovered` line, not just the exit code.
+`UIDs: OK` covers both halves: no stale `uid=` reference **and** no `.gd` missing its
+`.uid` sidecar. A script you just wrote outside the editor has none — commit the sidecar
+Godot generates alongside the script.
 Lint flags (after `--`): `--strict` (warnings fail), `--baseline-write PATH` /
 `--baseline PATH` (split findings into `NEW` vs `PRE-EXISTING` so repo debt isn't re-triaged
 by hand), `--find-orphans` (public functions called only from tests — advisory).
@@ -329,17 +336,40 @@ by hand), `--find-orphans` (public functions called only from tests — advisory
 
 ### DEVTOOLS LOG (REQUIRED)
 At the end of **every** response, append an entry to `log-devtools.md` (create it if
-missing) recording any gaps in `/verify` or the devtools harness that would have helped
-with this task, each with a suggested improvement. If nothing was missing, write one
-explicit "no gaps this turn" line — that is what makes an absent gap distinguishable
-from a forgotten log.
+missing). Two required halves: **was using the harness worth it**, and **what was
+missing from it**. If nothing was missing, write one explicit "no gaps this turn" line —
+that is what makes an absent gap distinguishable from a forgotten log. The `Value:`
+block is required either way.
 
 ```markdown
 ## YYYY-MM-DD — <what this response did>
 
+- Value: **<warranted|overkill|insufficient|inconclusive>** — <one sentence of why>
+  - Expected: <what you predicted runtime would reveal, written before running it>
+  - Got: <what it actually told you — quote the assertion, not "it passed">
+  - Cheaper: <the cheapest thing that would have given the same confidence>
+
 - Gap: **<what was missing>** — <the command run, the output it gave, the workaround used>
+  - [G-001] status: open | seen: 1 | harness: 0.7.0
   - Improvement: <the smallest change that would have closed it>
 ```
+
+`warranted` = runtime produced a claim the diff could not (name it). `overkill` =
+everything passed and confirmed what was already known — renames, comments, pure
+refactors, anything lint alone settled. `insufficient` = it ran but never reached or
+asserted what mattered (**reach decides this, not your impression**); file the gap.
+`inconclusive` = aborted or too small to judge.
+
+**`overkill` is a useful entry, not an admission.** It is also the one that goes
+unwritten, because a run that passed feels like a run that helped. `Cheaper:` must name
+something concrete — "reading `player.gd:40-60`", "lint alone, 4s", "nothing, this needed
+the running game". "Probably still worth it" is not an answer.
+
+The `[G-NNN]` line is required and is what makes the log answerable: ids are stable and
+never reused, `status:` is `open`/`fixed`/`wontfix` (`fixed` adds `fixed-in: X.Y.Z`),
+`harness:` comes from `python3 tools/devtools.py harness-version`. **Hitting a known gap
+again bumps its `seen:` count** — don't file a second entry for it. `tools/upstream_gaps.py`
+reads exactly these fields to pool open gaps into the harness repo.
 
 Quote real output; a gap without evidence can't be acted on later. This log is the
 harness's feedback channel — entries here are what get upstreamed into
@@ -348,13 +378,26 @@ project using it. A `Stop` hook (`tools/check_devtools_log.py`, wired in
 `.claude/settings.json`) prints a reminder when a session changes code without touching
 the log; it is advisory, not a gate.
 
+### THE VERIFY LEDGER
+`/verify` Phase 5 appends one line per run to `.devtools/verify-runs.jsonl` — including
+the clean ones, which is the point. The gaps log records what the harness couldn't do;
+the ledger is the denominator it lacks.
+
+The field worth reading is **reach**: computed by intersecting the diff against the
+`script`/`scene_file` paths in a `scene-tree` snapshot, so it says whether a run actually
+loaded the code it claimed to verify rather than asking the run to grade itself. A pass
+on an unreached file is a statement about the diff, not the running game — report it that
+way. Each row also carries the `value` verdict above, so "how often was this overkill?"
+is a query. `python3 tools/verify_ledger.py stats` reads the history back; `reach`
+computes reach alone without writing a row. Commit the ledger.
+
 ### Command cheat-sheet (`python3 tools/devtools.py <verb>`)
 Launch first: `godot --path . --mute &` then `sleep 5 && python3 tools/devtools.py ping`.
 
 | Verb | Use |
 |---|---|
 | `ping` / `quit` | Confirm bridge is live / shut game down cleanly |
-| `scene-tree` | Discover root scene name + node paths (don't assume names) |
+| `scene-tree` | Discover root scene name + node paths (don't assume names). Each node carries `script` and `scene_file`, so a changed file maps to the node that runs it |
 | `get-state --node PATH [--property N ...]` | Read a node's properties. **Always pass `--property`** — an unfiltered `Label` is ~120 keys. Repeatable; unknown names are reported, not dropped |
 | `set-state --node PATH --property N --value V` | Set raw property (bypasses setters/signals) |
 | `run-method --node PATH --method N --args "[...]"` | Call a method — preferred when a signal should fire |
@@ -370,6 +413,7 @@ Launch first: `godot --path . --mute &` then `sleep 5 && python3 tools/devtools.
 | `clear-nodes --group G` (or `--method`/`--class`) | Free matching nodes |
 | `screenshot` | Visual check only (`sleep 0.5`–`1` after a state change) |
 | `list-commands` | Discover all registered verbs (generic + project) |
+| `harness-version` | Installed harness revision (game + client). Read it once per session — it fills the `harness:` field on every gap you log. Exits 1 on a mismatch, which means a half-refreshed install |
 | `cmd <verb> --args '{...}'` | Invoke any project-registered verb |
 
 ### Add project-specific debug verbs
@@ -409,6 +453,10 @@ the combo window tests nothing the moment the readout starts fading on that time
 - **One command at a time.** The bus is one command file / one result file. Requests
   carry an id the game echoes, so a crossed reply now errors (`Crossed replies: …`)
   instead of silently returning another request's data — detection, not concurrency.
+  For *parallel* instances give each its own bus: launch with
+  `-- --devtools-session <id>` and call with `--session <id>`. `ping` then reports which
+  session answered. Buses only — a shared `user://` still shares screenshots, baselines
+  and the `.godot/` import cache, so add `GODOT_USERDATA` per instance to isolate fully.
 - **`game not running` in ~2s** means a dead game *or* the wrong `user://` dir; the
   error can't tell them apart. Check `--userdata` before assuming a crash.
 - **Assert transforms on `data.transform`, not the property dump.** Godot hides
