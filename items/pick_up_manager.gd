@@ -2,10 +2,49 @@ extends Node
 
 const PICK_UP = preload("res://items/pick_up.tscn")
 const SHADOW = preload("res://world/shadow.tscn")
+const HIT_PARTICLES = preload("res://world/vfx/hit_particles.tscn")
+
+## One shared emitter for every collect sparkle, created on first use and never freed.
+##
+## A collect fires whenever anything is absorbed, which is several times a second while the
+## vacuum is working through a node's yield, so an emitter node per collect would be a
+## visible line on the orphan counter — the same class of bug HealthManager was fixed for.
+## Sharing it means simultaneous collects cut each other's burst short, which costs nothing
+## visually: they happen within a few pixels of each other, at the player.
+var _sparkle: GPUParticles2D
+
 
 func _ready():
 	add_to_group("SaveLoad")
 	randomize()
+
+
+## A small burst where a drop was absorbed. Static-ish entry point on the autoload, so
+## items/pick_up.gd can call it on the frame it frees itself.
+func collect_sparkle(world_position: Vector2) -> void:
+	# World, not World/PickUps: loadObject() frees every child of PickUps, and an emitter
+	# rebuilt on every load is exactly the slow leak this is shaped to avoid.
+	var host := get_node_or_null("/root/Main/World")
+	if host == null:
+		return
+
+	if _sparkle == null or not is_instance_valid(_sparkle):
+		_sparkle = HIT_PARTICLES.instantiate()
+		_sparkle.name = "CollectSparkle"
+		_sparkle.top_level = true
+		_sparkle.one_shot = true
+		_sparkle.explosiveness = 1.0
+		_sparkle.amount = Juice.PICKUP_SPARKLE_AMOUNT
+		_sparkle.lifetime = Juice.PICKUP_SPARKLE_LIFETIME
+		_sparkle.emitting = false
+		# Above the drops themselves (z_index 1) but below the damage numbers (100).
+		_sparkle.z_index = 60
+		host.add_child(_sparkle)
+
+	_sparkle.global_position = world_position
+	# restart(), not `emitting = true`: a one-shot emitter that is still running ignores the
+	# assignment, which would swallow every collect after the first.
+	_sparkle.restart()
 
 
 func create(slot_data: SlotData, position: Vector2):
@@ -13,7 +52,12 @@ func create(slot_data: SlotData, position: Vector2):
 	var shadow = SHADOW.instantiate()
 	
 
-	var initial_velocity = Vector2(randf_range(-15, 15), randf_range(-70, -60))
+	# Widened from ±15. A near-vertical launch made the two or three drops one node yields
+	# follow the same line, so a good roll looked like a single item.
+	var initial_velocity = Vector2(
+		randf_range(-Juice.PICKUP_LAUNCH_X, Juice.PICKUP_LAUNCH_X),
+		randf_range(Juice.PICKUP_LAUNCH_Y_MIN, Juice.PICKUP_LAUNCH_Y_MAX)
+	)
 	pick_up.linear_velocity = initial_velocity
 	get_node("/root/Main/World/PickUps").add_child(pick_up)
 	get_node("/root/Main/World/PickUps").add_child(shadow)
@@ -29,6 +73,11 @@ func create(slot_data: SlotData, position: Vector2):
 	if slot_data.item.is_scene_tile:
 		pick_up.sprite_2d.scale= Vector2(0.5, 0.5) 
 	pick_up.sprite_2d.texture = slot_data.item.get_atlas()
+
+	# Last, deliberately: the scale above is what the pop has to settle back onto, so arming
+	# the pop any earlier (in PickUp._ready, say) would capture 1.0 for a scene-tile drop and
+	# permanently double its size.
+	pick_up.spawn_pop()
 
 	#get_tree().root.add_child(pickup)
 

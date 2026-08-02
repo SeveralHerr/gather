@@ -11,6 +11,9 @@ signal resource_removing_stop(location: Vector2i, resource)
 @export var tile_map_handler: TileMapHandler
 @export var player: Player
 @export var level_up_manager: LevelUpManager
+# Assigned in main.tscn. No longer read here — shaking goes through Juice.shake(), which
+# finds the camera by group so no caller has to carry a reference — but the export is kept
+# because clearing it is a scene edit for no gain.
 @export var camera: Camera
 
 # Ceiling on live resource nodes. The spawn timer never stops, so without this the
@@ -30,8 +33,11 @@ const MIN_GATHER_TIME := 0.1
 # target. Both branches of start_removing_resource use it; only one of them used to.
 const SCENE_TILE_REACH := 20.0
 
-# How long the scene-node break effect runs before the resource is actually removed.
-const SCENE_BREAK_TIME := 0.3
+# How long the scene-node break effect runs before the resource is actually removed. Defined
+# as the juice constant rather than a second literal, because GameSceneResource's break pop is
+# timed to finish exactly as the node goes away and the two drifting apart would either cut
+# the pop off or leave a fully-faded node sitting there.
+const SCENE_BREAK_TIME := Juice.NODE_BREAK_TIME
 
 # Everything a wooden pickaxe can be pointed at from the first frame. Coal and copper are
 # here rather than behind a skill so a player who pushes any other branch is not left with
@@ -67,6 +73,30 @@ var removing_tool: GameItemPickaxe
 
 var gather_progress: GatherProgress
 
+# --- Per-swing gather feedback ---
+#
+# A hold runs hold_timer for the pickaxe's whole gather time and, until this, produced no
+# visual event at all until it fired. Two seconds of a filling bar is where a young player's
+# attention goes, so the hold is divided into discrete swings that each land: a squash on the
+# node (scene-backed nodes only — see below), a chip burst, a pulse on the bar and a small
+# camera tick.
+#
+# Scheduled off hold_timer's own elapsed time rather than a second Timer, so the cadence
+# cannot drift from the gather it is decorating and a Swift Hands multiplier changes both at
+# once. `_process` already runs for the progress bar, so this adds an int compare per frame
+# and no allocation.
+var _swing_interval := 0.0
+var _next_swing_at := 0.0
+
+# Two persistent emitters, positioned per event and restarted, rather than an instance per
+# swing. `amount` is fixed on each because writing it reallocates the particle buffer, and a
+# gather does that several times a second. Neither is ever freed and neither is ever
+# duplicated, so they cost exactly two nodes for the life of the session.
+var _chips: GPUParticles2D
+var _burst: GPUParticles2D
+
+const HIT_PARTICLES := preload("res://world/vfx/hit_particles.tscn")
+
 func _ready():
 	add_to_group("SaveLoad")
 	randomize()
@@ -86,6 +116,36 @@ func _ready():
 	gather_progress.name = "GatherProgress"
 	tile_map_handler.tileMap.add_child(gather_progress)
 
+	_chips = _make_emitter("GatherChips", Juice.GATHER_CHIP_AMOUNT, Juice.GATHER_CHIP_LIFETIME)
+	_burst = _make_emitter("GatherBurst", Juice.GATHER_BURST_AMOUNT, Juice.GATHER_BURST_LIFETIME)
+
+
+## One of the two shared emitters. Parented to the tilemap for the same reason
+## GatherProgress is — it belongs beside the node being mined, not on the HUD — and
+## `top_level` so it is positioned in world space rather than in tilemap-local space.
+func _make_emitter(emitter_name: String, amount: int, lifetime: float) -> GPUParticles2D:
+	var emitter: GPUParticles2D = HIT_PARTICLES.instantiate()
+	emitter.name = emitter_name
+	emitter.top_level = true
+	emitter.one_shot = true
+	emitter.explosiveness = 1.0
+	emitter.amount = amount
+	emitter.lifetime = lifetime
+	emitter.emitting = false
+	# Above the tilemap and its y-sorted children, below the damage numbers (100).
+	emitter.z_index = 60
+	tile_map_handler.tileMap.add_child(emitter)
+	return emitter
+
+
+func _emit_at(emitter: GPUParticles2D, world_position: Vector2) -> void:
+	if emitter == null:
+		return
+	emitter.global_position = world_position
+	# restart() rather than `emitting = true`: a one-shot emitter that is already running
+	# ignores the assignment, which would swallow every swing after the first.
+	emitter.restart()
+
 
 func _process(_delta):
 	if not is_holding_e or removing_info == null or hold_timer.is_stopped():
@@ -93,7 +153,40 @@ func _process(_delta):
 
 	# Read from the timer itself so the bar tracks the equipped pickaxe's real
 	# gather time instead of a duplicated constant.
-	gather_progress.set_progress(1.0 - (hold_timer.time_left / hold_timer.wait_time))
+	# Explicitly typed: `hold_timer` is an untyped var, so its properties come back as Variant
+	# and an inferred `:=` here does not compile.
+	var wait: float = hold_timer.wait_time
+	var elapsed: float = wait - hold_timer.time_left
+	gather_progress.set_progress(elapsed / wait)
+
+	# `while`, not `if`: a frame long enough to span two swings (a hitch, or a hit-stop
+	# ending) must not silently drop one and leave the schedule permanently behind.
+	while _swing_interval > 0.0 and elapsed >= _next_swing_at and _next_swing_at < wait:
+		_next_swing_at += _swing_interval
+		_swing()
+
+
+## One blow lands. Everything here is per-swing rather than per-frame, roughly every
+## Juice.GATHER_SWING_INTERVAL seconds.
+func _swing() -> void:
+	Juice.shake(self, Juice.Shake.TINY)
+
+	if gather_progress != null:
+		gather_progress.pulse()
+
+	# The two representations, and the honest difference between them:
+	#
+	#  * A GameSceneResource is a real node, so it can be squashed and recoiled.
+	#  * An ordinary layer-1 tilemap cell is a rectangle of atlas drawn by the TileMapLayer.
+	#    It has no transform, no modulate and no material, so THERE IS NOTHING TO ANIMATE.
+	#    Making the tile itself react would mean authoring a per-swing atlas frame for every
+	#    resource, which is a tileset change rather than a code one. It gets the chips, the
+	#    bar pulse and the camera tick instead — everything that lives beside the cell.
+	if removing_node != null and is_instance_valid(removing_node) and removing_node is GameSceneResource:
+		removing_node.hit_react()
+
+	if removing_info != null:
+		_emit_at(_chips, world_position_of(removing_info.location))
 
 
 func _begin_progress():
@@ -319,6 +412,16 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 	hold_timer.wait_time = max(MIN_GATHER_TIME, pickaxe.power * speed_mult)
 	hold_timer.start()
 
+	# Divide the hold into swings. The cadence is what stays roughly constant across pickaxe
+	# tiers, so a better tool reads as "fewer swings to break it" rather than as the same
+	# animation played faster.
+	var gather_seconds: float = hold_timer.wait_time
+	_swing_interval = gather_seconds / float(Juice.swings_for(gather_seconds))
+	# Zero, not one interval: the first blow lands on the frame the key goes down. The press
+	# is the moment that has to feel answered, and waiting 0.4s for the first chip to fly
+	# reintroduces exactly the dead interval this is here to remove.
+	_next_swing_at = 0.0
+
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)
 	if removing_info != null:
 		if removing_info.resource.type == Types.Item.StoneResourceTest:
@@ -354,6 +457,9 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 func stop_removing_resource():
 	is_holding_e = false
 	hold_timer.stop()
+	# Stops the swing scheduler as well as the timer. Left running, a release followed by a
+	# press on a shorter gather would inherit the old schedule and fire its first swing late.
+	_swing_interval = 0.0
 	gather_progress.finish()
 	if removing_info != null:
 		GameSoundManager.stop_gathering_sound()
@@ -365,6 +471,7 @@ func stop_removing_resource():
 
 func _on_hold_timer_timeout():
 	gather_progress.finish()
+	_swing_interval = 0.0
 	if not is_holding_e or removing_info == null:
 		return
 
@@ -380,13 +487,23 @@ func _on_hold_timer_timeout():
 	removing_info = null
 	removing_node = null
 
+	# The payoff burst, at the cell that was being worked. Fired for BOTH representations:
+	# a tilemap cell cannot pop, but the chips and the shake that mark the moment it gives
+	# way can still happen at its world position, and before this a plain tile simply
+	# disappeared with no event at all.
+	_emit_at(_burst, world_position_of(info.location))
+
 	if node and node is GameSceneResource:
-		camera.apply_shake(1)
+		Juice.shake(self, Juice.Shake.MEDIUM)
+		node.break_react()
 		node.hit_particles.emitting = true
 		await get_tree().create_timer(SCENE_BREAK_TIME).timeout
 		# The node can be freed while the timer runs (save load, land regeneration).
 		if is_instance_valid(node):
 			node.hit_particles.emitting = false
+	else:
+		# A tile cell breaks a shade more gently than a boulder does.
+		Juice.shake(self, Juice.Shake.LIGHT)
 
 	# remove_resource emits resource_removed, which main.gd answers with
 	# clear_tile(local_to_map(location)) - that clears both the layer-1 tile and the

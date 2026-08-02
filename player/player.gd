@@ -261,7 +261,15 @@ func receive_hit(_force: Vector2, _damage: int):
 
 	#velocity += force
 	#move_and_slide()
-	camera.apply_shake()
+	# Was a bare `apply_shake()`, i.e. the same one-pixel jitter a pebble breaking asked for.
+	# Taking damage is the heaviest thing that happens to the player, so it now says so.
+	Juice.shake(self, Juice.Shake.HEAVY)
+	# Short — this fires while something is chasing the player, and a long dip while being
+	# chased is a punishment on top of the damage rather than feedback about it.
+	Juice.hit_stop(Juice.HIT_STOP_LIGHT)
+	# Screen space: goes in the UI CanvasLayer, NOT under Camera2D/HUD, which is world-space
+	# at the camera's zoom and would draw the "full-screen" rect onto the ground.
+	ScreenFlash.flash(self, Juice.DAMAGE_FLASH_COLOR, Juice.DAMAGE_FLASH_ALPHA, Juice.DAMAGE_FLASH_TIME)
 	health_manager.take_damage(_damage)
 	update_hp_bar()
 	animated_sprite_2d.material.set_shader_parameter("flash_intensity", 4)
@@ -319,8 +327,13 @@ func _process_movement():
 	
 	move_and_slide()
 	
-func _process(_delta):		
-	
+func _process(_delta):
+	# The second of the two independent hit-stop tickers (the other is world/camera.gd). Two,
+	# because Engine.time_scale is global and a stuck one has no in-game way out: neither node
+	# being freed, disabled or having its processing turned off can strand the clock. It is a
+	# bool test while no dip is running. See the hit-stop section of systems/juice.gd.
+	Juice.tick()
+
 	if Input.is_action_just_pressed("action"):
 		if not nearest_chest:
 			return

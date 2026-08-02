@@ -15,7 +15,6 @@ var health_manager: HealthManager
 ## on it. Set them before add_child(): _ready is what builds the HealthManager.
 @export var max_health := 10
 @export var damage = 3
-var camera: Camera
 
 @export var items: Items
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -62,10 +61,9 @@ func _ready():
 		if node is Items:
 			items = node
 			
-	for node in get_tree().get_nodes_in_group("Camera"):
-		if node is Camera:
-			camera = node
-			
+	# The Camera group scan that used to be here is gone with the `camera` field: shaking now
+	# goes through Juice.shake(), which finds and caches the camera once for the whole game
+	# rather than once per enemy spawned.
 	for node in get_tree().get_nodes_in_group("LevelUpManager"):
 		if node is LevelUpManager:
 			level_up_manager = node 
@@ -79,11 +77,20 @@ func _ready():
 	
 	
 func _on_died():
+	# A kill is the biggest single event in the combat loop and used to be the quietest: the
+	# corpse waited 0.2s for its particles and then vanished at full opacity.
+	Juice.shake(self, Juice.Shake.HEAVY)
+	# The one place hit-stop earns its risk. It is also the case that shaped the design: the
+	# trigger node is being freed, so Juice deliberately holds no reference to it and ends the
+	# dip on a wall-clock deadline rather than on a timer this node could take down with it.
+	Juice.hit_stop(Juice.HIT_STOP_HEAVY)
+	_death_pop()
+
 	$HitParticles.emitting = true
 	await get_tree().create_timer(0.1).timeout
 	$HitParticles.emitting = false
 	await get_tree().create_timer(0.1).timeout
-	
+
 	PickUpManager.create_pickup( items.get_item(drop), position)
 	drop_coins()
 
@@ -165,25 +172,68 @@ func receive_hit(force: Vector2, _damage: int):
 	# so it survives (and cleans up after) this enemy dying from the same hit.
 	DamageNumber.spawn(self, global_position, _damage)
 	health_manager.take_damage(_damage)
-	camera.apply_shake(1)
+	Juice.shake(self, Juice.Shake.LIGHT)
 	GameSoundManager.play_sound(sound)
 	$HitParticles.emitting = true
 	await get_tree().create_timer(0.1).timeout
 	$HitParticles.emitting = false
+
+
+## Whichever of the two sprite representations this enemy actually has. bone_enemy.tscn has a
+## Sprite2D and no AnimatedSprite2D, spider_enemy.tscn the reverse, so every sprite access in
+## this file has to ask rather than assume.
+func _sprite() -> Node2D:
+	return (animated_sprite_2d if animated_sprite_2d else sprite_2d) as Node2D
+
+
+## Kept so the death pop can kill it. Both animate the sprite's scale, and a killing blow
+## starts the squash and the pop within the same call — left to fight, they write the
+## property in alternating frames and the corpse flickers instead of swelling.
+var _squash_tween: Tween
+
+
 func add_central_force(force: Vector2):
 	knockback = force
 
-	var sprite
-	if animated_sprite_2d:
-		sprite = animated_sprite_2d
-	else:
-		sprite = sprite_2d
+	var sprite := _sprite()
+	if sprite == null:
+		return
 
+	# Stretched along the blow and squashed across it. `knockback` is still never applied to
+	# the body — the state machine writes `velocity` every physics frame and would overwrite
+	# it — so this squash is what makes a hit read as having moved the enemy at all.
+	var squash := Juice.KNOCKBACK_SQUASH
+	if absf(force.y) > absf(force.x):
+		squash = Vector2(squash.y, squash.x)
+	if _squash_tween != null and _squash_tween.is_valid():
+		_squash_tween.kill()
+	_squash_tween = create_tween()
+	_squash_tween.tween_property(sprite, "scale", Vector2.ONE, Juice.KNOCKBACK_SQUASH_TIME) \
+		.from(squash).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 	sprite.material = sprite.material.duplicate()
 	sprite.material.set_shader_parameter("flash_intensity", 4)
 	await get_tree().create_timer(0.1).timeout
 	sprite.material.set_shader_parameter("flash_intensity", 0)
+
+
+## Swell and fade, over the 0.2s the corpse was already standing there waiting for its
+## particles. The node is queue_free()d at the end of that wait and the tween is bound to it,
+## so neither outlives the enemy.
+func _death_pop() -> void:
+	var sprite := _sprite()
+	if sprite == null:
+		return
+
+	if _squash_tween != null and _squash_tween.is_valid():
+		_squash_tween.kill()
+
+	var pop := create_tween()
+	pop.set_parallel(true)
+	pop.tween_property(sprite, "scale", Vector2.ONE * Juice.DEATH_POP_SCALE, Juice.DEATH_POP_TIME) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	pop.tween_property(sprite, "modulate:a", 0.0, Juice.DEATH_POP_TIME) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
 func _on_attack_timer_timeout():

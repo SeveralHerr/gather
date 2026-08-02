@@ -23,6 +23,15 @@ const FILL_END_COLOR := Color(0.96, 0.88, 0.33)
 
 var progress: float = 0.0
 
+## 1 -> 0 decay of the per-swing pulse. The bar swelling on each blow is the *main* per-swing
+## feedback for an ordinary tilemap cell, which has no sprite of its own to squash — see the
+## two-representations note in ResourceManager2._swing.
+##
+## Driven from `_process` on the node's `scale` rather than by a Tween: it fires several
+## times per gather, and a scale write is cheaper than creating and killing a Tween at that
+## rate. `_process` is off unless a pulse is running.
+var _pulse: float = 0.0
+
 
 func _ready() -> void:
 	# Positioned in world space, so it does not inherit the tilemap's transform.
@@ -30,6 +39,7 @@ func _ready() -> void:
 	# Above the tilemap and its y-sorted children.
 	z_index = 100
 	visible = false
+	set_process(false)
 
 
 func begin(world_position: Vector2) -> void:
@@ -37,6 +47,23 @@ func begin(world_position: Vector2) -> void:
 	progress = 0.0
 	visible = true
 	queue_redraw()
+
+
+## One swing landed. Restarts the swell from full rather than adding to it, so a run of
+## blows reads as a run of distinct hits.
+func pulse() -> void:
+	_pulse = 1.0
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	_pulse = maxf(_pulse - delta / Juice.GATHER_PULSE_TIME, 0.0)
+	if _pulse <= 0.0:
+		scale = Vector2.ONE
+		set_process(false)
+		return
+	# Squared, so the bar snaps out and eases back rather than swelling gradually.
+	scale = Vector2.ONE * (1.0 + Juice.GATHER_PULSE_SCALE * _pulse * _pulse)
 
 
 func set_progress(value: float) -> void:
@@ -50,6 +77,11 @@ func set_progress(value: float) -> void:
 func finish() -> void:
 	visible = false
 	progress = 0.0
+	# The bar is hidden rather than freed, so a pulse left mid-swell would still be there
+	# — at the wrong size — the next time it is shown.
+	_pulse = 0.0
+	scale = Vector2.ONE
+	set_process(false)
 
 
 func _draw() -> void:

@@ -23,6 +23,24 @@ var shadow: Node2D
 var target: Node2D
 var delay = false
 var run_once = false
+
+# --- Pop / land feel ---
+#
+# The arc out and the magnet in already existed; what was missing was a beginning and an end.
+# A drop simply appeared at full size and simply vanished on contact, which for the single
+# highest-frequency event in the game is a lot of feedback left on the table.
+#
+# Both are 1 -> 0 progress values advanced in _physics_process, which is already running for
+# the vacuum. Procedural rather than tweened for the same reason as everywhere else in this
+# pass: a drop is minted for every yield roll, every craft and every kill, and it guarantees
+# the sprite lands back on exactly its rest scale rather than wherever a killed tween stopped.
+var _pop := 0.0
+var _land := 0.0
+
+## Captured rather than assumed: PickUpManager halves the sprite of a scene-tile drop AFTER
+## _ready has run, so a rest scale read here would be wrong for exactly those items.
+var _rest_scale := Vector2.ONE
+
 @onready var sprite_2d: Sprite2D = $Sprite2D
 @onready var area_2d: Area2D = $Area2D
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
@@ -47,19 +65,33 @@ func _ready():
 	delay = true
 	
 	
-func _physics_process(_delta):
+## Starts the spawn pop. Called by PickUpManager at the END of create(), not from _ready():
+## the manager scales the sprite of a scene-tile drop after adding it to the tree, so a pop
+## armed in _ready would capture the wrong rest scale and permanently resize those items.
+func spawn_pop() -> void:
+	if sprite_2d == null:
+		return
+	_rest_scale = sprite_2d.scale
+	_pop = 1.0
+	_apply_sprite_transform()
 
-		
+
+func _physics_process(delta):
+	_advance_feel(delta)
+
 	#var distance_to_shadow =shadow.global_position.distance_to( global_position)
 	#await get_tree().create_timer(0.4).timeout
 	var distance_to_shadow = shadow.global_position.y - global_position.y
-	
+
 	if distance_to_shadow <= 0 and delay and not run_once:
 		gravity_scale = 0
 		linear_velocity = Vector2.ZERO
 		shadow.is_grounded = true
 		run_once = true
-		
+		# The one moment the drop stops moving. Without a squash here the switch from arc to
+		# magnet is completely invisible — the item just changes direction.
+		_land = 1.0
+
 	if not run_once:
 		return
 		
@@ -72,6 +104,9 @@ func _physics_process(_delta):
 	if distance_to_player <= COLLECT_RADIUS and delay:
 		if PlayerManager.player.inventory_data.pick_up_slot_data(slot_data):
 			sound_manager.play_sound(sound_manager.SoundType.POP)
+			# Before the free, and from the manager's shared emitter rather than a child of
+			# this node — a burst parented here would be freed on the same frame it started.
+			PickUpManager.collect_sparkle(global_position)
 			_award_pickup_xp()
 			shadow.queue_free()
 			queue_free()
@@ -92,6 +127,43 @@ func _physics_process(_delta):
 		linear_velocity = Vector2.ZERO
 
 	
+## Advances the pop and the landing squash. Costs two float compares once both have expired,
+## which is the state a drop spends most of its (short) life in.
+func _advance_feel(delta: float) -> void:
+	if _pop <= 0.0 and _land <= 0.0:
+		return
+
+	if _pop > 0.0:
+		_pop = maxf(_pop - delta / Juice.PICKUP_POP_TIME, 0.0)
+	if _land > 0.0:
+		_land = maxf(_land - delta / Juice.PICKUP_LAND_TIME, 0.0)
+
+	_apply_sprite_transform()
+
+
+func _apply_sprite_transform() -> void:
+	if sprite_2d == null:
+		return
+
+	var s := _rest_scale
+
+	if _pop > 0.0:
+		# _pop counts DOWN, so 1 - _pop is the eased progress. The back overshoot is what
+		# makes the drop read as thrown out of the node rather than faded in beside it.
+		var grow: float = lerpf(Juice.PICKUP_POP_FROM, 1.0, Juice.ease_out_back(1.0 - _pop))
+		s *= grow
+
+	if _land > 0.0:
+		# Squared decay: the squash is hardest on the frame of impact and unwinds quickly.
+		var e := _land * _land
+		s *= Vector2(
+			lerpf(1.0, Juice.PICKUP_LAND_SQUASH.x, e),
+			lerpf(1.0, Juice.PICKUP_LAND_SQUASH.y, e)
+		)
+
+	sprite_2d.scale = s
+
+
 ## Vacuuming loot ticks xp, but at a third of a point per drop: see the award table in
 ## LevelUpManager for why. XP is an integer, so instead of rounding 0.33 down to nothing
 ## (or up to 1, which would have made hoovering out-earn mining) every PICKUPS_PER_XP-th

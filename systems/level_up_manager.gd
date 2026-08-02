@@ -212,13 +212,50 @@ func _player_position() -> Vector2:
 	return player.global_position if player else Vector2.ZERO
 
 
-## Level-ups are announced in the world, at the player, and nothing else happens: the
-## panel is opened with K when the player chooses to. This deliberately does not restore
-## the old behaviour of seizing the screen the instant a threshold is crossed.
+## Level-ups are announced in the world, at the player, and the player keeps control: the
+## panel is opened with K when they choose to. This deliberately does not restore the old
+## behaviour of seizing the screen the instant a threshold is crossed.
+##
+## It does now cost more than two labels, because the event costs more than it used to. The
+## curve retune (`gather-1n2`) moved the sixth skill point from 39 XP to 100, so a banked
+## point went from something that arrived every couple of minutes to a genuine milestone —
+## and a milestone announced exactly as loudly as a "+1 XP" is a milestone the player learns
+## to ignore.
 func _splash_level_up() -> void:
 	var at := _player_position()
 	SplashText.spawn(self, at, "LEVEL %d!" % level, SplashText.COLOR_LEVEL, SplashText.Emphasis.BIG)
-	SplashText.spawn(self, at, "+1 SKILL POINT", SplashText.COLOR_POINT, SplashText.Emphasis.BIG)
+
+	Juice.shake(self, Juice.Shake.MEDIUM)
+	# Screen space, so the UI CanvasLayer. Gold, brief and low-alpha: this washes over a game
+	# a child is looking directly at, so it announces rather than blinds.
+	ScreenFlash.flash(self, Juice.LEVEL_UP_FLASH_COLOR, Juice.LEVEL_UP_FLASH_ALPHA, Juice.LEVEL_UP_FLASH_TIME)
+
+	_splash_skill_point()
+
+
+## The second half of the announcement, a beat later. Both labels used to spawn on the same
+## frame and were told apart only by SplashText's vertical stagger, which made one event with
+## two consequences read as one two-line block of text. Landing them in sequence is what makes
+## the point feel *earned by* the level rather than printed alongside it.
+##
+## A SceneTreeTimer rather than an `await` in _splash_level_up, because that method is called
+## from inside add_xp's threshold loop: making it a coroutine would suspend the loop, and a
+## burst of xp crossing two thresholds has to award both points on the same frame.
+func _splash_skill_point() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+
+	var timer := tree.create_timer(Juice.LEVEL_UP_POINT_DELAY)
+	timer.timeout.connect(_on_skill_point_splash_due)
+
+
+func _on_skill_point_splash_due() -> void:
+	# The timer outlives this node in principle (scene change, a load between the two halves),
+	# and SplashText.spawn needs a source that is still in the tree.
+	if not is_inside_tree():
+		return
+	SplashText.spawn(self, _player_position(), "+1 SKILL POINT", SplashText.COLOR_POINT, SplashText.Emphasis.BIG)
 
 
 ## The cumulative XP threshold that follows `current`. Static and shared with
