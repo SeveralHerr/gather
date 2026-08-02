@@ -6,10 +6,11 @@ class_name Resources
 var resources: Dictionary = {}
 
 # Early-game pacing lives here. Trees and stone are the common starter nodes that
-# are quick to clear and pay little; coal and iron are rare, slow and worth the
-# detour, which is what makes unlocking them read as progress rather than as more
-# of the same. Weights are relative, so adding a resource does not dilute the rest
-# evenly - iron stays rare no matter how many other nodes exist.
+# are quick to clear and pay little; coal and copper are the scarce ones a starting
+# player can still find, and iron and gold do not appear at all until their skill is
+# bought, which is what makes those two read as progress rather than as more of the
+# same. Weights are relative, so adding a resource does not dilute the rest evenly -
+# gold stays rare no matter how many other nodes exist.
 const TUNING = {
 	Types.Item.Tree: {
 		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 5.0,

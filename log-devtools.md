@@ -1354,3 +1354,25 @@ Guidelines that make an entry useful later:
     RefCounted helpers and autoloads. Failing that, snapshot from `/root` rather than the
     main scene so autoloads at least appear. Worked around by reading the census delta after
     `learn_skill` and reporting reach as partial-by-construction in the summary.
+
+## 2026-08-02 — Committed the ore-gating change (re-gated on a tree that had moved)
+
+- Value: **warranted** — the headless gates caught that the working tree was no longer the
+  one the earlier runtime run verified, which is the one thing a stale green run cannot say
+  about itself.
+  - Expected: nothing new from the game; this was a commit turn. What I did predict was that
+    `git status` would match the 8 files I left behind.
+  - Got: it did not. The tree had grown to 13 modified files — an ore-scarcity pass had
+    landed inside `items/resources.gd` (every ore weight x0.7, plus new `ORE_TYPES` /
+    `MAINLAND_ORE_SHARE` consts) and an unrelated splash-text change had appeared in
+    `ui/splash_text.gd` + `systems/level_up_manager.gd`. Re-running the gates gave
+    `Total: 192 | Passed: 192` against the 185 the earlier run had asserted, i.e. seven tests
+    that did not exist when I called the suite green. Committing on the strength of the
+    earlier run would have shipped ~180 unreviewed lines under a message describing none of
+    them; the split into "ore work now, splash text left alone" came directly from this.
+  - Cheaper: `git status` alone would have shown the file list, but not that the new code was
+    green — and the whole reason to re-check was that the *contents* of a file I was
+    committing had changed underneath me. Lint + tests, 40s, was the right price.
+
+- Gap: no gaps this turn — the harness was used only for its headless half, which did exactly
+  what it claims. Logged explicitly so this turn is distinguishable from a forgotten entry.
