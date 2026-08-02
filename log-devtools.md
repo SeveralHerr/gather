@@ -936,3 +936,37 @@ Guidelines that make an entry useful later:
   machine, and the `/verify` skill still spells `python3` in every command block. Its own
   Phase 0 probe found `python` correctly — the cost is that every copied command block has
   to be edited by hand afterwards.
+
+## 2026-08-02 — retuned the forest/ore island spawn weights so each island reads as its theme (gather-mv2)
+
+- Value: **warranted** — the census proved the whole seeding pipeline honours the new
+  weights, and that the ambient timer keeps honouring them as it fills the island to cap,
+  which is the half the unit test cannot reach.
+  - Expected: the generated ore island's per-region census comes back majority coal+iron
+    rather than majority stone, and the forest island nearly all trees — a claim the diff
+    cannot make, since what lands is the product of the weights, the unlocked set
+    (copper/gold skill-gated), the region's cells including the isthmus, and the seeder's
+    cap/attempt limit.
+  - Got: `cmd island_census` at world generation returned
+    `"ore": {"Coal": 8, "Iron": 6}` and `"forest": {"Tree": 14}` — zero stone on the ore
+    island, where the old weights made stone the single most likely roll there. After
+    `set-game-speed 20` for ~240 game-seconds the ore island had filled to its cap,
+    `"ore": {"Coal": 10, "Iron": 10}` at `nodes 20 cap 20`, still zero stone, while
+    `"boss": {}` stayed empty and home kept its mixed `{"Coal":1,"Iron":4,"Stone":16,"Tree":11}`.
+  - Cheaper: the new `test/unit/test_island_theming.gd` settles the weighted roll itself at
+    4000 samples per island for ~60ms and no game — it is the better tool for the
+    distribution. Nothing cheaper covers the ambient timer topping the ore island up to
+    its cap without ever placing a stone, which is what LandRegion exists to guarantee.
+
+- Gap: **`verify_ledger.py reach` scopes "changed files" to the branch, not the working
+  tree** — it reported `reached 15/23 changed file(s)` and listed `test/unit/test_ore_chain.gd`,
+  `ui/debug_panel_ui.gd` and `devtools_ext/commands.gd` as unreached. This session changed
+  three files (`world/island_manager.gd`, `world/resource_manager2.gd`, and a new test);
+  the other twenty are earlier branch commits plus another session's uncommitted work in
+  the same tree. Both files this session touched *were* reached, but that had to be
+  established by subtracting the NOT-reached list from `git status --porcelain` by hand.
+  The failure mode is the flattering one: a large branch dilutes the ratio, so a run that
+  reached everything it changed still reads as 65% covered.
+  - [G-044] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: report reach for the working-tree diff and the branch diff as two
+    numbers, or take a `--since` ref so the run can scope reach to what it actually edited.

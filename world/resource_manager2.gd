@@ -33,6 +33,23 @@ const SCENE_TILE_REACH := 20.0
 # How long the scene-node break effect runs before the resource is actually removed.
 const SCENE_BREAK_TIME := 0.3
 
+# Everything a wooden pickaxe can be pointed at from the first frame. Coal and iron used
+# to wait behind the Iron Age skill, which left a player who pushed any other branch with
+# a pickaxe and nothing but trees and stone to hit. The higher tiers (copper, gold) are
+# still skill-gated - see SkillTree.
+#
+# A constant rather than a literal in _ready() because it is also the answer to "what does
+# the spawn roll actually consider early on", which is the half of any spawn-weight
+# question that is easy to forget: an island themed around a locked resource plays
+# unthemed until the skill is bought.
+const STARTING_RESOURCES := [
+	Types.Item.StoneResourceTest,
+	Types.Item.Tree,
+	Types.Item.StoneResource,
+	Types.Item.CoalResource,
+	Types.Item.IronResource,
+]
+
 var hold_timer = Timer.new()
 var removing_info
 var is_holding_e = false
@@ -50,17 +67,7 @@ func _ready():
 	hold_timer.wait_time = 1
 	hold_timer.one_shot = true
 
-	# Everything a wooden pickaxe can be pointed at is here from the first frame.
-	# Coal and iron used to wait behind the Iron Age skill, which left a player who
-	# pushed any other branch with a pickaxe and nothing but trees and stone to hit.
-	# The higher tiers (copper, gold) are still skill-gated - see SkillTree.
-	for starting_resource in [
-		Types.Item.StoneResourceTest,
-		Types.Item.Tree,
-		Types.Item.StoneResource,
-		Types.Item.CoalResource,
-		Types.Item.IronResource,
-	]:
+	for starting_resource in STARTING_RESOURCES:
 		add_resource(starting_resource)
 
 	add_child(hold_timer)
