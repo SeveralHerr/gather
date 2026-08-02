@@ -18,21 +18,22 @@ func _process(_delta):
 	if Input.is_action_just_pressed("load"):
 		_load()
 	
+## Hands the position-keyed payloads collected by _load() to the scene tiles they belong
+## to. Must run at least one frame after the tilemap is replayed — a scene tile is
+## instantiated by the engine the frame *after* its cell is written, so calling this any
+## earlier walks an empty SaveChunks group and every chest and crafting station in the
+## world comes back empty (gather-74z). main.gd:_finish_load owns that await.
 func late_load():
 	var chunk_nodes = get_tree().get_nodes_in_group("SaveChunks")
 	for chunk in chunk_nodes:
 		if !chunk.has_method("load"):
 			print("Node '%s' is missing a save function, skipped" % chunk.name)
 			continue
-			
+
 		for i in loads.size():
-			var dict = loads[i]	
-			print(dict["y"] , chunk.position.y)
+			var dict = loads[i]
 			if dict["x"] == chunk.position.x and dict["y"] == chunk.position.y:
 				chunk.call("load", dict)
-
-	
-	pass
 
 func _save() -> void:
 	var save_file = FileAccess.open("saveFile", FileAccess.WRITE) # Open File
@@ -70,12 +71,17 @@ func _load() -> void:
 	
 		
 	var save_file = FileAccess.open("saveFile", FileAccess.READ) # Open File
-	
+
+	# `loads` holds the payloads for the load currently in progress and nothing else.
+	# It used to accumulate for the lifetime of the session, so a second load applied
+	# both the stale payload and the fresh one to every chunk at a matching position.
+	loads.clear()
+
 	while save_file.get_position() < save_file.get_length():
 		# Get the saved dictionary from the next line in the save file
 		var json = JSON.new()
 		json.parse(save_file.get_line())
-		
+
 		# Get the Data
 		var node_data = json.get_data()
 		# A line that is not a dictionary, or a dictionary with no filepath, is a

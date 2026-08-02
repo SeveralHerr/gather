@@ -839,3 +839,49 @@ Guidelines that make an entry useful later:
     replies; a pid would catch the case where the reply is *not* crossed but comes from a
     different, staler game than the one just launched. Failing that, have the game write
     its pid beside the bus at startup and let the client warn when it changes between calls.
+
+## 2026-08-02 — commit the islands work, then fix gather-74z (save_load debug print + uncleared `loads`)
+
+- Value: **warranted** — a `get-state` on one property settled a question the diff could
+  only argue about, and it settled it against my own framing of the bug.
+  - Expected: after two `_load()` calls in one session, `SaveLoad.loads` would hold one
+    entry rather than two, and I expected the *visible* symptom of the old behaviour to be
+    a doubled or corrupted chest.
+  - Got: `loads: [{"data": ["{\"count\":40,\"type\":31}", ...], "x": 584.0, "y": 40.0}]`
+    — exactly one entry after the second load, and the chest read back
+    `['Gold Coin x40', 'Gold Ore x8', 'Iron Ore x12']` unchanged. Reading
+    `world/tile_scenes/test_chest.gd:50` while the run was up showed why the second half of
+    my expectation was wrong: `load()` *assigns* `inventory_slot_datas = []` before
+    refilling, so re-applying an identical payload is idempotent. The uncleared array is a
+    real bug, but its damage is a stale payload from an *earlier, different* save file
+    landing on whatever SaveChunks node now occupies that position — not duplication. I
+    would have written the wrong thing in the commit message without this.
+  - Cheaper: reading `test_chest.gd` alone would have corrected the mechanism, but not
+    confirmed the clear actually fires on the real load path — `_load()` is reached through
+    an input action and a Control in the camera HUD, which no unit test in this project
+    instantiates. The one-property read was the cheap half and the decisive half.
+
+- Gap: **`get-state` has no machine-readable output mode**, so scripted assertions on it
+  are guesswork. `python tools/devtools.py get-state --node PATH --property loads` prints
+  `loads: [{...}]` — GDScript-flavoured, not JSON — and piping it to `json.load` fails with
+  `JSONDecodeError: Expecting value: line 1 column 1 (char 0)`. `run-method` has the same
+  shape (`Result: None`). I wanted `len(properties['loads'])` as an assertion and had to
+  eyeball the string instead, which is precisely the read that a tired session gets wrong.
+  `run_tests.gd` has `--json`; the bridge client does not.
+  - [G-039] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: add a global `--json` flag to `tools/devtools.py` that prints the raw
+    response dictionary the game already sends, for every verb. The data is structured on
+    the wire — only the client's pretty-printer discards it. `cmd island_census` already
+    emits JSON, which is why every scripted assertion I write ends up routed through a
+    project verb rather than through the generic primitives.
+
+- Gap: **the documented `python3` invocation does not run on this machine** — it is the
+  Microsoft Store alias stub,
+  so the documented `python3 tools/devtools.py ping` fails with "Python was not found; run
+  without arguments to install from the Microsoft Store". CLAUDE.md warns to probe by
+  running it, and I still spent a launch cycle on it because the harness docs and the
+  `/verify` skill both spell `python3`.
+  - [G-040] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: ship a `tools/devtools` shim (or have the skill resolve the interpreter
+    once and cache it) so the documented invocation is interpreter-agnostic; the Store stub
+    exits 9009 with a message on stdout, which is detectable.
