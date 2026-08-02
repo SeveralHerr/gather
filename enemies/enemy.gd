@@ -8,6 +8,12 @@ const JUMP_VELOCITY = -400.0
 @export var attack_target: Player
 
 var health_manager: HealthManager
+
+## Both exported so an enemy is data rather than a shape baked into this script. They used
+## to be a literal 10 in _ready and a literal 3 in EnemyAttack, which meant every enemy in
+## the game was exactly as tough as every other one and the boss island had nothing to put
+## on it. Set them before add_child(): _ready is what builds the HealthManager.
+@export var max_health := 10
 @export var damage = 3
 var camera: Camera
 
@@ -50,7 +56,7 @@ func _ready():
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))
 	los_area_2d.connect("body_exited", Callable(self, "_on_body_exited"))
 	
-	health_manager = HealthManager.new(10)
+	health_manager = HealthManager.new(max_health)
 	health_manager.connect("died", Callable(self, "_on_died"))
 
 	for node in get_tree().get_nodes_in_group("Items"):

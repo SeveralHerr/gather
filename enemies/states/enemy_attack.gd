@@ -25,5 +25,7 @@ func _on_attack():
 		return
 		
 	if enemy.attack_target is Player:
-		enemy.attack_target.receive_hit(Vector2.ZERO, 3)
+		# enemy.damage, not a literal 3. The export existed and was dead: every enemy in
+		# the game hit for the same amount no matter what its scene said.
+		enemy.attack_target.receive_hit(Vector2.ZERO, enemy.damage)
 	

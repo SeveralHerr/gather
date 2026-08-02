@@ -746,3 +746,96 @@ Guidelines that make an entry useful later:
     `Vector2i` when the target method's argument list says so — `Object.get_method_list()`
     exposes the parameter types, so the coercion can be driven off the signature rather
     than guessed.
+
+## 2026-08-01 — planned pregenerated islands (forest / ore / boss), no code changed
+
+- Value: **inconclusive** — planning-only turn; no gameplay, script or scene changed, so
+  the harness was never run and there was nothing for it to assert.
+  - Expected: n/a — the question was "what does this feature collide with", which is a
+    static-reading question, answered by four read-only research agents over `main.gd`,
+    `world/`, `enemies/`, `systems/save_load.gd` and `assets/tilesets/world_tile_set.tres`.
+  - Got: n/a at runtime. The findings that shape the plan all came from reading code —
+    e.g. `main.gd:619-641` floods `get_used_rect()` with water then calls
+    `set_cells_terrain_connect` *inside* the per-tile loop, and `land_tiles()`
+    (`main.gd:349`) is global so three new islands would inflate `resource_cap()`,
+    `cap_for_land_tiles()` and the 8s respawn timer at once.
+  - Cheaper: nothing — reading was the correct and only tool for a planning turn.
+    Launching the game to "confirm" would have proved nothing the diff-free tree could
+    not already say.
+
+- Gap: **no verb reports the island footprint, so the connection guarantee in
+  `gather-b6r.5` has no cheap runtime oracle.** `land_cells_for_radius` is noise-filtered
+  and the noise is a smooth gradient over the ±34 span, so at max radius the home island
+  can be lopsided with a whole side missing — which decides whether a pregenerated island
+  ever becomes walkable. Today the only readouts are `count_land_tiles()` (a scalar, via
+  `gather_stats`) and `screenshot`. Neither can answer "is cell X connected to the home
+  island", and a scalar count is identical whether the land is one blob or two.
+  Workaround for this turn: none needed, since nothing was built yet — recording it now
+  because the acceptance criterion on `gather-b6r.5` ("reachable across a sample of random
+  seeds") is unverifiable without it and will otherwise get eyeballed on one run.
+  - [G-036] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a generic `tilemap-region --layer N --atlas X,Y` verb returning the
+    connected components of matching cells as bounding boxes plus cell counts. That is
+    game-agnostic (it only needs a `TileMap` and an atlas coord), and it turns "did the
+    islands connect" into one assertion instead of a screenshot. The project-specific
+    alternative — an `island_census` verb in `devtools_ext/commands.gd` — is the
+    documented fallback and is what I will add if the generic one does not exist by then.
+
+## 2026-08-01 — built the pregenerated islands (forest / ore / boss) end to end
+
+- Value: **warranted** — runtime and the seed sweep each produced a defect the diff could
+  not, and they were different defects.
+  - Expected: the islands would generate, connect once land was bought, keep their themed
+    spawn tables, and survive a save/load round-trip.
+  - Got: four things reading the code would not have given me. (1) `island_census` on a
+    fresh world reported `boss` with `land_tiles: 47` but a region radius of
+    `island_radius + ISTHMUS_WIDTH` — the isthmus tail fell **outside** its own region, so
+    the far end reverted to the mainland's table and would have quietly restocked the one
+    region whose purpose is to stay empty. Fixed by giving `LandRegion` an explicit cell
+    set. (2) After the first save/load, `chest=["empty","empty","empty"]` — and the
+    `print(dict["y"], chunk.position.y)` already sitting in `save_load.late_load` emitted
+    **zero** lines, proving the SaveChunks group was empty when it ran. Scene tiles
+    instantiate a frame after their cell is written, so `late_load` matched saved payloads
+    against nodes that did not exist yet. That is a pre-existing bug affecting *every*
+    chest in the game; the reward chest is just the first one whose contents anyone
+    checked. (3) A zoomed-out screenshot showed the sea crossed by straight three-wide
+    causeways: `_isthmus_cells` carved unconditionally instead of only when the island
+    would not otherwise connect. (4) `node-bounds` reported the compass and the ocean
+    backdrop both at `0x0` — `set_anchors_preset` leaves the offsets at zero; the project
+    convention is `set_anchors_and_offsets_preset`.
+  - Cheaper: nothing for (1)–(4). Each needed either the running game or a seed sweep.
+    The *placement* bug was cheaper still headlessly — see below.
+
+- Value note on the seed sweep: `test/unit/test_island_manager.gd` found **36 stranded
+  islands across 200 seeds (6%)** on the first run, after the game had launched twice and
+  reported `"every island connects at max land"` both times. Both runtime checks were
+  true and both were one seed. The cause was not the isthmus at all: thresholding the
+  noise leaves detached islets, `_reach_along` happily anchored a corridor to one, and the
+  island ended up joined to a rock in the sea. A 6% failure that looks correct on screen is
+  exactly the shape a single playthrough cannot see. **The headless sweep was the cheapest
+  thing that could have found this, and it should have come before the launch, not after.**
+
+- Gap: **`performance` reported `Orphan growth: +0` on a save/load round-trip that
+  `gather-jjg` says leaks 2 orphans** — and the baseline resets per session, so a `+0`
+  after a load is unfalsifiable without knowing when the baseline was taken. The reading
+  was the same before and after my change, which means it told me nothing about whether I
+  made the known leak worse. Workaround: none; I recorded the absolute (`absolute 0`)
+  alongside the growth and moved on.
+  - [G-037] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `performance` report the baseline's *age* in frames and whether it
+    was taken this session, and let `--reset-baseline` be asserted against explicitly, so
+    "+0" can be distinguished from "+0 because the baseline moved under you".
+
+- Gap: **three Godot instances were live on one bus and answered each other's commands.**
+  Symptom was a census reporting `home_radius: 34` in a session where no land had been
+  bought, and a response missing the `boss` key I had just added — i.e. an *older build*
+  replying. Both readings were well-formed and neither was flagged. `ping` reported a
+  healthy bridge throughout. This is the documented one-bus hazard and a stored memory, and
+  I still lost about ten minutes to it because nothing in the reply says which process
+  produced it. Workaround: `Get-Process Godot* | Stop-Process -Force` before every launch.
+  - [G-038] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: put the answering process's pid and its script-load timestamp in the
+    `status` block on every reply. The bus already echoes a request id to catch crossed
+    replies; a pid would catch the case where the reply is *not* crossed but comes from a
+    different, staler game than the one just launched. Failing that, have the game write
+    its pid beside the bus at startup and let the client warn when it changes between calls.

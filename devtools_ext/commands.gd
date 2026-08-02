@@ -38,6 +38,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("advance_crafting", _cmd_advance_crafting)
 	dev.register_command("place_build", _cmd_place_build)
 	dev.register_command("tile_at", _cmd_tile_at)
+	dev.register_command("island_census", _cmd_island_census)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -1079,3 +1080,164 @@ func _wall_run_sizes(handler: TileMapHandler) -> Dictionary:
 		var name: String = GameItems.get_item(wall["item"]).name
 		sizes[name] = (handler.wall_cells[wall["item"]] as Array).size() if handler.wall_cells.has(wall["item"]) else 0
 	return sizes
+
+
+## Every land region and whether it can actually be walked to.
+##
+## The pregenerated islands are reached by buying land until the home coastline grows out
+## to meet them, and whether that ever happens is decided by a noise field - so it is a
+## property of the seed, not of the code, and it cannot be settled by reading the diff.
+## `count_land_tiles` is a single scalar and reads the same whether the world is one
+## landmass or four, and a screenshot only ever shows the ~24x14 tiles around the player,
+## which is less than the distance to the nearest island. Neither can answer the only
+## question that matters: is this island connected?
+##
+## `connected_to_home` floods across walkable grass from the player's spawn, so it answers
+## it for the world as it stands right now. `connects_at_max_land` re-runs the flood
+## against the coastline the home island will have once every parcel is bought, which is
+## the acceptance criterion for the placement code.
+func _cmd_island_census(_args: Dictionary) -> Dictionary:
+	var handler = _tile_map_handler()
+	if handler == null:
+		return {"success": false, "message": "no TileMapHandler in the scene", "data": {}}
+
+	var reachable_now := _walkable_from_home(handler, {})
+
+	# The home island as it will be at maximum size, so an island that is stranded today
+	# but reachable after twelve parcels reads as a pass rather than a failure.
+	var final_home := {}
+	for cell in handler.land_cells_for_radius(LandManager.radius_for(LandManager.MAX_PARCELS)):
+		final_home[cell] = true
+	var reachable_at_max := _walkable_from_home(handler, final_home)
+
+	var regions := {}
+	var all_connected := true
+	for region in handler.regions:
+		var tiles: Array = handler.land_tiles_in(region)
+		var now := 0
+		var at_max := 0
+		for cell in tiles:
+			if reachable_now.has(cell):
+				now += 1
+			if reachable_at_max.has(cell):
+				at_max += 1
+
+		var connects: bool = at_max > 0 or tiles.is_empty()
+		if region.id != "home" and not connects:
+			all_connected = false
+
+		regions[region.id] = {
+			"centre": {"x": region.centre.x, "y": region.centre.y},
+			"radius": region.radius,
+			"land_tiles": tiles.size(),
+			"resource_nodes": handler.count_resource_nodes_in(region),
+			"cap": handler.resource_manager.resource_cap(region),
+			"ambient_resources": region.ambient_resources,
+			"ambient_enemies": region.ambient_enemies,
+			"connected_to_home": now > 0,
+			"connects_at_max_land": connects,
+		}
+
+	return {
+		"success": true,
+		"message": "every island connects at max land" if all_connected else "AN ISLAND IS STRANDED",
+		"data": {
+			"seed": handler.island_seed(),
+			"islands_seed": handler.island_manager.islands_seed if handler.island_manager else 0,
+			"home_radius": handler.radius,
+			"all_connected_at_max_land": all_connected,
+			"boss": _boss_report(handler),
+			"regions": regions,
+			"census_by_region": _census_by_region(handler),
+		},
+	}
+
+
+## The arena's contents. A boss island with no boss on it and an empty reward chest is a
+## bare patch of grass, and every other reading in this response looks identical either way.
+func _boss_report(handler: TileMapHandler) -> Dictionary:
+	var manager = handler.island_manager
+	if manager == null:
+		return {"present": false}
+
+	var boss = manager._live_boss()
+	var report := {
+		"defeated": manager.boss_defeated,
+		"alive": boss != null,
+	}
+
+	if boss:
+		report["hp"] = boss.health_manager.current_health
+		report["max_hp"] = boss.health_manager.max_health
+		report["damage"] = boss.damage
+		report["scale"] = boss.scale.x
+		report["chase_speed"] = boss.get_node("StateMachine/EnemyFollow").move_speed
+
+	if manager.islands.has(IslandManager.BOSS_ID):
+		var chest = manager._chest_at(manager.islands[IslandManager.BOSS_ID]["centre"] + IslandManager.BOSS_CHEST_OFFSET)
+		var contents := []
+		if chest and chest.inventory_data:
+			for slot in chest.inventory_data.inventory_slot_datas:
+				contents.append("%s x%d" % [slot.item.name, slot.count] if slot else "empty")
+		report["chest"] = contents
+
+	return report
+
+
+## What actually grew on each island. The whole point of a themed island is that its mix
+## differs from the mainland's, and the global census sums them all into one bucket - so
+## an ore island quietly full of trees reads exactly like a working one.
+func _census_by_region(handler: TileMapHandler) -> Dictionary:
+	var atlas_to_name := {}
+	for key in handler.resources.GetAllTypes():
+		var resource = handler.resources.Get(key)
+		if not resource.is_scene_tile:
+			atlas_to_name[resource.atlas_location] = resource.name
+
+	var by_region := {}
+	for region in handler.regions:
+		by_region[region.id] = {}
+
+	for cell in handler.tileMap.get_used_cells(1):
+		var atlas = handler.tileMap.get_cell_atlas_coords(1, cell)
+		if not atlas_to_name.has(atlas):
+			continue
+		var id: String = handler.region_for_cell(cell).id
+		var resource_name = atlas_to_name[atlas]
+		by_region[id][resource_name] = by_region[id].get(resource_name, 0) + 1
+
+	for node in handler.tileMap.get_children():
+		if node is GameSceneResource:
+			var resource = handler.resources.get_item_or_resource_by_type(node.resource_type)
+			var id: String = handler.region_for_cell(handler.tileMap.local_to_map(node.position)).id
+			var resource_name = resource.name if resource else "Unknown"
+			by_region[id][resource_name] = by_region[id].get(resource_name, 0) + 1
+
+	return by_region
+
+
+## Flood fill across walkable grass from the player's spawn cell, treating `extra` as land
+## as well. Cells are walkable when they are plain grass - every other terrain variant is
+## coastline and carries a collision polygon, so it is a wall in practice.
+func _walkable_from_home(handler: TileMapHandler, extra: Dictionary) -> Dictionary:
+	var walkable := {}
+	for cell in handler.land_tiles():
+		walkable[cell] = true
+	for cell in extra:
+		walkable[cell] = true
+
+	var start = TileMapHandler.cell_nearest_to(walkable.keys(), handler.HOME_CENTRE)
+	if start == null:
+		return {}
+
+	var seen := {start: true}
+	var frontier := [start]
+	while not frontier.is_empty():
+		var cell: Vector2i = frontier.pop_back()
+		for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var next: Vector2i = cell + step
+			if walkable.has(next) and not seen.has(next):
+				seen[next] = true
+				frontier.append(next)
+
+	return seen

@@ -12,6 +12,12 @@ class_name EnemySpawner
 var boneEnemy = preload("res://enemies/bone_enemy.tscn")
 var spiderEnemy = preload("res://enemies/spider_enemy.tscn")
 
+## The boss island's elite. An inherited scene rather than a bone enemy with its exports
+## rewritten at spawn time, so a reload rebuilds it from the scene and every difference -
+## health, damage, chase speed, size - comes back with it. Overriding at spawn time would
+## mean persisting each of those separately and losing whichever one was forgotten.
+var eliteEnemy = preload("res://enemies/elite_enemy.tscn")
+
 @onready var player = $"../Player"
 @onready var tilemap_handler: TileMapHandler = $"../.."
 @onready var timer: Timer = $Timer
@@ -78,7 +84,8 @@ static func is_too_close_to_player(spawn_pos: Vector2, player_pos: Vector2) -> b
 ## `target_is_null` / `attack_target_is_null` keep the original inverted sense so
 ## older saveFiles still read correctly.
 static func enemy_save_entry(
-	hp: int, target_is_null: bool, attack_target_is_null: bool, drop: int, pos: Vector2, type: String
+	hp: int, target_is_null: bool, attack_target_is_null: bool, drop: int, pos: Vector2, type: String,
+	max_hp: int = 10, damage: int = 3
 ) -> Dictionary:
 	return {
 		"hp": hp,
@@ -88,7 +95,26 @@ static func enemy_save_entry(
 		"x": pos.x,
 		"y": pos.y,
 		"type": type,
+		# Carried explicitly because they are no longer constants. Without them a reload
+		# rebuilds every enemy at the scene's defaults, which silently demotes anything
+		# tougher back to a stock skeleton.
+		"max_hp": max_hp,
+		"damage": damage,
 	}
+
+
+## Which scene backs a saved enemy type. Reconstruction used to be
+## `spiderEnemy if type == "Spider" else boneEnemy`, so every type that was not literally
+## "Spider" came back a bone enemy - fine while those were the only two, and a silent
+## downgrade for anything added later.
+func scene_for_type(type: String) -> PackedScene:
+	match type:
+		"Spider":
+			return spiderEnemy
+		"Elite":
+			return eliteEnemy
+		_:
+			return boneEnemy
 
 
 ## Fill in whatever a stored entry is missing. Saves written before this change
@@ -103,6 +129,8 @@ static func normalize_enemy_entry(raw: Dictionary) -> Dictionary:
 		"x": float(raw.get("x", 0.0)),
 		"y": float(raw.get("y", 0.0)),
 		"type": str(raw.get("type", "Bone")),
+		"max_hp": int(raw.get("max_hp", 10)),
+		"damage": int(raw.get("damage", 3)),
 	}
 
 
@@ -118,11 +146,17 @@ func spawn_interval() -> float:
 	return timer.wait_time if timer else SPAWN_INTERVAL
 
 
-## Current population ceiling, scaled to the island. Read by devtools.
+## Current population ceiling, scaled to the land enemies are actually allowed onto.
+##
+## Counting every grass tile on the map would let a region that opts out of ambient
+## spawning still raise the ceiling - the boss arena would buy extra wandering enemies
+## for the mainland while staying empty itself.
 func enemy_cap() -> int:
 	var land := 0
 	if tilemap_handler:
-		land = tilemap_handler.count_land_tiles()
+		for region in tilemap_handler.regions:
+			if region.ambient_enemies:
+				land += tilemap_handler.count_land_tiles_in(region)
 	return cap_for_land_tiles(land)
 
 
@@ -142,6 +176,10 @@ func _pick_spawn_tile():
 		var tile = tilemap_handler.get_random_tile()
 		if tile == null:
 			return null
+
+		# A region can refuse ambient enemies; the boss arena stays the boss's.
+		if not tilemap_handler.region_for_cell(tile).ambient_enemies:
+			continue
 
 		if player_pos != null:
 			var world_pos: Vector2 = tilemap_handler.tileMap.map_to_local(tile)
@@ -194,7 +232,9 @@ func saveObject() -> Dictionary:
 					child.attack_target == null,
 					child.drop,
 					child.position,
-					child.type
+					child.type,
+					child.max_health,
+					child.damage
 				)
 			)
 
@@ -222,8 +262,12 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 		var node := normalize_enemy_entry(parsed)
 
-		var scene = spiderEnemy if node["type"] == "Spider" else boneEnemy
+		var scene := scene_for_type(node["type"])
 		var instance = scene.instantiate()
+		# Before add_child, because _ready is what turns max_health into a HealthManager.
+		instance.max_health = node["max_hp"]
+		instance.damage = node["damage"]
+		instance.type = node["type"]
 		add_child(instance)
 		instance.position = Vector2(node["x"], node["y"])
 		instance.health_manager.current_health = node["hp"]

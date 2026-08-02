@@ -233,12 +233,47 @@ the animation — driving a gather test through it leaves the timer running.
 that transition by emitting `Transitioned` and expose
 `enter()/update()/physics_update()/exit()`. Do not carry patterns between them.
 
-**Enemies.** A single `enemies/enemy.gd` backs both `enemies/bone_enemy.tscn` (has a
-`Sprite2D`, no `AnimatedSprite2D`) and `enemies/spider_enemy.tscn` (the reverse), so any sprite access must
-be null-checked and looked up with `get_node_or_null`. `EnemyWaveManager`
-(`enemies/enemy_wave_manager.gd`) ramps its spawn timer toward `MIN_SPAWN_INTERVAL` and
-caps population at `MAX_LIVE_ENEMIES`; both bounds exist because the ramp was previously
-unbounded.
+**Enemies.** A single `enemies/enemy.gd` backs `enemies/bone_enemy.tscn` (has a
+`Sprite2D`, no `AnimatedSprite2D`), `enemies/spider_enemy.tscn` (the reverse) and
+`enemies/elite_enemy.tscn` (the boss island's guard, an inherited scene overriding the
+bone enemy), so any sprite access must be null-checked and looked up with
+`get_node_or_null`. `EnemySpawner` (`enemies/enemy_spawner.gd` — there is no
+`EnemyWaveManager`, and no waves) trickles enemies in forever, floors its cadence at
+`MIN_INTERVAL` and caps population at `MAX_ENEMY_CAP`; both bounds exist because the
+cadence was previously unbounded.
+
+Health and damage are `@export`s on `Enemy` and must be set **before** `add_child()` —
+`_ready()` is what turns `max_health` into a `HealthManager`. Persisted enemies are
+rebuilt through `EnemySpawner.scene_for_type()`; a type missing from that match falls
+back to a bone enemy, which is how a saved elite would silently come back a skeleton.
+
+**Islands.** `world/island_manager.gd` draws three pregenerated islands — forest, ore and
+a boss arena — at fixed distances from the home island on a ring inside its maximum
+radius (`LandManager.radius_for(MAX_PARCELS)`, currently 34). There is no boat and no
+bridge: they are reached by buying land until the home coastline grows out to meet them.
+
+Two things about that are not obvious and are easy to undo:
+
+- The *distance* is fixed but the *angle* is chosen at generation. `land_cells_for_radius`
+  thresholds noise at the default 0.01 frequency, so across ±34 tiles the field is sampled
+  over ±0.34 — a smooth gradient, not an archipelago, and the maxed home island is
+  routinely a lopsided crescent. A hardcoded angle strands an island for a good fraction
+  of seeds. Islands claim directions furthest-first, and anything still unreachable gets a
+  carved isthmus.
+- Placement anchors to `IslandManager.main_body()`, not to the raw land set. Thresholding
+  leaves detached islets, and an isthmus anchored to one joins the island to a rock in the
+  sea. This stranded 6% of seeds and is invisible in any single playthrough —
+  `test/unit/test_island_manager.gd` sweeps 200 seeds, which is the only reason it
+  surfaced. Do not judge island placement from one run.
+
+Each island is a `LandRegion` (`world/land_region.gd`) with its own spawn-weight override
+and `ambient_resources` / `ambient_enemies` flags. Regions are what stop the global
+respawn timer eroding a themed island back into a generic one, and a region that opts out
+of ambient spawning is also excluded from the ceilings those systems scale against —
+otherwise the boss arena's grass buys extra enemies for the mainland. `region_for_cell`
+resolves islands before home, so an island absorbed by the growing mainland keeps its
+identity. A region states its cells outright rather than using its radius: an isthmus
+trails well outside the disc.
 
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
@@ -246,9 +281,17 @@ individually. Bound to `[` (save) and `]` (load).
 
 **DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
 `player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
-`gather_stats`, `wave_stats`, `goto_resource` — plus a status provider merged into
-every response. Use `goto_resource` before any gather test: gathering only engages
-with a node in reach, so otherwise the test stands in empty grass and proves nothing.
+`gather_stats`, `spawn_stats`, `goto_resource`, `island_census` — plus a status provider
+merged into every response. Use `goto_resource` before any gather test: gathering only
+engages with a node in reach, so otherwise the test stands in empty grass and proves
+nothing.
+
+`island_census` is the one to reach for on anything touching land, resources or spawning.
+It reports every region's tile and node counts, the per-region resource census, the boss
+and its chest, and — via a flood fill — whether each island is walkable now and whether it
+will be once all the land is bought. `count_land_tiles` is a single scalar that reads the
+same whether the world is one landmass or four, and a screenshot only shows the ~24x14
+tiles around the player, which is less than the distance to the nearest island.
 
 ## Conventions & Patterns
 

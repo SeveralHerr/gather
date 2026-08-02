@@ -97,10 +97,16 @@ func add_resource(type: Types.Item):
 	curent_resources.append(resource)
 
 
-## Live-node ceiling for the island's current size.
-func resource_cap() -> int:
-	var land_tiles: int = tile_map_handler.count_land_tiles() if tile_map_handler else 0
-	return maxi(MIN_RESOURCE_CAP, int(land_tiles * RESOURCE_NODES_PER_LAND_TILE))
+## Live-node ceiling for one region's current size. Per region rather than per map: a
+## shared ceiling scaled against total grass means every island revealed raises the home
+## island's budget too, and the timer then spends that budget wherever it likes.
+func resource_cap(region: LandRegion = null) -> int:
+	if tile_map_handler == null:
+		return MIN_RESOURCE_CAP
+	if region == null:
+		region = tile_map_handler.home_region
+	var land_tiles: int = tile_map_handler.count_land_tiles_in(region)
+	return maxi(region.min_resources, int(land_tiles * region.resource_density))
 
 
 ## How full a stretch of land is when the player first sets foot on it, and the cap on
@@ -120,52 +126,110 @@ const SEED_ATTEMPT_LIMIT := 240
 ## census. The census cannot see a scene-backed node on the frame its cell is written,
 ## so treating a flat census as "the island is full" ended the first seeding pass at
 ## six nodes — the moment the weighted roll first came up scene stone.
-func seed_island() -> void:
-	var target := int(resource_cap() * SEED_FILL_RATIO)
-	var placed := tile_map_handler.count_resource_nodes()
+func seed_island(region: LandRegion = null) -> void:
+	if tile_map_handler == null:
+		return
+	if region == null:
+		region = tile_map_handler.home_region
+
+	var target := int(resource_cap(region) * SEED_FILL_RATIO)
+	var placed := tile_map_handler.count_resource_nodes_in(region)
 	var attempts := 0
 
 	while placed < target and attempts < SEED_ATTEMPT_LIMIT:
 		attempts += 1
-		if add_random_resource():
+		if add_random_resource(region):
 			placed += 1
 
 
-func get_random():
+## Rolls one resource against the unlocked set, with `weights` overriding the global
+## per-type spawn weight for the region being stocked.
+func get_random(weights: Dictionary = {}):
 	if curent_resources.is_empty():
 		return null
 
 	var total_weight := 0.0
 	for resource in curent_resources:
-		total_weight += max(0.0, resource.spawn_weight)
+		total_weight += _weight_of(resource, weights)
 
+	# An override that zeroes every unlocked type means "nothing grows here", which is how
+	# the boss arena stays clear. This used to fall through to a uniform pick over the
+	# whole set, turning that instruction into precisely its opposite.
 	if total_weight <= 0.0:
-		return curent_resources[randi() % curent_resources.size()]
+		return null
 
 	var roll := randf() * total_weight
 	for resource in curent_resources:
-		roll -= max(0.0, resource.spawn_weight)
+		roll -= _weight_of(resource, weights)
 		if roll <= 0.0:
 			return resource
 
 	return curent_resources[curent_resources.size() - 1]
 
+
+static func _weight_of(resource: GameResource, weights: Dictionary) -> float:
+	return max(0.0, weights.get(resource.type, resource.spawn_weight))
+
 ## Returns whether a node was actually placed. The caller cannot infer that from the
 ## node census: a scene-backed resource (StoneResourceTest) becomes a GameSceneResource
 ## child of the TileMap only after the engine instantiates the scene tile, so the census
 ## still reads the old value on the same frame the cell was written.
-func add_random_resource() -> bool:
-	if tile_map_handler.count_resource_nodes() >= resource_cap():
+func add_random_resource(region: LandRegion = null) -> bool:
+	if tile_map_handler == null:
 		return false
 
-	var random_tile = tile_map_handler.get_random_tile()
-	var random_resource = get_random()
+	# No region named means the eight-second respawn timer, which restocks wherever the
+	# world is thinnest rather than one fixed island.
+	if region == null:
+		region = pick_ambient_region()
+		if region == null:
+			return false
+
+	if tile_map_handler.count_resource_nodes_in(region) >= resource_cap(region):
+		return false
+
+	var random_tile = tile_map_handler.get_random_tile_in(region)
+	var random_resource = get_random(region.spawn_weights)
 
 	if random_tile == null or random_resource == null:
 		return false
 
 	set_resource(random_tile, random_resource)
 	return true
+
+
+## Which region the respawn timer restocks this tick, weighted by how much land each one
+## has - otherwise a six-tile grove is restocked as often as the whole mainland, and the
+## mainland goes bare. Regions that opt out are never picked, which is what keeps a boss
+## arena clear without the timer needing to know what a boss is.
+func pick_ambient_region() -> LandRegion:
+	if tile_map_handler == null:
+		return null
+
+	var eligible: Array[LandRegion] = []
+	var tile_counts := []
+	var total := 0
+
+	for region in tile_map_handler.regions:
+		if not region.ambient_resources:
+			continue
+		var tiles: int = tile_map_handler.count_land_tiles_in(region)
+		if tiles <= 0:
+			continue
+		eligible.append(region)
+		tile_counts.append(tiles)
+		total += tiles
+
+	if total <= 0:
+		return null
+
+	var roll := randi() % total
+	for i in eligible.size():
+		roll -= tile_counts[i]
+		if roll < 0:
+			return eligible[i]
+
+	return eligible[eligible.size() - 1]
 
 func set_resource(location, resource: GameResource):
 	#tile_map_handler.set_game_resource(location, resource.tile_source_id, resource.atlas_location)
