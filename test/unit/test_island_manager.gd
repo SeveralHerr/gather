@@ -137,6 +137,111 @@ func test_islands_do_not_overlap() -> String:
 	return ""
 
 
+## The seeded iron and gold on the ore island, checked the same way and for the same reason
+## as the placement above: island_cells ruffles the coastline per seed, so "the veins landed
+## on land" is a property of the seed. A vein written onto a bitten-away or coastline cell is
+## not a vein the player mines - is_occupied refuses the write outright - and it would fail
+## on some fraction of worlds while looking perfect in the one anybody launched.
+func test_ore_island_veins_land_on_solid_ground_across_many_seeds() -> String:
+	var definition := IslandManager._definition_for(IslandManager.SEEDED_VEIN_ISLAND)
+	var wanted := IslandManager.seeded_vein_total()
+	var furthest_ring: int = 0
+	for ring in IslandManager.VEIN_RING_RADII:
+		furthest_ring = maxi(furthest_ring, int(ring))
+
+	for i in SEEDS_TO_TRY:
+		var seed_value := 4001 + i * 49999
+		# A different centre every seed, on the ring the ore island actually sits on - the
+		# noise is sampled in absolute coordinates, so the island's shape depends on where
+		# it is as much as on the seed.
+		var centre := IslandManager._cell_along(TAU * float(i) / float(SEEDS_TO_TRY), definition["distance"])
+
+		var cells := IslandManager.vein_cells(
+			centre, definition["radius"], seed_value, IslandManager.SEEDED_VEIN_ISLAND, wanted
+		)
+
+		var count: String = _T.assert_eq(cells.size(), wanted, "seed %d: ore island got %d veins" % [seed_value, cells.size()])
+		if count != "":
+			return count
+
+		var land := {}
+		for cell in IslandManager.island_cells(centre, definition["radius"], seed_value, IslandManager.SEEDED_VEIN_ISLAND):
+			land[cell] = true
+
+		var seen := {}
+		for cell in cells:
+			if seen.has(cell):
+				return "seed %d: two veins share cell %s" % [seed_value, cell]
+			seen[cell] = true
+
+			if not land.has(cell):
+				return "seed %d: vein at %s is not on the ore island" % [seed_value, cell]
+
+			# Stricter than "is land": a cell with a water neighbour solves to coastline
+			# rather than grass, and nothing can be placed on coastline.
+			if not IslandManager._is_interior(cell, land):
+				return "seed %d: vein at %s is on the coastline" % [seed_value, cell]
+
+			# Well inside the disc, which is also what keeps them off the isthmus - that
+			# trails away from the island entirely. Measured per axis rather than as a
+			# length: a ring cell is cos/sin rounded to the grid, so the furthest ring puts
+			# a vein at (2, 3), which is 3.6 tiles away and perfectly correct.
+			var offset := cell - centre
+			if maxi(absi(offset.x), absi(offset.y)) > furthest_ring:
+				return "seed %d: vein at %s is %s off centre, past the %d-tile ring" % [seed_value, cell, offset, furthest_ring]
+
+	return ""
+
+
+## Why the veins are seeded at all. If iron or gold ever joins the starting unlocked set,
+## the spawn roll places them on the ore island by itself and this whole mechanism is
+## redundant - worse, it stacks a fixed handful on top of a roll that is already producing
+## them. That is a balance decision, so it should fail here and be made deliberately.
+func test_seeded_veins_are_the_types_the_spawn_roll_cannot_place() -> String:
+	var weights: Dictionary = IslandManager._definition_for(IslandManager.SEEDED_VEIN_ISLAND)["weights"]
+
+	for entry in IslandManager.SEEDED_VEINS:
+		var type = entry["type"]
+		if ResourceManager2.STARTING_RESOURCES.has(type):
+			return "%s is unlocked from the start, so the ore island already rolls it - drop it from SEEDED_VEINS" % type
+		var weight: float = weights.get(type, 0.0)
+		var rollable: String = _T.assert_gt(weight, 0.0, "%s is seeded but the ore island's weights would never grow it back once unlocked" % type)
+		if rollable != "":
+			return rollable
+
+	return ""
+
+
+## A few means a few. The veins are a teaser for crossing the water; the skills are still
+## what make iron and gold renewable. Sized against what they buy: 5 IronBar for an iron
+## pickaxe, 12 coins for the first parcel of land.
+func test_seeded_veins_stay_a_handful() -> String:
+	var seeded := {}
+	for entry in IslandManager.SEEDED_VEINS:
+		seeded[entry["type"]] = int(entry["count"])
+
+	var has_iron: String = _T.assert_true(seeded.get(Types.Item.IronResource, 0) > 0, "no iron seeded on the ore island")
+	if has_iron != "":
+		return has_iron
+
+	var has_gold: String = _T.assert_true(seeded.get(Types.Item.GoldResource, 0) > 0, "no gold seeded on the ore island")
+	if has_gold != "":
+		return has_gold
+
+	# Five bars make an iron pickaxe and ore smelts 1:1, so a fifth vein hands the tier over
+	# rather than teasing it.
+	var iron: String = _T.assert_true(seeded[Types.Item.IronResource] <= 4, "seeded iron is a supply line, not a teaser")
+	if iron != "":
+		return iron
+
+	# Gold smelts 1:1 into coins and the first parcel costs LandManager.BASE_COST.
+	var gold: int = seeded[Types.Item.GoldResource]
+	return _T.assert_true(
+		gold * 2 < LandManager.BASE_COST,
+		"seeded gold (%d nodes) is a meaningful share of a parcel at %d coins" % [gold, LandManager.BASE_COST]
+	)
+
+
 ## Every island has to sit inside the reach of a fully bought home island, or no amount of
 ## land purchasing brings it into range.
 func test_islands_sit_within_max_home_reach() -> String:

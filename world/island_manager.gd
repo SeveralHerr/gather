@@ -23,7 +23,9 @@ class_name IslandManager
 ## keeps its global weight; a type at 0.0 never spawns there. Iron and gold need no
 ## special handling to stay gated: the roll only ever considers resources that have been
 ## unlocked, so listing them here simply means they start appearing on the ore island the
-## moment their skill is bought, and nowhere else.
+## moment their skill is bought, and nowhere else. The flip side of that is that these two
+## weights do NOTHING before the skill - which is why the island also carries a fixed
+## handful placed outside the roll. See SEEDED_VEINS.
 ##
 ## The numbers are lopsided on purpose. An island is worth crossing the water for only if
 ## it is somewhere the mainland is not, and "somewhere else" is judged by what the player
@@ -186,6 +188,41 @@ const BOSS_REWARD := [
 ## boss island can have, so the cell is always land whatever the seed does to the edge.
 const BOSS_CHEST_OFFSET := Vector2i(0, 2)
 
+## The ore island's seeded veins: a fixed handful of iron and gold, placed at generation
+## rather than rolled.
+##
+## This exists because the ISLANDS weights above cannot produce them. The spawn roll only
+## ever considers UNLOCKED resources (ResourceManager2.curent_resources), and iron waits on
+## `smelting` while gold waits on `gold_rush` - so `IronResource: 2.5` and `GoldResource:
+## 1.0` do nothing at all for the whole stretch in which the player first walks over here,
+## and the ore island plays as coal and copper. These are placed straight from the resource
+## registry, deliberately bypassing that gate, the same way the boss and its chest are put
+## down deterministically instead of being rolled for. Nothing gates MINING them - any
+## pickaxe breaks any node - so an early iron vein is a vein the player can actually take.
+##
+## Six nodes, and the smallness is the design. These are the reward for crossing the water,
+## not a supply line; the skills are still what turn iron and gold into something renewable.
+## The numbers are sized against what they buy: iron smelts 1:1 into IronBar and an iron
+## pickaxe costs 5 bars (recipes.gd), so four veins leave the player one short - close
+## enough to want the skill, not close enough to skip it. Gold smelts 1:1 into a Coin and
+## the first parcel of land costs 12 (LandManager.BASE_COST), so two veins plus their
+## secondary-drop coins are worth about a quarter of one parcel: visibly the good stuff,
+## nowhere near an economy.
+##
+## Ambient respawn cannot multiply these - it rolls the same unlocked-only set, so it will
+## never put another iron node down - and seed_ore_veins() is flag-guarded so a reload does
+## not either. Once mined they stay mined until the skill makes them spawnable normally.
+const SEEDED_VEIN_ISLAND := "ore"
+const SEEDED_VEINS := [
+	{"type": Types.Item.IronResource, "count": 4},
+	{"type": Types.Item.GoldResource, "count": 2},
+]
+
+## The rings the veins are spread over, in tiles from the island's centre. Small, because
+## island_cells only promises the middle of the island is solid; alternating two radii
+## rather than one so six veins do not come out as a ring of dots.
+const VEIN_RING_RADII := [2, 3]
+
 var tile_map_handler: TileMapHandler
 var resource_manager: ResourceManager2
 
@@ -193,6 +230,13 @@ var resource_manager: ResourceManager2
 ## player who has already cleared the arena from one who has never seen it, and resurrects
 ## the boss on every load.
 var boss_defeated := false
+
+## Saved, for exactly the same reason as boss_defeated and against exactly the same bug.
+## The seeded veins are ordinary layer-1 tiles, so main.gd's tile save carries them and the
+## replay puts them back; a vein the player has already mined is simply absent from that
+## replay. Without this flag the post-load pass could not tell that from an island that
+## never had veins, and would hand them back on every single load.
+var ore_veins_seeded := false
 
 ## Per-island seed. Saved, because the coastlines have to come back the shape the player
 ## learned, exactly as LandManager saves the home island's.
@@ -478,12 +522,139 @@ static func _corridor(from: Vector2i, to: Vector2i, seed_value: int) -> Array[Ve
 func seed_islands() -> void:
 	if resource_manager == null:
 		return
+
+	# Before the ambient fill, so the veins take the cells they were placed for and the
+	# fill counts them toward the island's node ceiling rather than stacking on top of it.
+	seed_ore_veins()
+
 	for id in islands:
 		var region: LandRegion = islands[id]["region"]
 		if region != null and region.ambient_resources:
 			resource_manager.seed_island(region)
 
 	populate_boss_island()
+
+
+## Puts SEEDED_VEINS on the ore island, once ever.
+##
+## Runs at world generation and again after a save is replayed, and only one of those may
+## ever place anything - hence the flag rather than a census check. Placement is a pure
+## function of the island's saved centre, radius and seed, so even a bug that ran this
+## twice would rewrite the same six cells rather than double them; the flag is what stops
+## a mined-out vein coming back.
+func seed_ore_veins() -> void:
+	if ore_veins_seeded:
+		return
+	if resource_manager == null or resource_manager.resources == null or tile_map_handler == null:
+		return
+	if not islands.has(SEEDED_VEIN_ISLAND):
+		return
+
+	var island: Dictionary = islands[SEEDED_VEIN_ISLAND]
+	var cells := vein_cells(
+		island["centre"], island["radius"], islands_seed, SEEDED_VEIN_ISLAND, seeded_vein_total()
+	)
+
+	var next := 0
+	for entry in SEEDED_VEINS:
+		var resource: GameResource = resource_manager.resources.Get(entry["type"])
+		for _n in int(entry["count"]):
+			if next >= cells.size():
+				break
+			var cell: Vector2i = cells[next]
+			next += 1
+			# Never over something already standing there. At generation the island is bare,
+			# but this also runs after a replay, and a player's building outranks a teaser.
+			if resource == null or tile_map_handler.is_occupied(cell, true):
+				continue
+			# Through the resource_added signal rather than set_tile directly, so the veins
+			# arrive by the same path every other spawned node does.
+			resource_manager.set_resource(cell, resource)
+
+	# Set even if a cell was skipped: this is "the seeding pass has happened", not "six
+	# nodes exist". Retrying on the next load is precisely the resurrect-on-load bug.
+	ore_veins_seeded = true
+
+
+static func seeded_vein_total() -> int:
+	var total := 0
+	for entry in SEEDED_VEINS:
+		total += int(entry["count"])
+	return total
+
+
+## Which cells the seeded veins go on, from the island's own geometry.
+##
+## Spread around the centre on VEIN_RING_RADII at evenly spaced angles: taking the cells
+## nearest the centre instead would fill a solid 3x3 block, which reads as generator
+## scaffolding rather than as veins.
+##
+## Every candidate is walked inward until it lands on a cell whose eight neighbours are all
+## island land. That is stricter than "is land" on purpose, and it is the reason these are
+## reliably placeable: island_cells only promises the CENTRE is solid - the noise bites up
+## to ISLAND_EDGE_BITE into the rest - and a cell with a water neighbour is solved into a
+## coastline tile rather than plain grass, which main.gd's is_occupied refuses outright. An
+## interior cell is grass, so it is placeable for every seed. Walking inward terminates at
+## the centre, which is interior for any island radius the table uses.
+##
+## Isthmus cells are never candidates: this reads island_cells, which is the disc alone.
+static func vein_cells(centre: Vector2i, island_radius: int, seed_value: int, id: String, count: int) -> Array[Vector2i]:
+	var land := {}
+	for cell in island_cells(centre, island_radius, seed_value, id):
+		land[cell] = true
+
+	var chosen: Array[Vector2i] = []
+	var taken := {}
+
+	for i in count:
+		var angle := TAU * float(i) / float(count)
+		var ring: int = VEIN_RING_RADII[i % VEIN_RING_RADII.size()]
+		var cell = _vein_cell_along(centre, angle, ring, land, taken)
+		if cell == null:
+			# The ray ran out - its cells were bitten away or already claimed. Rare, but a
+			# silently dropped vein would leave the island short of what the constant says,
+			# so fall back to the nearest usable cell anywhere on the island.
+			cell = _nearest_interior_cell(centre, land, taken)
+		if cell == null:
+			continue
+		taken[cell] = true
+		chosen.append(cell)
+
+	return chosen
+
+
+## The outermost cell along `angle` that is usable, searching inward from `ring` to the
+## island's centre. Untyped return: null means the whole ray was unusable.
+static func _vein_cell_along(centre: Vector2i, angle: float, ring: int, land: Dictionary, taken: Dictionary):
+	for step in range(ring, -1, -1):
+		var cell := centre + Vector2i(roundi(cos(angle) * step), roundi(sin(angle) * step))
+		if not taken.has(cell) and _is_interior(cell, land):
+			return cell
+	return null
+
+
+## Untyped return: null means the island has no usable cell left at all.
+static func _nearest_interior_cell(centre: Vector2i, land: Dictionary, taken: Dictionary):
+	var best = null
+	var best_distance := 0.0
+	for cell in land:
+		if taken.has(cell) or not _is_interior(cell, land):
+			continue
+		var distance := Vector2(cell - centre).length()
+		if best == null or distance < best_distance:
+			best = cell
+			best_distance = distance
+	return best
+
+
+## Whether every one of a cell's eight neighbours is land, i.e. whether the terrain solver
+## leaves it as plain grass rather than as coastline.
+static func _is_interior(cell: Vector2i, land: Dictionary) -> bool:
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			if not land.has(cell + Vector2i(dx, dy)):
+				return false
+	return true
 
 
 ## Puts the elite and its chest on the boss island. Idempotent: it checks for what it is
@@ -601,6 +772,11 @@ func reassert_after_load() -> void:
 		if region.ambient_resources and tile_map_handler.count_resource_nodes_in(region) == 0:
 			resource_manager.seed_island(region)
 
+	# A no-op for any save written since the veins existed - the flag comes back true and
+	# the tiles came back with the replay. It fires exactly once, for a save written before
+	# them, whose ore island has no veins for the replay to restore.
+	seed_ore_veins()
+
 
 func saveObject() -> Dictionary:
 	var saved := []
@@ -620,6 +796,7 @@ func saveObject() -> Dictionary:
 		"filepath": get_path() if is_inside_tree() else NodePath(),
 		"islands_seed": islands_seed,
 		"boss_defeated": boss_defeated,
+		"ore_veins_seeded": ore_veins_seeded,
 		"islands": saved,
 	}
 
@@ -629,6 +806,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 	# the method silently, because a -> void that errors looks exactly like one that ran.
 	islands_seed = int(loadedDict.get("islands_seed", islands_seed))
 	boss_defeated = bool(loadedDict.get("boss_defeated", false))
+	# Defaults false, so a save written before the veins existed gets its one seeding pass
+	# from reassert_after_load. A save written since carries true and never seeds again.
+	ore_veins_seeded = bool(loadedDict.get("ore_veins_seeded", false))
 
 	var saved: Array = loadedDict.get("islands", [])
 	if saved.is_empty():
