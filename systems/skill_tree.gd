@@ -61,18 +61,25 @@ func _build() -> void:
 	_add(Skill.new(
 		"swift_hands", FORAGING, 0,
 		"Swift Hands",
-		"Gather 15% faster with every pickaxe.",
+		"Gather 15% faster with every pickaxe, and build a second sawmill.",
 		"-15% gather time",
 		Types.Item.WoodPickaxe, [],
-		{"gather_speed_mult": -0.15}
+		{"gather_speed_mult": -0.15},
+		# A station produces one item per second, so a second sawmill is throughput,
+		# not decoration. It hangs off the branch's first node because the player is
+		# handed exactly one sawmill at the start and nothing else ever grants another.
+		[{"product": Types.Item.Sawmill, "station": Types.Item.Sawmill}]
 	))
 	_add(Skill.new(
 		"bountiful", FORAGING, 1,
 		"Bountiful Harvest",
-		"+25% chance of an extra drop from every node.",
+		"+25% chance of an extra drop from every node, and spin twine from wood.",
 		"+25% extra drops",
 		Types.Item.Wood, ["swift_hands"],
-		{"bonus_yield_chance": 0.25}
+		{"bonus_yield_chance": 0.25},
+		# String otherwise drops from spiders and nowhere else, which left the whole
+		# Combat tier-2 unlock hostage to which enemy the spawner rolled.
+		[{"product": Types.Item.String, "station": Types.Item.Sawmill}]
 	))
 	_add(Skill.new(
 		"scholar", FORAGING, 2,
@@ -127,12 +134,16 @@ func _build() -> void:
 	_add(Skill.new(
 		"smelting", INDUSTRY, 2,
 		"Smelting",
-		"Smelt iron bars, and craft the iron pickaxe.",
-		"Unlocks 2 recipes",
+		"Smelt iron bars, burn wood down to charcoal, and craft the iron pickaxe.",
+		"Unlocks 3 recipes",
 		Types.Item.IronBar, ["iron_age"], {},
 		[
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.IronPickaxe, "station": Types.Item.Sawmill},
+			# Charcoal lands here rather than at the furnace's own tier because this is
+			# the node that doubles coal consumption: from now on a bad roll on coal
+			# veins stalls the branch, and wood is the one thing never in short supply.
+			{"product": Types.Item.CoalOre, "station": Types.Item.Furnace},
 		]
 	))
 	# The last link in the ore chain. Gold is the only node that also pays coins, so
@@ -140,12 +151,16 @@ func _build() -> void:
 	_add(Skill.new(
 		"gold_rush", INDUSTRY, 3,
 		"Gold Rush",
-		"Gold veins start appearing. Alloy gold bars, and craft the gold pickaxe.",
-		"Gold + 2 recipes",
+		"Gold veins start appearing. Alloy gold bars, strike coins, and craft the gold pickaxe.",
+		"Gold + 3 recipes",
 		Types.Item.GoldBar, ["smelting"], {},
 		[
 			{"product": Types.Item.GoldBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.GoldPickaxe, "station": Types.Item.Sawmill},
+			# The mint must sit on this node and no earlier one: gold ore is its input
+			# and gold veins only start spawning from here, so unlocking it sooner
+			# would hand the player a recipe with an unobtainable ingredient.
+			{"product": Types.Item.Coin, "station": Types.Item.Furnace},
 		],
 		[Types.Item.GoldResource]
 	))

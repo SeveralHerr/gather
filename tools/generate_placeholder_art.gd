@@ -31,6 +31,11 @@ const SHEET_CELLS := Vector2i(6, 5)
 const COPPER := Color(0.87, 0.47, 0.22)
 const GOLD := Color(1.0, 0.81, 0.24)
 
+## Stone reads as a desaturated blue-grey. It is tinted off the WOODEN pickaxe rather
+## than the iron one so the head still looks chipped and crude next to the metal
+## tiers, which is the tier it sits between.
+const STONE := Color(0.62, 0.64, 0.70)
+
 ## Recolours are luminance-driven, so the original tile's shading survives. The
 ## gain lifts midtones back up after the tint multiply, which otherwise reads as
 ## a uniformly muddy silhouette.
@@ -52,6 +57,7 @@ const RECOLOURS := [
 	{"from": Vector2i(7, 2), "to": Vector2i(3, 4), "tint": GOLD, "what": "gold bar"},
 	{"from": Vector2i(6, 1), "to": Vector2i(5, 4), "tint": GOLD, "what": "gold pickaxe"},
 	{"from": Vector2i(6, 1), "to": Vector2i(4, 3), "tint": COPPER, "what": "copper pickaxe"},
+	{"from": Vector2i(12, 0), "to": Vector2i(5, 3), "tint": STONE, "what": "stone pickaxe"},
 ]
 
 ## The coin has no plausible ancestor on the sheet, so it is drawn rather than

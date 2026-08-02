@@ -506,3 +506,62 @@ Guidelines that make an entry useful later:
   re-checked by hand — 21 comments and all three settings present. Running the test suite
   does **not** dirty `project.godot`; only `--import` does, which narrows the blast radius of
   that gap to the import step alone.
+
+## 2026-08-01 — Reimagined the crafting UI (new panel in UI2, cost-charging fix, recipe expansion)
+
+- Value: **warranted** — runtime produced the one claim the diff could not: a real station,
+  instanced from a tilemap cell, paying out of the player's real inventory, charged
+  `{"Stone": 8, "Wood": 2}` for a Stone Pickaxe. Every version of this code before today
+  charged 1 of each, and it looked correct in the source the whole time.
+  - Expected: the panel opens on a real station from UI2 (not the deleted world-space path),
+    and `queue_craft` shows `spent` equal to `expected_cost` for a multi-unit recipe — i.e. an
+    8-stone recipe actually removes 8 stone, where every version of this code before today
+    removed 1.
+  - Got: `"expected_cost": {"Stone": 8, "Wood": 2}` / `"spent": {"Stone": 8, "Wood": 2}`,
+    `inventory_before` 20/10 -> `inventory_after` 12/8. And the guard: an order for 5 while
+    holding 12 stone returned `"refused_reason": "unaffordable"` with
+    `"spent": {"Stone": 0, "Wood": 0}` — all-or-nothing, nothing half-paid. Separately,
+    `craft_state` reported `unlocked_recipes: ["Plank", "Stone Pickaxe", "Chest"]` on a fresh
+    station, which is the day-one seed fixing a plank recipe that no skill and no seed had
+    ever unlocked — three of the four pickaxes were uncraftable on a clean save.
+  - Cheaper: the new unit tests (`test_crafting.gd`) settle the cost arithmetic and
+    `test_crafting_ui.gd` settles the layout, both in ~1s headless. What neither could do is
+    show a station instancing from a tilemap cell, binding the live `Recipes` array by
+    reference, and spending the player's actual inventory. That needed the running game.
+
+- Gap: **`place_station` wrote a cell that instanced nothing, and the bridge could not say
+  why** — `cmd place_station` returned `{"success": true, "message": "placed Sawmill"}` while
+  `craft_state` kept answering `"stations": 0`, and `scene-tree` showed 14 TileMap children,
+  all stone nodes. The verb had passed `item.tile_atlas_location` (the inventory *icon* cell,
+  `(0,2)`) where the live path `player_manager.place_tile:29` passes `item.atlas_location`
+  (`(0,0)`); a `TileSetScenesCollectionSource` silently instances nothing for the wrong
+  coords. Nothing in the response distinguished "cell written" from "scene instanced".
+  Workaround: read `player_manager.gd` and compare against `main.gd:set_tile_item`, which
+  turns out to have the same latent bug and is dead code (no callers).
+  - [G-029] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: `set_tile`-style verbs should verify the cell afterwards —
+    `get_cell_source_id`/`get_cell_tile_data` on the written cell, and for a scene tile a
+    child-count delta — and report `success: false` when the write produced no tile. A verb
+    that reports success for a no-op is the "one half of an invariant pair" trap in the
+    harness CLAUDE.md, in the harness's own tooling.
+
+- Gap: **`verify_ledger reach` under-reports for anything that is not a node script under the
+  root scene** — it said `reached 6/18`, listing `crafting/recipes.gd`,
+  `inventory/inventory_data.gd`, `systems/skill_tree.gd`, `items/types.gd`,
+  `devtools_ext/commands.gd` and `ui/recipe_card.gd` as NOT reached. All six ran: recipes.gd
+  is the `/root/Recipes` autoload (outside `Main`, so a `Main` snapshot cannot contain it),
+  inventory_data.gd is a `Resource`, skill_tree.gd is a `RefCounted`, types.gd is
+  `class_name`-only, commands.gd is loaded by the DevTools autoload — none of them are ever a
+  node's `script`. `ui/recipe_card.gd` is a node script, but the cards nest ~12 deep and the
+  snapshot's max depth is 10, so 15 cards visible in the screenshot still read as unreached.
+  Deleted files (`crafting/crafting_ui.gd`, `cost_row.tscn`) are also counted against reach.
+  Workaround: computed the depth by hand
+  (`max depth in snapshot: 10`, `recipe_card.gd -> False`) and reported reach with the
+  structural blind spots named, rather than reporting 6/18 as if it were a coverage number.
+  - [G-030] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: three things, cheapest first — (1) exclude paths deleted in the diff from the
+    denominator; (2) have `scene-tree` take a depth argument for the reach snapshots, or have
+    `reach` warn when the tree hit its depth cap; (3) widen the reach signal beyond node
+    `script` paths — autoload scripts are enumerable from `/root`, and a "not a node script,
+    reach cannot speak to this" bucket (which already exists for `.uid`/`.png`) would stop
+    Resource and RefCounted scripts from reading as untested code.

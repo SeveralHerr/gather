@@ -32,8 +32,11 @@ func _ready():
 	# eye — the gold tier's art happens to live on the placeholder sheet (source 10),
 	# which is a rendering detail, not a reason to register it somewhere else.
 	#
-	# Gather time falls per tier (2.0 / 1.6 / 1.2 / 0.7 / 0.45) and the extra-drop
-	# chance climbs. The gold tier's step is deliberately the smallest of the ladder:
+	# Gather time falls per tier (2.0 / 1.8 / 1.6 / 1.2 / 0.7 / 0.45) and the extra-drop
+	# chance climbs. Stone is the shallowest step on purpose — it is craftable on day
+	# one out of the most common drop in the game, so it has to read as "slightly
+	# better, right now" rather than as a tier that competes with copper.
+	# The gold tier's step is deliberately the smallest of the rest of the ladder:
 	# it costs several times what the iron one does, so most of what the player is
 	# buying at the top is the +0.75 yield, not the speed.
 	#
@@ -41,6 +44,7 @@ func _ready():
 	# furnace (Industry tier 1) and would otherwise be an ore with no tool of its own —
 	# the one tier you smelt purely to feed a later recipe.
 	item_list[Types.Item.WoodPickaxe] = GameItemPickaxe.new(Vector2i(12,0), 4, Types.Item.WoodPickaxe, 1, false, "Wooden Pickaxe", Vector2i.ZERO, false, 2.0, 0.0)
+	item_list[Types.Item.StonePickaxe] = GameItemPickaxe.new(Vector2i(5, 3), 10, Types.Item.StonePickaxe, 1, false, "Stone Pickaxe", Vector2i.ZERO, false, 1.8, 0.05)
 	item_list[Types.Item.CopperPickaxe] = GameItemPickaxe.new(Vector2i(4, 3), 10, Types.Item.CopperPickaxe, 1, false, "Copper Pickaxe", Vector2i.ZERO, false, 1.6, 0.15)
 	item_list[Types.Item.BonePickaxe] = GameItemPickaxe.new(Vector2i(12,1), 4, Types.Item.BonePickaxe, 1, false, "Bone Pickaxe", Vector2i.ZERO, false, 1.2, 0.25)
 	item_list[Types.Item.IronPickaxe] = GameItemPickaxe.new(Vector2i(6,1), 4, Types.Item.IronPickaxe, 1, false, "Iron Pickaxe", Vector2i.ZERO, false, 0.7, 0.5)

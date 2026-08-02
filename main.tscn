@@ -1,4 +1,4 @@
-[gd_scene load_steps=63 format=3 uid="uid://dfk14to0b2y5j"]
+[gd_scene load_steps=61 format=3 uid="uid://dfk14to0b2y5j"]
 
 [ext_resource type="PackedScene" uid="uid://bjc0a1ua58chs" path="res://world/tile_map.tscn" id="1_83yt6"]
 [ext_resource type="Script" path="res://main.gd" id="1_j4hlh"]
@@ -17,9 +17,8 @@
 [ext_resource type="Texture2D" uid="uid://dwcer17u2ycr1" path="res://assets/art/inventory.png" id="10_s3ge4"]
 [ext_resource type="Script" path="res://ui/floating_text.gd" id="11_uoapv"]
 [ext_resource type="Script" path="res://player/states/player_net.gd" id="11_xxb2o"]
-[ext_resource type="Script" path="res://crafting/crafting_ui.gd" id="12_bqf2j"]
+[ext_resource type="Script" path="res://ui/crafting_ui.gd" id="12_bqf2j"]
 [ext_resource type="Script" path="res://systems/level_up_manager.gd" id="12_hyjmf"]
-[ext_resource type="Texture2D" uid="uid://cb0j75y7ogmtr" path="res://assets/art/sawmill.png" id="12_u5akt"]
 [ext_resource type="Script" path="res://ui/fps_label.gd" id="16_um00x"]
 [ext_resource type="Script" path="res://world/resource_manager2.gd" id="17_h45i4"]
 [ext_resource type="Script" path="res://items/items.gd" id="18_esavp"]
@@ -374,28 +373,6 @@ border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0, 0, 0, 1)
 
-[sub_resource type="GDScript" id="GDScript_8pb28"]
-script/source = "extends Control
-
-@onready var sawmill_button: Button = $SawmillButton
-@onready var furnace_button: Button = $FurnaceButton
-@onready var items: Items = $\"../../../../../Items\"
-
-
-
-# Called when the node enters the scene tree for the first time.
-func _ready():
-	sawmill_button.connect(\"pressed\", Callable(self, \"_on_sawmill_button_pressed\"))
-	furnace_button.connect(\"pressed\", Callable(self, \"_on_furnace_button_pressed\"))
-
-
-func _on_sawmill_button_pressed():
-	pass
-	
-func _on_furnace_button_pressed():
-	pass
-"
-
 [sub_resource type="CircleShape2D" id="CircleShape2D_onssn"]
 radius = 5.0
 
@@ -727,129 +704,6 @@ layout_mode = 2
 mouse_filter = 2
 columns = 7
 
-[node name="CraftingUI" type="ColorRect" parent="Node2D/Player/Camera2D/UI"]
-visible = false
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -64.0
-offset_top = -57.0
-offset_right = 66.0
-offset_bottom = 65.0
-color = Color(0, 0, 0, 0.701961)
-script = ExtResource("12_bqf2j")
-
-[node name="Craftables" type="ItemList" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 4.0
-offset_top = 5.0
-offset_right = 126.0
-offset_bottom = 313.0
-scale = Vector2(0.37, 0.37)
-theme_override_font_sizes/font_size = 14
-icon_scale = 1.35
-
-[node name="SelectedCraftable" type="TextureRect" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 68.0
-offset_top = 7.0
-offset_right = 108.0
-offset_bottom = 47.0
-texture = ExtResource("12_u5akt")
-
-[node name="CostList" type="GridContainer" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-texture_filter = 1
-layout_mode = 0
-offset_left = 50.0
-offset_top = 47.0
-offset_right = 362.0
-offset_bottom = 215.0
-scale = Vector2(0.25, 0.25)
-
-[node name="CraftButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 73.0
-offset_top = 109.0
-offset_right = 130.0
-offset_bottom = 140.0
-scale = Vector2(0.385, 0.385)
-text = "CRAFT"
-
-[node name="QuantityLabel" type="Label" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 98.0
-offset_top = 94.0
-offset_right = 199.0
-offset_bottom = 147.0
-scale = Vector2(0.26, 0.26)
-theme_override_font_sizes/font_size = 36
-text = "Qty. 1"
-
-[node name="AddButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 53.0
-offset_top = 95.0
-offset_right = 82.0
-offset_bottom = 126.0
-scale = Vector2(0.53, 0.53)
-text = "+"
-
-[node name="ExitButton" type="Button" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-layout_mode = 0
-offset_left = 111.0
-offset_top = 3.99998
-offset_right = 140.0
-offset_bottom = 35.0
-scale = Vector2(0.53, 0.53)
-text = "X"
-
-[node name="ProgressBar" type="ProgressBar" parent="Node2D/Player/Camera2D/UI/CraftingUI"]
-visible = false
-layout_mode = 0
-offset_left = 56.0
-offset_top = 109.0
-offset_right = 126.0
-offset_bottom = 119.0
-value = 56.0
-show_percentage = false
-
-[node name="Crafting" type="Control" parent="Node2D/Player/Camera2D/UI"]
-visible = false
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -116.7173
-offset_top = -65.6535
-offset_right = -76.7173
-offset_bottom = -25.6535
-script = SubResource("GDScript_8pb28")
-
-[node name="SawmillButton" type="Button" parent="Node2D/Player/Camera2D/UI/Crafting"]
-layout_mode = 0
-offset_left = 98.0
-offset_top = 56.0
-offset_right = 166.0
-offset_bottom = 87.0
-scale = Vector2(0.225, 0.225)
-text = "Sawmill
-"
-
-[node name="FurnaceButton" type="Button" parent="Node2D/Player/Camera2D/UI/Crafting"]
-layout_mode = 0
-offset_left = 98.0
-offset_top = 47.0
-offset_right = 169.0
-offset_bottom = 78.0
-scale = Vector2(0.225, 0.225)
-text = "Furnace
-"
-
 [node name="LineOfSight" type="Area2D" parent="Node2D/Player"]
 collision_layer = 0
 collision_mask = 2097152
@@ -994,6 +848,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("41_sktui")
+
+[node name="CraftingUI" type="Control" parent="UI2"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12_bqf2j")
 
 [node name="MobileControls" parent="UI2" instance=ExtResource("43_mobile")]
 

@@ -21,13 +21,6 @@ type = 7
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = SubResource("AtlasTexture_im8td")
 
-[node name="Button" type="Button" parent="."]
-modulate = Color(1, 1, 1, 0)
-offset_left = -6.0
-offset_top = -4.0
-offset_right = 6.0
-offset_bottom = 7.0
-
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, 3.5)
 shape = SubResource("RectangleShape2D_rd8io")
