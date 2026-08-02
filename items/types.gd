@@ -45,5 +45,6 @@ enum Item {
 	GoldOre,
 	GoldBar,
 	GoldPickaxe,
-	CopperPickaxe
+	CopperPickaxe,
+	StonePickaxe
 }

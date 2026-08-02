@@ -30,6 +30,11 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("goto_resource", _cmd_goto_resource)
 	dev.register_command("skill_panel", _cmd_skill_panel)
 	dev.register_command("learn_skill", _cmd_learn_skill)
+	dev.register_command("place_station", _cmd_place_station)
+	dev.register_command("crafting_panel", _cmd_crafting_panel)
+	dev.register_command("craft_state", _cmd_craft_state)
+	dev.register_command("queue_craft", _cmd_queue_craft)
+	dev.register_command("advance_crafting", _cmd_advance_crafting)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -60,6 +65,55 @@ func _skill_tree_ui() -> SkillTreeUi:
 func _skill_panel_open() -> bool:
 	var ui := _skill_tree_ui()
 	return ui != null and ui.is_open()
+
+
+func _crafting_panel() -> CraftingUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI2/CraftingUI") as CraftingUi
+
+
+## Every live station, in a stable order so `--args '{"station": 1}'` means the same
+## thing across calls. Type-checked rather than indexed: main.tscn's root is in the
+## CraftingStations group too.
+func _stations() -> Array:
+	var found := []
+	for node in _dev.get_tree().get_nodes_in_group("CraftingStations"):
+		if node is CraftingStation:
+			found.append(node)
+	found.sort_custom(func(a, b):
+		return a.position.y < b.position.y if a.position.y != b.position.y else a.position.x < b.position.x)
+	return found
+
+
+func _station_at(args: Dictionary) -> CraftingStation:
+	var stations := _stations()
+	if stations.is_empty():
+		return null
+	var index: int = int(args.get("station", 0))
+	if index < 0 or index >= stations.size():
+		return null
+	return stations[index]
+
+
+func _type_name(type) -> String:
+	var item = GameItems.get_item(type)
+	return item.name if item else str(type)
+
+
+func _station_report(station: CraftingStation) -> Dictionary:
+	var recipe_names := []
+	for recipe in station.recipe_list:
+		if recipe:
+			recipe_names.append(_type_name(recipe.product))
+	return {
+		"type": _type_name(station.type),
+		"position": {"x": station.position.x, "y": station.position.y},
+		"count": station.count,
+		"starting_count": station.starting_count,
+		"selected_recipe": _type_name(station.selected_recipe.product) if station.selected_recipe else "",
+		"unlocked_recipes": recipe_names,
+		"timer_stopped": station.timer.is_stopped() if station.timer else true,
+		"time_to_next": station.timer.time_left if station.timer else 0.0,
+	}
 
 
 func _enemy_spawner() -> EnemySpawner:
@@ -600,3 +654,254 @@ func _cmd_gather_stats(_args: Dictionary) -> Dictionary:
 			"tuning": tuning,
 		},
 	}
+
+
+# --- crafting ----------------------------------------------------------------
+
+## Places a sawmill or furnace next to the player. set_tile takes a Vector2i, which
+## run-method cannot coerce (gather-6sp), and a station is a scene tile whose
+## alternative id carries the is_scene flag - nothing generic can express that.
+func _cmd_place_station(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var wanted: String = str(args.get("type", "Sawmill")).to_lower()
+	var station_type = Types.Item.Sawmill if wanted == "sawmill" else (
+		Types.Item.Furnace if wanted == "furnace" else -1)
+	if station_type == -1:
+		return {"success": false, "message": "type must be Sawmill or Furnace", "data": {}}
+
+	var item: GameItem = GameItems.get_item(station_type)
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var target = null
+	for ring in range(1, 8):
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				var cell := origin + Vector2i(dx, dy)
+				if not handler.is_occupied(cell, true):
+					target = cell
+					break
+			if target != null:
+				break
+		if target != null:
+			break
+
+	if target == null:
+		return {"success": false, "message": "no free tile near the player", "data": {}}
+
+	# atlas_location, not tile_atlas_location: the latter is the inventory ICON cell
+	# (get_atlas() prefers it), and feeding it to a TileSetScenesCollectionSource
+	# writes a cell that instances nothing at all. player_manager.place_tile:29 is the
+	# path the game itself uses, and it passes atlas_location.
+	handler.set_tile(target, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+	# The tilemap instances the station scene on its own schedule, so the node may not
+	# exist yet on this frame. Report the cell; craft_state picks it up next call.
+	return {
+		"success": true,
+		"message": "placed %s" % item.name,
+		"data": {
+			"type": item.name,
+			"cell": {"x": target.x, "y": target.y},
+			"stations_before": _stations().size(),
+		},
+	}
+
+
+## Opens or closes the crafting panel on a station. Routes through the panel's own
+## set_open so the cursor/disable_input handshake runs exactly as an F press would.
+## Opening it any other way is impossible from the CLI: it needs the player standing
+## inside the station's Area2D.
+func _cmd_crafting_panel(args: Dictionary) -> Dictionary:
+	var panel := _crafting_panel()
+	if panel == null:
+		return {"success": false, "message": "no CraftingUi in the scene", "data": {}}
+
+	var want_open: bool = bool(args.get("open", not panel.is_open()))
+	if want_open:
+		var station := _station_at(args)
+		if station == null:
+			return {
+				"success": false,
+				"message": "no crafting station to open (place_station first)",
+				"data": {"stations": _stations().size()},
+			}
+		panel.open_station(station)
+	else:
+		panel.set_open(false)
+
+	var input_manager = _dev.get_tree().root.get_node_or_null("Main/InputManager")
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"open": panel.is_open(),
+			# Returned alongside `open` on purpose: a panel that is visible while the
+			# player can still walk around is exactly what the old toggled
+			# disable_input caused, and it is invisible in a visibility read.
+			"disable_input": input_manager.disable_input if input_manager else null,
+			"mouse_mode": "visible" if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE else "captured",
+			"stations": _stations().size(),
+		},
+	}
+
+
+## Everything a crafting assertion needs in one read. get-state on a station reports
+## selected_recipe as an opaque CraftingRecipe object id, and nothing at all reports
+## what the panel is showing.
+func _cmd_craft_state(args: Dictionary) -> Dictionary:
+	var panel := _crafting_panel()
+	var stations := _stations()
+
+	var data := {
+		"panel_open": panel != null and panel.is_open(),
+		"stations": stations.size(),
+	}
+
+	var station := _station_at(args)
+	if station:
+		data["station"] = _station_report(station)
+
+	if panel and panel.is_open() and panel.station:
+		var inventory: InventoryData = panel._inventory()
+		var rows := []
+		if panel._selected and inventory:
+			for type in panel._selected.cost_list:
+				rows.append({
+					"item": _type_name(type),
+					# required is per-unit x the panel's amount. The old panel showed
+					# this number and then charged 1, so the two have to be readable
+					# together to prove they agree.
+					"required": int(panel._selected.cost_list[type]) * panel._amount,
+					"held": inventory.count_of_type(type),
+				})
+		data["ui"] = {
+			"station": _type_name(panel.station.type),
+			"selected_recipe": _type_name(panel._selected.product) if panel._selected else "",
+			"amount": panel._amount,
+			"cost_rows": rows,
+			"can_craft": not panel._craft_button.disabled,
+			"cards": panel._cards.size(),
+			"queue_visible": panel._queue_bar.visible,
+			"compact": panel._compact,
+		}
+
+	return {"success": true, "message": "ok", "data": data}
+
+
+## Drives the whole buy path - select, validate, pay, queue - and reports the
+## inventory delta so the charge can be asserted directly rather than inferred. This
+## is the verb that would have caught "every recipe costs 1 of each ingredient".
+func _cmd_queue_craft(args: Dictionary) -> Dictionary:
+	var station := _station_at(args)
+	if station == null:
+		return {"success": false, "message": "no crafting station", "data": {}}
+
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player", "data": {}}
+
+	var wanted: String = str(args.get("recipe", ""))
+	var recipe: CraftingRecipe = null
+	for candidate in station.recipe_list:
+		if candidate and _type_name(candidate.product).to_lower() == wanted.to_lower():
+			recipe = candidate
+			break
+
+	if recipe == null:
+		var known := []
+		for candidate in station.recipe_list:
+			if candidate:
+				known.append(_type_name(candidate.product))
+		return {
+			"success": false,
+			"message": "'%s' is not unlocked at this station" % wanted,
+			"data": {"refused_reason": "recipe_locked", "unlocked_recipes": known},
+		}
+
+	var amount: int = int(args.get("amount", 1))
+	var expected := {}
+	var before := {}
+	for type in recipe.cost_list:
+		expected[_type_name(type)] = int(recipe.cost_list[type]) * amount
+		before[_type_name(type)] = player.inventory_data.count_of_type(type)
+
+	var queued: bool = station.enqueue(recipe, amount, player.inventory_data)
+
+	var after := {}
+	var spent := {}
+	for type in recipe.cost_list:
+		var now: int = player.inventory_data.count_of_type(type)
+		after[_type_name(type)] = now
+		spent[_type_name(type)] = before[_type_name(type)] - now
+
+	return {
+		"success": queued,
+		"message": "queued %d %s" % [amount, _type_name(recipe.product)] if queued else "refused",
+		"data": {
+			"recipe": _type_name(recipe.product),
+			"amount": amount,
+			"expected_cost": expected,
+			"spent": spent,
+			"inventory_before": before,
+			"inventory_after": after,
+			"count": station.count,
+			"starting_count": station.starting_count,
+			"refused_reason": "" if queued else "unaffordable",
+		},
+	}
+
+
+## Fires a station's production tick N times and reports what actually landed in the
+## world. step-time works but scales badly for a 20-item order and cannot attribute
+## the drops to the station that made them.
+func _cmd_advance_crafting(args: Dictionary) -> Dictionary:
+	var station := _station_at(args)
+	if station == null:
+		return {"success": false, "message": "no crafting station", "data": {}}
+
+	var level_up = _level_up_manager()
+	var xp_before: int = level_up.xp if level_up else 0
+	var count_before: int = station.count
+	var pickups_before: int = _pickup_count()
+
+	var ticks: int = int(args.get("ticks", 1))
+	var produced := 0
+	for i in ticks:
+		if station.count <= 0:
+			break
+		station._on_timeout()
+		produced += 1
+
+	return {
+		"success": true,
+		"message": "produced %d" % produced,
+		"data": {
+			"produced": produced,
+			"product": _type_name(station.selected_recipe.product) if station.selected_recipe else "",
+			"count_before": count_before,
+			"count_after": station.count,
+			"pickups_before": pickups_before,
+			# The only honest evidence that the tick reached PickUpManager rather than
+			# just decrementing a counter.
+			"pickups_after": _pickup_count(),
+			"xp_gained": (level_up.xp if level_up else 0) - xp_before,
+		},
+	}
+
+
+## Drops in the world. The PickUps container holds a shadow per pickup, so a raw
+## child count is double what the player can actually collect.
+func _pickup_count() -> int:
+	var container := _dev.get_tree().root.get_node_or_null("Main/Node2D/PickUps")
+	if container == null:
+		return 0
+	var total := 0
+	for child in container.get_children():
+		# There is no PickUp class_name to type-check against, so a drop is
+		# identified the way _cmd_coin_count does it: by carrying slot_data.
+		if child.get("slot_data") != null:
+			total += 1
+	return total

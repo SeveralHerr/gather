@@ -7,7 +7,7 @@ const PICK_UP = preload("res://items/pick_up.tscn")
 @onready var inventory_interface = $"../UI2/InventoryInterface"
 @onready var input_manager: InputManager = $"../InputManager"
 @onready var hot_bar_inventory = $"../UI2/HotBarInventory"
-@onready var crafting_ui = $"../Node2D/Player/Camera2D/UI/CraftingUI"
+@onready var crafting_ui: CraftingUi = $"../UI2/CraftingUI"
 
 func _ready():
 	add_to_group("InventoryManager")
@@ -21,11 +21,9 @@ func _ready():
 		if node is TestChest:
 			node.toggle_inventory.connect(_toggle_inventory)
 
-	for node in get_tree().get_nodes_in_group("CraftingStations"):
-		if node is CraftingStation:
-			node.toggle_crafting_station.connect(_toggle_crafting_station)
+	# Stations are only ever instanced at runtime by the tilemap, long after this
+	# runs, so they connect themselves in their own _ready. Nothing to sweep up here.
 
-	
 
 func _on_drop_slot_data(slot_data: SlotData):
 	var pick_up = PICK_UP.instantiate()
@@ -36,29 +34,23 @@ func _on_drop_slot_data(slot_data: SlotData):
 	
 	
 	
+## The panel owns the whole open/close handshake now — cursor, disable_input and the
+## hotbar — the way SkillTreeUi does. This is only the router from "the player pressed
+## action on a station" to "show that station".
 func _toggle_crafting_station(crafting_station = null) -> void:
-	crafting_ui.visible = not crafting_ui.visible
-	input_manager.disable_input = not 	input_manager.disable_input	
-	
-	if crafting_ui.visible:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		hot_bar_inventory.hide()
+	if crafting_station and not crafting_ui.is_open():
+		crafting_ui.open_station(crafting_station)
 	else:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		hot_bar_inventory.show()
+		crafting_ui.set_open(false)
 
-	if crafting_station and crafting_ui.visible:
-		crafting_ui.load_crafting_station(crafting_station)
-	else:
 
-		crafting_ui._exit2()
-		hot_bar_inventory.show()
-
-	
 func _toggle_inventory(external_inventory_owner = null) -> void:
-	inventory_interface.visible = not inventory_interface.visible	
-	input_manager.disable_input = not 	input_manager.disable_input	
-	
+	inventory_interface.visible = not inventory_interface.visible
+	# Assigned from the panel's own visibility, never toggled: a flip meant opening
+	# this on top of another panel handed control back to the player mid-menu, and
+	# closing it left input disabled for good.
+	input_manager.disable_input = inventory_interface.visible
+
 	if inventory_interface.visible:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		hot_bar_inventory.hide()

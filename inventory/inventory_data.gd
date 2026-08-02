@@ -75,6 +75,46 @@ func spend_type(type: Types.Item, amount: int) -> bool:
 	return true
 
 
+## Whether `cost_list` (a CraftingRecipe cost dict, Types.Item -> per-unit amount) is
+## affordable `multiplier` times over. Counts across every stack, which is the whole
+## reason this exists: has_items() stops at the first matching slot, so a player
+## holding 3 + 3 wood in two slots reads as unable to afford 5.
+func can_afford(cost_list: Dictionary, multiplier: int = 1) -> bool:
+	if multiplier <= 0:
+		return false
+	for type in cost_list:
+		if count_of_type(type) < int(cost_list[type]) * multiplier:
+			return false
+	return true
+
+
+## Pays `cost_list` `multiplier` times over, all-or-nothing. Every key is checked
+## before anything is removed, so a caller never has to unwind a half-paid recipe —
+## the failure mode the old per-key remove() loop had no way to avoid.
+func spend_cost(cost_list: Dictionary, multiplier: int = 1) -> bool:
+	if not can_afford(cost_list, multiplier):
+		return false
+	for type in cost_list:
+		spend_type(type, int(cost_list[type]) * multiplier)
+	return true
+
+
+## How many times over `cost_list` could be paid right now. Drives the "x12" badge on
+## a recipe card and the MAX button; 0 means the recipe is visible but unaffordable.
+func affordable_count(cost_list: Dictionary) -> int:
+	if cost_list.is_empty():
+		return 0
+	var best := -1
+	for type in cost_list:
+		var per_unit := int(cost_list[type])
+		if per_unit <= 0:
+			continue
+		var possible := count_of_type(type) / per_unit
+		if best < 0 or possible < best:
+			best = possible
+	return maxi(best, 0)
+
+
 func remove_by_type(type: Types.Item):
 	for i in inventory_slot_datas.size():
 		var data = inventory_slot_datas[i]
