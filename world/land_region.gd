@@ -40,8 +40,40 @@ var min_resources: int = 40
 ## Whether the respawn timer may restock here, and whether the enemy spawner may pick
 ## cells here. Separate because the boss arena wants neither but a quiet resource island
 ## might want only the first.
+##
+## These state the region's INTENT and never change. Whether it is stockable *today* is
+## `connected` below, and the two are deliberately separate: the boss arena refuses ambient
+## spawning forever, while the grove merely has not been reached yet.
 var ambient_resources: bool = true
 var ambient_enemies: bool = true
+
+## Whether the player can walk here from the home island right now.
+##
+## Islands are drawn at world generation and are visible across the water for most of the
+## early game, but nothing is placed on one until the home coastline has been bought out far
+## enough to meet it. Two reasons, and the second is the one that bites:
+##
+##   - A fully stocked ore island the player can see and cannot reach is a shop window. The
+##     content is the reward for the land purchases, so it should arrive with them.
+##   - Both ceilings scale with land the region owns. An unreachable island was buying the
+##     mainland extra enemies and holding a share of the respawn timer's ticks, which came
+##     out of ground the player was actually standing on - the same argument that made the
+##     boss arena opt out of both, applied to land that has simply not opened yet.
+##
+## Defaults true, so the home region and anything that never sets it behave as before.
+## IslandManager clears it at generation and sets it from a flood fill; see
+## IslandManager.refresh_connections.
+var connected: bool = true
+
+
+## Whether the respawn timer may put a node down here as things stand.
+func accepts_ambient_resources() -> bool:
+	return connected and ambient_resources
+
+
+## Whether the enemy spawner may pick a cell here as things stand.
+func accepts_ambient_enemies() -> bool:
+	return connected and ambient_enemies
 
 
 ## The exact cells this region owns, as a set. Empty means "judge by distance from

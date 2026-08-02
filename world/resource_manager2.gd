@@ -309,7 +309,9 @@ func add_random_resource(region: LandRegion = null) -> bool:
 ## Which region the respawn timer restocks this tick, weighted by how much land each one
 ## has - otherwise a six-tile grove is restocked as often as the whole mainland, and the
 ## mainland goes bare. Regions that opt out are never picked, which is what keeps a boss
-## arena clear without the timer needing to know what a boss is.
+## arena clear without the timer needing to know what a boss is - and nor is an island the
+## player cannot walk to yet, whose share of the ticks would otherwise be taken out of the
+## ground they are actually standing on.
 func pick_ambient_region() -> LandRegion:
 	if tile_map_handler == null:
 		return null
@@ -319,7 +321,7 @@ func pick_ambient_region() -> LandRegion:
 	var total := 0
 
 	for region in tile_map_handler.regions:
-		if not region.ambient_resources:
+		if not region.accepts_ambient_resources():
 			continue
 		var tiles: int = tile_map_handler.count_land_tiles_in(region)
 		if tiles <= 0:

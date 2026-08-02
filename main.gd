@@ -251,6 +251,13 @@ func set_island_seed(new_seed: int) -> void:
 func _on_land_purchased(_new_radius: int, _tiles_added: int) -> void:
 	resource_manager.seed_island()
 
+	# Buying land is the only thing that ever grows the coastline, so it is the only thing
+	# that can put an island within walking distance — and an island is stocked when it opens.
+	# Null on the first parcels of a session only in principle: _setup_land_purchase runs
+	# before _setup_islands, so the signal is connected while island_manager is still absent.
+	if island_manager != null:
+		island_manager.refresh_connections()
+
 
 ## The land economy and its panel. Both are created here rather than placed in
 ## main.tscn so the scene file stays untouched; the panel goes in the UI
@@ -292,8 +299,11 @@ func _setup_islands() -> void:
 	add_child(island_manager)
 
 	island_manager.generate()
-	island_manager.seed_islands()
-	island_manager.populate_boss_island()
+	# Draws them empty and opens nothing: a starting coastline of radius 8 is nowhere near
+	# the nearest island at 20. It runs anyway rather than being skipped, because "open and
+	# stock whatever is already reachable" is the same question after generation, after a
+	# purchase and after a load, and one answer to it is easier to trust than three.
+	island_manager.refresh_connections()
 
 	# Screen space, so it goes in UI rather than under Player/Camera2D/HUD - that Control
 	# is world space at 0.23 scale for the diegetic HUD.
@@ -580,6 +590,40 @@ func land_tiles() -> Array:
 ## scaled against this number lets one island's grass inflate every other island's budget.
 func count_land_tiles() -> int:
 	return land_tiles().size()
+
+
+## Every cell the player can actually walk to from the spawn, as a lookup.
+##
+## Walkable means plain grass: every other terrain variant the solver produces is coastline
+## and carries a collision polygon, so it is a wall in practice. That distinction is the
+## whole reason this cannot be "is there land there" - an island and the mainland can be a
+## single tile apart, look joined, and be separated by two coastlines.
+##
+## `extra` is treated as walkable on top of what exists, which is how a caller asks the
+## hypothetical question: reachable once every parcel is bought, rather than reachable now.
+func walkable_cells_from_home(extra: Dictionary = {}) -> Dictionary:
+	var walkable := {}
+	for cell in land_tiles():
+		walkable[cell] = true
+	for cell in extra:
+		walkable[cell] = true
+
+	# Untyped: cell_nearest_to returns null for an empty set, so it has no inferable type.
+	var start = TileMapHandler.cell_nearest_to(walkable.keys(), HOME_CENTRE)
+	if start == null:
+		return {}
+
+	var seen := {start: true}
+	var frontier := [start]
+	while not frontier.is_empty():
+		var cell: Vector2i = frontier.pop_back()
+		for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var next: Vector2i = cell + step
+			if walkable.has(next) and not seen.has(next):
+				seen[next] = true
+				frontier.append(next)
+
+	return seen
 
 
 ## The home island as a region, so that every stretch of land in the game is one and
