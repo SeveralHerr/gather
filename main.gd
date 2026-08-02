@@ -496,20 +496,28 @@ func play_audio(_location: Vector2i, tile_source_id: int, atlas_location: Vector
 	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
+## Whether a cell refuses a build. `include_resources` widens the check to the floor
+## layer; `is_wall` narrows it to exactly one exemption — a wall may stand on a floor the
+## player has already laid, and on nothing else.
+##
+## `is_wall` used to `return false` here, which made walls the one placeable with no rules
+## at all: they went down on open water, straight over a tree or an ore vein, and on top of
+## each other, spending the stack every time. Everything else routes through
+## PlayerManager.place_tile and was refused correctly, so the bug was invisible unless you
+## happened to have a wall selected (gather-llu). The ground check below is what keeps
+## building on the island.
 func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = false)-> bool:
 	var occupied = false
-	
-	if is_wall == true:
-		return false
-	
+
 	var tile = tileMap.get_cell_tile_data(1, tilePos)
 	if tile != null:
 		occupied = true
-		
+
+	# Floors are the one thing a wall is allowed to be built on top of.
 	tile = tileMap.get_cell_tile_data(2, tilePos)
-	if tile != null and include_resources == true:
+	if tile != null and include_resources == true and not is_wall:
 		occupied = true
-		
+
 	# Check if trying to spawn on anything that is not grass
 	if tileMap.get_cell_atlas_coords(0, tilePos) != GRASS_ATLAS:
 		occupied = true

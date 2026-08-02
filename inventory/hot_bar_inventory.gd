@@ -136,7 +136,11 @@ func _process(_delta):
 		var tile_pos =  tile_map.get_tile_in_front_of_player()
 		held_item_texture.global_position = tile_pos
 
-		if tile_map.is_occupied(tile_map.tileMap.local_to_map(tile_pos), true, false):
+		# Same is_wall the placement itself will pass, or the tint lies: walls are the one
+		# placeable allowed onto a floor, so asking with is_wall=false paints a legal
+		# placement red.
+		var as_wall: bool = selected_slot_data != null and selected_slot_data.item is GameItemWall2
+		if tile_map.is_occupied(tile_map.tileMap.local_to_map(tile_pos), true, as_wall):
 			held_item_texture.modulate = Color(1, 0, 0, 140)
 		else:
 			held_item_texture.modulate = Color(1, 1, 1, 1)

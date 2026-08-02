@@ -1871,3 +1871,57 @@ Guidelines that make an entry useful later:
   screenshot at all, and it distorts what it shows — the XP splash looked enormous under it
   purely because `_absorb_xp`'s stacking tween was stretched eight-fold. A slow-motion
   screenshot is good for "is this drawn in front of that" and bad for "is this too big".
+
+## 2026-08-02 — walls could be built on open water and over resources (gather-llu)
+
+- Value: **warranted** — runtime is the only place the *stack* half of the fix is visible, and
+  it corrected my reading of the screenshot that started the session.
+  - Expected: in the live game a wall is refused on a sea cell and on a resource cell — the
+    stack count stays put — while still going down on clear grass; and the hotbar preview tint
+    agrees with the placement decision. The unit tests exercise `is_occupied` in isolation and
+    never run `PlayerManager.place_wall`, so only runtime can show the stack-decrement and
+    preview halves.
+  - Got: all four placement cases, read off `player_state.selected_count` + `tile_at`. Walked
+    east until the player was pinned at the shore with `layer 0 at (5, -7): source -1 atlas
+    (-1, -1)` in front — literal open water — then `input tap gather`: `Stone Wall 9` before,
+    `Stone Wall 9` after, cell still `source -1`. Same for the resource cell `(-1, -5): source 9`
+    and for a second press onto the wall just placed. Control case placed normally, `10 → 9`.
+    The preview read `modulate {r:1, g:0, b:0}` over the sea cell and `{r:1, g:1, b:1}` over a
+    player-laid stone floor, where the wall then went down `9 → 8`.
+    The correction: I had read the grey/red pair in the reported screenshot as two placed
+    builds. The screenshot this run took shows the same dark red box floating beside the
+    player — it is `HeldItemTexture` at `modulate a=140`, i.e. the *preview*. So the preview
+    had been saying "no" over the water the whole time and `place_wall` placed anyway; the
+    two disagreed because only the preview passed `is_wall = false`.
+  - Cheaper: the new unit test settles the `is_occupied` truth table for a few seconds of
+    headless run, and it is what caught that walls were also overwriting each other. Nothing
+    cheaper covers the stack-decrement path or the preview tint — those needed the game.
+
+- Gap: **the Phase 0 drift check reports every harness file as drifted on a CRLF checkout.**
+  `cmp -s` against `templates/` flagged all 8 files; `diff <(tr -d '\r' < src) <(tr -d '\r' < dst)`
+  is empty for all 8. The project's copies have Windows line endings, the plugin's have Unix,
+  and the check compares bytes — so "DRIFT" here means nothing at all, and a real local patch
+  would be indistinguishable from this noise.
+  - [G-063] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: normalize line endings on both sides before comparing, e.g.
+    `diff -q <(tr -d '\r' < "$src") <(tr -d '\r' < "$f")` in the Phase 0 snippet.
+
+- Gap: **[G-006-style] no verb drives a placement through the real `place_wall` path.**
+  `place_build` calls `handler.set_tile` directly and skips `is_occupied` entirely (the same
+  bypass `gather-15o` files against build XP), and `run-method` cannot pass the `Vector2i` that
+  `is_occupied` takes (`gather-6sp`). The workaround was to reach the fix through the whole
+  player: `give_item` → `run-method select_slot` → walk with `input press move_*` until the
+  terrain in front was the case under test → `input tap gather`. That worked, and it is honest
+  end-to-end coverage, but finding a plain-grass cell and an open-water cell took ~15 bridge
+  calls of blind walking because the only way to ask "what is in front of me" is `tile_at` one
+  offset at a time.
+  - [G-064] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a project verb `goto_cell` taking a predicate (`"grass_clear"`, `"shore"`,
+    `"resource"`) that teleports the player beside a matching cell and sets facing — the
+    placement analogue of `goto_resource`, which already exists for exactly this reason on the
+    gather side.
+
+- Note: `step-time --seconds 3` did not sustain a held movement action — the player advanced
+  4px where 2.5s of wall-clock `input press` + `sleep` moved it ~55px. Not filed as a gap
+  because the docs only promise `step-time` advances the clock, not that polled input state
+  survives it; worth knowing before using it to walk anything anywhere.
