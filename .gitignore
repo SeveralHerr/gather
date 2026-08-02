@@ -18,6 +18,11 @@ bin/
 # and does not always clean them up.
 *.tmp
 
+# Backup copies. /scaffold-godot-harness leaves tools/*.bak behind when it
+# refreshes the harness; three of them were committed by accident and had already
+# drifted hundreds of lines from the live files they shadowed.
+*.bak
+
 # Runtime save state, written by SaveLoad.gd during play.
 saveFile
 saveFile*
