@@ -16,6 +16,7 @@ signal attack
 signal toggle_inventory
 signal toggle_skills
 signal toggle_land
+signal toggle_debug
 
 @export var isUiOpen = false
 var disable_input = false
@@ -93,3 +94,9 @@ func _input(event):
 	# out of it while dead or mid-respawn is worse than opening it there.
 	if event.is_action_released("land"):
 		toggle_land.emit()
+	# Same again, and more so: the debug panel is the thing you want when the run is
+	# already wedged, so gating it on disable_input would lock it away exactly when it
+	# is useful. The panel only exists in a debug build (main.gd builds it behind
+	# OS.is_debug_build()), so in an export this signal has no listener.
+	if event.is_action_released("debug_panel"):
+		toggle_debug.emit()
