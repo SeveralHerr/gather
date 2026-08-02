@@ -49,7 +49,7 @@ Guidelines that make an entry useful later:
   template evolution (new flags, new docstrings); no project edits existed to protect.
   Workaround: diffed all three by hand to confirm they were disposable, then reported
   them to the user rather than deleting unprompted.
-  - [G-001] status: open | seen: 1 | harness: 0.4.0
+  - [G-001] status: fixed | seen: 1 | harness: 0.4.0 | fixed-in: 0.7.0
   - Improvement: have step 4 skip the backup when the existing file matches a *known
     previous template version* — e.g. stamp a `# harness-version: N` header into copied
     tools and only back up when the target's stamp is absent or modified.
@@ -58,7 +58,7 @@ Guidelines that make an entry useful later:
   merging `hud_layer_name` worked only because the existing value (`UI2`) happened to be
   non-default; a project that legitimately set it back to `"HUD"` would be
   indistinguishable from an unpatched default on the next refresh.
-  - [G-002] status: open | seen: 1 | harness: 0.4.0
+  - [G-002] status: fixed | seen: 1 | harness: 0.4.0 | fixed-in: 0.7.0
   - Improvement: write a `"_scaffold_defaults"` sidecar block into
     `devtools_config.json` recording the values scaffold last wrote, so a later run can
     diff "what I wrote" against "what's there now" and only overwrite untouched keys.
@@ -72,7 +72,7 @@ Guidelines that make an entry useful later:
   `python tools/devtools.py harness-version` printed
   `usage: devtools.py [-h] ... {ping,screenshot,validate,...,node-bounds}`, i.e. an argparse
   rejection, so every `harness:` field in this file is a hand-guess.
-  - [G-003] status: open | seen: 2 | harness: 0.4.0
+  - [G-003] status: fixed | seen: 2 | harness: 0.4.0 | fixed-in: 0.7.0
   - Improvement: add a `harness-version` verb (and a line in `lint_project.gd`'s header
     output) reporting the template revision the installed files came from.
 
@@ -385,7 +385,7 @@ Guidelines that make an entry useful later:
   and `grep -m1 'harness-version:' tools/lint_project.gd` printed nothing, so the `harness:`
   field every Phase 6 gap is supposed to carry cannot be filled either. The run was verified
   but not recorded, which is exactly the history the ledger exists to accumulate.
-  - [G-023] status: open | seen: 1 | harness: unknown (no version marker installed)
+  - [G-023] status: fixed | seen: 1 | harness: unknown (no version marker installed) | fixed-in: 0.7.0
   - Improvement: re-run `/scaffold-godot-harness` to pick up `verify_ledger.py` +
     `tools/upstream_gaps.py` + the version marker. Failing that, `/verify` should detect the
     missing script and say "ledger not installed" rather than surfacing a raw Python traceback
@@ -439,3 +439,61 @@ Guidelines that make an entry useful later:
   so re-running `/scaffold-godot-harness` may already close it — check whether
   `tools/verify_ledger.py` and a `harness-version:` marker in `tools/lint_project.gd` are
   present before re-upstreaming it.
+
+## 2026-08-01 — Refreshed the harness to 0.7.0 (/scaffold-godot-harness)
+
+- Closed: **[G-023] is fixed in 0.7.0.** The refresh installed `tools/verify_ledger.py`
+  (`python tools/verify_ledger.py stats` now answers `No ledger yet at .devtools\verify-runs.jsonl`
+  instead of `No such file or directory`) and both halves now carry a version marker —
+  `# harness-version: 0.7.0` in `tools/lint_project.gd` and `HARNESS_VERSION = "0.7.0"` in
+  `dev_tools.gd` / `devtools.py`. The `harness:` field on future gaps can be filled from
+  `devtools.py harness-version`. Marked `fixed-in: 0.7.0` above.
+- Still open: **[G-026]** — 0.7.0 added no `.gdignore` handling; `grep -n gdignore
+  addons/godot_selftest/scene_validator.gd tools/lint_project.gd` returns nothing, so the
+  validator still walks `addons/virtual_joystick/test/`.
+
+- Gap: **`/scaffold-godot-harness` step 11 has no Windows branch for locating Godot** — the
+  documented probe is `$GODOT_BIN` -> `/Applications/Godot.app/...` -> `command -v godot`.
+  On this machine all three miss (the binary is a bare
+  `/c/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe`, never on PATH), so step 11 falls
+  through to `WARN: no Godot binary found` and steps 12's smoke check would be skipped
+  entirely. Only this project's own `CLAUDE.md` records the real path; a first-time scaffold
+  on a Windows box would report install-success having verified nothing.
+  - [G-027] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: add a Windows branch to the step 11 probe — glob
+    `~/Documents/Godot_v*_win64.exe`, `/c/Program Files/Godot/*.exe` and
+    `$LOCALAPPDATA/Programs/Godot/*.exe` — and, once found, write the resolved path into
+    `devtools_config.json` as `godot_bin` so `/verify` and later refreshes stop re-deriving it.
+
+- Also closed by this refresh, each observed directly during it:
+  **[G-001]** — step 4 now hash-checks against `.harness_manifest.json` + the plugin's
+  `harness_history.json`; all six replaced files reported
+  `updated from an earlier version (unmodified - no backup needed)` and
+  `find . -name '*.bak'` came back empty, where the old rule would have made four.
+  **[G-002]** — the config merge wrote a `_scaffold_defaults` block and correctly kept both
+  customized keys: `= hud_layer_name kept as "UI2" (differs from the shipped default - now
+  project-owned)`, same for `main_scene`.
+  **[G-003]** — `harness_version` is now a registered verb and both halves stamp `0.7.0`.
+
+- Gap: **`--import` silently rewrites `project.godot`, dropping comments and explicit
+  settings** — CLAUDE.md requires `--import` after any new `class_name` and the scaffold
+  smoke check runs it, but nothing warns that Godot *rewrites the file it read*. After
+  `godot --headless --path . --import`, `git diff project.godot` showed a clean tree turn
+  dirty with every explanatory comment stripped and three settings deleted outright:
+  ```
+  -window/stretch/mode="disabled"
+  -renderer/rendering_method="forward_plus"
+  -renderer/rendering_method.web="gl_compatibility"
+  ```
+  Godot drops keys it considers default, but `.web` is the override the in-file comment says
+  keeps the itch.io build from failing to start in the browser — a loss that only surfaces on
+  deploy, long after the commit. It was caught only because `git status` was read again before
+  staging; had the refresh been committed straight from the earlier clean status, it would have
+  shipped inside a "harness refresh" commit nobody would think to check for a renderer change.
+  Workaround: `git checkout -- project.godot`, then re-confirmed the `DevTools` autoload
+  survived (it did — it was already committed).
+  - [G-028] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have the scaffolder and `/verify` snapshot `project.godot` before any
+    `--import` and restore it (or diff and warn loudly) afterward — the import step needs the
+    *cache* rebuilt, never the project file edited. Failing that, CLAUDE.md's `--import` rule
+    should carry an explicit "check `git diff project.godot` afterward" warning.
