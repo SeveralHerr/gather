@@ -40,3 +40,10 @@ screenshots/
 # it is not ignored by default, so `git add .` would try to commit a second copy of
 # the whole project (and the project linter scans it too).
 .claude/worktrees/
+
+# /verify scratch. These are the INPUTS to a verify run - two scene-tree snapshots and
+# the run row handed to verify_ledger.py - not records of it. The record is
+# .devtools/verify-runs.jsonl, which IS committed. Ignored because a run that ends early
+# leaves them behind and they then read as untracked work.
+.devtools/tree-*.json
+.devtools/run.json

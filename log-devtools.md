@@ -1376,3 +1376,61 @@ Guidelines that make an entry useful later:
 
 - Gap: no gaps this turn — the harness was used only for its headless half, which did exactly
   what it claims. Logged explicitly so this turn is distinguishable from a forgotten entry.
+
+## 2026-08-02 — Corrected the stale TUNING header and pushed the branch
+
+- Value: **overkill** — a comment-only edit followed by a push. Lint confirmed what reading
+  the five changed lines already settled.
+  - Expected: nothing. The change was five lines of prose inside a comment block; there was
+    no runtime behaviour to predict, and I said so before running anything.
+  - Got: `lint: 0 error(s), 7 warning(s) -> exit 0`, i.e. the file still parses. That is the
+    entire content of the check. The unit suite was not re-run, correctly — no code path
+    changed.
+  - Cheaper: nothing, and that is the point: lint alone was already the cheap option at ~8s,
+    and skipping even that on a "just a comment" edit is how an unterminated block comment
+    reaches a push. Recorded as overkill rather than warranted because the run confirmed
+    only what was already known, which is exactly the case that otherwise goes unlogged.
+
+- Gap: no gaps this turn.
+
+## 2026-08-02 — Denser themed islands, thinner mainland ore, one coalesced XP splash
+
+- Value: **warranted** — runtime gave the two numbers the diff cannot: what the density
+  constant becomes as actual island node counts, and how many labels a burst of xp leaves
+  in the world.
+  - Expected: the forest and ore islands each stock ~30% more nodes than the old 0.3
+    density (per-region census up from ~23 to ~30 each), and a rapid burst of xp awards
+    leaves exactly one SplashText in the world container carrying the summed total instead
+    of one node per award.
+  - Got: half right, and the half that was wrong mattered. `island_census` reported
+    `forest land=66 cap=25 nodes=17` and `ore land=68 cap=26 nodes=18` — the caps moved as
+    predicted (19->25, 20->26) but the *stocked* counts are 17/18, not ~30, because
+    `SEED_FILL_RATIO` fills to 70% of cap and the respawn timer walks the rest up over
+    play. The +30% is real (13/14 before) but the absolute number I predicted was off by
+    nearly half, which no reading of `ISLAND_RESOURCE_DENSITY := 0.39` would have caught.
+    `home land=65 cap=40` also confirmed the mainland is still pinned to
+    `MIN_RESOURCE_CAP` and untouched by the island constant. On the splash: five separate
+    `add_xp(1)` calls left `container children: 1` reading `+5 XP`, and a 4-award burst
+    read `+7 XP` at `scale: 0.264` against the 0.2 base, i.e. the swell is running. The
+    guard held too — a level-crossing award still put 9 children in the container, so
+    LEVEL/SKILL POINT splashes are not being swallowed by the xp label.
+  - Cheaper: the unit tests settled the coalescing identity, the colour ramp, the distance
+    guard and the mainland ore share (`ordinary ground rolled ore ...%` vs
+    `MAINLAND_ORE_SHARE`) for ~20s headless. Nothing cheaper could produce the island node
+    counts — that number is generation plus seeding plus the fill ratio, and it is the
+    entire claim of the density change.
+
+- Gap: **reach cannot see a node that only exists for 0.85s** — `verify_ledger.py reach`
+  reported `NOT reached: ... ui/splash_text.gd` on a run whose central assertion was
+  `get-state --node /root/Main/Node2D/SplashTexts/SplashText --property text` returning
+  `+5 XP`. Reach intersects the diff against `script` paths in a `scene-tree` snapshot, and
+  every SplashText had freed itself by the time the Phase 5 snapshot was taken, so a file
+  the run demonstrably exercised is filed as unverified. Worked around by taking the
+  evidence from the live `get-state` and saying so in the summary — but the ledger row now
+  under-reports, which is the one thing the ledger exists to prevent.
+  - [G-051] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have the game side accumulate a set of script paths seen across *every*
+    `scene-tree` call in the session (or a `scripts-seen` verb that reports it), so reach is
+    a union over the run rather than a single instant. A transient node — a splash, a
+    particle, a projectile, a pickup — is exactly the kind of thing worth verifying at
+    runtime and exactly the kind reach currently cannot credit.
