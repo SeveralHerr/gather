@@ -1159,3 +1159,36 @@ Guidelines that make an entry useful later:
   - Cheaper: this was the cheapest check — one `git diff --stat`, no Godot launch.
 
 - No gaps this turn.
+
+## 2026-08-02 — merged the UI panel kit into main and consolidated the branches (3d4bb09)
+
+- Value: **warranted** — the merge dragged a 3073-line rewrite of the three panels the
+  debug panel calls into, and only the running game could say whether the debug panel
+  still worked on top of it.
+  - Expected: that `_on_open_skill_tree` / `_on_open_land_panel` still resolve, since the
+    kit rewrote skill_tree_ui.gd and land_purchase_ui.gd wholesale and the debug panel
+    drives them through `set_open()`.
+  - Got: the API survived (`func set_open(open: bool)` still at skill_tree_ui.gd:456,
+    land_purchase_ui.gd:262), and the handoff works end to end — after
+    `_on_open_skill_tree`, the debug panel read `visible: false` and `skill_panel`
+    reported `"open": true`. The readout also came back fully populated on the merged
+    tree. What the merge *did* change is the node layout: the panels now expose
+    `SkillTreeUI/PanelFrame` (ui/panel_frame.gd) instead of `SkillTreeUI/Panel`, leaving
+    the debug panel the only panel still hand-rolling its own styleboxes — filed as a
+    follow-up rather than fixed here.
+  - Cheaper: `grep -n '^func set_open' ui/*.gd` would have settled the API question in a
+    second, and did. It could not have settled the handoff actually running, which is the
+    half that mattered.
+
+- Gap: **`cmd skill_panel --args '{}'` toggles, so using it to *read* state changes it** —
+  I called it to check whether the skill tree had opened and got `"open": false`, which
+  looked like the debug panel's button had failed. It had not; the read closed the panel.
+  The verb is documented as "absent = toggle", so this is a footgun in the project's own
+  extension rather than the harness core, but the shape is general: several verbs here
+  (`skill_panel`, `land_panel`, `crafting_panel`) are setter-or-toggle depending on
+  whether a key is present, and none of them has a pure reader.
+  - [G-047] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: give the toggle verbs a read-only sibling, or make the status provider
+    carry the panel-open flags (it already carries `skill_panel_open`) so state can be
+    read without dispatching a mutation. Asserting on a mutating verb is a mistake the
+    reply cannot warn you about.
