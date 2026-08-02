@@ -99,8 +99,8 @@ var selected_slot_data: SlotData:
 @onready var prev_button: Button = $MarginContainer/Row/PrevButton
 @onready var next_button: Button = $MarginContainer/Row/NextButton
 @onready var h_box_container: HBoxContainer = $MarginContainer/Row/HBoxContainer
-@onready var input_manager: InputManager = $"../../InputManager"
-@onready var held_item_texture: TextureRect = $"../../Node2D/Player/HeldItemTexture"
+@onready var input_manager: InputManager = $"../../Systems/InputManager"
+@onready var held_item_texture: TextureRect = $"../../World/Player/HeldItemTexture"
 @onready var tile_map: TileMapHandler = $"../.."
 
 

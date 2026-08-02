@@ -26,7 +26,20 @@ var run_once = false
 @onready var sprite_2d: Sprite2D = $Sprite2D
 @onready var area_2d: Area2D = $Area2D
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
-@onready var sound_manager  =  get_tree().get_nodes_in_group("SoundManager")[0]  
+@onready var sound_manager: SoundManager = _find_sound_manager()
+
+
+## Was `get_nodes_in_group("SoundManager")[0]`. main.tscn's root node used to be
+## declared in that group too, so the index was never a reliable way to reach the
+## real manager; the type check is.
+func _find_sound_manager() -> SoundManager:
+	for node in get_tree().get_nodes_in_group("SoundManager"):
+		if node is SoundManager:
+			return node
+	push_error("PickUp: no SoundManager in the SoundManager group")
+	return null
+
+
 func _ready():
 	area_2d.body_entered.connect(_on_body_entered)
 	#animation_player.play("Hover")

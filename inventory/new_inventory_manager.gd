@@ -3,11 +3,11 @@ class_name NewInventoryManager
 
 const PICK_UP = preload("res://items/pick_up.tscn")
 
-@onready var player: Player = $"../Node2D/Player"
-@onready var inventory_interface = $"../UI2/InventoryInterface"
+@onready var player: Player = $"../../World/Player"
+@onready var inventory_interface = $"../../UI/InventoryInterface"
 @onready var input_manager: InputManager = $"../InputManager"
-@onready var hot_bar_inventory = $"../UI2/HotBarInventory"
-@onready var crafting_ui: CraftingUi = $"../UI2/CraftingUI"
+@onready var hot_bar_inventory = $"../../UI/HotBarInventory"
+@onready var crafting_ui: CraftingUi = $"../../UI/CraftingUI"
 
 func _ready():
 	add_to_group("InventoryManager")

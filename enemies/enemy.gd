@@ -21,7 +21,6 @@ var camera: Camera
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @onready var navigation_agent_2d = $NavigationAgent2D
 @onready var los_area_2d = $LineOfSight
-@onready var player =  get_tree().get_nodes_in_group("Player")[0]  
 @onready var soft_collision = $SoftCollision
 @onready var collision = $CollisionShape2D2
 @onready var attack_range : Area2D = $AttackRange

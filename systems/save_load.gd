@@ -1,7 +1,35 @@
 extends Control
 class_name SaveLoad
 
-var loads = [] 
+var loads = []
+
+## Node paths that moved when main.tscn's tree was reorganised, old -> new.
+##
+## Every saveObject() keys its entry on get_path(), an absolute runtime path, and
+## _load() resolves it with has_node(). A path that no longer exists does not raise
+## — the `elif` simply falls through and that node's entire state is dropped in
+## silence. So renaming a node in main.tscn invalidates part of every save written
+## before the rename, with no symptom beyond a player who comes back at the origin
+## with an empty inventory.
+##
+## Keep entries here forever: they cost one dictionary lookup and they are the only
+## thing standing between a tree cleanup and a wiped save.
+const LEGACY_PATHS := {
+	"/root/Main/Node2D/Player": "/root/Main/World/Player",
+	"/root/Main/Node2D/EnemySpawner": "/root/Main/World/EnemySpawner",
+	"/root/Main/Node2D/Player/Camera2D/UI/LevelUpUI": "/root/Main/Systems/LevelUpManager",
+	# The intermediate home the node held for one step of the same restructure, before
+	# it was recognised as a model rather than a HUD widget. Cheap to keep, and the
+	# alternative is a save written between the two steps silently losing its levels.
+	"/root/Main/World/Player/Camera2D/HUD/LevelUpManager": "/root/Main/Systems/LevelUpManager",
+	"/root/Main/ResourceManager": "/root/Main/Systems/ResourceManager",
+}
+
+
+## The path an entry should be loaded into, following LEGACY_PATHS if the saved one
+## predates a rename.
+static func migrate_path(filepath: String) -> String:
+	return LEGACY_PATHS.get(filepath, filepath)
 
 func _on_save_pressed() -> void:
 	_save()
@@ -96,9 +124,15 @@ func _load() -> void:
 		if node_data.has("x") and node_data.has("y"):
 			loads.append(node_data)
 
-		elif has_node(node_data["filepath"]) :
-			get_node(node_data["filepath"]).loadObject(node_data)
-			
+		else:
+			var filepath: String = migrate_path(str(node_data["filepath"]))
+			if has_node(filepath):
+				get_node(filepath).loadObject(node_data)
+			else:
+				# Previously a silent fall-through, which is how a renamed node
+				# loses its state without anyone noticing.
+				push_warning("SaveLoad: no node at '%s', that entry was not restored" % filepath)
+
 	save_file.close() # Close File
 
 func _load_tilemap() -> void:
@@ -117,8 +151,9 @@ func _load_tilemap() -> void:
 		# Get the Data
 		var node_data = json.get_data()
 		print(node_data)
-		if has_node(node_data["filepath"]) and node_data["filepath"] == "/root/Main":
+		var filepath: String = migrate_path(str(node_data["filepath"]))
+		if has_node(filepath) and filepath == "/root/Main":
 			print("loading tilemap")
-			get_node(node_data["filepath"]).loadObject(node_data)
+			get_node(filepath).loadObject(node_data)
 			
 	save_file.close() # Close File

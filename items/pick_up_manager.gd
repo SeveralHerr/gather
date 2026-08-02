@@ -15,8 +15,8 @@ func create(slot_data: SlotData, position: Vector2):
 
 	var initial_velocity = Vector2(randf_range(-15, 15), randf_range(-70, -60))
 	pick_up.linear_velocity = initial_velocity
-	get_node("/root/Main/Node2D/PickUps").add_child(pick_up)
-	get_node("/root/Main/Node2D/PickUps").add_child(shadow)
+	get_node("/root/Main/World/PickUps").add_child(pick_up)
+	get_node("/root/Main/World/PickUps").add_child(shadow)
 	pick_up.slot_data = slot_data
 	shadow.target = pick_up
 	pick_up.shadow = shadow
@@ -42,7 +42,7 @@ func create_pickup(item: GameItem, position: Vector2):
 
 func saveObject() -> Dictionary:
 	var world_item_data = {}
-	var pickups_in_world = get_node("/root/Main/Node2D/PickUps").get_children()
+	var pickups_in_world = get_node("/root/Main/World/PickUps").get_children()
 
 	# create() parents a shadow Sprite2D next to every drop, so half of this
 	# container has no slot_data at all. Reading it unconditionally aborted the
@@ -73,7 +73,7 @@ func saveObject() -> Dictionary:
 func loadObject(loadedDict: Dictionary) -> void:
 
 	
-	for child in get_node("/root/Main/Node2D/PickUps").get_children(): 
+	for child in get_node("/root/Main/World/PickUps").get_children(): 
 		child.queue_free()
 	
 	for item in loadedDict.world_items.keys():

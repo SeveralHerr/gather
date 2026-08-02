@@ -502,7 +502,7 @@ func populate_boss_island() -> void:
 func _spawner() -> EnemySpawner:
 	if tile_map_handler == null:
 		return null
-	return tile_map_handler.get_node_or_null("Node2D/EnemySpawner") as EnemySpawner
+	return tile_map_handler.get_node_or_null("World/EnemySpawner") as EnemySpawner
 
 
 func _live_boss() -> Enemy:

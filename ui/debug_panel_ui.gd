@@ -4,8 +4,8 @@ class_name DebugPanelUi
 ## The manual-testing panel, on F3.
 ##
 ## Built in code rather than as a .tscn, matching the skill, land and crafting panels.
-## It lives in the UI2 CanvasLayer (screen space) and must never be parented under
-## Player/Camera2D/UI: that Control is world space at the camera's 4.935x zoom and is
+## It lives in the UI CanvasLayer (screen space) and must never be parented under
+## Player/Camera2D/HUD: that Control is world space at the camera's 4.935x zoom and is
 ## sized for the diegetic HUD, so a full-screen panel there renders at about a fifth
 ## size and scrolls with the camera.
 ##
@@ -63,7 +63,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	if input_manager == null:
-		input_manager = get_node_or_null("../../InputManager") as InputManager
+		input_manager = get_node_or_null("../../Systems/InputManager") as InputManager
 	if input_manager:
 		input_manager.toggle_debug.connect(toggle)
 
@@ -96,7 +96,7 @@ func _handler() -> TileMapHandler:
 
 
 func _spawner() -> EnemySpawner:
-	return get_tree().root.get_node_or_null("Main/Node2D/EnemySpawner") as EnemySpawner
+	return get_tree().root.get_node_or_null("Main/World/EnemySpawner") as EnemySpawner
 
 
 # --- construction ------------------------------------------------------------

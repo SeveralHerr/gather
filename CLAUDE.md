@@ -117,6 +117,43 @@ check the runner's stderr for `SCRIPT ERROR`.
 Single-scene game. `main.tscn`'s root node `Main` runs `main.gd` (`class_name
 TileMapHandler`) and owns world generation, tile writes and the save format.
 
+**The scene tree has exactly three branches under `Main`** (`gather-ue3`), and new
+nodes belong in one of them rather than loose at the root:
+
+```
+Main
+├── World      (Node2D, y-sorted)  everything with a world position
+│   ├── TileMap, EnemySpawner, ResourceTimer, PickUps, PointLight2D
+│   └── Player
+│       └── Camera2D
+│           └── HUD  (Control, ui/camera_hud.gd)  the *diegetic*, world-space HUD
+│               ├── FpsLabel, FloatingText/XpLabel
+│               └── PlayerInfo (HpBar, XpBar, HpCaption, XpCaption)
+├── UI         (CanvasLayer)  screen space: HotBarInventory, MobileControls,
+│                             CraftingUI, SkillTreeUI, InventoryInterface, and
+│                             everything main.gd builds at runtime
+└── Systems    (Node)  Items, Resources, ResourceManager, SoundManager, InputManager,
+                       DestroyManager, SaveLoad, InventoryManager, LevelUpManager
+```
+
+Three things about this are load-bearing and easy to undo:
+
+- **`Systems` is declared after `UI` in the scene file, and must stay there.** Godot
+  readies siblings in tree order, and `InventoryManager._ready()` reaches straight into
+  `UI/InventoryInterface` and `UI/HotBarInventory` `@onready` fields. Move `Systems`
+  above `UI` and those are still null: a first-frame crash whose stack points at
+  `hot_bar_inventory.gd`, nowhere near the edit that caused it.
+- **`UI` (screen space) and `HUD` (world space) are different things.** `HUD` hangs off
+  `Camera2D` at the camera's `4.935` zoom; a full-screen panel put there is drawn into
+  the world. These were `UI2` and `UI` respectively, which is why so many scripts still
+  carry a comment warning you not to confuse them.
+- **`LandManager`, `IslandManager` and the `Ocean` CanvasLayer are created by `main.gd`
+  at runtime as direct children of `Main`**, so they sit outside the three branches by
+  design — their save entries and `land_manager.gd:65`'s `get_parent()` both depend on
+  it.
+
+Renaming or moving a node here is a save-format change: see **Saving** below.
+
 Source is grouped by domain: `player/` (+`states/`), `enemies/` (+`states/`), `items/`,
 `inventory/`, `crafting/`, `turrets/`, `world/` (+`resource_nodes/`, `tile_scenes/`,
 `vfx/`), `systems/`, `ui/`, and `assets/` (+`art/`, `audio/`, `tilesets/`, `materials/`,
@@ -167,7 +204,7 @@ time and bonus yield, consumable heal values), `crafting/recipes.gd` (recipe cos
   draws anything and no longer seizes the screen on level-up; points bank and the
   player opens the panel with `K` when they choose to.
 - `ui/skill_tree_ui.gd` builds the panel in code from the registry and lives in the
-  `UI2` CanvasLayer. Do not put full-screen menus under `Player/Camera2D/UI` —
+  `UI` CanvasLayer. Do not put full-screen menus under `Player/Camera2D/HUD` —
   that Control is world-space at `0.23` scale for the diegetic HUD.
 - Unlocks are applied on purchase only, never on load: `Recipes` and
   `ResourceManager2` persist their own unlocked lists, so replaying them would
@@ -181,11 +218,11 @@ explicitly `"disabled"` (`[display]` in `project.godot`), so growing the window 
 *more world* rather than scaling the same view up — sprites stay pixel-exact at the
 camera's `4.935` zoom. Nothing may hardcode a viewport dimension:
 
-- Screen-space UI goes in the `UI2` CanvasLayer and must be anchored to a viewport
+- Screen-space UI goes in the `UI` CanvasLayer and must be anchored to a viewport
   edge or centred, never placed at absolute pixels. `skill_tree_ui.gd` and
   `land_purchase_ui.gd` build themselves with `PRESET_FULL_RECT` + a
   `CenterContainer` and need nothing further.
-- The diegetic HUD under `Player/Camera2D/UI` is world-space and gets no viewport
+- The diegetic HUD under `Player/Camera2D/HUD` is world-space and gets no viewport
   rect for free, so `ui/camera_hud.gd` sizes that Control to
   `viewport_size / camera.zoom` and centres it on the camera, on `_ready` and on
   `size_changed`. **Its children must therefore use ordinary anchors** — `0` is the
@@ -279,6 +316,22 @@ trails well outside the disc.
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
 individually. Bound to `[` (save) and `]` (load).
 
+**Every save entry is keyed on `get_path()`, so renaming or moving a node in
+`main.tscn` invalidates part of every save written before it.** `_load()` resolves that
+absolute path with `has_node()`; a path that no longer exists used to fall through in
+total silence, dropping that node's entire state. The symptom is not an error — it is a
+player who loads back at the origin with an empty inventory and no levels.
+
+Two things guard this now, and both must be maintained:
+
+- `SaveLoad.LEGACY_PATHS` maps old paths to new. The `gather-ue3` restructure added four
+  entries; **add to it in the same commit as any future rename**, never afterwards.
+- An unresolvable entry now emits `push_warning("SaveLoad: no node at '%s'…")` instead of
+  vanishing, so the next such mistake is visible in the log the first time it happens.
+
+`saveFile` is gitignored, so a broken load is not something CI or a fresh clone will ever
+show you — the only way to catch it is to load a save written before your change.
+
 **DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
 `player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
 `gather_stats`, `spawn_stats`, `goto_resource`, `island_census` — plus a status provider
@@ -317,12 +370,20 @@ tiles around the player, which is less than the distance to the nearest island.
     (pinned by `run/main_scene` and by every existing `saveFile`), and
     `inventory/slot.gd` holds `NewSlot`.
 
-- **`main.tscn`'s root node belongs to every group in the project** (`Player`, `Items`,
-  `LevelUpManager`, `SoundManager`, …). `get_first_node_in_group()` therefore returns
-  the root, not what you asked for. Always iterate `get_nodes_in_group()` and
-  type-check (`if node is LevelUpManager`). `enemies/enemy.gd` does this correctly;
-  `crafting/crafting_station.gd` instead indexes `[1]` to skip the root, which breaks
-  as soon as another node joins that group.
+- **The root node's scene-declared groups are gone** (`gather-ue3`). `main.tscn`'s root
+  used to be authored into all 18 groups in the project — `Player`, `Items`,
+  `LevelUpManager`, `SoundManager`, … — so `get_first_node_in_group()` returned the
+  root instead of what was asked for, and every consumer had to type-check around it.
+  Nothing needed those declarations: each script adds itself to its own group in
+  `_ready()`, and the root re-adds `SaveLoad` and `TileMapHandler` at `main.gd:77-78`.
+  Removing them is what makes a group lookup mean what it says.
+
+  Still iterate and type-check rather than indexing — `if node is LevelUpManager` —
+  because an index encodes how many members a group happens to have today. The
+  restructure proved the point: `world/tile_scenes/test_chest.gd` indexed `[1]` purely
+  to skip the root, so dropping the root's groups made `[1]` out of bounds. It and
+  `items/pick_up.gd` (which indexed `[0]` and had therefore been reaching the *root*,
+  never the real `SoundManager`) are now type-checked lookups.
 - `HealthManager` (`systems/health_manager.gd`) extends `RefCounted` and is held as a
   plain field — never add it to the tree. It previously extended `Node`, was never
   freed, and leaked one object per enemy spawned.

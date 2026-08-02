@@ -22,7 +22,7 @@ extends Control
 ##
 ## Draw order is the other half of the joystick bug and cannot be fixed from here. A
 ## CanvasLayer paints its children in tree order, so whether MobileControls covers
-## this panel is settled by the node order under UI2 in main.tscn.
+## this panel is settled by the node order under UI in main.tscn.
 ##
 ## ## Who owns open and closed
 ##
@@ -51,7 +51,7 @@ var external_inventory_owner
 @onready var external_inventory: NewInventory = $ExternalInventory
 @onready var equip_inventory = $EquipInventory
 @onready var equip_sword_inventory = $EquipSwordInventory
-@onready var input_manager: InputManager = $"../../InputManager"
+@onready var input_manager: InputManager = $"../../Systems/InputManager"
 
 ## The chrome — backdrop, centred frame, title bar, close button — and the column the
 ## grids are reparented into.

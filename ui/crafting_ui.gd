@@ -5,7 +5,7 @@ class_name CraftingUi
 ## for the same reason the skill panel is: the layout is one card per recipe, so a
 ## scene file would only be a second copy of data that has to be edited in lockstep.
 ##
-## Lives in the UI2 CanvasLayer. The panel this replaced sat under Player/Camera2D/UI,
+## Lives in the UI CanvasLayer. The panel this replaced sat under Player/Camera2D/HUD,
 ## which is world space at the camera's ~5x zoom - every child carried its own
 ## compensating scale (0.37, 0.25, 0.385...) and every offset was hand-tuned to a
 ## window size the project stopped using. Nothing here hardcodes a viewport dimension.
@@ -133,7 +133,7 @@ func _ready() -> void:
 	if items_registry == null:
 		items_registry = get_node_or_null("/root/GameItems")
 	if input_manager == null:
-		input_manager = get_node_or_null("../../InputManager") as InputManager
+		input_manager = get_node_or_null("../../Systems/InputManager") as InputManager
 	if level_up_manager == null:
 		level_up_manager = LevelUpManager.find(self)
 

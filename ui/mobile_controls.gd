@@ -24,7 +24,7 @@ class_name MobileControls
 ## joystick — mouse emulation only ever tracks one touch index, so Button.pressed
 ## alone would silently drop those.
 ##
-## Mounted in the UI2 CanvasLayer, never under Player/Camera2D/UI: that Control is
+## Mounted in the UI CanvasLayer, never under Player/Camera2D/HUD: that Control is
 ## world-space at 0.23 scale for the diegetic HUD (see CLAUDE.md).
 
 ## Emitted alongside every synthesised action, so a test can assert that a hold
@@ -160,9 +160,9 @@ func _ready() -> void:
 	if _joystick == null:
 		push_error("MobileControls: no VirtualJoystick child; movement will have no touch input")
 
-	# UI2/MobileControls -> Main/InputManager. The same relative hop the rest of the
-	# UI2 nodes make.
-	_input_manager = get_node_or_null("../../InputManager") as InputManager
+	# UI/MobileControls -> Main/Systems/InputManager. The same relative hop the rest of the
+	# UI nodes make.
+	_input_manager = get_node_or_null("../../Systems/InputManager") as InputManager
 
 	_build_buttons()
 	_layout()

@@ -18,7 +18,7 @@ class_name SkillTreeUi
 ## smaller. Every font size and pad therefore goes through `UiTheme.scaled*` and is
 ## re-derived by `_apply_scale()` on every window resize.
 ##
-## Lives in the UI2 CanvasLayer, not the camera-attached UI Control — that one is
+## Lives in the UI CanvasLayer, not the camera-attached HUD Control — that one is
 ## in world space at 0.23 scale and is sized for the diegetic HUD, not a full
 ## screen menu. The HUD badge is the exception to "this file is a panel": it is a
 ## always-on-screen corner readout and is deliberately not inside the frame.
@@ -99,18 +99,20 @@ func _ready():
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	for node in get_tree().get_nodes_in_group("LevelUpManager"):
-		# The scene root is in every group, so a type check rather than
-		# get_first_node_in_group is the only reliable way to find the real one.
-		if node is LevelUpManager:
-			level_up_manager = node
-			break
+	# Deferred: this panel lives in the UI CanvasLayer, which main.tscn declares before
+	# Systems, so LevelUpManager has not registered itself in its group yet. Binding
+	# here directly found nothing and the panel came up permanently inert.
+	_bind_level_up_manager.call_deferred()
+
+
+func _bind_level_up_manager() -> void:
+	level_up_manager = LevelUpManager.find(self)
 
 	if level_up_manager == null:
 		push_error("SkillTreeUi: no LevelUpManager in the scene; the panel will be inert")
 		return
 
-	input_manager = get_node_or_null("../../InputManager") as InputManager
+	input_manager = get_node_or_null("../../Systems/InputManager") as InputManager
 
 	_build_hud_badge()
 	_build_panel()

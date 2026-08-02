@@ -10,9 +10,9 @@ signal resource_found(resource, location)
 @export var resource_manager: ResourceManager2
 @export var resources: Resources
 @export var sound_manager: SoundManager
-@onready var input_manager = $InputManager
-@onready var save_load: SaveLoad = $Node2D/Player/Camera2D/UI/SaveLoad
-@onready var destroy_manager = $DestroyManager
+@onready var input_manager = $Systems/InputManager
+@onready var save_load: SaveLoad = $Systems/SaveLoad
+@onready var destroy_manager = $Systems/DestroyManager
 var chest = preload("res://world/tile_scenes/chest.tscn")
 
 ## Every autotiling wall. A placed wall is identified by its atlas SOURCE plus the
@@ -111,18 +111,18 @@ func _ready():
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself
-## while any panel is open, and it discovers those panels by walking UI2 for
+## while any panel is open, and it discovers those panels by walking UI for
 ## PanelFrames — so it has to be created after the land and debug panels put theirs
 ## in the tree.
 func _setup_hud_toolbar() -> void:
-	var ui2 := get_node_or_null("UI2")
-	if ui2 == null:
-		push_warning("TileMapHandler: no UI2 CanvasLayer, the HUD toolbar has nowhere to live")
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the HUD toolbar has nowhere to live")
 		return
 
 	var toolbar := HudToolbar.new()
 	toolbar.name = "HudToolbar"
-	ui2.add_child(toolbar)
+	ui_layer.add_child(toolbar)
 
 
 ## The manual-testing panel, on F3. Built here rather than placed in main.tscn for the
@@ -133,15 +133,15 @@ func _setup_debug_panel() -> void:
 	if not OS.is_debug_build():
 		return
 
-	var ui2 := get_node_or_null("UI2")
-	if ui2 == null:
-		push_warning("TileMapHandler: no UI2 CanvasLayer, the debug panel has nowhere to live")
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the debug panel has nowhere to live")
 		return
 
 	var panel := DebugPanelUi.new()
 	panel.name = "DebugPanelUI"
 	panel.input_manager = input_manager
-	ui2.add_child(panel)
+	ui_layer.add_child(panel)
 
 
 ## The home island's centre, and the origin every radius in the game is measured from.
@@ -253,8 +253,8 @@ func _on_land_purchased(_new_radius: int, _tiles_added: int) -> void:
 
 
 ## The land economy and its panel. Both are created here rather than placed in
-## main.tscn so the scene file stays untouched; the panel goes in the UI2
-## CanvasLayer (screen space) and never under Player/Camera2D/UI, which is world
+## main.tscn so the scene file stays untouched; the panel goes in the UI
+## CanvasLayer (screen space) and never under Player/Camera2D/HUD, which is world
 ## space at 0.23 scale for the diegetic HUD.
 func _setup_land_purchase() -> void:
 	land_manager = LandManager.new()
@@ -268,9 +268,9 @@ func _setup_land_purchase() -> void:
 	resource_manager.seed_island()
 	land_manager.land_purchased.connect(_on_land_purchased)
 
-	var ui2 := get_node_or_null("UI2")
-	if ui2 == null:
-		push_warning("TileMapHandler: no UI2 CanvasLayer, the land panel has nowhere to live")
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the land panel has nowhere to live")
 		return
 
 	var panel := LandPurchaseUi.new()
@@ -278,7 +278,7 @@ func _setup_land_purchase() -> void:
 	panel.land_manager = land_manager
 	panel.tile_map_handler = self
 	panel.input_manager = input_manager
-	ui2.add_child(panel)
+	ui_layer.add_child(panel)
 
 
 ## The forest, ore and boss islands. Drawn after the home island is stocked, because
@@ -295,17 +295,17 @@ func _setup_islands() -> void:
 	island_manager.seed_islands()
 	island_manager.populate_boss_island()
 
-	# Screen space, so it goes in UI2 rather than under Player/Camera2D/UI - that Control
+	# Screen space, so it goes in UI rather than under Player/Camera2D/HUD - that Control
 	# is world space at 0.23 scale for the diegetic HUD.
-	var ui2 := get_node_or_null("UI2")
-	if ui2 == null:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
 		return
 
 	var compass := IslandCompass.new()
 	compass.name = "IslandCompass"
 	compass.tile_map_handler = self
 	compass.island_manager = island_manager
-	ui2.add_child(compass)
+	ui_layer.add_child(compass)
 
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.

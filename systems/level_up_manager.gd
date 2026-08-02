@@ -1,10 +1,13 @@
-extends Control
+extends Node
 class_name LevelUpManager
 
-## Progression model. This node no longer draws anything — it owns xp, levels,
-## banked skill points and the taken set, and SkillTreeUi renders it. It stays a
-## Control at its original scene path because saveObject() keys off get_path() and
-## every existing saveFile refers to it there.
+## Progression model. This node draws nothing — it owns xp, levels, banked skill
+## points and the taken set, and SkillTreeUi renders it.
+##
+## It lived under Player/Camera2D/UI as an invisible Control until `gather-ue3`,
+## purely because saveObject() keys off get_path() and every saveFile written before
+## then referred to it there. SaveLoad.LEGACY_PATHS carries that history now, so the
+## node sits in `Systems` with the rest of the model and is a plain Node again.
 
 signal added_xp(amount: int)
 signal xp_changed(xp: int, next_level: int)
@@ -12,8 +15,23 @@ signal level_gained(level: int)
 signal points_changed(points: int)
 signal skill_learned(skill: Skill)
 
-@onready var xp_bar: ProgressBar = $"../PlayerInfo/XpBar"
-@onready var resource_manager: ResourceManager2 = $"../../../../../ResourceManager"
+@onready var resource_manager: ResourceManager2 = $"../ResourceManager"
+
+## The HUD's XP bar. Resolved lazily rather than with an @onready sibling path: the
+## bar hangs off the camera (Player/Camera2D/HUD/PlayerInfo) and this node no longer
+## does, so there is no fixed relative path between them — and the player may not
+## exist yet when this readies. Cached once found.
+var _xp_bar: ProgressBar
+
+
+func _xp_bar_node() -> ProgressBar:
+	if is_instance_valid(_xp_bar):
+		return _xp_bar
+	var player := PlayerManager.player
+	if player == null:
+		return null
+	_xp_bar = player.get_node_or_null("Camera2D/HUD/PlayerInfo/XpBar") as ProgressBar
+	return _xp_bar
 
 ## XP needed to reach level 2, and the ratio between one threshold and the next.
 ## The old curve doubled (10/20/40/80...), which outran the 1-4 xp a node pays by
@@ -83,17 +101,23 @@ func _ready():
 	add_to_group("LevelUpManager")
 	add_to_group("SaveLoad")
 
-	# The panel lives in the UI2 CanvasLayer now; this node is model-only.
-	visible = false
+	# Push the skill totals into the player. This node used to be a descendant of
+	# Player and therefore readied first, so player.gd:_ready had to pull them
+	# instead; from `Systems` it readies *after* Player and can push directly.
+	# Both halves are kept on purpose — together they are order-independent, and
+	# the ordering here is a property of sibling declaration order in main.tscn,
+	# which is exactly the kind of thing a later edit changes without noticing.
+	sync_player_stats()
 
 	_refresh_xp_bar()
 
 
 func _refresh_xp_bar() -> void:
-	if xp_bar == null:
+	var bar := _xp_bar_node()
+	if bar == null:
 		return
-	xp_bar.max_value = next_level
-	xp_bar.value = xp
+	bar.max_value = next_level
+	bar.value = xp
 
 
 ## The single LevelUpManager, found by group. main.tscn's root belongs to every group in

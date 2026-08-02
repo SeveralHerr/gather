@@ -33,11 +33,11 @@ func teardown() -> void:
 			Input.action_release(action)
 
 
-## Builds the toolbar inside a stand-in for the UI2 CanvasLayer, because the strip
+## Builds the toolbar inside a stand-in for the UI CanvasLayer, because the strip
 ## reads its siblings: it hides behind MobileControls and behind any open PanelFrame.
 func _make_toolbar(viewport_size: Vector2i = Vector2i(1280, 720)) -> HudToolbar:
 	var root := Control.new()
-	root.name = "UI2"
+	root.name = "UI"
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	toolbar = HudToolbar.new()
@@ -202,7 +202,7 @@ func test_an_open_panel_hides_the_strip() -> String:
 	strip.watch_panels()
 	await tree.process_frame
 
-	# Draw order cannot settle this: the strip is added to UI2 after every panel, so
+	# Draw order cannot settle this: the strip is added to UI after every panel, so
 	# it paints on top of the backdrop unless it takes itself away.
 	frame.open()
 	await tree.process_frame

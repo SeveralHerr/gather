@@ -14,7 +14,7 @@ class_name DamageNumber
 # guard frees the node even if the tween is somehow killed early.
 
 const CONTAINER_NAME := "DamageNumbers"
-const WORLD_HOST_PATH := "Main/Node2D"
+const WORLD_HOST_PATH := "Main/World"
 
 # The camera runs at ~4.9x zoom, so world-space sizes are multiplied by ~5 on
 # screen. font_size 16 * WORLD_SCALE 0.2 * 4.9 zoom ~= 16 screen pixels.

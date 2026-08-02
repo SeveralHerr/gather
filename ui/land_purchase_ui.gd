@@ -18,8 +18,8 @@ class_name LandPurchaseUi
 ## font size and pad below goes through `UiTheme.scaled*` and is re-derived in
 ## `_apply_scale()` whenever the window changes size.
 ##
-## Lives in the UI2 CanvasLayer (screen space). It must never be parented under
-## Player/Camera2D/UI: that Control is in world space at 0.23 scale and is sized
+## Lives in the UI CanvasLayer (screen space). It must never be parented under
+## Player/Camera2D/HUD: that Control is in world space at 0.23 scale and is sized
 ## for the diegetic HUD, so a full-screen panel there renders at a fifth size and
 ## scrolls with the camera.
 

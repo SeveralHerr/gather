@@ -26,17 +26,17 @@ var health_manager: HealthManager
 @onready var attack_sprite: Sprite2D = $Attack/Sprite
 @onready var animated_sprite_2d = $AnimatedSprite2D
 @onready var line_of_sight = $LineOfSight
-@onready var sound_manager: SoundManager = $"../../SoundManager"
-@onready var destroy_manager: DestroyManager = $"../../DestroyManager"
-@onready var items: Items = $"../../Items"
+@onready var sound_manager: SoundManager = $"../../Systems/SoundManager"
+@onready var destroy_manager: DestroyManager = $"../../Systems/DestroyManager"
+@onready var items: Items = $"../../Systems/Items"
 @onready var interact: Area2D = $Interact
 @onready var gather = $Gather
-@onready var hot_bar_inventory = $"../../UI2/HotBarInventory"
+@onready var hot_bar_inventory = $"../../UI/HotBarInventory"
 @onready var state_machine: StateMachine = $StateMachine
 @onready var gather_state = $StateMachine/PlayerGather
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
-@onready var hp_bar: ProgressBar = $Camera2D/UI/PlayerInfo/HpBar
+@onready var hp_bar: ProgressBar = $Camera2D/HUD/PlayerInfo/HpBar
 
 @export var inventory_data: InventoryData
 
@@ -109,8 +109,11 @@ func _ready():
 	PlayerManager.player = self
 
 	stats.stats_changed.connect(_on_stats_changed)
-	# LevelUpManager is a descendant of this node, so its _ready() has already run
-	# and found no PlayerManager.player to push totals into. Pull them now.
+	# Pull the skill totals in case LevelUpManager readied first and found no
+	# PlayerManager.player to push them into. It no longer does — it sits in Systems,
+	# which main.tscn declares after World — so this loop is now usually a no-op and
+	# LevelUpManager._ready() does the push. Both are kept: together they hold
+	# whichever way a future edit reorders those two branches.
 	for node in get_tree().get_nodes_in_group("LevelUpManager"):
 		if node is LevelUpManager:
 			node.sync_player_stats()

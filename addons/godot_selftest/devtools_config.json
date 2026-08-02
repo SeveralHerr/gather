@@ -1,7 +1,7 @@
 {
   "validator_script": "res://addons/godot_selftest/scene_validator.gd",
   "extension_script": "res://devtools_ext/commands.gd",
-  "hud_layer_name": "UI2",
+  "hud_layer_name": "UI",
   "test_dir": "res://test/unit",
   "scan_root": "res://",
   "fps_min": 30,
@@ -56,7 +56,7 @@
     "values": {
       "validator_script": "res://addons/godot_selftest/scene_validator.gd",
       "extension_script": "res://devtools_ext/commands.gd",
-      "hud_layer_name": "UI2",
+      "hud_layer_name": "UI",
       "test_dir": "res://test/unit",
       "scan_root": "res://",
       "uid_check_ignore": [

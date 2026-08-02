@@ -29,8 +29,8 @@ class_name HudToolbar
 ## That is the same choice `mobile_controls.gd` made and for the same reason: one
 ## route in means the button cannot drift away from the key.
 ##
-## Lives in the UI2 CanvasLayer (screen space). Never parent it under
-## `Player/Camera2D/UI` — that Control is world space at 0.23 scale for the diegetic
+## Lives in the UI CanvasLayer (screen space). Never parent it under
+## `Player/Camera2D/HUD` — that Control is world space at 0.23 scale for the diegetic
 ## HUD (see CLAUDE.md).
 
 ## Emitted alongside every synthesised action, so a test can assert a button really

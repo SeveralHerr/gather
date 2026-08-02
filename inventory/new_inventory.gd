@@ -2,7 +2,7 @@ extends PanelContainer
 class_name NewInventory
 
 ## One grid of inventory slots: the player's backpack, or an open chest's contents.
-## Three of these live under UI2/InventoryInterface, which decides where they sit and
+## Three of these live under UI/InventoryInterface, which decides where they sit and
 ## how big they are.
 ##
 ## Nothing here picks a pixel size. The owner derives one slot edge from the live

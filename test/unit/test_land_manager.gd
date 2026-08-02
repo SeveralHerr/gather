@@ -240,7 +240,7 @@ func test_a_purchase_with_nothing_to_grow_charges_nothing() -> String:
 
 # --- the panel ---------------------------------------------------------------
 #
-# The panel is built in code and lives in the UI2 CanvasLayer at runtime, so
+# The panel is built in code and lives in the UI CanvasLayer at runtime, so
 # there is no .tscn to load: instantiate_ui() takes the node itself. Without it
 # the Control never enters a tree, _ready() never fires and none of this exists.
 

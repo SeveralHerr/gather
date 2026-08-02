@@ -31,8 +31,8 @@ class_name PanelFrame
 ## wired to the InputManager signal by the owner, exactly as before. What moves in
 ## here is only the chrome and the ways out.
 ##
-## Lives in the UI2 CanvasLayer with its owner. Never parent one under
-## `Player/Camera2D/UI`: that Control is world-space at 0.23 scale for the
+## Lives in the UI CanvasLayer with its owner. Never parent one under
+## `Player/Camera2D/HUD`: that Control is world-space at 0.23 scale for the
 ## diegetic HUD (see CLAUDE.md).
 
 ## The player asked to leave, by any of the three routes. The owner decides what

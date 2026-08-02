@@ -7,7 +7,7 @@ extends RefCounted
 
 var _T
 
-## Stand-in for main.tscn's "Main/Node2D": SplashText resolves its container by that path
+## Stand-in for main.tscn's "Main/World": SplashText resolves its container by that path
 ## from the scene-tree root, and a --script run has no main scene, so the test builds one.
 var host: Node
 var world: Node2D
@@ -28,7 +28,7 @@ func setup() -> void:
 	host = Node.new()
 	host.name = "Main"
 	world = Node2D.new()
-	world.name = "Node2D"
+	world.name = "World"
 	host.add_child(world)
 	tree.root.add_child(host)
 

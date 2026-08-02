@@ -2,7 +2,7 @@ extends Node
 
 var fsm: StateMachine
 var p : Player
-@onready var resource_manager: ResourceManager2 = $"../../../../ResourceManager"
+@onready var resource_manager: ResourceManager2 = $"../../../../Systems/ResourceManager"
 
 func enter():
 	p = PlayerManager.player

@@ -23,20 +23,28 @@ const INTERFACE_SCRIPT := "res://ui/inventory_interface.gd"
 const GRID_NAMES := ["PlayerInventory", "EquipInventory", "EquipSwordInventory", "ExternalInventory"]
 
 
-## Rebuilds the slice of main.tscn the panel needs to run: Main > UI2 >
+## Rebuilds the slice of main.tscn the panel needs to run: Main > UI >
 ## InventoryInterface with its five children, plus the InputManager the script
-## reaches for at "../../InputManager". inventory_interface.gd has no scene of its
-## own — it is a bare Control in main.tscn — so the test has to stand one up.
+## reaches for at "../../Systems/InputManager". inventory_interface.gd has no scene
+## of its own — it is a bare Control in main.tscn — so the test has to stand one up.
+##
+## The Systems node is load-bearing, not decoration: the panel's lookup counts two
+## hops up from itself and then down through Systems, so flattening this stand-in
+## leaves input_manager null and every test in this file fails on the first input.
 func _build(viewport_size: Vector2i) -> Node:
 	var root := Control.new()
 	root.name = "Main"
 
+	var systems := Node.new()
+	systems.name = "Systems"
+	root.add_child(systems)
+
 	var input_manager := InputManager.new()
 	input_manager.name = "InputManager"
-	root.add_child(input_manager)
+	systems.add_child(input_manager)
 
 	var layer := CanvasLayer.new()
-	layer.name = "UI2"
+	layer.name = "UI"
 	root.add_child(layer)
 
 	# Untyped: the script declares no class_name, so a `Control`-typed variable would
@@ -68,7 +76,7 @@ func _build(viewport_size: Vector2i) -> Node:
 
 ## Opens the panel and lets the container sort settle.
 func _open(root: Node) -> Node:
-	var interface = root.get_node("UI2/InventoryInterface")
+	var interface = root.get_node("UI/InventoryInterface")
 	interface.visible = true
 	await root.get_tree().process_frame
 	await root.get_tree().process_frame
@@ -149,7 +157,7 @@ func test_slot_size_follows_the_viewport_instead_of_the_scenes_64px() -> String:
 ## does not depend on how many frames the container sort has had.
 func _first_slot_edge(viewport_size: Vector2i) -> float:
 	var root: Node = await _build(viewport_size)
-	var interface = root.get_node("UI2/InventoryInterface")
+	var interface = root.get_node("UI/InventoryInterface")
 
 	var data := InventoryData.new()
 	for _i in 12:

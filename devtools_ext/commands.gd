@@ -64,7 +64,7 @@ func _level_up_manager() -> LevelUpManager:
 ## The skill panel builds itself in code, so its inner nodes have generated paths.
 ## Going through the script instead keeps callers off those paths.
 func _skill_tree_ui() -> SkillTreeUi:
-	return _dev.get_tree().root.get_node_or_null("Main/UI2/SkillTreeUI") as SkillTreeUi
+	return _dev.get_tree().root.get_node_or_null("Main/UI/SkillTreeUI") as SkillTreeUi
 
 
 func _skill_panel_open() -> bool:
@@ -73,7 +73,7 @@ func _skill_panel_open() -> bool:
 
 
 func _crafting_panel() -> CraftingUi:
-	return _dev.get_tree().root.get_node_or_null("Main/UI2/CraftingUI") as CraftingUi
+	return _dev.get_tree().root.get_node_or_null("Main/UI/CraftingUI") as CraftingUi
 
 
 ## Every live station, in a stable order so `--args '{"station": 1}'` means the same
@@ -122,7 +122,7 @@ func _station_report(station: CraftingStation) -> Dictionary:
 
 
 func _enemy_spawner() -> EnemySpawner:
-	return _dev.get_tree().root.get_node_or_null("Main/Node2D/EnemySpawner") as EnemySpawner
+	return _dev.get_tree().root.get_node_or_null("Main/World/EnemySpawner") as EnemySpawner
 
 
 func _land_manager() -> LandManager:
@@ -130,7 +130,7 @@ func _land_manager() -> LandManager:
 
 
 func _land_panel() -> LandPurchaseUi:
-	return _dev.get_tree().root.get_node_or_null("Main/UI2/LandPurchaseUI") as LandPurchaseUi
+	return _dev.get_tree().root.get_node_or_null("Main/UI/LandPurchaseUI") as LandPurchaseUi
 
 
 func _tile_map_handler() -> TileMapHandler:
@@ -509,7 +509,7 @@ func _cmd_coin_count(_args: Dictionary) -> Dictionary:
 	# The PickUps container holds shadows as well as drops, so every child has to be
 	# probed for slot_data rather than assumed to have one.
 	var world_coins := 0
-	var container := _dev.get_tree().root.get_node_or_null("Main/Node2D/PickUps")
+	var container := _dev.get_tree().root.get_node_or_null("Main/World/PickUps")
 	if container:
 		for node in container.get_children():
 			var slot_data = node.get("slot_data")
@@ -636,7 +636,7 @@ func _cmd_splash(args: Dictionary) -> Dictionary:
 
 
 func _live_splashes() -> int:
-	var container = _dev.get_tree().root.get_node_or_null("Main/Node2D/SplashTexts")
+	var container = _dev.get_tree().root.get_node_or_null("Main/World/SplashTexts")
 	return container.get_child_count() if container else 0
 
 
@@ -887,7 +887,7 @@ func _cmd_crafting_panel(args: Dictionary) -> Dictionary:
 	else:
 		panel.set_open(false)
 
-	var input_manager = _dev.get_tree().root.get_node_or_null("Main/InputManager")
+	var input_manager = _dev.get_tree().root.get_node_or_null("Main/Systems/InputManager")
 	return {
 		"success": true,
 		"message": "ok",
@@ -1050,7 +1050,7 @@ func _cmd_advance_crafting(args: Dictionary) -> Dictionary:
 ## Drops in the world. The PickUps container holds a shadow per pickup, so a raw
 ## child count is double what the player can actually collect.
 func _pickup_count() -> int:
-	var container := _dev.get_tree().root.get_node_or_null("Main/Node2D/PickUps")
+	var container := _dev.get_tree().root.get_node_or_null("Main/World/PickUps")
 	if container == null:
 		return 0
 	var total := 0

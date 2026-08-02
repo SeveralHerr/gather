@@ -8,7 +8,10 @@ extends Control
 
 const DISPLAY_TIME := 0.6
 
-@onready var level_up_ui: LevelUpManager = $"../LevelUpUI"
+## Found by group rather than by path. This used to be `$"../LevelUpManager"`, a
+## sibling reach that only worked while the model node was parked inside the HUD;
+## it lives in `Systems` now and there is no fixed relative path between the two.
+var level_up_ui: LevelUpManager
 
 # One restartable timer instead of an await per event. With an await each, two gains
 # inside the window left two pending clears, and the first to fire blanked the label
@@ -24,8 +27,21 @@ func _ready():
 	clear_timer.timeout.connect(_on_clear)
 	add_child(clear_timer)
 
-	level_up_ui.added_xp.connect(_on_xp_add)
 	$XpLabel.text = ""
+
+	# Deferred, not direct: this node is under World, which main.tscn declares before
+	# Systems, so LevelUpManager has not run its own _ready yet and the group it adds
+	# itself to is still empty here. A deferred call lands after every _ready in the
+	# tree. Connecting directly gave a null and a silently dead xp readout.
+	_bind_level_up_manager.call_deferred()
+
+
+func _bind_level_up_manager() -> void:
+	level_up_ui = LevelUpManager.find(self)
+	if level_up_ui == null:
+		push_error("FloatingText: no LevelUpManager found, the +N xp readout will never update")
+		return
+	level_up_ui.added_xp.connect(_on_xp_add)
 
 
 func _on_xp_add(amount: int):

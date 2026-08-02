@@ -1,7 +1,7 @@
 extends Control
 class_name CameraHud
 
-## Sizes the diegetic HUD (Player/Camera2D/UI) to exactly the camera's visible world
+## Sizes the diegetic HUD (Player/Camera2D/HUD) to exactly the camera's visible world
 ## area, so its children can use ordinary anchors, and scales what it draws so the
 ## numbers stay legible as the window grows.
 ##
@@ -34,10 +34,10 @@ class_name CameraHud
 ## on-screen position from a viewport dimension — that is the gather-6fx bug.
 
 ## The children whose contents are read at a glance: the fps readout, the HP/XP
-## group, and the floating xp popup. The rest of this Control's children
-## (SaveLoad, LevelUpUI, InventoryBackground, PanelContainer) are authored
-## `visible = false` and are left exactly as they are.
-const SCALED_CHILDREN := ["Label3", "PlayerInfo", "FloatingText"]
+## group, and the floating xp popup. Since `gather-ue3` that is *every* child of this
+## Control — the invisible LevelUpManager model node moved out to `Systems`, so
+## nothing under here is anything but HUD.
+const SCALED_CHILDREN := ["FpsLabel", "PlayerInfo", "FloatingText"]
 
 ## Never shrink below what the scene authored. UiTheme.SCALE_MIN is 0.85, which on
 ## a phone would make an already-constant-pixel HUD smaller than it is today for no

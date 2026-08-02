@@ -3,7 +3,20 @@ class_name TestChest
 
 signal toggle_inventory(external_inventory_owner)
 
-@onready var new_inv_manager = get_tree().get_nodes_in_group("InventoryManager")[1]  
+## Type-checked rather than indexed. This was `[1]`, which only worked because
+## main.tscn's root node was itself declared in the "InventoryManager" group and
+## sorted ahead of the real manager. Those stale root groups are gone, so `[1]` is
+## now out of bounds — and an index was never the right lookup regardless.
+@onready var new_inv_manager: NewInventoryManager = _find_inventory_manager()
+
+
+func _find_inventory_manager() -> NewInventoryManager:
+	for node in get_tree().get_nodes_in_group("InventoryManager"):
+		if node is NewInventoryManager:
+			return node
+	push_error("TestChest: no NewInventoryManager in the InventoryManager group")
+	return null
+
 @export var inventory_data: InventoryData
 
 func player_interact() -> void:
