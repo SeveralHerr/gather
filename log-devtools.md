@@ -429,3 +429,13 @@ Guidelines that make an entry useful later:
   - [G-026] status: open | seen: 1 | harness: unknown
   - Improvement: have `scene_validator.gd` skip any directory containing a `.gdignore`, the
     same rule the engine applies.
+
+## 2026-08-01 — Commit step (/simplify cleanup pass)
+
+- No gaps this turn. Committing exercised no `/verify` or devtools surface; the tree was
+  already green from the pass logged above and split cleanly into four commits with no
+  staging tricks needed. Worth recording for whoever picks up [G-023]: the harness plugin
+  was updated (`/plugin` -> "Updated godot-selftest-harness") *after* that gap was written,
+  so re-running `/scaffold-godot-harness` may already close it — check whether
+  `tools/verify_ledger.py` and a `harness-version:` marker in `tools/lint_project.gd` are
+  present before re-upstreaming it.
