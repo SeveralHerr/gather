@@ -198,16 +198,24 @@ func _total_cost(recipe) -> int:
 	return total
 
 
-func test_rarer_ore_nodes_pay_more_and_spawn_less() -> String:
+func test_rarer_ore_nodes_pay_a_flat_xp_and_spawn_less() -> String:
 	var iron := resources.Get(Types.Item.IronResource)
 	var copper := resources.Get(Types.Item.CopperResource)
 	var gold := resources.Get(Types.Item.GoldResource)
 
-	var err: String = _T.assert_gt(copper.xp, iron.xp, "copper pays more xp than iron")
+	# The ore tier used to climb in xp as well as in rarity (4/6/9). It pays a flat 1
+	# now — deliberately, because xp priced by rarity made mining the fastest way to
+	# level. What is asserted here is that every ore node still pays the same as the
+	# common nodes and no more; the rarity ladder below is what remains of the tier.
+	var err: String = _T.assert_eq(iron.xp, 1, "iron pays the common 1 xp")
 	if err != "":
 		return err
 
-	err = _T.assert_gt(gold.xp, copper.xp, "gold pays more xp than copper")
+	err = _T.assert_eq(copper.xp, 1, "copper pays the common 1 xp")
+	if err != "":
+		return err
+
+	err = _T.assert_eq(gold.xp, 1, "gold pays the common 1 xp; its payout is the coins")
 	if err != "":
 		return err
 

@@ -54,6 +54,13 @@ var spawn_position: Vector2
 var is_dead := false
 var invulnerable := false
 
+# Separate from `invulnerable` on purpose. That flag is owned by the respawn
+# sequence: _grant_invulnerability() sets it, waits, then clears it, so anything
+# that writes it from outside is silently undone the next time the player dies.
+# This one is only ever written by the debug panel and nothing in the game clears
+# it, which is what makes it a toggle rather than a timer.
+var god_mode := false
+
 # Get the gravity from the project settings to be synced with RigidBody nodes.
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
@@ -234,7 +241,7 @@ func _destroy_input_press():
 	pass	
 
 func receive_hit(_force: Vector2, _damage: int):
-	if is_dead or invulnerable:
+	if is_dead or invulnerable or god_mode:
 		return
 
 	#velocity += force

@@ -24,15 +24,23 @@ class_name IslandManager
 ## special handling to stay gated: the roll only ever considers resources that have been
 ## unlocked, so listing them here simply means they start appearing on the ore island the
 ## moment their skill is bought, and nowhere else.
+##
+## The numbers are lopsided on purpose. An island is worth crossing the water for only if
+## it is somewhere the mainland is not, and "somewhere else" is judged by what the player
+## can see on it, not by a ratio. The first pass at these weights left the ore island
+## rolling stone the clear majority of the time - stone being the mainland's most common
+## node - so it played as an ordinary island that happened to also have coal. Ore now
+## outweighs stone there roughly seven to one, and the grove is trees with a stone or two
+## for texture. See ISLAND_THEME_SHARE, which is the floor a test holds these to.
 const ISLANDS := [
 	{
 		"id": "forest",
 		"distance": 20,
 		"radius": 6,
 		"weights": {
-			Types.Item.Tree: 12.0,
-			Types.Item.StoneResource: 1.0,
-			Types.Item.StoneResourceTest: 1.0,
+			Types.Item.Tree: 24.0,
+			Types.Item.StoneResource: 0.75,
+			Types.Item.StoneResourceTest: 0.75,
 			Types.Item.CoalResource: 0.0,
 			Types.Item.IronResource: 0.0,
 			Types.Item.CopperResource: 0.0,
@@ -47,12 +55,16 @@ const ISLANDS := [
 		"radius": 6,
 		"weights": {
 			Types.Item.Tree: 0.0,
-			Types.Item.StoneResource: 4.0,
-			Types.Item.StoneResourceTest: 4.0,
-			Types.Item.CoalResource: 3.0,
-			Types.Item.IronResource: 2.5,
-			Types.Item.CopperResource: 1.5,
-			Types.Item.GoldResource: 0.8,
+			Types.Item.StoneResource: 0.75,
+			Types.Item.StoneResourceTest: 0.75,
+			Types.Item.CoalResource: 6.0,
+			Types.Item.IronResource: 5.0,
+			# Gold is deliberately the one ore that is NOT scaled up much here. It is the
+			# only node that pays coins and coins are what land costs, so its weight is a
+			# lever on the land economy rather than on the island's flavour; the theming
+			# is carried by coal and iron instead.
+			Types.Item.CopperResource: 2.5,
+			Types.Item.GoldResource: 1.0,
 		},
 		"ambient_resources": true,
 		"ambient_enemies": true,
@@ -69,6 +81,52 @@ const ISLANDS := [
 		"ambient_enemies": false,
 	},
 ]
+
+## What each themed island is supposed to be made of, and the share of its rolls that has
+## to come up that way.
+##
+## Stated next to the weights rather than inside the test, because the thing worth
+## protecting is the intent - "the ore island is ore" - and the weights are only today's
+## way of expressing it. The share is checked against both the starting unlocked set and
+## the fully unlocked one: the roll only ever considers unlocked resources, so a weight
+## table can look themed on paper and play as something else for the whole stretch before
+## the mining skills are bought. That is precisely what happened here - the ore island's
+## two stone types outweighed everything a player could actually see there until copper
+## and gold were unlocked, by which point the island had already made its impression.
+const ISLAND_THEME_SHARE := 0.85
+const ISLAND_THEMES := {
+	"forest": [Types.Item.Tree],
+	"ore": [
+		Types.Item.CoalResource,
+		Types.Item.IronResource,
+		Types.Item.CopperResource,
+		Types.Item.GoldResource,
+	],
+}
+
+
+## The fraction of an island's spawn rolls that comes up as its own theme, given which
+## resource types are currently unlocked. Mirrors ResourceManager2.get_random's arithmetic:
+## a type absent from the overrides keeps its global weight, and a negative one cannot pull
+## the total down.
+static func theme_share(id: String, unlocked: Array) -> float:
+	var definition := _definition_for(id)
+	if definition.is_empty() or not ISLAND_THEMES.has(id):
+		return 0.0
+
+	var weights: Dictionary = definition["weights"]
+	var theme: Array = ISLAND_THEMES[id]
+	var total := 0.0
+	var themed := 0.0
+
+	for type in unlocked:
+		var weight: float = max(0.0, weights.get(type, Resources.TUNING.get(type, {}).get("spawn_weight", 0.0)))
+		total += weight
+		if theme.has(type):
+			themed += weight
+
+	return 0.0 if total <= 0.0 else themed / total
+
 
 ## Islands are denser than the mainland and far smaller, so they need their own floor -
 ## the home island's MIN_RESOURCE_CAP of 40 would cap a 90-tile grove as generously as

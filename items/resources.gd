@@ -21,20 +21,25 @@ const TUNING = {
 	Types.Item.StoneResource: {
 		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 4.0,
 	},
+	# Every ore node pays the same 1 xp as a tree or a stone. Rarity used to be priced
+	# in xp as well (3/4/6/9), which made a copper vein worth six trees and turned the
+	# mining tier into the fastest way to level rather than the slowest way to get
+	# materials. The ladder is still there — it is expressed in spawn_weight, in what
+	# the drop is worth to a recipe, and in gold's coins. XP is no longer part of it.
 	Types.Item.CoalResource: {
-		"xp": 3, "yield_min": 1, "yield_max": 2, "spawn_weight": 1.5,
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 1.5,
 	},
 	Types.Item.IronResource: {
-		"xp": 4, "yield_min": 1, "yield_max": 1, "spawn_weight": 1.0,
+		"xp": 1, "yield_min": 1, "yield_max": 1, "spawn_weight": 1.0,
 	},
 	Types.Item.CopperResource: {
-		"xp": 6, "yield_min": 1, "yield_max": 2, "spawn_weight": 0.8,
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 0.8,
 	},
 	# The rarest node on the island, and the only one that also pays currency: gold
 	# is what land costs, so a gold vein found while mining is the moment the map
-	# gets bigger.
+	# gets bigger. That payout is the coins, not the xp.
 	Types.Item.GoldResource: {
-		"xp": 9, "yield_min": 1, "yield_max": 1, "spawn_weight": 0.4,
+		"xp": 1, "yield_min": 1, "yield_max": 1, "spawn_weight": 0.4,
 		"secondary_drop": Types.Item.Coin, "secondary_drop_chance": 0.5,
 	},
 }

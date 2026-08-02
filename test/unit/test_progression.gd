@@ -76,16 +76,20 @@ func test_iron_pickaxe_costs_iron_rather_than_bone() -> String:
 	return _T.assert_false(recipe.cost_list.has(Types.Item.Bone), "iron pickaxe no longer costs bone")
 
 
-func test_rarer_resources_award_more_xp() -> String:
+func test_every_resource_awards_the_same_xp() -> String:
+	# Rarity is no longer priced in xp. It was (tree 1, coal 3, iron 4, up to gold 9),
+	# and that made the mining tier the fastest route through the skill tree instead of
+	# the slow route to materials. Rarity is now spawn_weight and drop value only, so
+	# this asserts the flat award rather than the old ladder.
 	var tree := resources.Get(Types.Item.Tree)
 	var coal := resources.Get(Types.Item.CoalResource)
 	var iron := resources.Get(Types.Item.IronResource)
 
-	var err: String = _T.assert_gt(coal.xp, tree.xp, "coal is worth more xp than a tree")
+	var err: String = _T.assert_eq(coal.xp, tree.xp, "coal is worth the same xp as a tree")
 	if err != "":
 		return err
 
-	return _T.assert_gt(iron.xp, tree.xp, "iron is worth more xp than a tree")
+	return _T.assert_eq(iron.xp, tree.xp, "iron is worth the same xp as a tree")
 
 
 func test_rarer_resources_spawn_less_often() -> String:

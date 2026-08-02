@@ -881,7 +881,199 @@ Guidelines that make an entry useful later:
   without arguments to install from the Microsoft Store". CLAUDE.md warns to probe by
   running it, and I still spent a launch cycle on it because the harness docs and the
   `/verify` skill both spell `python3`.
-  - [G-040] status: open | seen: 1 | harness: 0.7.0
+  - [G-040] status: open | seen: 3 | harness: 0.7.0
   - Improvement: ship a `tools/devtools` shim (or have the skill resolve the interpreter
     once and cache it) so the documented invocation is interpreter-agnostic; the Store stub
     exits 9009 with a message on stdout, which is detectable.
+
+## 2026-08-02 — slowed the spawn cadences, cut kill xp, flattened ore xp, steepened the level curve
+
+- Value: **warranted** — the two edits that could not be checked by reading were both scene
+  edits, and runtime is the only thing that reads a `.tscn` the way the engine does.
+  - Expected: the two hand-edited .tscn Timer hunks landed on the nodes I meant —
+    ResourceTimer.wait_time == 24.0 and the EnemySpawner timer re-rolling into 16-26s —
+    plus add_xp granting the new XP_KILL of 3 against a level-2 threshold of 13.
+  - Got: `wait_time: 24.0` on ResourceTimer and `spawn_stats` reporting
+    `"base_interval": 21.0, "spawn_interval": 20.8669`, so both hunks hit their intended
+    Timer. `_on_died` moved xp `11 -> 14`, exactly XP_KILL. The curve claim needed pushing
+    past level 4 to be worth anything — 1.28 and 1.30 agree on the first three thresholds
+    (10/13/17) — and at level 5 the live game reported `next_level: 30`, where the old
+    growth gives 29. After the ore edit, `gather_stats` reported `xp: 1` for all six
+    resources (proving `_apply_tuning` reaches `GameResource`, not just that the dict was
+    edited), and a real 6-second `input press gather` on a coal node moved xp `6 -> 7`
+    where coal used to pay 3.
+  - Cheaper: a unit test over `Resources.TUNING` would have settled the ore half in ~40s
+    headless. Nothing cheaper covers the two `main.tscn` Timer hunks — a scene edit can
+    only be shown to have hit the intended node by loading the scene.
+
+- Gap: **an `input tap` that engages nothing is indistinguishable from one that works** —
+  `python tools/devtools.py input tap gather --hold 3.0` printed `Tapped: gather (hold:
+  3.0s)` and xp did not move; `player_state` afterwards showed `"state": "PlayerIdle"`, so
+  the press had been and gone without the gather ever starting. The reply is the same
+  string whether the action reached a handler or fell on the floor. Workaround was to
+  re-anchor with `goto_resource` and drive it as `input press` + `step-time --seconds 6` +
+  `input release`, sampling state between each.
+  - [G-041] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `input tap`/`press` return the count of handlers the dispatched
+    `InputEventAction` was consumed by (`get_viewport().set_input_as_handled` already
+    distinguishes this), or at minimum echo the acting node's state machine state before
+    and after, so "nothing listened" is visible in the reply.
+
+- Gap: **no way to hold xp income still while asserting an xp delta** — the ambient world
+  pays xp on its own (pickups at 1 per 3 drops, and enemies the spawner trickles in), so
+  between `get-state ... --property xp` and the gather it drifted `3 -> 4 -> 6` unprompted.
+  Every xp assertion in this run had to be read as "at least/at most", and the coal
+  assertion (+1) is only conclusive because the old value (3) is above the noise floor. A
+  smaller change than 3->1 would not have been measurable this way at all.
+  - [G-042] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a project verb `xp_ledger` returning the last N awards as
+    `{source, amount}` rather than a running total — the awards are already individually
+    routed through `LevelUpManager.add_xp`, so attribution exists at the call site and is
+    thrown away. Failing that, a generic `freeze_ambient` that pauses spawners and pickup
+    collection for the duration of an assertion.
+
+- [G-040] bit again (`seen` bumped to 2): `python3` is the Store alias stub on this
+  machine, and the `/verify` skill still spells `python3` in every command block. Its own
+  Phase 0 probe found `python` correctly — the cost is that every copied command block has
+  to be edited by hand afterwards.
+
+## 2026-08-02 — scoped an in-game debug UI panel (gather-w1s), research phase
+
+- Value: **inconclusive** — no runtime run yet; this response was research fan-out plus
+  scoping, and the harness was only touched to resolve the interpreter and confirm no
+  game was live. The substantive verdict belongs to the implementation response.
+  - Expected: nothing from runtime at this stage.
+  - Got: `harness-version` returned `game not running: 'harness_version' was never picked
+    up (2.0s grace...)` — correct, nothing was launched. Version read from source instead
+    (`dev_tools.gd:17,24` -> 0.7.0).
+  - Cheaper: reading `devtools_ext/commands.gd` and `ui/skill_tree_ui.gd` directly, which
+    is what the read-only agents did. Static reading was the right tool for a design pass.
+
+- Gap: **no way to enumerate registered project verbs without a running game** — the
+  planned debug panel wants to drive the same handlers the CLI does, so the verb roster is
+  a design input, not a runtime question. `list-commands` is the documented source of
+  truth and it requires a live bus; recovering the roster meant hand-parsing the
+  `register_command` block in `devtools_ext/commands.gd:14-46`. Worked, but it is the kind
+  of list that silently drifts from the docs.
+  - [G-043] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a headless mode for `list-commands` (load the extension script, call
+    `register_commands` against a stub Node, dump the `_handlers` keys and exit) so the
+    verb roster is readable from the same place lint and tests run.
+
+- [G-040] bit again (`seen` bumped to 3): `python3 tools/devtools.py harness-version` died
+  on the Store alias stub before reaching the bridge. `python` resolves to 3.12.10 on this
+  machine. Same fix as before; nothing new to add.
+
+## 2026-08-02 — retuned the forest/ore island spawn weights so each island reads as its theme (gather-mv2)
+
+- Value: **warranted** — the census proved the whole seeding pipeline honours the new
+  weights, and that the ambient timer keeps honouring them as it fills the island to cap,
+  which is the half the unit test cannot reach.
+  - Expected: the generated ore island's per-region census comes back majority coal+iron
+    rather than majority stone, and the forest island nearly all trees — a claim the diff
+    cannot make, since what lands is the product of the weights, the unlocked set
+    (copper/gold skill-gated), the region's cells including the isthmus, and the seeder's
+    cap/attempt limit.
+  - Got: `cmd island_census` at world generation returned
+    `"ore": {"Coal": 8, "Iron": 6}` and `"forest": {"Tree": 14}` — zero stone on the ore
+    island, where the old weights made stone the single most likely roll there. After
+    `set-game-speed 20` for ~240 game-seconds the ore island had filled to its cap,
+    `"ore": {"Coal": 10, "Iron": 10}` at `nodes 20 cap 20`, still zero stone, while
+    `"boss": {}` stayed empty and home kept its mixed `{"Coal":1,"Iron":4,"Stone":16,"Tree":11}`.
+  - Cheaper: the new `test/unit/test_island_theming.gd` settles the weighted roll itself at
+    4000 samples per island for ~60ms and no game — it is the better tool for the
+    distribution. Nothing cheaper covers the ambient timer topping the ore island up to
+    its cap without ever placing a stone, which is what LandRegion exists to guarantee.
+
+- Gap: **`verify_ledger.py reach` scopes "changed files" to the branch, not the working
+  tree** — it reported `reached 15/23 changed file(s)` and listed `test/unit/test_ore_chain.gd`,
+  `ui/debug_panel_ui.gd` and `devtools_ext/commands.gd` as unreached. This session changed
+  three files (`world/island_manager.gd`, `world/resource_manager2.gd`, and a new test);
+  the other twenty are earlier branch commits plus another session's uncommitted work in
+  the same tree. Both files this session touched *were* reached, but that had to be
+  established by subtracting the NOT-reached list from `git status --porcelain` by hand.
+  The failure mode is the flattering one: a large branch dilutes the ratio, so a run that
+  reached everything it changed still reads as 65% covered.
+  - [G-044] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: report reach for the working-tree diff and the branch diff as two
+    numbers, or take a `--since` ref so the run can scope reach to what it actually edited.
+
+## 2026-08-02 — built the in-game debug panel on F3 (gather-w1s)
+
+- Value: **warranted** — runtime found a defect that neither the diff nor lint could see:
+  the enemy dropdown was spawning the boss.
+  - Expected: that the F3 action actually reaches DebugPanelUi through InputManager and
+    opens the panel, that the panel's Controls lay out inside the viewport (a code-built
+    TabContainer with no explicit size is exactly the thing that comes out 0x0), and that
+    the action buttons' calls resolve against the live objects — especially the ones I
+    inferred from agent reports rather than ran: `spawner.timer`, `handler.land_manager`,
+    `islands[id]["centre"]`, `PlayerStats.BASE` iteration, and `lum.tree.order`.
+  - Got: layout was fine (`Rect: 400, 160, 1120x760` — clamped and centred), and all five
+    inferred APIs resolved, proven in one assertion by the readout text:
+    `stats gather_speed_mult 1.0 ... land_cost_mult 1.0` / `enemies 5 live / cap 4
+    spawner running next 14.0s` / `land radius 10 parcels 0/12 next cost 12 tiles 259` /
+    `census Stone 16 Tree 21 Coal 11 Iron 9` / `islands boss, ore, forest`. The find was
+    elsewhere: `spawned 3 x Elite (7 live, cap 4)` from a picker whose first entry is
+    "Bone". `get-state ... --property selected` returned `selected: 2`. GDScript
+    negative-indexes, so an OptionButton reporting -1 makes `ENEMY_TYPES[selected]` return
+    the *last* entry — the boss — instead of erroring. Fixed with an explicit `select(0)`
+    plus a `_picked()` range guard; re-verified as `spawned 2 x Bone (4 live, cap 5)`.
+  - Cheaper: nothing. The diff reads correctly, lint is clean, and no unit test
+    instantiates this panel. Only a running game distinguishes `selected: 0` from
+    `selected: 2`.
+
+- Gap: **`input tap` on a release-triggered action toggled the panel twice, minutes
+  apart** — `input tap debug_panel` opened the panel (`visible: true`, confirmed with
+  `disable_input: true`), and four read-only commands later it was `visible: false` with
+  nothing having sent input in between. Split into halves it is deterministic:
+  `input press debug_panel` -> `visible: false` (correct, InputManager fires on release),
+  `input release debug_panel` -> `visible: true`, still true after `wait-frames 60`. A
+  second `input tap` from open then produced exactly one toggle and stayed put, so it is
+  intermittent rather than a plain double-fire. Most plausible mechanism is Godot
+  synthesizing a release for a still-held simulated action when the window's focus
+  changes — which is guaranteed here, since every CLI call runs while the game is
+  unfocused. Workaround: drove the rest of the run with explicit `press`/`release` and
+  `run-method`.
+  - [G-044] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `input tap` await its own release and report the action's final
+    state in the reply (`{"action": "...", "pressed": false}`), so a tap that left
+    something held is visible at the call rather than four commands later. Failing that,
+    document that release-triggered actions should use explicit press/release.
+
+- Gap: **launching the game rewrites `main.tscn` and the `.tres` assets, and the workflow
+  never mentions it** — a session that started `(clean)` ended with
+  `main.tscn | 235 ++++----` and `world_tile_set.tres | 3612 +++-----` (1354 insertions,
+  2264 deletions) purely from Godot 4.7 re-serializing on load (adding `uid=` to every
+  `ext_resource`). Phase 5 says to commit the ledger and hands back a `git status` in
+  which these sit indistinguishable from real edits, and the tileset rewrite is exactly
+  the kind of thing that gets waved through in a diff that large. Reverted with
+  `git checkout --` after confirming none of it was mine.
+  - [G-045] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have Phase 5 snapshot `git status --short` before Phase 2 and diff it
+    against the post-run status, listing engine-touched files separately from the working
+    diff — the data is free and it is the difference between reverting three files and
+    committing a 3600-line tileset rewrite by accident.
+
+- Gap: **`verify_ledger.py record` silently drops reach when the snapshots are gone** —
+  the workflow calls `tree-*.json` "inputs, not records" and says to leave them out of the
+  commit, so I deleted them before recording; `record` then wrote the row anyway with
+  `reach not computed (no scene-tree snapshot)`. The row that survives is the one missing
+  the only field the workflow says to believe over self-reported checks. (Reach *was*
+  computed separately: `reached 16/23 changed file(s)`, with all four of my scripts in the
+  reached set.)
+  - [G-046] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `reach` cache its computed result next to the ledger so `record` can
+    pick it up without the raw snapshots, or make Phase 5 state plainly that the snapshots
+    must outlive the `record` call.
+
+## 2026-08-02 — committed the debug panel (bdd222f)
+
+- Value: **overkill** — no harness run this turn. Staging and committing already-verified
+  work needs nothing the running game could add, and the `/verify` that justified the
+  commit is the entry directly above this one.
+  - Expected: nothing; this turn ran no runtime check by design.
+  - Got: `git commit` reported `9 files changed, 1092 insertions(+), 2 deletions(-)`, and
+    `git status --short` came back empty afterwards.
+  - Cheaper: this was already the cheapest path — `git log`/`git status` alone.
+
+- No gaps this turn.

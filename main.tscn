@@ -417,11 +417,11 @@ y_sort_enabled = true
 script = ExtResource("25_qr721")
 
 [node name="Timer" type="Timer" parent="Node2D/EnemySpawner"]
-wait_time = 7.0
+wait_time = 21.0
 autostart = true
 
 [node name="ResourceTimer" type="Timer" parent="Node2D" node_paths=PackedStringArray("tileMapHandler", "resourceManager")]
-wait_time = 8.0
+wait_time = 24.0
 autostart = true
 script = ExtResource("3_tjlgt")
 tileMapHandler = NodePath("../..")

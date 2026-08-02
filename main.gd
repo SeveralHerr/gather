@@ -106,6 +106,26 @@ func _ready():
 
 	_setup_land_purchase()
 	_setup_islands()
+	_setup_debug_panel()
+
+
+## The manual-testing panel, on F3. Built here rather than placed in main.tscn for the
+## same reason as the land panel, and behind OS.is_debug_build() so it does not exist
+## at all in an export - the panel can hand out items and land, so shipping it would
+## hand the same buttons to a player.
+func _setup_debug_panel() -> void:
+	if not OS.is_debug_build():
+		return
+
+	var ui2 := get_node_or_null("UI2")
+	if ui2 == null:
+		push_warning("TileMapHandler: no UI2 CanvasLayer, the debug panel has nowhere to live")
+		return
+
+	var panel := DebugPanelUi.new()
+	panel.name = "DebugPanelUI"
+	panel.input_manager = input_manager
+	ui2.add_child(panel)
 
 
 ## The home island's centre, and the origin every radius in the game is measured from.

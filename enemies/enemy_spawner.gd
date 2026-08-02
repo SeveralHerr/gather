@@ -25,8 +25,12 @@ var eliteEnemy = preload("res://enemies/elite_enemy.tscn")
 ## Seconds between spawn attempts. The jitter is cosmetic — it only exists so the
 ## trickle does not read as a metronome — but it must stay well below the base or
 ## the cadence stops being predictable enough to balance against.
-const SPAWN_INTERVAL := 7.0
-const SPAWN_JITTER := 2.0
+##
+## 7s filled the cap faster than the player could clear it, so the island read as a
+## siege rather than a trickle; 21s lets a cleared area stay cleared for a while. The
+## cap is unchanged — this changes how fast the population refills, not how big it gets.
+const SPAWN_INTERVAL := 21.0
+const SPAWN_JITTER := 5.0
 const MIN_INTERVAL := 0.5
 
 ## Live enemies allowed per plain-grass tile, and the bounds the density is

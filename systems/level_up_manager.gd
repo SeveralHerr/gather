@@ -25,15 +25,23 @@ signal skill_learned(skill: Skill)
 ## test_player_stats.test_the_whole_tree_is_reachable_in_one_run treats as the edge of
 ## one session. 1.28 puts sixteen nodes at 465. The guard is the design intent and the
 ## growth rate is the dial, so the dial moved.
+##
+## 1.30 is that same dial turned back up a little: levels were arriving faster than the
+## player found anything to spend them on, and the world now regrows more slowly, so a
+## level should cost more of it. Clearing the tree goes 465 -> 561, still one run. The
+## first level is untouched at 10 — the growth rate is what lengthens the run, and making
+## the opening skill cost more would only delay the tree becoming visible at all.
 const XP_FIRST_LEVEL := 10
-const XP_GROWTH := 1.28
+const XP_GROWTH := 1.30
 
 ## XP award table for everything that is not a resource node. Node xp lives in
-## Resources.TUNING (1 for the common starters, up to 9 for gold) and is meant to stay
+## Resources.TUNING — a flat 1 for every node now, ore included — and is meant to stay
 ## the dominant source; these are seasoning, not a second economy:
 ##
-##   XP_KILL 5   - unchanged from before this pass. Enemies are scarce and dangerous,
-##                 so a kill is worth several common nodes.
+##   XP_KILL 3   - was 5, when enemies were scarce enough that a kill could be worth
+##                 several common nodes. The spawn cadence tripled since, so a kill is
+##                 rarer again and no longer needs to pay like an event; 3 keeps it worth
+##                 more than a common node without making the spawner the xp faucet.
 ##   XP_CRAFT 2  - a crafted item always consumes gathered input, so crafting cannot be
 ##                 farmed independently of gathering. 2 makes running a sawmill feel
 ##                 worth watching without out-earning the pickaxe.
@@ -43,7 +51,7 @@ const XP_GROWTH := 1.28
 ##                 pays 1 xp and drops 1-2 items, so gathering keeps ~2/3 of the income
 ##                 from its own loop; per-drop xp at 1 each would have inverted that and
 ##                 made vacuuming, not mining, the fastest way to level.
-const XP_KILL := 5
+const XP_KILL := 3
 const XP_CRAFT := 2
 const XP_BUILD := 1
 const XP_PICKUP := 1

@@ -3,7 +3,7 @@ class_name LandRegion
 
 ## A named stretch of land with its own spawn rules.
 ##
-## Every system that stocks the world - the resource seeder, the eight-second respawn
+## Every system that stocks the world - the resource seeder, the ambient respawn
 ## timer, the enemy spawner - used to read `TileMapHandler.land_tiles()`, which is every
 ## plain-grass cell anywhere on the map. That was correct while the home island was the
 ## only land there was. It stops being correct the moment a second island exists: the

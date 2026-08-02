@@ -3,6 +3,11 @@ extends Timer
 ## Drives continuous resource regrowth. There is no wave / phase concept: this
 ## fires forever, and ResourceManager2.add_random_resource() is what declines the
 ## spawn once the density-scaled cap is reached.
+##
+## The cadence itself is `wait_time` on the ResourceTimer node in main.tscn (24s), not a
+## constant here — the only tuning number in this file's domain that lives in the scene.
+## It was 8s, which refilled a cleared area about as fast as it could be cleared and made
+## the density cap, rather than the timer, the only thing the player ever felt.
 
 @export var tileMapHandler: TileMapHandler
 @export var resourceManager: ResourceManager2
