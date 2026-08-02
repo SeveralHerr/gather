@@ -1295,3 +1295,62 @@ Guidelines that make an entry useful later:
     registering `press_key` in `devtools_ext/commands.gd`; it is ~25 lines and nothing in
     it is project-specific, so it belongs upstream rather than in every project that
     reads a raw key.
+
+## 2026-08-02 — Answered "why does copper never spawn?" (read-only, no code change)
+
+- Value: **inconclusive** — the harness was not run at all; the question was fully answered
+  by reading four tuning files, and there was nothing to verify because nothing changed.
+  - Expected: nothing — I never formed a runtime prediction, because the first grep hit
+    (`STARTING_RESOURCES` in `world/resource_manager2.gd:45`) already settled it.
+  - Got: `STARTING_RESOURCES` lists coal and iron but not copper; `skill_tree.gd:121-133`
+    gates `Types.Item.CopperResource` behind the `iron_age` / "Copper Age" node. Reported
+    the inversion (copper is the *lower* tier by pickaxe speed and smelt order, yet is the
+    gated one, and its `spawn_weight` 0.8 sits below iron's 1.0) without touching the game.
+  - Cheaper: nothing — reading was already the cheap path. Worth recording the inverse of
+    the usual failure: the temptation here was to launch the game and `island_census` to
+    "confirm no copper spawns", which would have cost a launch to re-observe the symptom
+    the user had already reported and would not have located the gate.
+
+- Gap: no gaps this turn — the harness was never invoked, so it had no opportunity to fall
+  short. Logged deliberately so this turn is distinguishable from a forgotten entry.
+
+## 2026-08-02 — Swapped the copper/iron gate so ore rarity tracks the crafting tier (gather-8al)
+
+- Value: **warranted** — runtime placed a resource the seeder had never placed before, and
+  named the post-load unlocked set, neither of which the diff or the unit suite could show.
+  - Expected: copper has never been placed by the world seeder before — it was skill-gated,
+    and its art lives on placeholder tileset source 10 rather than source 4 like every other
+    starting resource. Runtime should show whether the seeder actually places source-10
+    tiles at generation, and whether iron is genuinely absent from a fresh world.
+  - Got: exactly that. A fresh world censused `home: {Coal 3, Copper 1, Stone 14, Tree 9}`
+    and `ore: {Coal 11, Copper 2, Stone 2}` — copper placed from source 10 at generation,
+    iron absent from every region. After `learn_skill smelting`, 60 rolls of
+    `add_random_resource` produced `home: Iron 2` / `ore: Iron 1`, so the gate opens as well
+    as closes. The strongest single line came from `gather_stats` after calling `loadObject`
+    with `{"resources": []}` — the old-save case: `"spawnable": ["Stone","Tree","Stone",
+    "Coal","Copper"]`, proving the new re-seed in `loadObject` restores copper without
+    handing back the iron that save never earned. `"tuning"` in the same reply read
+    `Copper 1.0 / Iron 0.8 / Gold 0.4`, the inverted ladder now upright.
+  - Cheaper: nothing for the placement half — only the running game puts a source-10 tile
+    through the seeder. The *tuning* half was settled by `test_ore_chain.gd` in 4s, and the
+    two new tests there (mutation-checked: reverting `STARTING_RESOURCES` fails them with
+    "iron spawns unlocked but copper is the first bar the furnace can make") are the durable
+    guard. Runtime earned its keep on world-gen and on the load path, not on the numbers.
+
+- Gap: **reach cannot see a RefCounted, so the file carrying the actual design change scores
+  as unreached** — `verify_ledger.py reach` reported `NOT reached: ... systems/skill_tree.gd`,
+  yet that file holds the `[Types.Item.IronResource]` unlock this whole change moved, and the
+  run demonstrably exercised it (`cmd learn_skill --args '{"id":"smelting"}'` → `"learned
+  smelting"` → iron nodes appear in the census). Reach intersects the diff against `script`
+  fields in a `scene-tree` snapshot, and `SkillTree` extends `RefCounted` precisely so tests
+  can build it without a SceneTree — it is never any node's script and so can never be
+  reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
+  the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
+  object model, not the run.
+  - [G-050] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
+    touched it — the client already knows every verb it invoked, so recording the invoked
+    verb names in the run row and letting projects map verb -> files would cover both
+    RefCounted helpers and autoloads. Failing that, snapshot from `/root` rather than the
+    main scene so autoloads at least appear. Worked around by reading the census delta after
+    `learn_skill` and reporting reach as partial-by-construction in the summary.

@@ -20,7 +20,7 @@ class_name IslandManager
 ## 34 today. An island further out than that plus its own radius can never be reached.
 ##
 ## The weights override GameResource.spawn_weight for that island only. A type left out
-## keeps its global weight; a type at 0.0 never spawns there. Copper and gold need no
+## keeps its global weight; a type at 0.0 never spawns there. Iron and gold need no
 ## special handling to stay gated: the roll only ever considers resources that have been
 ## unlocked, so listing them here simply means they start appearing on the ore island the
 ## moment their skill is bought, and nowhere else.
@@ -58,12 +58,14 @@ const ISLANDS := [
 			Types.Item.StoneResource: 0.75,
 			Types.Item.StoneResourceTest: 0.75,
 			Types.Item.CoalResource: 6.0,
-			Types.Item.IronResource: 5.0,
+			# Copper carries the island's theming alongside coal because those two are the
+			# ores that exist before any Industry skill - the island has to read as an ore
+			# island on the first visit, not once `smelting` is bought.
+			Types.Item.CopperResource: 5.0,
 			# Gold is deliberately the one ore that is NOT scaled up much here. It is the
 			# only node that pays coins and coins are what land costs, so its weight is a
-			# lever on the land economy rather than on the island's flavour; the theming
-			# is carried by coal and iron instead.
-			Types.Item.CopperResource: 2.5,
+			# lever on the land economy rather than on the island's flavour.
+			Types.Item.IronResource: 2.5,
 			Types.Item.GoldResource: 1.0,
 		},
 		"ambient_resources": true,
@@ -131,7 +133,17 @@ static func theme_share(id: String, unlocked: Array) -> float:
 ## Islands are denser than the mainland and far smaller, so they need their own floor -
 ## the home island's MIN_RESOURCE_CAP of 40 would cap a 90-tile grove as generously as
 ## the whole mainland.
-const ISLAND_RESOURCE_DENSITY := 0.3
+##
+## 0.3 -> 0.39 is the "30% more trees on the grove, 30% more ore on the ore island" pass,
+## and it is deliberately done here rather than in the weight tables. The weights already
+## put the grove at ~94% trees and the ore island at ~88-91% ore, so raising a theme weight
+## further buys almost nothing - 24.0 to 31.0 moves the grove from 94% to 95%, which is not
+## 30% more trees by any reading. What the player counts is NODES, and the node count is
+## this number times the island's land, so scaling it scales the theme with it.
+##
+## It applies to every island, but only the two stocked ones feel it: the boss arena sets
+## ambient_resources false and is never seeded.
+const ISLAND_RESOURCE_DENSITY := 0.39
 const ISLAND_MIN_RESOURCES := 8
 
 ## Island coastlines are cut from their own field at a much higher frequency than the

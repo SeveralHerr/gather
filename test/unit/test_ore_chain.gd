@@ -12,9 +12,9 @@ var items: Items
 var resources: Resources
 var recipes
 
-## resource node -> the ore it drops -> the bar that ore smelts into. Copper is
-## deliberately toolless: there is no Types.Item entry for a copper pickaxe, so the
-## copper bar earns its place as an ingredient instead (see the bar-sink test below).
+## resource node -> the ore it drops -> the bar that ore smelts into -> the tool that bar
+## buys. All three metals carry a full chain; the copper one is the tier a new player
+## works through before `smelting` puts iron veins on the map.
 const CHAINS := [
 	{
 		"name": "copper",
@@ -219,11 +219,104 @@ func test_rarer_ore_nodes_pay_a_flat_xp_and_spawn_less() -> String:
 	if err != "":
 		return err
 
-	err = _T.assert_gt(iron.spawn_weight, copper.spawn_weight, "copper is rarer than iron")
+	# Rarity has to climb with the crafting tier, and copper is the tier below iron: it is
+	# the ore that spawns unlocked and the bar the furnace can make first. This assertion
+	# used to run the other way, which is how the ladder came to be inverted.
+	err = _T.assert_gt(copper.spawn_weight, iron.spawn_weight, "iron is rarer than copper")
 	if err != "":
 		return err
 
-	return _T.assert_gt(copper.spawn_weight, gold.spawn_weight, "gold is rarer than copper")
+	return _T.assert_gt(iron.spawn_weight, gold.spawn_weight, "gold is rarer than iron")
+
+
+## How many skill purchases deep a node sits. Branches are straight chains, so this is
+## just the length of the `requires` walk; 1 for a node offered from the start.
+func _skill_depth(tree: SkillTree, id: String) -> int:
+	var skill: Skill = tree.skills[id]
+	var deepest := 0
+	for required in skill.requires:
+		deepest = max(deepest, _skill_depth(tree, required))
+	return deepest + 1
+
+
+## When the ore for this chain first exists in the world. 0 means it spawns unlocked.
+func _resource_depth(tree: SkillTree, node_type: Types.Item) -> int:
+	if ResourceManager2.STARTING_RESOURCES.has(node_type):
+		return 0
+
+	for id in tree.order:
+		if tree.skills[id].resources.has(node_type):
+			return _skill_depth(tree, id)
+
+	return -1
+
+
+## When the bar for this chain can first be smelted. 0 means no skill gates it.
+func _recipe_depth(tree: SkillTree, product: Types.Item) -> int:
+	for id in tree.order:
+		for entry in tree.skills[id].recipes:
+			if entry["product"] == product:
+				return _skill_depth(tree, id)
+
+	return 0
+
+
+func test_no_bar_unlocks_before_the_ore_it_is_smelted_from() -> String:
+	# The invariant this file existed to protect but did not state: a bar recipe the
+	# player can craft, from ore that does not spawn yet, is a recipe with an
+	# unobtainable ingredient. Iron used to fail the mirror of this - its veins spawned
+	# from the first frame while IronBar waited two Industry tiers, so a new player
+	# banked ore for a recipe they could not see. Both directions are checked, because
+	# the gap is a pacing bug whichever way round it points.
+	var tree := SkillTree.new()
+
+	for chain in CHAINS:
+		var ore_at := _resource_depth(tree, chain["node"])
+		if ore_at < 0:
+			return _T.assert_true(false, "nothing ever spawns %s veins" % chain["name"])
+
+		var bar_at := _recipe_depth(tree, chain["bar"])
+
+		var err: String = _T.assert_gte(
+			bar_at, ore_at,
+			"the %s bar unlocks at depth %d but its ore only spawns at depth %d" % [chain["name"], bar_at, ore_at]
+		)
+		if err != "":
+			return err
+
+	return ""
+
+
+func test_the_free_ore_is_the_one_the_furnace_smelts_first() -> String:
+	# Exactly one metal spawns without a skill, and it has to be the one the earliest
+	# bar recipe consumes — otherwise the first furnace the player builds has nothing
+	# to put in it and the ore they have been stockpiling has no recipe.
+	var tree := SkillTree.new()
+
+	var free_metals := []
+	var earliest_bar := 999
+	var earliest_metal = null
+
+	for chain in CHAINS:
+		if _resource_depth(tree, chain["node"]) == 0:
+			free_metals.append(chain["name"])
+
+		var bar_at := _recipe_depth(tree, chain["bar"])
+		if bar_at < earliest_bar:
+			earliest_bar = bar_at
+			earliest_metal = chain["name"]
+
+	var err: String = _T.assert_eq(
+		free_metals.size(), 1,
+		"expected exactly one metal to spawn unlocked, got %s" % [free_metals]
+	)
+	if err != "":
+		return err
+
+	return _T.assert_eq(
+		free_metals[0], earliest_metal,
+		"%s spawns unlocked but %s is the first bar the furnace can make" % [free_metals[0], earliest_metal]
+	)
 
 
 func test_gold_is_the_node_that_pays_currency() -> String:
