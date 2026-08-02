@@ -51,12 +51,10 @@ func _toggle_inventory(external_inventory_owner = null) -> void:
 	# closing it left input disabled for good.
 	input_manager.disable_input = inventory_interface.visible
 
-	if inventory_interface.visible:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		hot_bar_inventory.hide()
-	else:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		hot_bar_inventory.show()
+	# The cursor is visible for the whole session now (player.gd), so the bag no
+	# longer frees it on the way in and re-captures it on the way out — it only owns
+	# the hotbar, which has to get out from under the panel.
+	hot_bar_inventory.visible = not inventory_interface.visible
 
 	if external_inventory_owner and inventory_interface.visible:
 		inventory_interface.set_external_inventory(external_inventory_owner)

@@ -39,6 +39,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("place_build", _cmd_place_build)
 	dev.register_command("tile_at", _cmd_tile_at)
 	dev.register_command("island_census", _cmd_island_census)
+	dev.register_command("press_key", _cmd_press_key)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -166,6 +167,14 @@ func _status(_args: Dictionary) -> Dictionary:
 	# a leak makes, and it is invisible in any other reading.
 	status["live_splashes"] = _live_splashes()
 
+	# The cursor rides along because every clickable thing in the game depends on it
+	# and nothing else reports it. MOUSE_MODE_CAPTURED stops Godot picking any
+	# Control at all, so a stray re-capture turns the HUD toolbar, the hotbar's
+	# arrows and every panel button into decoration — with no error, no visual
+	# difference beyond a missing pointer, and every state read still answering
+	# correctly. The game plays VISIBLE now (player.gd); anything else here is a bug.
+	status["mouse_mode"] = _mouse_mode_name()
+
 	var level_up = _level_up_manager()
 	if level_up:
 		status["xp"] = level_up.xp
@@ -175,6 +184,68 @@ func _status(_args: Dictionary) -> Dictionary:
 		status["skill_panel_open"] = _skill_panel_open()
 
 	return status
+
+
+## Sends a real `InputEventKey` — both halves — for a key named the way
+## `OS.get_keycode_string` prints it ("Left", "E", "1").
+##
+## The bridge's own `input` verbs all dispatch `InputEventAction`, which never
+## reaches `_unhandled_key_input`. Everything in this game that reads a *raw keycode*
+## is therefore invisible to them: the hotbar's number keys, its Left/Right step keys,
+## and — until it was removed — the Q/E pair that collided with `gather`. That
+## collision made every pickaxe swing advance the hotbar a slot, and it survived lint,
+## the unit suite and a full `/verify` run precisely because no primitive here could
+## deliver the event that triggered it.
+##
+## Both halves, and in that order, for the reason `hud_toolbar.gd` spells out: a key
+## left logically down is a trap for whatever asks `Input.is_key_pressed` next.
+func _cmd_press_key(args: Dictionary) -> Dictionary:
+	var name_arg := str(args.get("key", ""))
+	if name_arg == "":
+		return {"success": false, "message": "press_key needs a 'key' (e.g. \"Left\")", "data": {}}
+
+	var keycode := OS.find_keycode_from_string(name_arg)
+	if keycode == KEY_NONE:
+		return {
+			"success": false,
+			"message": "'%s' is not a key name OS.find_keycode_from_string knows" % name_arg,
+			"data": {},
+		}
+
+	var repeat: int = maxi(1, int(args.get("count", 1)))
+	for _i in repeat:
+		for pressed in [true, false]:
+			var event := InputEventKey.new()
+			event.keycode = keycode
+			# Both, because handlers in this project are split between the two:
+			# hot_bar_inventory.gd compares `keycode`, project.godot binds `gather`
+			# by `physical_keycode`. Sending one would exercise half the game.
+			event.physical_keycode = keycode
+			event.pressed = pressed
+			Input.parse_input_event(event)
+
+	return {
+		"success": true,
+		"message": "sent %s x%d" % [OS.get_keycode_string(keycode), repeat],
+		"data": {"key": OS.get_keycode_string(keycode), "keycode": keycode, "count": repeat},
+	}
+
+
+## `Input.mouse_mode` as a word. All four are named rather than folded into
+## visible/other, because CONFINED and HIDDEN fail in different ways: HIDDEN leaves
+## the picking working but draws no pointer, CONFINED draws one but pins it to the
+## window.
+func _mouse_mode_name() -> String:
+	match Input.mouse_mode:
+		Input.MOUSE_MODE_VISIBLE:
+			return "visible"
+		Input.MOUSE_MODE_HIDDEN:
+			return "hidden"
+		Input.MOUSE_MODE_CAPTURED:
+			return "captured"
+		Input.MOUSE_MODE_CONFINED:
+			return "confined"
+	return "unknown"
 
 
 func _cmd_player_state(_args: Dictionary) -> Dictionary:

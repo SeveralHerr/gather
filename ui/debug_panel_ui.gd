@@ -843,12 +843,12 @@ func set_open(open: bool) -> void:
 
 	_panel_root.visible = open
 
-	# The same handshake the skill, land and crafting panels use: free the cursor and
-	# stop the player walking around behind the menu. Assigned rather than toggled, so
-	# two overlapping panels cannot leave input disabled forever.
+	# The same handshake the skill, land and crafting panels use: stop the player
+	# walking around behind the menu. Assigned rather than toggled, so two overlapping
+	# panels cannot leave input disabled forever. The cursor is not part of it any
+	# more — it is visible for the whole session now (player.gd).
 	if input_manager:
 		input_manager.disable_input = open
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
 
 	# The readout is the only polling thing here, so it only runs while visible.
 	set_process(open)

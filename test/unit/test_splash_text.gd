@@ -187,6 +187,100 @@ func test_splash_xp_uses_the_ramp() -> String:
 	)
 
 
+# --- xp coalescing ---
+
+func test_xp_awards_in_one_place_become_a_single_label() -> String:
+	# The case this exists for: one tree pays xp for the node and again for every third
+	# item the vacuum sweeps up, all within a couple of tiles.
+	var first := SplashText.spawn_xp(source, Vector2(40.0, 40.0), 1)
+	var err: String = _T.assert_true(first != null, "the first award made a splash")
+	if err != "":
+		return err
+
+	var second := SplashText.spawn_xp(source, Vector2(44.0, 38.0), 2)
+	var third := SplashText.spawn_xp(source, Vector2(40.0, 46.0), 3)
+
+	err = _T.assert_eq(second, first, "a nearby award folds into the label already in the air")
+	if err != "":
+		return err
+	err = _T.assert_eq(third, first, "and so does the next one")
+	if err != "":
+		return err
+
+	return _T.assert_eq(first.text, "+6 XP", "the label shows the running total, not the last tick")
+
+
+func test_a_coalesced_label_walks_up_the_colour_ramp() -> String:
+	var splash := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	var err: String = _T.assert_eq(
+		splash.get_theme_color("font_color"), SplashText.COLOR_XP_SMALL, "one tick is cool"
+	)
+	if err != "":
+		return err
+
+	SplashText.spawn_xp(source, Vector2.ZERO, SplashText.XP_LARGE_AT)
+
+	return _T.assert_eq(
+		splash.get_theme_color("font_color"),
+		SplashText.COLOR_XP_LARGE,
+		"the total, not the tick, decides the colour"
+	)
+
+
+func test_a_coalesced_label_swells() -> String:
+	var splash := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	var before: float = splash._base_scale
+
+	SplashText.spawn_xp(source, Vector2.ZERO, 1)
+
+	var err: String = _T.assert_gt(splash._base_scale, before, "each tick makes it juicier")
+	if err != "":
+		return err
+
+	# The swell is capped, or a long gather ends with a label wider than the screen.
+	for i in range(60):
+		SplashText.spawn_xp(source, Vector2.ZERO, 1)
+
+	return _T.assert_true(
+		splash._base_scale <= SplashText.WORLD_SCALE * SplashText.XP_STACK_SCALE_MAX + 0.0001,
+		"the growth is capped at XP_STACK_SCALE_MAX, got %.4f" % splash._base_scale
+	)
+
+
+func test_xp_far_away_gets_its_own_label() -> String:
+	# A kill across the island is a different event and must not be swallowed by the label
+	# floating over the tree the player is chopping.
+	var near := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	var far := SplashText.spawn_xp(
+		source, Vector2(SplashText.XP_STACK_RADIUS * 3.0, 0.0), 3
+	)
+
+	var err: String = _T.assert_true(far != null, "the distant award made a splash")
+	if err != "":
+		return err
+
+	err = _T.assert_true(far != near, "and it is not the one already in the air")
+	if err != "":
+		return err
+
+	return _T.assert_eq(near.text, "+1 XP", "the near label was left alone")
+
+
+func test_a_finished_xp_label_does_not_absorb() -> String:
+	# Otherwise the static reference outlives the node it points at and the next gather's
+	# xp is added to a splash on its way out - or to a freed one.
+	var first := SplashText.spawn_xp(source, Vector2.ZERO, 1)
+	first._finish()
+	await _settle()
+
+	var second := SplashText.spawn_xp(source, Vector2.ZERO, 2)
+	var err: String = _T.assert_true(second != null, "the next award still gets a splash")
+	if err != "":
+		return err
+
+	return _T.assert_eq(second.text, "+2 XP", "and it starts its own total")
+
+
 func test_splash_big_emphasis_is_visibly_larger() -> String:
 	var normal := SplashText.spawn(source, Vector2.ZERO, "+1 XP")
 	var big := SplashText.spawn(
@@ -297,9 +391,12 @@ func test_splash_finishing_twice_is_harmless() -> String:
 
 
 func test_a_burst_of_splashes_leaves_nothing_behind() -> String:
+	# spawn(), not spawn_xp(): a burst of xp deliberately collapses into one label now, so
+	# this drives the twelve-live-splashes case through the general entry point. Level-ups
+	# and skill points still arrive as separate splashes.
 	var splashes: Array = []
 	for i in range(12):
-		splashes.append(SplashText.spawn_xp(source, Vector2(i * 8.0, 0.0), 1 + i))
+		splashes.append(SplashText.spawn(source, Vector2(i * 8.0, 0.0), "+%d XP" % (1 + i)))
 
 	var err: String = _T.assert_eq(splashes.size(), 12, "the burst really spawned")
 	if err != "":

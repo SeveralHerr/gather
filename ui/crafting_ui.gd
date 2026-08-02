@@ -613,7 +613,6 @@ func set_open(open: bool) -> void:
 	# set_open(true) from doing any of this twice.
 	if input_manager:
 		input_manager.disable_input = open
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
 
 	var hotbar := get_node_or_null("../HotBarInventory")
 	if hotbar:

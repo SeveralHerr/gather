@@ -69,9 +69,9 @@ func get_furnace_recipe(type):
 			return recipe
 
 func furnace_recipes():
-	# Copper is the first metal the furnace ever sees — it is unlocked by the same
-	# skill that unlocks the furnace itself, so it has to be the cheapest bar in the
-	# game: one ore, one coal, exactly like iron but from a commoner-to-reach node.
+	# Copper is the first metal the furnace ever sees, and its veins spawn unlocked, so
+	# the player reaches this recipe already holding the ore. It has to be the cheapest
+	# bar in the game: one ore, one coal, exactly like iron but from a commoner node.
 	var copper_bar_costs = {}
 	copper_bar_costs[Types.Item.CoalOre] = 1
 	copper_bar_costs[Types.Item.CopperOre] = 1

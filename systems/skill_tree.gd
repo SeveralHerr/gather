@@ -103,8 +103,8 @@ func _build() -> void:
 		{"gather_speed_mult": -0.10, "bonus_yield_chance": 0.25}
 	))
 
-	# --- Industry: the original recipe ladder, unchanged in content. Bone pickaxe
-	# opens the tier, iron makes the ore worth mining, smelting turns it into gear.
+	# --- Industry: the recipe ladder. Bone pickaxe opens the tier, the furnace turns the
+	# copper already on the island into gear, and smelting is what puts iron on the map.
 	_add(Skill.new(
 		"bone_pickaxe", INDUSTRY, 0,
 		"Bone Pickaxe",
@@ -115,27 +115,29 @@ func _build() -> void:
 	))
 	# The id stays "iron_age" — it is in LEGACY_IDS and in every save's taken set, so
 	# renaming it would silently drop the skill on load. Its *content* is repointed:
-	# coal and iron now spawn from the first frame (see ResourceManager2), which left
-	# this node granting nothing but the furnace. It opens copper instead, so the
-	# furnace arrives with something to put in it.
+	# coal and copper spawn from the first frame (see ResourceManager2), so this node
+	# no longer opens a resource at all. It is the furnace and the copper gear to put
+	# through it — the ore is already lying on the island when the player gets here.
 	_add(Skill.new(
 		"iron_age", INDUSTRY, 1,
 		"Copper Age",
-		"Build the furnace, smelt copper bars and cut a copper pickaxe. Copper veins start appearing.",
-		"Furnace + copper",
+		"Build the furnace, smelt the copper you have been mining into bars, and cut a copper pickaxe.",
+		"Furnace + copper gear",
 		Types.Item.CopperOre, ["bone_pickaxe"], {},
 		[
 			{"product": Types.Item.Furnace, "station": Types.Item.Sawmill},
 			{"product": Types.Item.CopperBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.CopperPickaxe, "station": Types.Item.Sawmill},
-		],
-		[Types.Item.CopperResource]
+		]
 	))
+	# Iron veins arrive on the same node that can smelt them. Gating the ore one tier
+	# below its bar is what used to leave a new player holding iron ore with nowhere to
+	# take it for two full tiers; the resource unlock belongs here, not on "iron_age".
 	_add(Skill.new(
 		"smelting", INDUSTRY, 2,
 		"Smelting",
-		"Smelt iron bars, burn wood down to charcoal, and craft the iron pickaxe.",
-		"Unlocks 3 recipes",
+		"Iron veins start appearing. Smelt iron bars, burn wood down to charcoal, and craft the iron pickaxe.",
+		"Iron + 3 recipes",
 		Types.Item.IronBar, ["iron_age"], {},
 		[
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
@@ -144,7 +146,8 @@ func _build() -> void:
 			# the node that doubles coal consumption: from now on a bad roll on coal
 			# veins stalls the branch, and wood is the one thing never in short supply.
 			{"product": Types.Item.CoalOre, "station": Types.Item.Furnace},
-		]
+		],
+		[Types.Item.IronResource]
 	))
 	# The last link in the ore chain. Gold is the only node that also pays coins, so
 	# this is the node that feeds both the top pickaxe and the land purchase.

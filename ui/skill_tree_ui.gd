@@ -128,7 +128,25 @@ func _ready():
 	if viewport != null and not viewport.size_changed.is_connected(_apply_scale):
 		viewport.size_changed.connect(_apply_scale)
 
+	# Deferred: the toolbar is created from main.gd's own _ready(), which runs after
+	# this one, so on the first pass the sibling does not exist yet.
+	_watch_toolbar.call_deferred()
+
 	_refresh_all()
+
+
+## Follows the HUD toolbar's size and visibility, because the badge is parked
+## underneath it and has to move when it does.
+func _watch_toolbar() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var toolbar := parent.get_node_or_null("HudToolbar") as HudToolbar
+	if toolbar == null:
+		return
+	if not toolbar.layout_changed.is_connected(_apply_scale):
+		toolbar.layout_changed.connect(_apply_scale)
+	_apply_scale()
 
 
 # --- construction ------------------------------------------------------------
@@ -434,10 +452,34 @@ func _scale_badge(vp: Vector2, factor: float) -> void:
 
 	var width := BADGE_WIDTH * factor
 	var margin := UiTheme.scaled(BADGE_MARGIN, vp)
+	var top := margin + _toolbar_height()
 	_hud_badge.custom_minimum_size = Vector2(width, 0)
-	# Anchored top-right, so this position is measured from that corner and is made
-	# of the badge's own width plus its inset — no viewport dimension involved.
-	_hud_badge.position = Vector2(-(width + margin), margin)
+
+	# Offsets, not `position`. Anchored top-right the badge's *offsets* are measured
+	# from that corner, but `Control.position` is relative to the parent's top-left
+	# whatever the anchors say — so writing -(width + margin) into it put the badge
+	# 276px off the LEFT edge of a 1920-wide screen, which is where it had been
+	# living, unseen, for its whole existence. Nothing here reads a viewport
+	# dimension; the anchor supplies the corner (the gather-6fx rule).
+	_hud_badge.offset_right = -margin
+	_hud_badge.offset_left = -(width + margin)
+	_hud_badge.offset_top = top
+	# The preset's grow directions (left from the right anchor, down from the top)
+	# take the badge out to its own minimum size, so the height comes from the label.
+	_hud_badge.offset_bottom = top
+
+
+## How far down the badge has to start to clear the HUD toolbar, which shares this
+## corner. Zero when there is no toolbar (a unit test that builds this panel alone)
+## or while it is hidden, so the badge rides back up to the top on a touch device.
+func _toolbar_height() -> float:
+	var parent := get_parent()
+	if parent == null:
+		return 0.0
+	var toolbar := parent.get_node_or_null("HudToolbar") as HudToolbar
+	if toolbar == null:
+		return 0.0
+	return toolbar.occupied_top_height()
 
 
 # --- open / close ------------------------------------------------------------
@@ -462,12 +504,17 @@ func set_open(open: bool) -> void:
 	else:
 		_frame.close()
 
-	# Same handshake the inventory and crafting panels use: free the cursor and
-	# stop the player walking around behind the menu. Set rather than toggled, so
-	# a panel opened twice cannot leave input disabled forever.
+	# Same handshake the inventory and crafting panels use: stop the player walking
+	# around behind the menu. Set rather than toggled, so a panel opened twice cannot
+	# leave input disabled forever.
+	#
+	# The cursor is no longer part of it. This used to free it on open and re-capture
+	# it on close, which meant every panel was a second writer of a global that
+	# player.gd also set — and a panel closing over another one open would re-capture
+	# the cursor out from under it. The cursor is now visible for the whole session
+	# (player.gd), so there is nothing to hand back.
 	if input_manager:
 		input_manager.disable_input = open
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
 
 	if open:
 		_hovered_id = ""

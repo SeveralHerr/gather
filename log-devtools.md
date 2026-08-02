@@ -1187,7 +1187,7 @@ Guidelines that make an entry useful later:
   extension rather than the harness core, but the shape is general: several verbs here
   (`skill_panel`, `land_panel`, `crafting_panel`) are setter-or-toggle depending on
   whether a key is present, and none of them has a pure reader.
-  - [G-047] status: open | seen: 1 | harness: 0.7.0
+  - [G-047] status: open | seen: 2 | harness: 0.7.0
   - Improvement: give the toggle verbs a read-only sibling, or make the status provider
     carry the panel-open flags (it already carries `skill_panel_open`) so state can be
     read without dispatching a mutation. Asserting on a mutating verb is a mistake the
@@ -1206,3 +1206,252 @@ Guidelines that make an entry useful later:
   - Cheaper: this was the cheapest check — one `git fetch` plus one `git rev-list --count`.
 
 - No gaps this turn.
+
+## 2026-08-02 — HUD toolbar for the skill/land/bag panels, and freeing the cursor
+
+- Value: **warranted** — runtime produced two claims the diff could not, and the second
+  was a bug that predates this change by months.
+  - Expected: that the strip really lands in UI2 with three on-screen buttons inside the
+    viewport and clear of the hotbar and the points badge; that clicking one drives the
+    existing InputManager path all the way to the panel opening; that the strip then hides
+    itself and comes back on close; and that the cursor is MOUSE_MODE_VISIBLE during play.
+  - Got: all four, plus the one nobody was looking for. `get-state --node
+    /root/Main/UI2/SkillTreeUI/PointsBadge --property global_position` answered
+    `{"x": -276.0, "y": 87.0}` on a 1920-wide viewport — the banked-points badge, the only
+    cue that a level-up handed out a skill point, has been rendering 276px off the *left*
+    edge of the screen for its entire existence. `_scale_badge()` anchored it TOP_RIGHT and
+    then wrote `position = Vector2(-(width + margin), …)`, but `Control.position` is
+    relative to the parent's top-left whatever the anchors say. Filed `gather-5p3`, fixed
+    by writing offsets from the anchor; the badge now reads `{"x": 1644.0, "y": 87.0}` and
+    is visible in the screenshot. Also: a real pointer event, `touch press --pos 1850,42`,
+    opened the land panel — which is the whole point, because under the old
+    MOUSE_MODE_CAPTURED no pointer event could reach a Control at all.
+  - Cheaper: nothing. The badge bug exists only in a laid-out Control, and no unit test in
+    this repo can build a `SkillTreeUi` — see the gap below. Lint, the 180-test suite and
+    reading `skill_tree_ui.gd:429` all pass it silently; the comment on the line even
+    asserts the wrong semantics out loud ("this position is measured from that corner").
+
+- Gap: **`cmd skill_panel --args '{}'` toggles, so using it to read state changes it** —
+  hit again, twice. `skill_panel --args '{}'` and `land_panel --args '{}'` were both called
+  to check whether a toolbar button had opened a panel, and both reported `"open": false`
+  because the read itself had closed what the button opened. The workaround was to stop
+  using the verbs entirely and read `node-bounds …/PanelFrame | grep Visible`, which is a
+  pure read and worked first time.
+  - [G-047] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged from the original entry — give the toggle verbs a read-only
+    sibling, or put the panel-open flags in the status provider.
+
+- Gap: **no way to stand up a Control whose collaborators come from deep `@onready` node
+  paths, so the badge bug could not be turned into a unit test** — `SkillTreeUi._ready()`
+  builds the badge only after finding a `LevelUpManager` in the tree, and `LevelUpManager`
+  resolves `$"../PlayerInfo/XpBar"` and `$"../../../../../ResourceManager"` at ready time.
+  Standing up the second means a `ResourceManager2`, whose own `_ready()` dereferences
+  `tile_map_handler.resource_found` and `tile_map_handler.tileMap` — so the fixture for a
+  50-line badge is most of `main.tscn`. `_T.instantiate_ui()` takes a Node and handles the
+  viewport, which is the hard half, but there is nothing for "give this node the neighbours
+  its `@onready`s expect". The bug was therefore verified at runtime and left with no
+  regression guard; `test_hud_toolbar.gd` covers the strip but cannot touch the badge.
+  - [G-048] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a `_T.stub_tree({"../PlayerInfo/XpBar": ProgressBar, …})` helper that
+    materialises placeholder nodes at a set of node paths before the node under test enters
+    the tree. It cannot satisfy a typed `@onready` that needs a real class, but it would
+    cover the common case — a path that exists only so `get_node` does not error — which is
+    what four of the five paths above are.
+
+## 2026-08-02 — removed Q/E hotbar stepping, moved it to the arrow keys
+
+- Value: **warranted** — the run existed because no existing primitive could deliver the
+  event under test, and building the missing one is what proved the fix.
+  - Expected: that Left/Right really step the hotbar through `_unhandled_key_input`, that Q
+    and E no longer do, and that E still gathers — none of which the existing input verbs
+    could reach, because they all dispatch `InputEventAction` and `_unhandled_key_input`
+    only sees `InputEventKey`.
+  - Got: exactly that, but only after adding the verb. The first attempt, `input tap gather`
+    five times, reported `selected_index: 0` before and after — which looks like a pass and
+    proves nothing, because the old buggy code would have reported the same. With
+    `cmd press_key`: Right took the selection `0 -> 1 -> 2`, Left `2 -> 1`, the number key
+    `4` selected index 3, and Q and E both left it at 3. `E` still gathers — `xp 0 -> 1`
+    with the pickaxe held — so removing the hotbar's claim on it did not disturb the
+    binding. The mutation check is the strongest evidence: putting `STEP_NEXT_KEY` back to
+    `KEY_E` fails all three assertions of the new `test_hotbar_selection.gd`, one of them
+    naming `gather` as the clashing action.
+  - Cheaper: the new unit test alone came close and is the durable guard, but it checks the
+    binding *table*, not the routing — it cannot show that Left actually reaches
+    `step_selection` through the event pipeline. Nothing cheaper covered both.
+
+- Gap: **the bridge has no raw-key primitive, so every raw-keycode handler in the project
+  is unreachable from it** — `list-commands` offers `input_press` / `input_release` /
+  `input_tap` / `input_sequence` / `input_actions`, and all of them dispatch an
+  `InputEventAction`. `_unhandled_key_input` is only ever called with an `InputEventKey`,
+  so the hotbar's number keys, its step keys and the Q/E pair were all invisible to the
+  harness. That is not a small corner: it is why `E` being simultaneously `gather` and
+  "next hotbar slot" — every pickaxe swing advancing the hotbar a slot — survived lint, the
+  full unit suite and a complete `/verify` run earlier the same day.
+  - [G-049] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a generic `key <press|release|tap> --key NAME` verb in the harness core,
+    taking the name `OS.find_keycode_from_string` accepts and setting both `keycode` and
+    `physical_keycode` (projects split between the two — this one compares `keycode` in
+    GDScript while `project.godot` binds by `physical_keycode`). Worked around by
+    registering `press_key` in `devtools_ext/commands.gd`; it is ~25 lines and nothing in
+    it is project-specific, so it belongs upstream rather than in every project that
+    reads a raw key.
+
+## 2026-08-02 — Answered "why does copper never spawn?" (read-only, no code change)
+
+- Value: **inconclusive** — the harness was not run at all; the question was fully answered
+  by reading four tuning files, and there was nothing to verify because nothing changed.
+  - Expected: nothing — I never formed a runtime prediction, because the first grep hit
+    (`STARTING_RESOURCES` in `world/resource_manager2.gd:45`) already settled it.
+  - Got: `STARTING_RESOURCES` lists coal and iron but not copper; `skill_tree.gd:121-133`
+    gates `Types.Item.CopperResource` behind the `iron_age` / "Copper Age" node. Reported
+    the inversion (copper is the *lower* tier by pickaxe speed and smelt order, yet is the
+    gated one, and its `spawn_weight` 0.8 sits below iron's 1.0) without touching the game.
+  - Cheaper: nothing — reading was already the cheap path. Worth recording the inverse of
+    the usual failure: the temptation here was to launch the game and `island_census` to
+    "confirm no copper spawns", which would have cost a launch to re-observe the symptom
+    the user had already reported and would not have located the gate.
+
+- Gap: no gaps this turn — the harness was never invoked, so it had no opportunity to fall
+  short. Logged deliberately so this turn is distinguishable from a forgotten entry.
+
+## 2026-08-02 — Swapped the copper/iron gate so ore rarity tracks the crafting tier (gather-8al)
+
+- Value: **warranted** — runtime placed a resource the seeder had never placed before, and
+  named the post-load unlocked set, neither of which the diff or the unit suite could show.
+  - Expected: copper has never been placed by the world seeder before — it was skill-gated,
+    and its art lives on placeholder tileset source 10 rather than source 4 like every other
+    starting resource. Runtime should show whether the seeder actually places source-10
+    tiles at generation, and whether iron is genuinely absent from a fresh world.
+  - Got: exactly that. A fresh world censused `home: {Coal 3, Copper 1, Stone 14, Tree 9}`
+    and `ore: {Coal 11, Copper 2, Stone 2}` — copper placed from source 10 at generation,
+    iron absent from every region. After `learn_skill smelting`, 60 rolls of
+    `add_random_resource` produced `home: Iron 2` / `ore: Iron 1`, so the gate opens as well
+    as closes. The strongest single line came from `gather_stats` after calling `loadObject`
+    with `{"resources": []}` — the old-save case: `"spawnable": ["Stone","Tree","Stone",
+    "Coal","Copper"]`, proving the new re-seed in `loadObject` restores copper without
+    handing back the iron that save never earned. `"tuning"` in the same reply read
+    `Copper 1.0 / Iron 0.8 / Gold 0.4`, the inverted ladder now upright.
+  - Cheaper: nothing for the placement half — only the running game puts a source-10 tile
+    through the seeder. The *tuning* half was settled by `test_ore_chain.gd` in 4s, and the
+    two new tests there (mutation-checked: reverting `STARTING_RESOURCES` fails them with
+    "iron spawns unlocked but copper is the first bar the furnace can make") are the durable
+    guard. Runtime earned its keep on world-gen and on the load path, not on the numbers.
+
+- Gap: **reach cannot see a RefCounted, so the file carrying the actual design change scores
+  as unreached** — `verify_ledger.py reach` reported `NOT reached: ... systems/skill_tree.gd`,
+  yet that file holds the `[Types.Item.IronResource]` unlock this whole change moved, and the
+  run demonstrably exercised it (`cmd learn_skill --args '{"id":"smelting"}'` → `"learned
+  smelting"` → iron nodes appear in the census). Reach intersects the diff against `script`
+  fields in a `scene-tree` snapshot, and `SkillTree` extends `RefCounted` precisely so tests
+  can build it without a SceneTree — it is never any node's script and so can never be
+  reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
+  the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
+  object model, not the run.
+  - [G-050] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
+    touched it — the client already knows every verb it invoked, so recording the invoked
+    verb names in the run row and letting projects map verb -> files would cover both
+    RefCounted helpers and autoloads. Failing that, snapshot from `/root` rather than the
+    main scene so autoloads at least appear. Worked around by reading the census delta after
+    `learn_skill` and reporting reach as partial-by-construction in the summary.
+
+## 2026-08-02 — Committed the ore-gating change (re-gated on a tree that had moved)
+
+- Value: **warranted** — the headless gates caught that the working tree was no longer the
+  one the earlier runtime run verified, which is the one thing a stale green run cannot say
+  about itself.
+  - Expected: nothing new from the game; this was a commit turn. What I did predict was that
+    `git status` would match the 8 files I left behind.
+  - Got: it did not. The tree had grown to 13 modified files — an ore-scarcity pass had
+    landed inside `items/resources.gd` (every ore weight x0.7, plus new `ORE_TYPES` /
+    `MAINLAND_ORE_SHARE` consts) and an unrelated splash-text change had appeared in
+    `ui/splash_text.gd` + `systems/level_up_manager.gd`. Re-running the gates gave
+    `Total: 192 | Passed: 192` against the 185 the earlier run had asserted, i.e. seven tests
+    that did not exist when I called the suite green. Committing on the strength of the
+    earlier run would have shipped ~180 unreviewed lines under a message describing none of
+    them; the split into "ore work now, splash text left alone" came directly from this.
+  - Cheaper: `git status` alone would have shown the file list, but not that the new code was
+    green — and the whole reason to re-check was that the *contents* of a file I was
+    committing had changed underneath me. Lint + tests, 40s, was the right price.
+
+- Gap: no gaps this turn — the harness was used only for its headless half, which did exactly
+  what it claims. Logged explicitly so this turn is distinguishable from a forgotten entry.
+
+## 2026-08-02 — Corrected the stale TUNING header and pushed the branch
+
+- Value: **overkill** — a comment-only edit followed by a push. Lint confirmed what reading
+  the five changed lines already settled.
+  - Expected: nothing. The change was five lines of prose inside a comment block; there was
+    no runtime behaviour to predict, and I said so before running anything.
+  - Got: `lint: 0 error(s), 7 warning(s) -> exit 0`, i.e. the file still parses. That is the
+    entire content of the check. The unit suite was not re-run, correctly — no code path
+    changed.
+  - Cheaper: nothing, and that is the point: lint alone was already the cheap option at ~8s,
+    and skipping even that on a "just a comment" edit is how an unterminated block comment
+    reaches a push. Recorded as overkill rather than warranted because the run confirmed
+    only what was already known, which is exactly the case that otherwise goes unlogged.
+
+- Gap: no gaps this turn.
+
+## 2026-08-02 — Denser themed islands, thinner mainland ore, one coalesced XP splash
+
+- Value: **warranted** — runtime gave the two numbers the diff cannot: what the density
+  constant becomes as actual island node counts, and how many labels a burst of xp leaves
+  in the world.
+  - Expected: the forest and ore islands each stock ~30% more nodes than the old 0.3
+    density (per-region census up from ~23 to ~30 each), and a rapid burst of xp awards
+    leaves exactly one SplashText in the world container carrying the summed total instead
+    of one node per award.
+  - Got: half right, and the half that was wrong mattered. `island_census` reported
+    `forest land=66 cap=25 nodes=17` and `ore land=68 cap=26 nodes=18` — the caps moved as
+    predicted (19->25, 20->26) but the *stocked* counts are 17/18, not ~30, because
+    `SEED_FILL_RATIO` fills to 70% of cap and the respawn timer walks the rest up over
+    play. The +30% is real (13/14 before) but the absolute number I predicted was off by
+    nearly half, which no reading of `ISLAND_RESOURCE_DENSITY := 0.39` would have caught.
+    `home land=65 cap=40` also confirmed the mainland is still pinned to
+    `MIN_RESOURCE_CAP` and untouched by the island constant. On the splash: five separate
+    `add_xp(1)` calls left `container children: 1` reading `+5 XP`, and a 4-award burst
+    read `+7 XP` at `scale: 0.264` against the 0.2 base, i.e. the swell is running. The
+    guard held too — a level-crossing award still put 9 children in the container, so
+    LEVEL/SKILL POINT splashes are not being swallowed by the xp label.
+  - Cheaper: the unit tests settled the coalescing identity, the colour ramp, the distance
+    guard and the mainland ore share (`ordinary ground rolled ore ...%` vs
+    `MAINLAND_ORE_SHARE`) for ~20s headless. Nothing cheaper could produce the island node
+    counts — that number is generation plus seeding plus the fill ratio, and it is the
+    entire claim of the density change.
+
+- Gap: **reach cannot see a node that only exists for 0.85s** — `verify_ledger.py reach`
+  reported `NOT reached: ... ui/splash_text.gd` on a run whose central assertion was
+  `get-state --node /root/Main/Node2D/SplashTexts/SplashText --property text` returning
+  `+5 XP`. Reach intersects the diff against `script` paths in a `scene-tree` snapshot, and
+  every SplashText had freed itself by the time the Phase 5 snapshot was taken, so a file
+  the run demonstrably exercised is filed as unverified. Worked around by taking the
+  evidence from the live `get-state` and saying so in the summary — but the ledger row now
+  under-reports, which is the one thing the ledger exists to prevent.
+  - [G-051] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have the game side accumulate a set of script paths seen across *every*
+    `scene-tree` call in the session (or a `scripts-seen` verb that reports it), so reach is
+    a union over the run rather than a single instant. A transient node — a splash, a
+    particle, a projectile, a pickup — is exactly the kind of thing worth verifying at
+    runtime and exactly the kind reach currently cannot credit.
+
+## 2026-08-02 — Committed the parallel splash-text work and closed the session out
+
+- Value: **warranted** — the gates were the only thing standing behind a commit message for
+  ~225 lines I did not write.
+  - Expected: the headless suite either covers the splash-text coalescing or it does not, and
+    that decides whether I can honestly commit someone else's in-flight work or have to leave
+    it in the tree.
+  - Got: `Total: 192 | Passed: 192`, with `git diff test/unit/test_splash_text.gd` naming five
+    new tests — `test_xp_awards_in_one_place_become_a_single_label`,
+    `..._walks_up_the_colour_ramp`, `..._swells`, `test_xp_far_away_gets_its_own_label`,
+    `test_a_finished_xp_label_does_not_absorb`. That last one is the load-bearing one: the
+    change adds a `static var _live_xp` holding a node across frames, and a static reference
+    to a freed node is exactly the leak this project already fixed once in HealthManager. A
+    test naming it meant the risk had been considered, so the commit could say so.
+  - Cheaper: reading the diff, which I did anyway and which is what let me describe the
+    generation-stamped guard accurately. The suite added the part reading cannot give — that
+    the five tests actually pass on this tree rather than on the tree they were written
+    against. Both were needed; neither alone was enough to commit code I had not authored.
+
+- Gap: no gaps this turn.

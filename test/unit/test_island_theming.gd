@@ -17,8 +17,8 @@ extends RefCounted
 
 const SAMPLES := 4000
 
-## Copper and gold sit behind skills; everything else is available from the first frame.
-const FULLY_UNLOCKED := [Types.Item.CopperResource, Types.Item.GoldResource]
+## Iron and gold sit behind skills; everything else is available from the first frame.
+const FULLY_UNLOCKED := [Types.Item.IronResource, Types.Item.GoldResource]
 
 var _T
 
@@ -73,6 +73,55 @@ func _theme_of(island: String) -> Array:
 	return IslandManager.ISLAND_THEMES[island]
 
 
+## How often SAMPLES rolls with NO region override - i.e. ordinary mainland ground - come
+## up as one of `wanted`.
+func _mainland_share_of(wanted: Array) -> float:
+	var hits := 0
+	for i in SAMPLES:
+		var rolled: GameResource = manager.get_random({})
+		if rolled != null and wanted.has(rolled.type):
+			hits += 1
+	return float(hits) / float(SAMPLES)
+
+
+## The other half of the island theming: the mainland is where ore is supposed to be thin,
+## and that is what makes the ore island worth the walk.
+##
+## Pinned as a share rather than as weights because the weights cannot be read that way -
+## they are relative, and stone is two entries, so cutting coal from 1.5 to 1.05 is a 30%
+## cut to a number and a ~26% cut to how often the player finds coal. Resources.TUNING
+## states the intended share next to the table; this holds the table to it.
+func test_mainland_ore_is_as_thin_as_the_tuning_claims() -> String:
+	_unlock(ResourceManager2.STARTING_RESOURCES)
+	var share := _mainland_share_of(Resources.ORE_TYPES)
+
+	return _T.assert_true(
+		abs(share - Resources.MAINLAND_ORE_SHARE) <= Resources.MAINLAND_ORE_SHARE_TOLERANCE,
+		"ordinary ground rolled ore %.1f%% of the time; Resources.MAINLAND_ORE_SHARE promises %.1f%% (+/- %.1f)"
+			% [
+				share * 100.0,
+				Resources.MAINLAND_ORE_SHARE * 100.0,
+				Resources.MAINLAND_ORE_SHARE_TOLERANCE * 100.0,
+			]
+	)
+
+
+## The comparison that actually says "the island is where you mine". Both sides are sampled
+## from the same roll with the same unlocked set, so it survives any later re-tuning of
+## either number as long as the relationship holds.
+func test_the_ore_island_out_mines_the_mainland_by_a_wide_margin() -> String:
+	_unlock(ResourceManager2.STARTING_RESOURCES)
+
+	var mainland := _mainland_share_of(Resources.ORE_TYPES)
+	var island := _share_of("ore", _theme_of("ore"))
+
+	return _T.assert_gt(
+		island, mainland * 4.0,
+		"the ore island rolls ore %.1f%% against the mainland's %.1f%% - not enough of a reason to go"
+			% [island * 100.0, mainland * 100.0]
+	)
+
+
 func test_forest_island_is_overwhelmingly_trees() -> String:
 	_unlock(ResourceManager2.STARTING_RESOURCES)
 	var share := _share_of("forest", _theme_of("forest"))
@@ -84,20 +133,20 @@ func test_forest_island_is_overwhelmingly_trees() -> String:
 	)
 
 
-## The case that regressed: before copper and gold are unlocked the ore island's only ores
-## are coal and iron, and it is stone that has to stay out of their way.
+## The case that regressed: before iron and gold are unlocked the ore island's only ores
+## are coal and copper, and it is stone that has to stay out of their way.
 func test_ore_island_is_overwhelmingly_ore_before_any_mining_skill() -> String:
 	_unlock(ResourceManager2.STARTING_RESOURCES)
 	var share := _share_of("ore", _theme_of("ore"))
 
 	return _T.assert_gte(
 		share, IslandManager.ISLAND_THEME_SHARE,
-		"the ore island rolled ore %.1f%% of the time with only coal and iron unlocked, under the %.1f%% it promises"
+		"the ore island rolled ore %.1f%% of the time with only coal and copper unlocked, under the %.1f%% it promises"
 			% [share * 100.0, IslandManager.ISLAND_THEME_SHARE * 100.0]
 	)
 
 
-func test_ore_island_stays_ore_once_copper_and_gold_unlock() -> String:
+func test_ore_island_stays_ore_once_iron_and_gold_unlock() -> String:
 	_unlock(ResourceManager2.STARTING_RESOURCES + FULLY_UNLOCKED)
 	var share := _share_of("ore", _theme_of("ore"))
 

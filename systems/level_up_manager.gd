@@ -129,6 +129,9 @@ func add_xp(amount: int, world_position: Vector2 = Vector2.INF) -> int:
 	# is a second view of the same event, not a second award.
 	added_xp.emit(granted)
 
+	# Not necessarily a new label: SplashText.spawn_xp folds an award into the xp splash
+	# already in the air when there is one nearby, so a gather and the pickups it throws
+	# off read as one climbing number rather than a column of "+1 XP".
 	var splash_at := world_position if world_position.is_finite() else _player_position()
 	SplashText.spawn_xp(self, splash_at, granted)
 

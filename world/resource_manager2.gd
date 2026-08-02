@@ -33,10 +33,17 @@ const SCENE_TILE_REACH := 20.0
 # How long the scene-node break effect runs before the resource is actually removed.
 const SCENE_BREAK_TIME := 0.3
 
-# Everything a wooden pickaxe can be pointed at from the first frame. Coal and iron used
-# to wait behind the Iron Age skill, which left a player who pushed any other branch with
-# a pickaxe and nothing but trees and stone to hit. The higher tiers (copper, gold) are
-# still skill-gated - see SkillTree.
+# Everything a wooden pickaxe can be pointed at from the first frame. Coal and copper are
+# here rather than behind a skill so a player who pushes any other branch is not left with
+# a pickaxe and nothing but trees and stone to hit. The higher tiers (iron, gold) are still
+# skill-gated - see SkillTree.
+#
+# Copper rather than iron is the free ore because copper is the *lower* tier everywhere
+# else: the copper pickaxe is the slower one (items.gd) and CopperBar smelts a full skill
+# tier before IronBar (recipes.gd). Shipping iron unlocked and copper gated inverted that -
+# a fresh player mined iron ore they could not smelt for two Industry tiers while the ore
+# they needed first did not exist in the world at all. Iron now appears exactly when
+# `smelting` makes it useful.
 #
 # A constant rather than a literal in _ready() because it is also the answer to "what does
 # the spawn roll actually consider early on", which is the half of any spawn-weight
@@ -47,7 +54,7 @@ const STARTING_RESOURCES := [
 	Types.Item.Tree,
 	Types.Item.StoneResource,
 	Types.Item.CoalResource,
-	Types.Item.IronResource,
+	Types.Item.CopperResource,
 ]
 
 var hold_timer = Timer.new()
@@ -412,6 +419,15 @@ func saveObject() -> Dictionary:
 	
 func loadObject(loadedDict: Dictionary) -> void:
 	curent_resources = []
+
+	# Re-seed the starting set before replaying the save. A type in STARTING_RESOURCES is
+	# by definition never lockable, so it must not depend on what a save happened to record
+	# - a save written before copper became free would otherwise come back permanently
+	# copperless, and no skill grants it any more. add_resource is idempotent, so replaying
+	# a saved copy of one of these is harmless.
+	for starting_resource in STARTING_RESOURCES:
+		add_resource(starting_resource)
+
 	for i in loadedDict.resources.size():
 		var saved_info = loadedDict.resources[i]
 		var json = JSON.new()

@@ -65,8 +65,20 @@ var god_mode := false
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _ready():
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	
+	# VISIBLE, not CAPTURED, and it is load-bearing for the whole HUD.
+	#
+	# CAPTURED locks the pointer to the middle of the window and hides it, and Godot
+	# picks no Control while it is set — so every button the game draws was
+	# unclickable. That is why hot_bar_inventory.gd calls its own < / > buttons
+	# "decoration" and grew Q / E to work around them, and it is why the skill tree
+	# and the land panel had no on-screen way in at all (ui/hud_toolbar.gd).
+	#
+	# Nothing here ever wanted the capture: no aiming reads the cursor. Gathering,
+	# placing and attacking all resolve against the tile the player faces, and the
+	# panels used to hand the cursor back on open precisely because they needed it.
+	# Those handshakes are gone now — the cursor is simply always free.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
 	inventory_data = InventoryData.new()
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.WoodPickaxe), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)

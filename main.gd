@@ -107,6 +107,22 @@ func _ready():
 	_setup_land_purchase()
 	_setup_islands()
 	_setup_debug_panel()
+	_setup_hud_toolbar()
+
+
+## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself
+## while any panel is open, and it discovers those panels by walking UI2 for
+## PanelFrames — so it has to be created after the land and debug panels put theirs
+## in the tree.
+func _setup_hud_toolbar() -> void:
+	var ui2 := get_node_or_null("UI2")
+	if ui2 == null:
+		push_warning("TileMapHandler: no UI2 CanvasLayer, the HUD toolbar has nowhere to live")
+		return
+
+	var toolbar := HudToolbar.new()
+	toolbar.name = "HudToolbar"
+	ui2.add_child(toolbar)
 
 
 ## The manual-testing panel, on F3. Built here rather than placed in main.tscn for the

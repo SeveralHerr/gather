@@ -268,12 +268,12 @@ func set_open(open: bool) -> void:
 	else:
 		_frame.close()
 
-	# Same handshake the inventory, crafting and skill panels use: free the cursor
-	# and stop the player walking around behind the menu. Assigned rather than
-	# toggled, so a panel opened twice cannot leave input disabled forever.
+	# Same handshake the inventory, crafting and skill panels use: stop the player
+	# walking around behind the menu. Assigned rather than toggled, so a panel opened
+	# twice cannot leave input disabled forever. The cursor is not part of it any
+	# more — it is visible for the whole session now (player.gd).
 	if input_manager:
 		input_manager.disable_input = open
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if open else Input.MOUSE_MODE_CAPTURED
 
 	if open:
 		_bind_inventory()
