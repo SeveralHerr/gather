@@ -97,13 +97,16 @@ const XP_GROWTH := 1.19
 ## the ratios above still say what they said — retuning them as well would have been two
 ## dials moving at once for one symptom.
 ##
-## The one figure that does not survive re-reading is XP_PICKUP's "seasoning". A drop is
+## The one figure that did not survive re-reading is XP_PICKUP's "seasoning". A drop is
 ## 0.33 xp and PickUpManager mints drops from more than node yields: the crafted product,
 ## enemy loot, and — the one that is not a chain that has already paid out —
 ## DestroyManager handing back the very tile that XP_BUILD just paid for. Place, destroy,
-## repeat is ~1.33 xp a cycle off a single item and no gathering at all. That is a faucet
-## in XP_BUILD's premise, not in the pickup rate, so it is not fixed by editing this
-## table; it wants a placement that only pays the first time. Left as found.
+## repeat was ~1.33 xp a cycle off a single item and no gathering at all.
+##
+## That is a faucet in XP_BUILD's premise rather than in the pickup rate, so it was not
+## fixable by editing this table, and `gather-5s5` fixed it where it actually lived:
+## building now pays per CELL rather than per placement (see built_cells). The table is
+## unchanged and the ratios above still hold.
 const XP_KILL := 3
 const XP_CRAFT := 2
 const XP_BUILD := 1
@@ -130,6 +133,24 @@ var next_level := XP_FIRST_LEVEL
 var points := 0
 
 var taken: Dictionary = {}
+
+## Cells that have already paid XP_BUILD, as a set of Vector2i. Saved.
+##
+## XP_BUILD's premise is that a placed tile is the tail end of a chain that has already
+## paid out — it was gathered or crafted first. DestroyManager breaks that premise by
+## handing the tile straight back as a pickup, so place/destroy/repeat on one cell minted
+## ~1.33 xp a cycle (1 for the placement, ~0.33 amortised for the returned drop) off a
+## single item, forever, with no gathering at all. `gather-5s5`.
+##
+## Paying per cell rather than per placement is the narrowest fix that keeps building
+## worth xp: the first tile on a given cell pays, and re-placing there never does again.
+## Rebuilding elsewhere still pays, because that is a player expanding rather than
+## farming a loop.
+##
+## Deliberately NOT cleared when a tile is destroyed — a cleared entry is exactly the
+## exploit. The set only grows, and it is bounded by the buildable area: LandManager caps
+## the island at radius_for(MAX_PARCELS), a few thousand cells, so this cannot run away.
+var built_cells: Dictionary = {}
 
 
 func _ready():
@@ -205,6 +226,19 @@ func add_xp(amount: int, world_position: Vector2 = Vector2.INF) -> int:
 	_refresh_xp_bar()
 	xp_changed.emit(xp, next_level)
 	return granted
+
+
+## Awards XP_BUILD for a tile placed on `cell`, once ever per cell. Returns the xp
+## actually granted, so 0 means "this cell has been built on before".
+##
+## Every placement still costs the player an item whether or not it pays — the stack is
+## decremented by PlayerManager.place_tile long before this is reached. Building on a
+## used cell is not blocked, it just stops being an xp source.
+func award_build_xp(cell: Vector2i, world_position: Vector2 = Vector2.INF) -> int:
+	if built_cells.has(cell):
+		return 0
+	built_cells[cell] = true
+	return add_xp(XP_BUILD, world_position)
 
 
 func _player_position() -> Vector2:
@@ -334,8 +368,20 @@ func saveObject() -> Dictionary:
 		"level": level,
 		"xp": xp,
 		"next_level": next_level,
+		# "x,y" strings rather than the Vector2i keys themselves: entries are
+		# JSON-stringified individually (see SaveLoad), and JSON has no vector type — a
+		# raw key would come back as the string "(3, -7)" and never match a cell again,
+		# silently re-opening the faucet on the first load.
+		"built_cells": _built_cells_saved(),
 	}
 	return dict
+
+
+func _built_cells_saved() -> Array:
+	var out := []
+	for cell in built_cells:
+		out.append("%d,%d" % [cell.x, cell.y])
+	return out
 
 
 func loadObject(loadedDict: Dictionary) -> void:
@@ -354,6 +400,16 @@ func loadObject(loadedDict: Dictionary) -> void:
 				taken[id] = true
 	else:
 		_recover_taken_from_button_states(loadedDict)
+
+	# Absent in every save written before gather-5s5, which loads as an empty ledger. That
+	# is the right default: it hands a returning player one more xp per cell they have
+	# already built on, which is bounded and one-off, where defaulting the other way would
+	# need a list of cells the save does not contain.
+	built_cells = {}
+	for key in loadedDict.get("built_cells", []):
+		var parts: PackedStringArray = str(key).split(",")
+		if parts.size() == 2:
+			built_cells[Vector2i(int(parts[0]), int(parts[1]))] = true
 
 	sync_player_stats()
 	_refresh_xp_bar()

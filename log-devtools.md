@@ -1799,3 +1799,52 @@ Guidelines that make an entry useful later:
   `ui/damage_number.gd` and `items/pick_up_manager.gd`, all of which spawn transients that had
   been freed before the snapshot. Do not read those four as unverified; do not read them as
   verified either without saying which effect stood in for them.
+
+## 2026-08-02 — closing the place/destroy xp faucet (gather-5s5)
+
+- Value: **warranted** — runtime settled the one thing the unit tests structurally cannot:
+  whether the ledger is keyed on the cell the game actually builds on.
+  - Expected: the headless tests prove the ledger blocks a second award, but they call
+    award_build_xp() directly. What they cannot show is that the real input path reaches it
+    at all, or that _placed_cell()'s local_to_map round-trip names the same cell that
+    PlayerManager.place_tile wrote to — a half-tile disagreement there would record a
+    neighbouring square and leave the faucet fully open with every test still green.
+  - Got: driving the real path (`select_slot(3)` then `input tap gather`) moved
+    `xp: 0 -> 1` and `built_cells: {} -> {"(0, 0)": true}`, and each later successful
+    placement added exactly one distinct cell for exactly one xp — four placements, four
+    cells, `xp: 4`. Then the real save format: `input tap save` / `input tap load` returned
+    all five cells with identical keys, which is the check that matters most, because a
+    ledger that does not survive JSON reopens the faucet on the first load and nothing in
+    the session would show it.
+  - Cheaper: nothing for the cell-identity claim. The 20-cycle re-award test is much cheaper
+    headless and that is where it lives; only the wiring needed the game.
+
+- Gap: **`place_build` bypasses the code path it appears to test** — it calls
+  `handler.set_tile(...)` directly (`devtools_ext/commands.gd:1100`), so it never runs
+  `GameItemPlaceable._place()` and never awards build xp. My first runtime check used it and
+  read `xp: 0, built_cells: {}` after a successful `"placed Wood Wall at (-1, 0)"`, which
+  looks exactly like the new code being broken. It is not — the verb was never on that path,
+  before this change or after. Ten minutes went into the wrong hypothesis.
+  - [G-061] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: either route `place_build` through `PlayerManager.place_tile(slot_data)` so
+    it exercises the real chain, or rename it `set_build_tile` and say in its message that it
+    writes the tilemap directly. A setup verb that silently skips the gameplay path is the
+    "setter must leave the game in a state the game itself can reach" rule from the harness
+    docs, broken.
+
+- Gap: **`tile_at`'s cell and the game's "tile in front of player" are not the same cell** —
+  `tile_at` reported `front cell {'x': 0, 'y': -1} source -1` for a cell that was
+  simultaneously empty and unbuildable, because `_cell_near_player` does not apply the
+  facing offset that `main.gd:get_tile_in_front_of_player()` does (`+/- Vector2i(1, 0)` on
+  `is_facing_left()`). Every placement assertion I tried to anchor on it was ambiguous.
+  - [G-062] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: have `tile_at` default to the game's own facing-aware front cell (call
+    `get_tile_in_front_of_player()` when no offset args are given), and return the facing in
+    `data` so the caller can see which square was read.
+
+- [G-060] status: **wontfix** | seen: 2 | harness: 0.7.0 — filed last run as "transient
+  effects shorter than the bus round-trip are unobservable", about not being able to catch
+  hit-stop mid-dip. Withdrawn: `test_juice.test_hit_stop_dips_the_time_scale` already asserts
+  `Engine.time_scale == Juice.HIT_STOP_SCALE` headlessly, and hit-stop is a static function
+  with no scene dependency, so the headless assertion is strictly stronger than a screenshot
+  of the same moment. The gap was real about the bus and irrelevant to the code.

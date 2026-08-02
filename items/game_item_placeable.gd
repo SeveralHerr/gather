@@ -36,7 +36,31 @@ func _award_build_xp() -> void:
 	if level_up_manager == null:
 		return
 
-	level_up_manager.add_xp(LevelUpManager.XP_BUILD, _placed_tile_position(player))
+	# Per cell, not per placement: DestroyManager hands the tile back as a pickup, so
+	# paying every time made place/destroy/repeat on one square an xp faucet that consumed
+	# nothing. See LevelUpManager.built_cells (gather-5s5).
+	# Plain `var`, not `:=` — _placed_cell has an untyped return so that null can mean
+	# "no tilemap", and GDScript cannot infer a type from that.
+	var cell = _placed_cell(player)
+	if cell == null:
+		return
+
+	level_up_manager.award_build_xp(cell, _placed_tile_position(player))
+
+
+## The tilemap cell that was just built on. Untyped return: null means there is no tilemap
+## to ask, which is the same guard _placed_tile_position makes.
+##
+## get_tile_in_front_of_player() hands back that cell already converted to a local pixel
+## corner, so this converts it straight back rather than duplicating the facing logic —
+## two implementations of "the cell in front" that could disagree is exactly how the xp
+## ledger would end up keyed on a different square than the one the tile went onto.
+func _placed_cell(player):
+	var handler = player.tilemap if player else null
+	if handler == null or handler.tileMap == null:
+		return null
+
+	return handler.tileMap.local_to_map(handler.get_tile_in_front_of_player() + Vector2(8, 8))
 
 
 ## Centre of the cell that was just built on, in global space. get_tile_in_front_of_player
