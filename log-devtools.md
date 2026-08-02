@@ -1065,3 +1065,15 @@ Guidelines that make an entry useful later:
   - Improvement: have `reach` cache its computed result next to the ledger so `record` can
     pick it up without the raw snapshots, or make Phase 5 state plainly that the snapshots
     must outlive the `record` call.
+
+## 2026-08-02 — committed the debug panel (bdd222f)
+
+- Value: **overkill** — no harness run this turn. Staging and committing already-verified
+  work needs nothing the running game could add, and the `/verify` that justified the
+  commit is the entry directly above this one.
+  - Expected: nothing; this turn ran no runtime check by design.
+  - Got: `git commit` reported `9 files changed, 1092 insertions(+), 2 deletions(-)`, and
+    `git status --short` came back empty afterwards.
+  - Cheaper: this was already the cheapest path — `git log`/`git status` alone.
+
+- No gaps this turn.
