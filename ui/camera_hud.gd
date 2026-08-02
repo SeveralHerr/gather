@@ -2,7 +2,8 @@ extends Control
 class_name CameraHud
 
 ## Sizes the diegetic HUD (Player/Camera2D/UI) to exactly the camera's visible world
-## area, so its children can use ordinary anchors.
+## area, so its children can use ordinary anchors, and scales what it draws so the
+## numbers stay legible as the window grows.
 ##
 ## A Control under a CanvasLayer gets the viewport rect for free. This one does not:
 ## it hangs off Camera2D in world space, so its own rect is whatever the scene says
@@ -13,10 +14,43 @@ class_name CameraHud
 ##
 ## With the rect kept in sync, anchoring is normal: 0 is the left/top screen edge, 1
 ## is the right/bottom one, 0.5 is the centre, at any window size and any camera zoom.
-## Children that are only a positioning handle for a group (PlayerInfo, Crafting) are
-## anchored to a corner and keep their own children's offsets untouched.
+## Children that are only a positioning handle for a group (PlayerInfo) are anchored
+## to a corner and keep their own children's offsets untouched.
+##
+## ## Why anything here needs scaling at all
+##
+## The camera's zoom is fixed at 4.935 and the project's stretch mode is "disabled",
+## so a HUD unit is always 4.935 screen pixels no matter how large the window is.
+## Everything under here therefore has a *constant pixel size*: the HP bar is 26
+## HUD units wide, which is 128 screen pixels on a phone and 128 screen pixels on a
+## 4K monitor. That is a third of a portrait phone's width and a rounding error on a
+## desktop, and the desktop end is the complaint — the bars and labels are far too
+## small on the window size the game actually ships with (1920x1080).
+##
+## `_apply_legibility_scale()` multiplies the readable groups by UiTheme's viewport
+## factor, floored at 1.0 so a small screen never ends up with *less* than the sizes
+## these offsets were authored for. Positions are scaled with the group only where
+## the group is measured from the top-left corner, so nothing here computes an
+## on-screen position from a viewport dimension — that is the gather-6fx bug.
+
+## The children whose contents are read at a glance: the fps readout, the HP/XP
+## group, and the floating xp popup. The rest of this Control's children
+## (SaveLoad, LevelUpUI, InventoryBackground, PanelContainer) are authored
+## `visible = false` and are left exactly as they are.
+const SCALED_CHILDREN := ["Label3", "PlayerInfo", "FloatingText"]
+
+## Never shrink below what the scene authored. UiTheme.SCALE_MIN is 0.85, which on
+## a phone would make an already-constant-pixel HUD smaller than it is today for no
+## gain — the problem this fixes is at the large end.
+const MIN_LEGIBILITY_SCALE := 1.0
 
 var _camera: Camera2D
+
+## The scene-authored scale and position of each entry in SCALED_CHILDREN, captured
+## once. Every pass recomputes from these rather than from the current values, so a
+## resize cannot compound — the mistake PlayerStats documents for stat deltas.
+var _base_scale: Dictionary = {}
+var _base_position: Dictionary = {}
 
 
 func _ready() -> void:
@@ -27,8 +61,19 @@ func _ready() -> void:
 		# did before the script existed.
 		push_error("CameraHud: parent is not a Camera2D, so the HUD rect will not track the view")
 
+	_capture_base_transforms()
+
 	get_viewport().size_changed.connect(_resize_to_view)
 	_resize_to_view()
+
+
+func _capture_base_transforms() -> void:
+	for child_name in SCALED_CHILDREN:
+		var child := get_node_or_null(NodePath(child_name)) as Control
+		if child == null:
+			continue
+		_base_scale[child_name] = child.scale
+		_base_position[child_name] = child.position
 
 
 func _resize_to_view() -> void:
@@ -45,3 +90,26 @@ func _resize_to_view() -> void:
 	var view := get_viewport_rect().size / zoom
 	size = view
 	position = -view * 0.5
+
+	_apply_legibility_scale()
+
+
+func _apply_legibility_scale() -> void:
+	var factor := maxf(MIN_LEGIBILITY_SCALE, UiTheme.scale_for_node(self))
+
+	for child_name in SCALED_CHILDREN:
+		var child := get_node_or_null(NodePath(child_name)) as Control
+		if child == null:
+			continue
+
+		var base_scale: Vector2 = _base_scale.get(child_name, Vector2.ONE)
+		child.scale = base_scale * factor
+
+		# A Control scales about its own origin, so a group measured from the
+		# top-left corner has to have its offset grow with it or the enlarged
+		# groups above it overlap it — the fps line sits directly under the XP bar
+		# and the two would collide. Anything anchored to the centre or to an edge
+		# is already placed by its anchors and is left alone.
+		if is_zero_approx(child.anchor_left) and is_zero_approx(child.anchor_top):
+			var base_position: Vector2 = _base_position.get(child_name, Vector2.ZERO)
+			child.position = base_position * factor

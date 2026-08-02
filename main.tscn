@@ -752,6 +752,41 @@ player = NodePath("../Node2D/Player")
 
 [node name="UI2" type="CanvasLayer" parent="."]
 
+[node name="HotBarInventory" parent="UI2" instance=ExtResource("33_m4ngi")]
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -210.0
+offset_top = -90.0
+offset_right = 210.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="MobileControls" parent="UI2" instance=ExtResource("43_mobile")]
+
+[node name="CraftingUI" type="Control" parent="UI2"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12_bqf2j")
+
+[node name="SkillTreeUI" type="Control" parent="UI2"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("41_sktui")
+
 [node name="InventoryInterface" type="Control" parent="UI2"]
 visible = false
 layout_mode = 3
@@ -826,40 +861,6 @@ self_modulate = Color(1, 1, 1, 0)
 layout_mode = 0
 offset_right = 64.0
 offset_bottom = 64.0
-
-[node name="HotBarInventory" parent="UI2" instance=ExtResource("33_m4ngi")]
-anchors_preset = -1
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -180.6
-offset_top = -82.0
-offset_right = 239.4
-offset_bottom = -2.0
-scale = Vector2(0.86, 0.86)
-
-[node name="SkillTreeUI" type="Control" parent="UI2"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("41_sktui")
-
-[node name="CraftingUI" type="Control" parent="UI2"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("12_bqf2j")
-
-[node name="MobileControls" parent="UI2" instance=ExtResource("43_mobile")]
 
 [node name="NewInvManager" type="Node" parent="."]
 script = ExtResource("2_u57kl")

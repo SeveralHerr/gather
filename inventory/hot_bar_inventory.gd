@@ -1,14 +1,73 @@
 extends PanelContainer
 
+## The six-slot hotbar: what the player is holding, and the only place the game
+## says which of the six that is.
+##
+## Selection used to be keyboard-only (`_unhandled_key_input` on KEY_1..KEY_6),
+## the highlight was a 2px `draw_center = false` border rendered at the scene's
+## 0.86 scale, and nothing on screen said the number keys did anything at all. A
+## phone player's only affordance was MobileControls' ITEM button, which cycles
+## forward one slot and gives no hint of where it is going. So there are now four
+## ways in, all of them through `select_slot()`:
+##
+##   * the number keys 1..6, unchanged;
+##   * Q / E and the mouse wheel, which work with the cursor captured (the game
+##     runs in MOUSE_MODE_CAPTURED, so a desktop player cannot click anything
+##     here — see player.gd:61);
+##   * a tap or click on a slot;
+##   * the < and > buttons flanking the row, which is the affordance that makes
+##     the direction of travel visible rather than implied.
+##
+## Everything it draws is sized from the viewport in `_apply_layout()` rather
+## than from the scene, because the project runs with
+## `window/stretch/mode = "disabled"`: the viewport is the device's real pixel
+## size and nothing scales for free. That includes the node's own rect, which is
+## why the fixed offsets and the 0.86 scale main.tscn instances this with are
+## overwritten on the first layout pass.
+
 signal hot_bar_use(index: int)
 signal hot_bar_stop(index: int)
 signal hot_bar_selected(index: int)
 
 const INVENTORY_SLOT = preload("res://inventory/inventory_slot.tscn")
 
+## The hotbar mirrors the first six inventory slots. KEY_1..KEY_6 and
+## MobileControls.HOTBAR_SLOT_COUNT both assume this number.
+const SLOT_COUNT := 6
+
+## Base sizes, pre-scale, in the sense UiTheme means: multiplied by
+## `UiTheme.scale_for()` and floored at `UiTheme.TOUCH_MIN` where a finger has to
+## land. None of them is ever used as a position.
+const SLOT_BASE := 56.0
+const PAD_BASE := 4.0
+const BOTTOM_MARGIN_BASE := 10.0
+
+## An arrow is a fraction of a slot wide and a whole slot tall. Six 48px slots
+## plus two 48px arrows do not fit across a portrait phone, and of the two the
+## slots are what the player is aiming at, so the arrows give up the width.
+const ARROW_WIDTH_RATIO := 0.6
+const ARROW_WIDTH_MIN := 28.0
+
+## How much of the viewport width the whole row may occupy before the slots start
+## shrinking to fit. Below roughly a 340px-wide viewport even this cannot keep
+## every slot at TOUCH_MIN, and the row is allowed to overhang rather than shrink
+## past the point a thumb can hit it.
+const ROW_WIDTH_FRACTION := 0.96
+
+## Unselected slots are dimmed as well as differently framed. The old highlight
+## was a border alone and at 0.86 scale you genuinely could not tell which slot
+## was live.
+const UNSELECTED_MODULATE := Color(1.0, 1.0, 1.0, 0.72)
+
 var selected_index: int = 0
 var inv: InventoryData
-var style: StyleBoxFlat
+
+## The selected slot's frame — `UiTheme.overlay_style(true)`, i.e. the brighter
+## gold border, because the hotbar sits directly over the world with no backdrop.
+## Initialised here rather than in `_ready()` so `set_inventory_data()` cannot
+## race it.
+var style: StyleBoxFlat = UiTheme.overlay_style(true)
+var unselected_style: StyleBoxFlat = UiTheme.overlay_style(false)
 
 # Resolved live against the inventory instead of cached. Holding the SlotData meant
 # that consuming the last item in a slot left the hotbar pointing at a slot the
@@ -22,55 +81,126 @@ var selected_slot_data: SlotData:
 			return null
 		return inv.inventory_slot_datas[selected_index]
 
-@onready var h_box_container: HBoxContainer = $MarginContainer/HBoxContainer
+@onready var margin_container: MarginContainer = $MarginContainer
+@onready var row: HBoxContainer = $MarginContainer/Row
+@onready var prev_button: Button = $MarginContainer/Row/PrevButton
+@onready var next_button: Button = $MarginContainer/Row/NextButton
+@onready var h_box_container: HBoxContainer = $MarginContainer/Row/HBoxContainer
 @onready var input_manager: InputManager = $"../../InputManager"
 @onready var held_item_texture: TextureRect = $"../../Node2D/Player/HeldItemTexture"
 @onready var tile_map: TileMapHandler = $"../.."
 
 
-
 func _ready():
-	style = StyleBoxFlat.new()
-	style.border_width_bottom = 2
-	style.border_width_left = 2
-	style.border_width_right = 2
-	style.border_width_top = 2
-	
+	add_theme_stylebox_override("panel", UiTheme.overlay_style())
+
+	UiTheme.style_button(prev_button)
+	UiTheme.style_button(next_button)
+	prev_button.pressed.connect(step_selection.bind(-1))
+	next_button.pressed.connect(step_selection.bind(1))
+
 	input_manager.gather_input_press.connect(_on_gather)
 	input_manager.gather_input_release.connect(_on_gather_stop)
-	
+
+	var vp := get_viewport()
+	if vp != null and not vp.size_changed.is_connected(_apply_layout):
+		vp.size_changed.connect(_apply_layout)
+
+	# The touch overlay covers the bottom corners of the screen when it is up, so
+	# the hotbar has to know when that changes and lift itself clear.
+	var mobile := _mobile_controls()
+	if mobile != null and not mobile.visibility_changed.is_connected(_apply_layout):
+		mobile.visibility_changed.connect(_apply_layout)
+
+	_apply_layout()
+	# Again once the whole tree is up: MobileControls is a later sibling in
+	# main.tscn, so on the first pass it has not decided whether it is visible yet
+	# and _bottom_obstruction() answers for a half-built overlay.
+	_apply_layout.call_deferred()
+
 func _process(_delta):
 	if held_item_texture.visible:
 		var tile_pos =  tile_map.get_tile_in_front_of_player()
 		held_item_texture.global_position = tile_pos
-		
+
 		if tile_map.is_occupied(tile_map.tileMap.local_to_map(tile_pos), true, false):
 			held_item_texture.modulate = Color(1, 0, 0, 140)
 		else:
 			held_item_texture.modulate = Color(1, 1, 1, 1)
-		
+
 func _unhandled_key_input(event):
 	if not visible or not event.is_pressed():
 		return
-	
-	if range(KEY_1, KEY_7).has(event.keycode):
-		for child in h_box_container.get_children():
-			var panel = child as PanelContainer
-			panel.remove_theme_stylebox_override("panel")
-		
-		var slot = h_box_container.get_child(event.keycode - KEY_1) as PanelContainer
-		slot.add_theme_stylebox_override("panel", style)
-		selected_index = event.keycode - KEY_1
-		#populate_hot_bar(inv)
-		update_placed_slot()
-		hot_bar_selected.emit(selected_index)
-		
+
+	if range(int(KEY_1), int(KEY_1) + SLOT_COUNT).has(event.keycode):
+		select_slot(event.keycode - KEY_1)
+		return
+
+	# Q / E exist because the game plays with Input.mouse_mode == CAPTURED, so on
+	# desktop the < and > buttons are decoration: there is no cursor to press them
+	# with. Neither key is an InputMap action, matching the number keys above and
+	# MobileControls' comment about why it synthesises a raw key.
+	if event.keycode == KEY_Q:
+		step_selection(-1)
+	elif event.keycode == KEY_E:
+		step_selection(1)
+
+func _unhandled_input(event):
+	# The wheel is the other affordance a captured cursor leaves working, and it
+	# is what a Forager player reaches for first. Nothing else in the game binds
+	# it.
+	if not visible:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse == null or not mouse.pressed:
+		return
+	if mouse.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		step_selection(1)
+		get_viewport().set_input_as_handled()
+	elif mouse.button_index == MOUSE_BUTTON_WHEEL_UP:
+		step_selection(-1)
+		get_viewport().set_input_as_handled()
+
 func _on_gather():
 	hot_bar_use.emit(selected_index)
-	
+
 func _on_gather_stop():
 	hot_bar_stop.emit(selected_index)
-		
+
+
+## The one way the selection ever changes. The number keys, Q/E, the wheel, a tap
+## on a slot and the two arrow buttons all land here, so the five paths cannot
+## drift apart — which is exactly what happened when MobileControls had to
+## synthesise a keypress to reach the only implementation there was.
+func select_slot(index: int) -> void:
+	if index < 0 or index >= SLOT_COUNT:
+		return
+
+	selected_index = index
+	_apply_selection()
+	update_placed_slot()
+	hot_bar_selected.emit(selected_index)
+
+
+## Moves the selection by `delta` slots, wrapping. `posmod` rather than `%` so
+## stepping back off slot 1 lands on slot 6 instead of -1 — the direction the
+## ITEM button could never go.
+func step_selection(delta: int) -> void:
+	select_slot(posmod(selected_index + delta, SLOT_COUNT))
+
+
+## A tap or a click on a slot selects it.
+##
+## This used to forward straight to `InventoryData.on_slot_clicked`, i.e. to the
+## inventory's grab/drop handler. That could never do anything useful from here:
+## the hotbar is hidden whenever the inventory interface is open
+## (new_inventory_manager.gd) and the grabbed slot only draws inside that
+## interface, so a click on a *visible* hotbar slot pulled the stack into an
+## invisible hand. Selecting is what a hotbar click means everywhere else, and on
+## a phone it is the only direct way to reach slot 4 without cycling past 2 and 3.
+func _on_slot_clicked(index: int, _button: int) -> void:
+	select_slot(index)
+
 func set_inventory_data(inventory_data: InventoryData) -> void:
 	inv = inventory_data
 
@@ -81,12 +211,9 @@ func set_inventory_data(inventory_data: InventoryData) -> void:
 	hot_bar_selected.connect(inventory_data.show_slot_data)
 	hot_bar_selected.connect(_on_select)
 
-	style.draw_center = false
-	(h_box_container.get_children()[0] as PanelContainer).add_theme_stylebox_override("panel", style)
-
 func _on_select(_i):
 	update_placed_slot()
-	pass	
+	pass
 
 func populate_hot_bar(inventory_data: InventoryData) -> void:
 	var selected := selected_slot_data
@@ -94,26 +221,172 @@ func populate_hot_bar(inventory_data: InventoryData) -> void:
 		held_item_texture.texture = null
 
 	for child in h_box_container.get_children():
+		# Detached as well as freed: queue_free() leaves the node a child until the
+		# end of the frame, and _apply_layout() below asks the container for its
+		# minimum size in this one.
+		h_box_container.remove_child(child)
 		child.queue_free()
-		
-	var hot_bar_slots = inventory_data.inventory_slot_datas.slice(0, 6)
+
+	var hot_bar_slots = inventory_data.inventory_slot_datas.slice(0, SLOT_COUNT)
 	for index in hot_bar_slots.size():
 		var slot_data = hot_bar_slots[index]
 		var slot = INVENTORY_SLOT.instantiate()
 		h_box_container.add_child(slot)
 
-		slot.slot_clicked.connect(inventory_data.on_slot_clicked)
+		# The number is a child of the slot, not of the row, so it does not shift
+		# the index slot_clicked reports.
+		slot.add_child(_build_number_label(index))
+
+		slot.slot_clicked.connect(_on_slot_clicked)
 
 		if slot_data:
 			slot.set_slot_data(slot_data)
 
-		# Highlight by index so the selection stays put when the slot is emptied.
-		if index == selected_index:
-			slot.add_theme_stylebox_override("panel", style)
+	# Both of these have to run after the rebuild: the highlight lives on the slot
+	# nodes, which have just been replaced, and the row's width depends on how many
+	# of them there are.
+	_apply_selection()
+	_apply_layout()
+
+
+## The 1..6 label that makes the number-key binding discoverable. Size flags put
+## it in the slot's top-left corner: PanelContainer honours them through
+## `fit_child_in_rect`, which is the same mechanism that parks the slot scene's
+## own QuantityLabel in the top-right.
+func _build_number_label(index: int) -> Label:
+	var label := Label.new()
+	label.name = "HotbarNumber"
+	label.text = str(index + 1)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	label.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	label.add_theme_constant_override("outline_size", 3)
+	return label
+
+
+## Repaints the six slots for the current `selected_index`. Keyed by index rather
+## than by SlotData, so the highlight stays put when the slot is emptied.
+func _apply_selection() -> void:
+	for index in h_box_container.get_child_count():
+		var slot := h_box_container.get_child(index) as Control
+		if slot == null:
+			continue
+
+		var chosen := index == selected_index
+		slot.add_theme_stylebox_override("panel", style if chosen else unselected_style)
+		slot.modulate = Color.WHITE if chosen else UNSELECTED_MODULATE
+
+		var number := slot.get_node_or_null("HotbarNumber") as Label
+		if number != null:
+			number.add_theme_color_override(
+				"font_color", UiTheme.COLOR_GOLD if chosen else UiTheme.COLOR_TEXT_DIM)
+
+
+## Re-derives every size, and the node's own rect, from the current viewport.
+##
+## main.tscn instances this scene with a hand-tuned offset rect and
+## `scale = 0.86`, neither of which adapts to anything; both are overwritten here.
+## The rect is set from anchors — bottom centre, growing up and out — so no
+## viewport dimension is ever used as a position.
+func _apply_layout() -> void:
+	if not is_inside_tree() or h_box_container == null:
+		return
+
+	var vp := get_viewport_rect().size
+	if vp.x <= 0.0 or vp.y <= 0.0:
+		return
+
+	var pad := UiTheme.scaled(PAD_BASE, vp)
+	var gap := UiTheme.scaled(UiTheme.GAP, vp) * 0.5
+
+	# The row is SLOT_COUNT slots plus two arrows, separated by SLOT_COUNT + 1
+	# gaps, inside the panel's padding. Solve that for the slot side that fits the
+	# width budget, then take the smaller of it and the size the theme asked for.
+	var budget := vp.x * ROW_WIDTH_FRACTION - 2.0 * pad - float(SLOT_COUNT + 1) * gap
+	var fits := budget / (float(SLOT_COUNT) + 2.0 * ARROW_WIDTH_RATIO)
+	var side := maxf(UiTheme.TOUCH_MIN, minf(UiTheme.scaled_touch(SLOT_BASE, vp), fits))
+	var arrow := maxf(ARROW_WIDTH_MIN, side * ARROW_WIDTH_RATIO)
+
+	scale = Vector2.ONE
+
+	var pad_px := int(round(pad))
+	margin_container.add_theme_constant_override("margin_left", pad_px)
+	margin_container.add_theme_constant_override("margin_top", pad_px)
+	margin_container.add_theme_constant_override("margin_right", pad_px)
+	margin_container.add_theme_constant_override("margin_bottom", pad_px)
+
+	var gap_px := int(round(gap))
+	row.add_theme_constant_override("separation", gap_px)
+	h_box_container.add_theme_constant_override("separation", gap_px)
+
+	var number_font := UiTheme.scaled_font(UiTheme.FONT_SMALL, vp)
+	for child in h_box_container.get_children():
+		var slot := child as NewSlot
+		if slot == null:
+			continue
+		# Pushed into the instance, never written back into inventory_slot.tscn: the
+		# same scene backs the bag grid and a chest's grid, and apply_metrics() is the
+		# owner-facing API slot.gd documents for exactly this. It scales the icon
+		# padding and the count text along with the cell.
+		slot.apply_metrics(side)
+		var number := slot.get_node_or_null("HotbarNumber") as Label
+		if number != null:
+			number.add_theme_font_size_override("font_size", number_font)
+
+	var arrow_font := UiTheme.scaled_font(UiTheme.FONT_TITLE, vp)
+	var arrows: Array[Button] = [prev_button, next_button]
+	for button in arrows:
+		button.custom_minimum_size = Vector2(arrow, side)
+		button.add_theme_font_size_override("font_size", arrow_font)
+
+	# What the row works out to, floored by what the children actually demand —
+	# the slot scene belongs to the inventory too and may carry a larger minimum
+	# than the arithmetic above assumes.
+	var wanted := Vector2(
+		2.0 * pad + 2.0 * arrow + float(SLOT_COUNT) * side + float(SLOT_COUNT + 1) * gap,
+		2.0 * pad + side)
+	var minimum := get_combined_minimum_size()
+	var panel := Vector2(maxf(wanted.x, minimum.x), maxf(wanted.y, minimum.y))
+
+	var bottom := UiTheme.scaled(BOTTOM_MARGIN_BASE, vp) + _bottom_obstruction()
+
+	grow_horizontal = Control.GROW_DIRECTION_BOTH
+	grow_vertical = Control.GROW_DIRECTION_BEGIN
+	anchor_left = 0.5
+	anchor_right = 0.5
+	anchor_top = 1.0
+	anchor_bottom = 1.0
+	offset_left = -panel.x * 0.5
+	offset_right = panel.x * 0.5
+	offset_bottom = -bottom
+	offset_top = -bottom - panel.y
+
+
+## How much of the bottom of the screen the touch overlay is covering, so the row
+## sits above the joystick and the thumb cluster instead of underneath them. On a
+## portrait phone the two of them own both bottom corners and the hotbar is very
+## nearly screen-wide, so there is no bottom-centre gap to sit in. Zero on
+## desktop, where the overlay hides itself.
+func _bottom_obstruction() -> float:
+	var mobile := _mobile_controls()
+	if mobile == null:
+		return 0.0
+	return mobile.get_bottom_obstruction_height()
+
+
+## The touch overlay, or null on a build that has none. Typed as MobileControls so
+## the call above is checked at parse time rather than being a duck-typed guess.
+func _mobile_controls() -> MobileControls:
+	var parent := get_parent()
+	if parent == null:
+		return null
+	return parent.get_node_or_null("MobileControls") as MobileControls
 
 func update_placed_slot() -> void:
 	if held_item_texture and  selected_slot_data and selected_slot_data.item and selected_slot_data.item.is_placeable:
 		held_item_texture.show()
 		held_item_texture.texture = selected_slot_data.item.get_atlas()
-	else: 
+	else:
 		held_item_texture.hide()
