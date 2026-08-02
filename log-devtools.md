@@ -497,3 +497,12 @@ Guidelines that make an entry useful later:
     `--import` and restore it (or diff and warn loudly) afterward — the import step needs the
     *cache* rebuilt, never the project file edited. Failing that, CLAUDE.md's `--import` rule
     should carry an explicit "check `git diff project.godot` afterward" warning.
+
+## 2026-08-01 — Commit + merge step (harness 0.7.0 refresh)
+
+- No further gaps this turn. The two commits, the `--no-ff` merge into `main` and the
+  upstreaming all ran clean. One thing worth recording for whoever hits [G-028]: `main` was
+  re-verified *after* the merge (121/121, `grep -c 'SCRIPT ERROR'` = 0) and `project.godot`
+  re-checked by hand — 21 comments and all three settings present. Running the test suite
+  does **not** dirty `project.godot`; only `--import` does, which narrows the blast radius of
+  that gap to the import step alone.
