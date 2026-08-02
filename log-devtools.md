@@ -1455,3 +1455,21 @@ Guidelines that make an entry useful later:
     against. Both were needed; neither alone was enough to commit code I had not authored.
 
 - Gap: no gaps this turn.
+
+## 2026-08-02 — Merged hud-affordances into main locally
+
+- Value: **warranted** — the merge brought together two branches' worth of work that had
+  never been in one tree at the same time, and the gates are what say the combination holds.
+  - Expected: a clean merge (main was an ancestor, so no textual conflict was possible), but
+    the interesting question was semantic: the branch carried an ore-tuning change and an
+    xp-splash change that had been developed in parallel sessions and only ever tested
+    separately. `LevelUpManager.add_xp` is on both paths — it awards the xp a gather pays and
+    it spawns the splash — so a break would surface there, not in the diff.
+  - Got: `Total: 192 | Passed: 192` and `lint: 0 error(s), 7 warning(s)` on the merged tree,
+    same counts as each side reported alone, so nothing was lost or double-counted in the
+    merge. `git status` clean and `main...origin/main` at `7 0`.
+  - Cheaper: `git merge` alone reports conflicts, and there were none — but "no conflict" and
+    "still works" are different claims, and only the suite makes the second one. 40s for the
+    only evidence that the two parallel branches compose.
+
+- Gap: no gaps this turn.
