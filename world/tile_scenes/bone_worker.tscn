@@ -131,6 +131,12 @@ texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_chop")
 animation = &"idle"
 
+[node name="Carried" type="Sprite2D" parent="."]
+visible = false
+texture_filter = 1
+position = Vector2(5, 2)
+scale = Vector2(0.6, 0.6)
+
 [node name="Gather" type="Sprite2D" parent="."]
 visible = false
 show_behind_parent = true

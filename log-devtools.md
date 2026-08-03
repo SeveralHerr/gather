@@ -2370,3 +2370,24 @@ Guidelines that make an entry useful later:
   sample, so a chest deposit and the ground-drop fallback are indistinguishable from this
   evidence. gather-yye.7 stays open. Distinguishing them needs a chest placed at a chosen
   cell beside a worker, which is the same missing verb.
+
+## 2026-08-03 — workers visibly carry what they harvested
+
+- Value: **warranted** — a purely visual change, so the running game is the only thing that
+  can answer it, and the 20s cadence made the honest sampling approach fail first.
+  - Expected: that the Carried sprite appears with the harvested resource's own icon while a
+    load is in hand and vanishes when it is put away.
+  - Got: stepping 8 game-seconds at a time never caught it. Six consecutive `CHOPPING|0`
+    samples — the chop is 20s and the carry window between felling and depositing is shorter
+    than the sampling interval, so polling for it is the wrong instrument. Driving it instead
+    (`set-state _carry 2` then `run-method _update_carry_visual`) gave
+    `visible: true, scale (0.6, 0.6), position (5, 2)`, and setting `_carry 0` gave
+    `visible: false`. The screenshot then showed the worker holding a log at hand height.
+  - Cheaper: nothing, but the *method* was: forcing the state beat waiting for it, and the
+    six wasted samples were the cost of not seeing that immediately. A brief state reached
+    on a 20s cycle should be set, not sampled.
+
+- Gap: **no gaps this turn.** `set-state` on an int plus `run-method` on the refresh function
+  was enough to drive the visual directly, and computing the crop from the worker's and
+  player's `global_position` against the camera's zoom 8 put the screenshot on the right
+  16 pixels without any new verb.

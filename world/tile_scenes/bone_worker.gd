@@ -98,6 +98,7 @@ enum State { IDLE, TO_TREE, CHOPPING, TO_CHEST, RETURNING, WANDER }
 @onready var work_timer: Timer = $WorkTimer
 @onready var work_area: Area2D = $WorkArea
 @onready var gather_sprite: Sprite2D = $Gather
+@onready var carried_sprite: Sprite2D = $Carried
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 
 ## How far this worker reaches for both trees and delivery chests, read off WorkArea.
@@ -178,6 +179,7 @@ func _anchor_home() -> void:
 func _refresh_sprites() -> void:
 	unloaded_sprite.visible = not loaded
 	loaded_sprite.visible = loaded
+	_update_carry_visual()
 	if not loaded:
 		_set_working(false)
 
@@ -388,6 +390,7 @@ func _deposit_carry() -> void:
 			continue
 		while _carry > 0 and chest.inventory_data.pick_up_slot_data(SlotData.new(wood, 1)):
 			_carry -= 1
+		_update_carry_visual()
 		if _carry == 0:
 			break
 
@@ -409,6 +412,7 @@ func _drop_carry() -> void:
 			PickUpManager.create_pickup(wood, position)
 			_carry -= 1
 	_carry = 0
+	_update_carry_visual()
 	_look_for_work()
 
 
@@ -534,10 +538,29 @@ func _fell(cell: Vector2i) -> void:
 	# The wood goes into _carry rather than straight to a chest: the whole point of walking is
 	# that the chest is somewhere else. _start_delivery decides where it ends up.
 	_carry += tree.roll_yield()
+	_update_carry_visual()
 
 	# The secondary Food drop is deliberately not rolled. It is the forager's bonus for
 	# working the tree by hand; a worker farm that also fed the player would make the one
 	# consumable in the game free.
+
+
+## Show what is in hand. The icon comes from the harvested resource's own drop, so the blue
+## worker carries a log and the grey one carries a rock without either being named here —
+## a third variant gets this for free, like everything else keyed off harvest_type.
+##
+## Driven from _carry rather than from the state: the worker is visibly holding something
+## from the moment the node comes down until the moment it is put away, which includes the
+## walk to the chest, the deposit itself, and the case where every chest is full and it is
+## carrying the load back out to drop it.
+func _update_carry_visual() -> void:
+	var carrying := _carry > 0
+	carried_sprite.visible = carrying
+	if not carrying:
+		return
+	var item := _wood_item()
+	if item != null:
+		carried_sprite.texture = item.get_atlas()
 
 
 ## The item a felled tree yields, or null when the registry is not up (headless tests).
