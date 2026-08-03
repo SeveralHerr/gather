@@ -385,6 +385,18 @@ func _physics_process(_delta):
 		$Attack.visible = false
 		$Attack.monitoring = false
 		net.visible = false
+		# `monitoring`, not `monitorable`. These are opposite directions: `monitoring` is
+		# whether THIS area detects bodies, `monitorable` is whether OTHER areas can detect
+		# it. Only the first one stops the net catching things, and nothing in the project
+		# detects the net area at all, so the old line was inert — this was the backstop
+		# that should have closed the window left open when player_net.on_hit's own
+		# `monitoring = false` was silently refused mid-callback (gather-uem). Every other
+		# one of the six such writes in the project uses `monitoring`; this was the odd one.
+		#
+		# A direct write is correct here: _physics_process runs outside the query flush, so
+		# the physics server is not locked. It is only the body_entered handler that has to
+		# defer.
+		net.monitoring = false
 		net.monitorable = false
 
 	if velocity.x != 0:

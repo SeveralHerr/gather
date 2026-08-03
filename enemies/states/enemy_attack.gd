@@ -12,6 +12,22 @@ func enter():
 	
 	enemy.attack_timer.start()
 
+
+## attack_timer belongs to the Enemy, not to this state, so a connection made here outlives
+## the state unless it is undone. EnemyLunge connects to the SAME timer, and on the bone
+## path (Idle-Follow-Anticipate-Lunge-Attack) its _on_lunge_end is connected first — so the
+## first timeout inside EnemyAttack also ran EnemyLunge's handler, whose attack_timer.stop()
+## is not filtered by anything. enemy_state_machine.gd:27 drops a Transitioned from a
+## non-current state, but it cannot drop a side effect. The enemy went permanently quiet
+## after its first lunge, with no error anywhere (gather-8fn).
+func exit():
+	if enemy == null or enemy.attack_timer == null:
+		return
+	if enemy.attack_timer.timeout.is_connected(_on_attack):
+		enemy.attack_timer.timeout.disconnect(_on_attack)
+	enemy.attack_timer.stop()
+
+
 func physics_update(delta):
 	var direction = PlayerManager.player.global_position - enemy.global_position
 	enemy.velocity = Vector2.ZERO

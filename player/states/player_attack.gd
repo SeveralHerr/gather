@@ -31,7 +31,19 @@ func enter():
 		
 	
 	
+## Connected to the PLAYER's shared AnimationPlayer, and the player state machine has no
+## exit() hook at all (state_machine.gd:15 only ever calls enter()), so this can never be
+## disconnected — the current-state check is the only available guard.
+##
+## Without it, every animation that finishes anywhere lands here. main.tscn decides which:
+## Gather and Gather_left set loop_mode 1 and never emit, but Attack, Attack_Left, Net_Left
+## and Net_Right do. So once the player had swung a sword once, every net throw for the rest
+## of the session also ran this — PlayerIdle.enter() twice per throw, and the attack hitbox
+## disarmed from a state that was not current (gather-hby, the same shape as gather-3zg.2).
 func animation_finished(_anim_name):
+	if p == null or fsm == null or fsm.state != self:
+		return
+
 	p.attack.visible = false
 	p.attack.monitoring = false
 	fsm.change_to("PlayerIdle")

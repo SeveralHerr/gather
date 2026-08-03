@@ -49,9 +49,20 @@ func animation_finished(_anim_name):
 	p.gather.visible = false
 	fsm.change_to("PlayerIdle")
 	
+## Called from outside the state machine — game_item_pickaxe.gd:42, via the hotbar's
+## gather-stop path — so it can arrive while some other state is current, and before this
+## state has ever run enter().
+##
+## Both cases were reachable. Releasing the gather key mid sword-swing with a pickaxe
+## selected forced PlayerIdle, whose enter() clears p.attack.monitoring, so the swing landed
+## no damage; and `p` is assigned only in enter(), while input_manager.gd:81 deliberately
+## does not gate the gather RELEASE on disable_input — so a release following a press that
+## was swallowed while a panel was open ran this with p null (gather-kkz).
 func stop():
+	if p == null or fsm == null or fsm.state != self:
+		return
+
 	p.animation_player.stop()
-	print("Stop")
 	p.gather.visible = false
 	fsm.change_to("PlayerIdle")
 

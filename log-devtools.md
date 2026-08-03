@@ -3164,3 +3164,43 @@ Guidelines that make an entry useful later:
   captures before writing the row, then trying to pipe `--run /dev/stdin`, which does not
   exist on Windows. Recorded with `--no-reach` rather than skipping the row. Capture, record,
   then clean up — in that order.
+
+## 2026-08-03 — gather-uem and the audits it triggered: a dropped physics write and a silent enemy
+
+- Value: **warranted** — both headline bugs are invisible to every static gate, and one of
+  them produces no error at all.
+  - Expected: the reported error is a physics-locked write that is silently dropped, so
+    runtime should show both that it stops appearing AND that the net now consumes exactly
+    one net per catch.
+  - Got: throwing the net at a bone enemy took the inventory from `{'count': 3, 'type': 20}`
+    to `{'count': 2, 'type': 20}` with a `{'count': 1, 'type': 21}` skull acquired, and
+    **zero** `Function blocked` on stderr. Separately, driving `EnemyLunge.enter -> exit ->
+    EnemyAttack.enter` and stepping 1.4s left the shared AttackTimer at `time_left: 0.616`
+    after having fired — i.e. still repeating. Before the fix the stale `_on_lunge_end` would
+    have stopped it for good. The player also dropped to `hp: 4` from live enemies during
+    the session, which is the same claim from the other direction.
+  - Cheaper: nothing. The dropped write is invisible in a diff — the assignment is *there*,
+    it just does not happen — and the enemy timer leak emits no error whatsoever, only an
+    enemy that quietly stops hitting after its first lunge.
+
+- The audits earned their keep, and in a specific way worth recording: the physics-callback
+  audit found the project otherwise clean (one site, already known) but turned up the real
+  prize as a *side observation* — `player.gd:388` wrote `net.monitorable` where five other
+  writes in the project use `monitoring`. That was the missing backstop, and no amount of
+  staring at `player_net.gd` would have surfaced it. The state-machine audit then found a
+  live P1 nobody had reported: bone and elite enemies going permanently quiet after their
+  first lunge.
+
+- Gap: **no gaps this turn.** `step-time`, `run-method` onto state nodes, `key`, `input tap`
+  and reading `saveObject()` back were enough to drive a full lunge->attack transition and a
+  net catch without waiting on emergent AI behaviour.
+
+- Note on method: the decisive enemy assertion came from calling `enter()`/`exit()` on the
+  state nodes directly rather than trying to get an enemy to walk into the player. Waiting
+  for the AI produced six samples of `hp 10 | live_enemies 0..3` and proved nothing; driving
+  the transition took one command and produced a number that could only mean one thing.
+  When a bug is about a state transition, drive the transition.
+
+- Note: ledger row is `partial` — the PlayerAttack and PlayerGather current-state guards are
+  covered by reasoning and by the suite, but I did not stage a sword-swing-interrupted-by-
+  gather-release in a live session, which is the case gather-kkz is actually about.
