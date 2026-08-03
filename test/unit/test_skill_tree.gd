@@ -12,9 +12,28 @@ var items: Items
 var resources: Resources
 var recipes
 
-## Every branch is a straight chain of exactly this many tiers. Bumping it here is
-## the one edit needed when the tree grows another row.
-const EXPECTED_TIERS := 4
+## Every branch is a straight chain of at least this many tiers.
+##
+## It was an exact count until Industry grew a fifth rung for the mint (`gather-7p4`). A
+## minimum rather than an equality because the raggedness is the deliberate part: the ore
+## ladder is the game's spine and is allowed to run one card longer than its neighbours,
+## while a branch coming up SHORT is still the bug this was written for — a column with a
+## missing tier is a dead end the panel draws as if it were finished.
+const MIN_TIERS := 4
+
+## The one branch allowed past MIN_TIERS today, and how far. Stated rather than left open
+## so that a second branch quietly growing a fifth tier — which would make the panel a wall
+## of ragged columns rather than one deliberate exception — fails here.
+const DEEPER_BRANCHES := {SkillTree.INDUSTRY: 5}
+
+## Prerequisites normally run straight up a column. This is every skill allowed to name one
+## from another branch, mapped to the requirement it is allowed to name.
+##
+## An allow-list rather than dropping the check, because the check is load-bearing: the
+## panel draws connectors down a column only, so a cross-branch prerequisite is INVISIBLE
+## on the tree and is discoverable solely through the detail pane's "requires" line. That
+## is an acceptable price for one deliberate gate and a bad default for the tree at large.
+const CROSS_BRANCH_REQUIREMENTS := {"gold_rush": "light_step"}
 
 
 func setup() -> void:
@@ -44,16 +63,72 @@ func test_every_prerequisite_names_a_real_skill() -> String:
 
 
 func test_prerequisites_stay_inside_their_own_branch_and_above() -> String:
-	# A cross-branch or downward prerequisite would draw a connector line between
-	# two cards that are not actually vertically adjacent in the panel.
+	# A cross-branch prerequisite draws no connector at all, and a downward one would draw
+	# a line between two cards that are not vertically adjacent. Both are panel bugs, so
+	# the only cross-branch edges permitted are the ones named in CROSS_BRANCH_REQUIREMENTS.
 	for id in tree.order:
 		var skill: Skill = tree.get_skill(id)
 		for requirement in skill.requires:
 			var parent: Skill = tree.get_skill(requirement)
+
 			if parent.branch != skill.branch:
-				return _T.assert_true(false, "'%s' requires '%s' from another branch" % [id, requirement])
+				if CROSS_BRANCH_REQUIREMENTS.get(id) != requirement:
+					return _T.assert_true(
+						false, "'%s' requires '%s' from another branch" % [id, requirement]
+					)
+				# A cross-branch edge has no shared column, so "above" is meaningless for
+				# it; what matters instead is that it cannot deadlock, which the acyclicity
+				# test below covers.
+				continue
+
 			if parent.tier >= skill.tier:
 				return _T.assert_true(false, "'%s' requires '%s' at the same or lower tier" % [id, requirement])
+
+	return ""
+
+
+func test_every_declared_cross_branch_gate_is_still_in_the_tree() -> String:
+	# The other half of the allow-list. Without this, removing gold_rush's Building
+	# prerequisite would leave a stale entry that silently keeps permitting something
+	# nothing does any more — an allow-list that only ever grows stops being a guard.
+	for id in CROSS_BRANCH_REQUIREMENTS:
+		var skill: Skill = tree.get_skill(id)
+		if skill == null:
+			return _T.assert_true(false, "cross-branch allow-list names unknown skill '%s'" % id)
+
+		if not skill.requires.has(CROSS_BRANCH_REQUIREMENTS[id]):
+			return _T.assert_true(
+				false,
+				"'%s' no longer requires '%s' — drop it from CROSS_BRANCH_REQUIREMENTS"
+					% [id, CROSS_BRANCH_REQUIREMENTS[id]]
+			)
+
+	return ""
+
+
+func test_the_prerequisite_graph_is_acyclic_and_fully_reachable() -> String:
+	# Cross-branch edges make the tree a DAG rather than four independent chains, so
+	# "every node is eventually buyable" stops being obvious by inspection. A cycle here
+	# would not crash anything — is_available simply returns false forever, leaving a card
+	# permanently locked with its requirement showing as met on the neighbouring column.
+	var taken := {}
+
+	# Repeatedly take everything currently available. A tree with no cycle drains; one
+	# with a cycle stalls with nodes left over.
+	for _pass in tree.order.size():
+		var progressed := false
+		for id in tree.order:
+			if tree.is_available(id, taken):
+				taken[id] = true
+				progressed = true
+		if not progressed:
+			break
+
+	for id in tree.order:
+		if not taken.has(id):
+			return _T.assert_true(
+				false, "'%s' can never be bought — its prerequisites cannot all be met" % id
+			)
 
 	return ""
 
@@ -76,28 +151,111 @@ func test_every_branch_is_a_full_contiguous_chain() -> String:
 	# "each gated on the one above" expressible at all.
 	for branch in SkillTree.BRANCHES:
 		var branch_skills := tree.branch_skills(branch)
+		var expected_tiers: int = DEEPER_BRANCHES.get(branch, MIN_TIERS)
 
 		var err: String = _T.assert_eq(
-			branch_skills.size(), EXPECTED_TIERS,
-			"%s has %d tiers" % [branch, EXPECTED_TIERS]
+			branch_skills.size(), expected_tiers,
+			"%s has %d tiers" % [branch, expected_tiers]
 		)
 		if err != "":
 			return err
 
+		if branch_skills.size() < MIN_TIERS:
+			return _T.assert_true(false, "%s is short of the %d-tier minimum" % [branch, MIN_TIERS])
+
 		for i in branch_skills.size():
-			if branch_skills[i].tier != i:
-				return _T.assert_true(false, "%s tier %d is numbered %d" % [branch, i, branch_skills[i].tier])
+			var skill: Skill = branch_skills[i]
 
-			# Tier 0 is the free entry point; everything below it hangs off exactly
-			# the node directly above.
-			var expected_requires := 0 if i == 0 else 1
-			if branch_skills[i].requires.size() != expected_requires:
-				return _T.assert_true(false, "'%s' does not chain off the tier above it" % branch_skills[i].id)
+			if skill.tier != i:
+				return _T.assert_true(false, "%s tier %d is numbered %d" % [branch, i, skill.tier])
 
-			if i > 0 and branch_skills[i].requires[0] != branch_skills[i - 1].id:
-				return _T.assert_true(false, "'%s' skips past '%s'" % [branch_skills[i].id, branch_skills[i - 1].id])
+			# Tier 0 is the free entry point. Everything below it hangs off the node
+			# directly above — and may name at most one extra prerequisite, from another
+			# branch, if CROSS_BRANCH_REQUIREMENTS permits it.
+			if i == 0:
+				if not skill.requires.is_empty():
+					return _T.assert_true(false, "'%s' is a tier 0 node with prerequisites" % skill.id)
+				continue
+
+			var parent_id: String = branch_skills[i - 1].id
+			if not skill.requires.has(parent_id):
+				return _T.assert_true(
+					false, "'%s' does not chain off '%s', the tier above it" % [skill.id, parent_id]
+				)
+
+			var allowed := 2 if CROSS_BRANCH_REQUIREMENTS.has(skill.id) else 1
+			if skill.requires.size() > allowed:
+				return _T.assert_true(
+					false, "'%s' names %d prerequisites; at most %d are permitted"
+						% [skill.id, skill.requires.size(), allowed]
+				)
 
 	return ""
+
+
+func test_a_skill_costs_its_depth() -> String:
+	# The pass that made depth the price (`gather-7p4`). Every tier-0 node must stay at one
+	# point — that is what keeps the opening identical to the flat-cost tree it replaced —
+	# and every rung below it must cost strictly more than the rung above.
+	for branch in SkillTree.BRANCHES:
+		var branch_skills := tree.branch_skills(branch)
+
+		var err: String = _T.assert_eq(
+			branch_skills[0].cost(), 1, "%s's entry node costs one point" % branch
+		)
+		if err != "":
+			return err
+
+		for i in range(1, branch_skills.size()):
+			if branch_skills[i].cost() <= branch_skills[i - 1].cost():
+				return _T.assert_true(
+					false,
+					"'%s' costs %d, no more than '%s' above it"
+						% [branch_skills[i].id, branch_skills[i].cost(), branch_skills[i - 1].id]
+				)
+
+	return ""
+
+
+func test_clearing_the_tree_costs_far_more_than_one_point_per_node() -> String:
+	# The regression this whole pass exists to prevent. Every node cost exactly one point,
+	# so the 16-node tree cost 16 levels and a capstone was priced like an opener.
+	#
+	# Asserted as a ratio rather than a total, so it says the thing that matters — depth is
+	# priced — and keeps saying it if the tree grows another node.
+	var nodes := tree.order.size()
+	var total := tree.total_cost()
+
+	return _T.assert_true(
+		total >= nodes * 2,
+		"the %d-node tree costs %d points, which is close to one per node again" % [nodes, total]
+	)
+
+
+func test_reaching_gold_costs_more_than_its_own_branch() -> String:
+	# The gold rush, pinned. gold_rush was four one-point nodes deep in a single branch,
+	# so the currency that buys land was four levels from a fresh start. cost_to_reach
+	# walks the prerequisites transitively, so this fails both if the cross-branch gate is
+	# removed and if skills go back to costing a flat point each.
+	var gold := tree.cost_to_reach("gold_rush")
+	var industry_only := 0
+	for skill in tree.branch_skills(SkillTree.INDUSTRY):
+		if skill.tier <= 3:
+			industry_only += skill.cost()
+
+	var err: String = _T.assert_gt(
+		gold, industry_only,
+		"reaching gold costs %d points, all of them inside Industry — the beeline still works" % gold
+	)
+	if err != "":
+		return err
+
+	# The mint is a further rung on top, so striking coins is dearer again than finding the
+	# ore. Splitting them is the second half of the gate and this is what holds them apart.
+	return _T.assert_gt(
+		tree.cost_to_reach("minting"), gold,
+		"minting costs no more to reach than the gold veins that feed it"
+	)
 
 
 func test_every_branch_has_a_free_entry_point() -> String:

@@ -1347,7 +1347,7 @@ Guidelines that make an entry useful later:
   reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
   the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
   object model, not the run.
-  - [G-050] status: open | seen: 3 | harness: 0.8.0
+  - [G-050] status: open | seen: 4 | harness: 0.8.0
   - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
     touched it — the client already knows every verb it invoked, so recording the invoked
     verb names in the run row and letting projects map verb -> files would cover both
@@ -4059,3 +4059,52 @@ Guidelines that make an entry useful later:
 
 - Gap: **no gaps this turn.** The harness has no role in naming and correctly wasn't reached
   for; logging it only so an absent entry isn't mistaken for a forgotten one.
+
+## 2026-08-03 — balance pass: tiered skill costs, gated gold, dearer crafting
+
+- Value: **warranted** — runtime produced the one claim the diff and the unit suite both
+  could not: the skill panel *builds* correctly around a branch that is no longer the same
+  length as its neighbours.
+  - Expected: runtime should show (a) `purchase()` deducting a capstone's full 4 points
+    rather than 1, (b) `gold_rush` refused while `light_step` is untaken even with points
+    banked, and (c) the live panel building Industry's new 5th card without breaking the
+    per-column connector/scale layout — the unit tests never construct the panel.
+  - Got: all three, and (c) was the one worth launching for. `scene-tree` reported
+    `Branch_Industry cards=5 links=4` against `cards=4 links=3` for the other three, and all
+    17 cards carried a resolvable `Cost` label reading `1/2/3/4` down each column and `5` on
+    Minting. The gate: with `points=99` and the whole Industry chain bought,
+    `is_available("gold_rush")` → `False` and `purchase` → `False`; after `light_step` it
+    went `True` and the bank moved `90 → 86`, then `86 → 81` for the 5-point mint. The
+    detail pane rendered `Costs 4 points — requires Smelting, Light Step`, which is the
+    *only* place that cross-branch edge is visible, since the panel draws connectors down a
+    column and cannot draw this one.
+  - Cheaper: nothing for the panel build and the cost-label states — headless pumps no
+    frames and `SkillNodeButton` is built in `_init`/`_ready`. The purchase arithmetic alone
+    (1/2/4/5 point deductions, refusal on an unaffordable node) could have been a unit test
+    on `LevelUpManager` and did not need a running game.
+
+- Gap: **`get-state` cannot address a Control that Godot auto-named** — the new price label
+  was initially unnamed, like the three siblings already on that card, so it landed under
+  `@Label@249`. Feeding that path straight back from `scene-tree` gives
+  `Failed: Node not found: …/@MarginContainer@243/@HBoxContainer@244/@Label@249`, so a node
+  the snapshot had just listed was unreadable. Worked around in the project rather than the
+  harness (`_cost_label.name = "Cost"`), which is the right fix here but does not help
+  anyone reading a Control they did not write — the parent `@MarginContainer@243` and
+  `@HBoxContainer@244` in that same path are still unaddressable.
+  - [G-108] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `get-state`/`node-bounds` accept the `@Name@id` segments that
+    `scene-tree` emits — they are stable for the life of the node, and round-tripping a path
+    the harness itself just printed should never 404. Failing that, have `scene-tree` mark
+    such nodes as unaddressable so the dead end is visible before it is hit.
+
+- Gap: **[G-050] again, seen 4.** `NOT reached: systems/skill.gd, systems/skill_tree.gd` —
+  the two files carrying the entire pricing model. Both are `RefCounted` by design (so tests
+  can build the tree without a SceneTree), so they are never any node's `script` and cannot
+  register, yet the run drove them decisively: `cost_of("minting")` → `5` resolves through
+  `SkillTree.get_skill()` into `Skill.cost()`, and there is no other code path that produces
+  a 5. The verdict machinery correctly refused to call this a full pass, but for the wrong
+  reason — it discounted the files that were exercised hardest.
+  - [G-050] status: open | seen: 4 | harness: 0.8.0
+  - Improvement: as filed — credit a changed file as reached when a `run-method`/`cmd` call
+    in the session returned through it, or let projects declare RefCounted registries as
+    `implicit` the way autoloads already are.

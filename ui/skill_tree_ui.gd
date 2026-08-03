@@ -604,7 +604,7 @@ func _refresh_detail() -> void:
 	if _hovered_id == "" or not level_up_manager.tree.has_skill(_hovered_id):
 		_detail_name.text = "Skill tree"
 		_detail_name.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
-		_detail_body.text = "Every level banks one point. Hover a skill to read it."
+		_detail_body.text = "Every level banks one point. Deeper skills cost more. Hover a skill to read it."
 		_detail_status.text = ""
 		return
 
@@ -620,15 +620,23 @@ func _refresh_detail() -> void:
 		_detail_status.add_theme_color_override("font_color", branch_color)
 		return
 
+	# The price is the skill's own now, and it is the reason a node can sit unbuyable with
+	# points in the bank — so every branch below states both the cost and what is short.
+	var cost := skill.cost()
+	var price := "Costs %d point%s" % [cost, "" if cost == 1 else "s"]
+
 	var missing := level_up_manager.tree.missing_requirements(_hovered_id, level_up_manager.taken)
 	if not missing.is_empty():
-		_detail_status.text = "Requires %s" % ", ".join(missing)
+		# This is the only place a cross-branch prerequisite is visible: the panel's
+		# connectors run down a column, so gold_rush's Building requirement draws no line
+		# (`gather-7p4`). Naming it here is what keeps that gate discoverable.
+		_detail_status.text = "%s — requires %s" % [price, ", ".join(missing)]
 		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
-	elif level_up_manager.points > 0:
-		_detail_status.text = "Costs 1 point — click to learn"
+	elif level_up_manager.points >= cost:
+		_detail_status.text = "%s — click to learn" % price
 		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_GOLD)
 	else:
-		_detail_status.text = "Costs 1 point — none banked"
+		_detail_status.text = "%s — %d banked" % [price, level_up_manager.points]
 		_detail_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 
 

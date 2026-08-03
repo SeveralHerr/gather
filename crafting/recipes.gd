@@ -150,10 +150,16 @@ func furnace_recipes():
 
 	# Charcoal. Coal is the only ore with a single consumer and it is also the input
 	# every furnace recipe needs, so a run that rolls badly on coal veins stalls the
-	# entire Industry branch. Six wood is deliberately worse than finding a vein — this
-	# is the floor that stops a stall, not a replacement for mining.
+	# entire Industry branch. The wood cost is deliberately worse than finding a vein —
+	# this is the floor that stops a stall, not a replacement for mining.
+	#
+	# Six was not worse enough (`gather-7p4`). Wood is the least scarce thing in the game
+	# and coal is a third of every furnace recipe, so at six the sensible play was to skip
+	# coal veins entirely and burn trees — which is exactly how ore scarcity gets tuned and
+	# then felt by nobody. Twelve keeps the stall-proofing and makes it the fallback it was
+	# described as.
 	var charcoal_costs = {}
-	charcoal_costs[Types.Item.Wood] = 6
+	charcoal_costs[Types.Item.Wood] = 12
 	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.CoalOre, charcoal_costs))
 
 	# Minting. Gold veins pay a coin only half the time and coins are the only thing
@@ -186,14 +192,24 @@ func furnace_recipes():
 	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.StoneBrick, stone_brick_costs))
 
 func sawmill_recipes():
+	# Two wood, not one. The plank is the neck every wooden thing in the game passes
+	# through, so this single number is most of the building set's reprice (`gather-7p4`)
+	# — a chest went from 4 wood to 16 without its own recipe changing at all. Wood is the
+	# resource the player has most of and its only sinks were cheap, which is why the
+	# surplus never went anywhere.
 	var plank_costs = {}
-	plank_costs[Types.Item.Wood] = 1
+	plank_costs[Types.Item.Wood] = 2
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Plank, plank_costs))
 
 	# The building set is priced in planks rather than raw wood. Until the crafting
 	# panel started charging the quantities it displayed, every one of these was "1
 	# wood" and the plank was a step you could skip entirely; costing them in the
 	# sawmill's own output is what gives the first recipe in the list a reason to exist.
+	#
+	# The plank counts below are deliberately UNCHANGED by `gather-7p4`. Doubling the plank
+	# already doubled every one of them in wood, and doubling both would have put a chest —
+	# a day-one recipe the player needs before they have anywhere to put anything — at 16
+	# wood. One multiplier at the neck, not two in series.
 	var wood_floor_costs = {}
 	wood_floor_costs[Types.Item.Plank] = 1
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
@@ -218,12 +234,17 @@ func sawmill_recipes():
 	# but stone outspawns trees by a wide margin in Resources.TUNING, so in practice
 	# this is the cheaper wall to actually build - which is the point of putting it
 	# one tier up the Building branch rather than gating it behind the furnace.
+	#
+	# Raised with the plank (`gather-7p4`) rather than left behind it. Stone has no
+	# intermediate step, so the plank going to 2 wood would otherwise have made the stone
+	# set the cheaper wall by a wide margin instead of "a little above its wood twin",
+	# inverting the sentence above. 5 stone against the wood wall's 4 wood keeps it.
 	var stone_floor_costs = {}
-	stone_floor_costs[Types.Item.Stone] = 2
+	stone_floor_costs[Types.Item.Stone] = 3
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
 
 	var stone_wall_costs = {}
-	stone_wall_costs[Types.Item.Stone] = 3
+	stone_wall_costs[Types.Item.Stone] = 5
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
 
 	# The first tool the player can build, and the first thing stone is for. Stone and
@@ -231,6 +252,10 @@ func sawmill_recipes():
 	# 4.0 + 4.0 out of 16.7 in Resources.TUNING), and before this its only sink in the
 	# whole game was the one furnace you ever need. Eight is about four nodes' worth:
 	# affordable inside the opening minutes, which is exactly when the surplus appears.
+	# Left at 8 stone deliberately while everything above it went up (`gather-7p4`). This is
+	# the first tool the player can build and it is day-one unlocked, so it is the recipe
+	# that teaches crafting; making the tutorial expensive would slow the opening, which is
+	# the one part of the curve this balance pass is explicitly not touching.
 	var stone_pickaxe_costs = {}
 	stone_pickaxe_costs[Types.Item.Stone] = 8
 	stone_pickaxe_costs[Types.Item.Wood] = 2
@@ -241,8 +266,8 @@ func sawmill_recipes():
 	# since player.gd:66 with no way to ever build another. Priced in planks so it
 	# cannot be the first thing built with the wood off three trees.
 	var sawmill_costs = {}
-	sawmill_costs[Types.Item.Wood] = 10
-	sawmill_costs[Types.Item.Plank] = 4
+	sawmill_costs[Types.Item.Wood] = 12
+	sawmill_costs[Types.Item.Plank] = 6
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Sawmill, sawmill_costs))
 
 	# Twine. String had no craftable source of any kind — it dropped from spiders and
@@ -250,8 +275,12 @@ func sawmill_recipes():
 	# to which enemy the spawner happened to roll. Wood is the one thing always in
 	# surplus, so this is a guaranteed floor under the spider drop, not a replacement
 	# for it.
+	#
+	# Same correction as charcoal (`gather-7p4`): at 3 wood the floor was cheaper than the
+	# drop it insures, so spiders stopped being worth killing for string at all. Six still
+	# guarantees nobody stalls, and leaves the drop worth having.
 	var string_costs = {}
-	string_costs[Types.Item.Wood] = 3
+	string_costs[Types.Item.Wood] = 6
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.String, string_costs))
 
 	# Copper rather than iron on purpose. The turret is a Combat-branch unlock, and
@@ -260,9 +289,9 @@ func sawmill_recipes():
 	# reach the thing their own branch just gave them. It also gives copper a sink
 	# that exists before gold does.
 	var bone_turret_costs = {}
-	bone_turret_costs[Types.Item.Wood] = 1
-	bone_turret_costs[Types.Item.CopperBar] = 2
-	bone_turret_costs[Types.Item.String] = 1
+	bone_turret_costs[Types.Item.Wood] = 2
+	bone_turret_costs[Types.Item.CopperBar] = 3
+	bone_turret_costs[Types.Item.String] = 2
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
 
 	# Was 5 wood + 5 string, i.e. five spider kills for one single-use item. With twine
@@ -277,17 +306,17 @@ func sawmill_recipes():
 	# speeding it up, so it is priced as a middle-of-the-run project, not a purchase.
 	# Bone is the load-bearing number: the skull that assembles this comes off a bone
 	# enemy, so the frame costs the same fight that fills it, and until now bone had
-	# exactly one sink in the whole game (the pickaxe, at 9) the way stone had only the
-	# furnace. Six leaves the pickaxe the larger single ask. The iron bars are what stop
-	# a second worker being an afterthought - three bars is three ore plus three coal
-	# against the iron pickaxe's five and five, so the tier's headline tool still wins
-	# a straight comparison - and the planks make the thing that farms wood cost wood.
+	# exactly one sink in the whole game (the pickaxe) the way stone had only the
+	# furnace. Nine leaves the pickaxe, at 14, the larger single ask. The iron bars are
+	# what stop a second worker being an afterthought - five bars is five ore plus five
+	# coal against the iron pickaxe's eight and eight, so the tier's headline tool still
+	# wins a straight comparison - and the planks make the thing that farms wood cost wood.
 	# The real price is higher than the list: a worker is dead weight without a Net
 	# (Combat tier 2) and a skull captured with it.
 	var bone_worker_costs = {}
-	bone_worker_costs[Types.Item.Bone] = 6
-	bone_worker_costs[Types.Item.IronBar] = 3
-	bone_worker_costs[Types.Item.Plank] = 4
+	bone_worker_costs[Types.Item.Bone] = 9
+	bone_worker_costs[Types.Item.IronBar] = 5
+	bone_worker_costs[Types.Item.Plank] = 6
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
 
 	# The grey sibling, priced level with the blue one and deliberately not cheaper: it
@@ -295,42 +324,49 @@ func sawmill_recipes():
 	# replaces the planks because that is what it goes on to farm, and the bone and iron are
 	# untouched - the frame and the skull cost the same whatever the machine ends up mining.
 	var stone_worker_costs = {}
-	stone_worker_costs[Types.Item.Bone] = 6
-	stone_worker_costs[Types.Item.IronBar] = 3
-	stone_worker_costs[Types.Item.Stone] = 8
+	stone_worker_costs[Types.Item.Bone] = 9
+	stone_worker_costs[Types.Item.IronBar] = 5
+	stone_worker_costs[Types.Item.Stone] = 12
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
 
 	var furnace_costs = {}
-	furnace_costs[Types.Item.Stone] = 9
+	furnace_costs[Types.Item.Stone] = 14
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
 
+	# --- The pickaxe ladder, repriced ~1.5x by `gather-7p4`.
+	#
+	# The pickaxe is the tool that compounds — every tier of it makes every future gather
+	# faster — so it is the right place to put the cost of a world that hands out plenty.
+	# The ratios between the tiers are unchanged; the whole ladder simply moved up, so the
+	# reasoning each recipe below already carried still holds.
 	var bone_pickaxe_costs = {}
-	bone_pickaxe_costs[Types.Item.Bone] = 9
+	bone_pickaxe_costs[Types.Item.Bone] = 14
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
 
 	# Gated behind the furnace: iron bars are the whole point of unlocking iron, so the
 	# top-tier pickaxe should cost them rather than repeating the bone pickaxe's price.
 	var iron_pickaxe_costs = {}
-	iron_pickaxe_costs[Types.Item.IronBar] = 5
-	iron_pickaxe_costs[Types.Item.Plank] = 2
+	iron_pickaxe_costs[Types.Item.IronBar] = 8
+	iron_pickaxe_costs[Types.Item.Plank] = 3
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
 
-	# The top of the ladder, and it should read as an undertaking rather than one more
-	# rung. Same shape as the iron pickaxe (bars + planks) so the comparison is
-	# obvious, but every gold bar underneath it already cost a gold ore, a copper bar
-	# and two coal - so this is really 5 gold ore + 5 copper ore + 15 coal + 4 wood,
-	# out of the rarest node on the island.
 	# The tool copper exists for. Cheap on purpose — it arrives with the furnace, well
 	# before bone becomes affordable, so it is the bridge out of the wooden pickaxe
-	# rather than a competitor to the tiers above it.
+	# rather than a competitor to the tiers above it. Held at the lower end of the 1.5x
+	# for that reason: it is nearer the opening than the rest of the ladder.
 	var copper_pickaxe_costs = {}
-	copper_pickaxe_costs[Types.Item.CopperBar] = 3
-	copper_pickaxe_costs[Types.Item.Plank] = 1
+	copper_pickaxe_costs[Types.Item.CopperBar] = 4
+	copper_pickaxe_costs[Types.Item.Plank] = 2
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
 
+	# The top of the ladder, and it should read as an undertaking rather than one more
+	# rung. Same shape as the iron pickaxe (bars + planks) so the comparison is obvious,
+	# but every gold bar underneath it already cost a gold ore, a copper bar and two coal
+	# — so at 8 bars this is really 8 gold ore + 8 copper ore + 24 coal + 6 wood, out of
+	# the rarest node on the island.
 	var gold_pickaxe_costs = {}
-	gold_pickaxe_costs[Types.Item.GoldBar] = 5
-	gold_pickaxe_costs[Types.Item.Plank] = 4
+	gold_pickaxe_costs[Types.Item.GoldBar] = 8
+	gold_pickaxe_costs[Types.Item.Plank] = 6
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
 
 	# --- The sword ladder (gather-cte). Combat had no craftable of its own: every one of its
@@ -340,22 +376,23 @@ func sawmill_recipes():
 	# run can produce (test_skill_tree.test_the_whole_tree_is_reachable_in_one_run).
 	#
 	# Priced deliberately BELOW the pickaxe of the same tier: the pickaxe is the tool that
-	# compounds (it makes everything else faster), so it should stay the bigger ask. Bone at 6
-	# against the bone pickaxe's 9; iron at 4 bars against the iron pickaxe's 5; gold at 4
-	# against 5.
+	# compounds (it makes everything else faster), so it should stay the bigger ask. Bone at 9
+	# against the bone pickaxe's 14; iron at 6 bars against the iron pickaxe's 8; gold at 6
+	# against 8. The whole ladder went up ~1.5x with the pickaxes (`gather-7p4`) and the gap
+	# to the pickaxe of the same tier was kept, because that gap is the statement.
 	var bone_sword_costs = {}
-	bone_sword_costs[Types.Item.Bone] = 6
-	bone_sword_costs[Types.Item.Plank] = 2
+	bone_sword_costs[Types.Item.Bone] = 9
+	bone_sword_costs[Types.Item.Plank] = 3
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneSword, bone_sword_costs))
 
 	var iron_sword_costs = {}
-	iron_sword_costs[Types.Item.IronBar] = 4
-	iron_sword_costs[Types.Item.Plank] = 2
+	iron_sword_costs[Types.Item.IronBar] = 6
+	iron_sword_costs[Types.Item.Plank] = 3
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronSword, iron_sword_costs))
 
 	var gold_sword_costs = {}
-	gold_sword_costs[Types.Item.GoldBar] = 4
-	gold_sword_costs[Types.Item.Plank] = 3
+	gold_sword_costs[Types.Item.GoldBar] = 6
+	gold_sword_costs[Types.Item.Plank] = 4
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldSword, gold_sword_costs))
 
 	# The Combat branch's sustain, and the second thing string is for. Costing it in string

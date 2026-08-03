@@ -74,6 +74,31 @@ func _xp_bar_node() -> ProgressBar:
 const XP_FIRST_LEVEL := 40
 const XP_GROWTH := 1.19
 
+## The most one level may cost more than the level before it. Past this the curve stops
+## compounding and climbs by a flat XP_STEP_CAP per level.
+##
+## Every note above tunes a curve that assumed ONE point per level, so the tree cost as
+## many levels as it had nodes — sixteen. Skills cost tier+1 points now (`gather-7p4`) and
+## the tree is 45 points, i.e. 45 levels. Compounding does not survive that: at a clean
+## 1.19 the level-46 threshold alone is 90,053 XP against a node's flat 1 XP, so the top
+## third of the tree is not expensive, it is unreachable, and every branch's capstone
+## becomes decoration.
+##
+## Capping the STEP rather than lowering XP_GROWTH is what keeps this pass to one change.
+## The cap does not bite until about level 19, so everything the earlier passes were
+## calibrated for is arithmetically untouched — the first level is still 40, six points
+## still cost 100, and gold still lands at 342. Only the tail, which no previous tuning
+## ever had to reach, is different:
+##
+##   whole tree   90,053 -> 4,869 XP
+##   gold (L14)      342 ->   342     unchanged
+##   six points      100 ->   100     unchanged
+##
+## 150 rather than a lower cap because the late game should still get dearer per level,
+## just linearly: at 120 the tree lands at 4,048 and the last twenty levels flatten into
+## a plateau that reads as the curve having given up.
+const XP_STEP_CAP := 150
+
 ## XP award table for everything that is not a resource node. Node xp lives in
 ## Resources.TUNING — a flat 1 for every node now, ore included — and is meant to stay
 ## the dominant source; these are seasoning, not a second economy:
@@ -293,8 +318,10 @@ func _on_skill_point_splash_due() -> void:
 
 ## The cumulative XP threshold that follows `current`. Static and shared with
 ## add_xp so a test of the curve exercises the arithmetic the game actually runs.
+##
+## Geometric while the step is small, arithmetic once it is not — see XP_STEP_CAP.
 static func next_threshold(current: int) -> int:
-	return int(ceil(current * XP_GROWTH))
+	return mini(int(ceil(current * XP_GROWTH)), current + XP_STEP_CAP)
 
 
 ## Total XP needed to reach `target_level` from a fresh start.
@@ -313,18 +340,28 @@ func has_available_skill() -> bool:
 	return tree.has_any_available(taken)
 
 
+## What `skill_id` costs in banked points, or 0 for an id the tree does not have.
+func cost_of(skill_id: String) -> int:
+	var skill := tree.get_skill(skill_id)
+	return skill.cost() if skill != null else 0
+
+
 func can_purchase(skill_id: String) -> bool:
-	return points > 0 and is_available(skill_id)
+	return is_available(skill_id) and points >= cost_of(skill_id)
 
 
-## Spends a point on a skill. Returns false and changes nothing when the skill is
-## already taken, still locked, or there is no point to spend.
+## Spends a skill's points on it. Returns false and changes nothing when the skill is
+## already taken, still locked, or the bank cannot cover its cost.
+##
+## The cost is the skill's, not a flat one (`gather-7p4`) — a tier-3 capstone is four
+## points. Read through cost_of so a purchase can never charge a different number from
+## the one can_purchase tested and the panel drew.
 func purchase(skill_id: String) -> bool:
 	if not can_purchase(skill_id):
 		return false
 
 	taken[skill_id] = true
-	points -= 1
+	points -= cost_of(skill_id)
 
 	_apply_unlocks(tree.get_skill(skill_id))
 	sync_player_stats()

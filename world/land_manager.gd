@@ -32,8 +32,24 @@ const RADIUS_STEP := 2
 ## and pay a coin only half the time), so the opening price is deliberately small
 ## — the first parcel should be reachable in one mining session, and the fifth
 ## should not.
-const BASE_COST := 12
-const COST_GROWTH := 1.6
+##
+## 12/1.6 made the first parcel too cheap to be a decision: with a coin off every kill
+## (Enemy.BASE_COIN_DROP) the map started growing before the player had chosen anything.
+## The front of the curve is what moved (`gather-7p4`) — 20 is most of a mining session
+## or a dozen fights — and growth came *down* to pay for it, on purpose:
+##
+##   parcel 1   12 ->  20      parcel 6   126 -> 179
+##   parcel 3   31 ->  48      parcel 12  2111 -> 2482
+##   all 12   ~5,600 -> ~7,000 coins
+##
+## Growth had to come down because the tail here is not decoration. The three islands sit
+## on a ring inside radius_for(MAX_PARCELS), so they are reached by buying land out to the
+## cap — a curve that runs away does not make the late game expensive, it makes the
+## islands unreachable and quietly deletes a third of the map's content. +25% overall
+## against +67% on the opening parcel is the shape that was wanted: dearer to *start*
+## expanding, no dearer to finish.
+const BASE_COST := 20
+const COST_GROWTH := 1.55
 
 ## Beyond this the ring is bigger than the noise field is interesting and the
 ## price has run away regardless. It exists so the curve has a defined end rather

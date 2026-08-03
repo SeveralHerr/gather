@@ -45,15 +45,25 @@ func _add(skill: Skill) -> void:
 	order.append(skill.id)
 
 
-# Every branch is a straight four-node chain: one unlock or bonus per level, each
-# gated on the one above it. Straight chains rather than a web are deliberate for
-# the early game — the choice worth making is which branch to push, not which of
-# five sibling nodes to take first.
+# Every branch is a straight chain: one unlock or bonus per tier, each gated on the one
+# above it. Straight chains rather than a web are deliberate for the early game — the
+# choice worth making is which branch to push, not which of five sibling nodes to take
+# first. Three branches are four nodes deep; Industry is five, because the mint was split
+# off gold_rush (see there).
+#
+# A skill's tier is also its price: Skill.cost() is tier+1, so a capstone is four points
+# and Industry's mint is five. Depth is the dial this tree is paced on — the XP curve was
+# deliberately left alone, so the opening (one point, 40 XP, any tier-0 node) is unchanged
+# and only the far end got expensive.
 #
 # Tier 3 is the capstone row. Every branch ends on something the earlier tiers were
-# building towards rather than on one more percentage: Industry ends on gold (the
-# ore chain's last link), Combat on coin find, Building on cheaper land, and
-# Foraging on a double bonus to the loop it has been compounding all along.
+# building towards rather than on one more percentage: Industry ends on gold and then the
+# coins struck from it, Combat on coin find, Building on cheaper land, and Foraging on a
+# double bonus to the loop it has been compounding all along.
+#
+# Prerequisites are normally the node directly above. gold_rush is the one exception and
+# names a second, cross-branch one; the panel cannot draw a connector for that, so anything
+# reading this tree must treat `requires` as a set rather than as "the node above".
 func _build() -> void:
 	# --- Foraging: the gathering loop is the most-used path in the game, so this
 	# branch compounds it. Speed first because it is felt immediately, yield
@@ -170,27 +180,66 @@ func _build() -> void:
 		],
 		[Types.Item.IronResource]
 	))
-	# The last link in the ore chain. Gold is the only node that also pays coins, so
-	# this is the node that feeds both the top pickaxe and the land purchase.
+	# The last link in the ore chain, and the node the whole tree used to be rushed for.
+	#
+	# It sat four points deep in a single branch, every one of them priced at one point, so
+	# a player who spent their first four levels here had gold veins — and therefore the
+	# coins land is bought with — inside 68 XP. Two things now stand in the way, and they
+	# are deliberately different in kind (`gather-7p4`):
+	#
+	#   - Depth costs. Skill.cost() is tier+1, so this branch alone is 1+2+3+4 = 10 points.
+	#   - Breadth is required. `light_step` is the cross-branch prerequisite: Building is
+	#     the branch about new land, and gold is what land is paid for, so the player who
+	#     wants the map to grow has to have started growing it. That is another 1+2 points
+	#     and, more to the point, another branch's opening tier.
+	#
+	# `light_step` rather than `surveyor` (the land-cost node) on purpose — requiring a
+	# tier-3 capstone as a prerequisite for a tier-3 capstone would be 10 points of
+	# Building, and the gate is meant to force breadth, not a second full branch.
+	#
+	# Note this is NOT a lock on the land economy: every enemy kill drops a coin
+	# (Enemy.BASE_COIN_DROP), so land stays buyable from the first minute by fighting for
+	# it. What this gates is the *fast* route — mining the currency directly.
 	_add(Skill.new(
 		"gold_rush", INDUSTRY, 3,
 		"Gold Rush",
-		"Gold veins start appearing. Alloy gold bars, strike coins, and craft the gold pickaxe.",
+		"Gold veins start appearing. Alloy gold bars and craft the gold pickaxe and sword.",
 		"Gold + 3 recipes",
-		Types.Item.GoldBar, ["smelting"], {},
+		Types.Item.GoldBar, ["smelting", "light_step"], {},
 		[
 			{"product": Types.Item.GoldBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.GoldPickaxe, "station": Types.Item.Sawmill},
-			# The mint must sit on this node and no earlier one: gold ore is its input
-			# and gold veins only start spawning from here, so unlocking it sooner
-			# would hand the player a recipe with an unobtainable ingredient.
-			{"product": Types.Item.Coin, "station": Types.Item.Furnace},
 			# Same reasoning as the iron sword one tier down: the gold bar fed only the
 			# pickaxe and the mint, and the capstone should arm the player as well as tool
 			# them.
 			{"product": Types.Item.GoldSword, "station": Types.Item.Sawmill},
 		],
 		[Types.Item.GoldResource]
+	))
+	# The mint is its own tier, one rung past the ore that feeds it.
+	#
+	# It used to ride gold_rush, which meant the purchase that put gold veins on the map
+	# was the same purchase that turned them into currency — find a vein, mint a coin, buy
+	# land, all off one node. Splitting them puts a gap in between where the player is
+	# mining gold and spending it on bars and tools while land is still bought the hard
+	# way, which is the pacing this whole pass is for.
+	#
+	# It is the only tier-4 node in the tree, so Industry's column runs one card longer
+	# than the other three. That raggedness is intentional and is why
+	# test_skill_tree.EXPECTED_TIERS became a per-branch minimum: the ore ladder is the
+	# game's spine and it earns the extra rung.
+	_add(Skill.new(
+		"minting", INDUSTRY, 4,
+		"Minting",
+		"Strike gold coins at the furnace, so the land you buy is mined rather than fought for.",
+		"Strike coins",
+		Types.Item.Coin, ["gold_rush"], {},
+		[
+			# Gold ore is the input and gold veins only spawn from the tier above, so this
+			# recipe cannot be unlocked any earlier without handing the player a recipe
+			# whose ingredient does not exist yet.
+			{"product": Types.Item.Coin, "station": Types.Item.Furnace},
+		]
 	))
 
 	# --- Combat: bone_sword used to be a dead node that granted nothing at all
@@ -290,6 +339,40 @@ func _build() -> void:
 		Types.Item.Ground, ["magnetism"],
 		{"land_cost_mult": -0.25}
 	))
+
+
+## What every skill in the tree costs put together — the number of skill points, and so
+## the number of levels, a run needs to clear it. Derived rather than stated so it cannot
+## drift from the definitions above; test_player_stats prices the run off this.
+func total_cost() -> int:
+	var total := 0
+	for id in order:
+		total += skills[id].cost()
+	return total
+
+
+## What the cheapest route to `id` costs in points, including the prerequisites it drags
+## in — the honest price of a node, as opposed to the number on its own card.
+##
+## Walks `requires` transitively and sums each distinct skill once, which is what makes a
+## cross-branch prerequisite show up in the figure at all: gold_rush's own card says 4, and
+## the chain behind it (Industry 1+2+3 plus Building 1+2) makes the real ask 13.
+func cost_to_reach(id: String) -> int:
+	var needed := {}
+	_collect_prerequisites(id, needed)
+
+	var total := 0
+	for skill_id in needed:
+		total += skills[skill_id].cost()
+	return total
+
+
+func _collect_prerequisites(id: String, into: Dictionary) -> void:
+	if into.has(id) or not skills.has(id):
+		return
+	into[id] = true
+	for requirement in skills[id].requires:
+		_collect_prerequisites(requirement, into)
 
 
 func get_skill(id: String) -> Skill:

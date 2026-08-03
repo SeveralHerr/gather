@@ -41,31 +41,61 @@ func _inventory_with(contents: Dictionary) -> InventoryData:
 
 # --- paying for a recipe -----------------------------------------------------
 
+## Both spending tests below read what the recipe actually costs instead of restating it.
+##
+## They used to hardcode "5 iron bars" and "3 wood", which meant a pure balance change
+## broke two tests about spend_cost's arithmetic — the exact mechanic they exist to guard
+## went untested for as long as it took to re-derive the constants (`gather-7p4`). The
+## quantities are Recipes' business; that each one is charged in full, and charged per
+## unit crafted, is this file's.
+const STOCK := 40
+
+
 func test_spending_charges_the_full_per_unit_cost() -> String:
 	# The bug this replaces: one remove() per cost KEY, so a 5-bar recipe took 1 bar.
-	var data := _inventory_with({Types.Item.IronBar: 10, Types.Item.Plank: 6})
+	var data := _inventory_with({Types.Item.IronBar: STOCK, Types.Item.Plank: STOCK})
 	var recipe = recipes.get_sawmill_recipe(Types.Item.IronPickaxe)
 
-	var paid: bool = data.spend_cost(recipe.cost_list, 1)
-	var err: String = _T.assert_true(paid, "an affordable recipe is paid for")
+	var bar_cost: int = recipe.cost_list[Types.Item.IronBar]
+	var plank_cost: int = recipe.cost_list[Types.Item.Plank]
+
+	# The premise of the bug: with more than one of each, taking "one per key" is
+	# distinguishable from taking the full amount.
+	var err: String = _T.assert_gt(bar_cost, 1, "the iron pickaxe costs more than one bar")
 	if err != "":
 		return err
 
-	err = _T.assert_eq(data.count_of_type(Types.Item.IronBar), 5, "5 of the 10 iron bars are gone")
+	var paid: bool = data.spend_cost(recipe.cost_list, 1)
+	err = _T.assert_true(paid, "an affordable recipe is paid for")
 	if err != "":
 		return err
-	return _T.assert_eq(data.count_of_type(Types.Item.Plank), 4, "2 of the 6 planks are gone")
+
+	err = _T.assert_eq(
+		data.count_of_type(Types.Item.IronBar), STOCK - bar_cost,
+		"all %d iron bars are gone, not one" % bar_cost
+	)
+	if err != "":
+		return err
+	return _T.assert_eq(
+		data.count_of_type(Types.Item.Plank), STOCK - plank_cost,
+		"all %d planks are gone, not one" % plank_cost
+	)
 
 
 func test_spending_multiplies_by_the_amount_crafted() -> String:
-	var data := _inventory_with({Types.Item.Wood: 30})
+	var data := _inventory_with({Types.Item.Wood: STOCK})
 	var recipe = recipes.get_sawmill_recipe(Types.Item.String)
 
+	var wood_cost: int = recipe.cost_list[Types.Item.Wood]
+
 	var paid: bool = data.spend_cost(recipe.cost_list, 4)
-	var err: String = _T.assert_true(paid, "four twine is affordable out of 30 wood")
+	var err: String = _T.assert_true(paid, "four twine is affordable out of %d wood" % STOCK)
 	if err != "":
 		return err
-	return _T.assert_eq(data.count_of_type(Types.Item.Wood), 18, "4 x 3 wood is charged, not 3")
+	return _T.assert_eq(
+		data.count_of_type(Types.Item.Wood), STOCK - wood_cost * 4,
+		"4 x %d wood is charged, not %d" % [wood_cost, wood_cost]
+	)
 
 
 func test_affording_counts_across_split_stacks() -> String:

@@ -106,28 +106,74 @@ func test_the_xp_curve_climbs() -> String:
 	return ""
 
 
-func test_the_whole_tree_is_reachable_in_one_run() -> String:
-	# One point per level, so clearing every node means reaching level (nodes + 1).
-	# Under the old doubling curve that threshold was over 20000 XP, against the
-	# 1-4 XP a resource node pays. This is the guard against that regressing.
+func test_the_whole_tree_is_a_campaign_not_a_session() -> String:
+	# This was test_the_whole_tree_is_reachable_in_one_run, and its premise was one point
+	# per level: clearing every node meant reaching level (nodes + 1), sixteen levels, 578
+	# XP. Skills cost tier+1 points now (`gather-7p4`), so the tree is 45 points and 45
+	# levels — the test is not measuring the same thing any more and its 650 bound cannot
+	# simply be nudged.
 	#
-	# The bound was 500 while XP_GROWTH was 1.28. It is the ceiling on a deliberate
-	# tuning dial, not a measurement, so it moves with the dial: 1.30 puts the tree at
-	# 561, and 650 leaves the next turn of the dial room to fail here rather than
-	# silently doubling the run again.
+	# The intent it guarded is still real and still worth a bound, so it is restated
+	# rather than dropped: the tree must remain FINISHABLE. The failure mode it was
+	# written against — a curve that outruns the 1 XP a node pays and leaves the capstones
+	# as decoration — is exactly what an uncapped 1.19 does at 45 levels (90,053 XP), so
+	# this is the test that fails if XP_STEP_CAP is ever removed.
 	#
-	# gather-1n2 quadrupled XP_FIRST_LEVEL and cut XP_GROWTH to 1.19 to slow the opening,
-	# which lands the tree at 578 — inside the existing bound, so the bound has not moved.
-	# That is the intended outcome and not a coincidence: the pass was constrained to keep
-	# the tail where it was and only re-price the early levels. A bound that gets nudged
-	# up every time the dial turns is not a guard, so 650 stays until something genuinely
-	# argues for a longer run.
-	var levels_needed := tree.order.size() + 1
-	var xp_needed := LevelUpManager.xp_for_level(levels_needed)
+	# The band, not a point: 10,000 is roughly a long campaign at a node a second, and the
+	# floor is what stops a future pass "fixing" the tail by flattening the curve into
+	# something cheaper than the tree it replaced.
+	var points_needed := tree.total_cost()
+	var xp_needed := LevelUpManager.xp_for_level(points_needed + 1)
+
+	var err: String = _T.assert_true(
+		xp_needed < 10000,
+		"clearing the %d-point tree costs %d XP, which is out of reach at 1 XP a node"
+			% [points_needed, xp_needed]
+	)
+	if err != "":
+		return err
 
 	return _T.assert_true(
-		xp_needed < 650,
-		"clearing the tree costs %d XP, which is too far out of reach" % xp_needed
+		xp_needed > 1500,
+		"clearing the tree costs only %d XP — the depth pricing is not reaching the curve"
+			% xp_needed
+	)
+
+
+func test_a_single_branch_is_reachable_in_one_run() -> String:
+	# What "one run" means now that the whole tree is not one. A player who commits to a
+	# single branch should see its capstone inside a session — that is what makes choosing
+	# a branch a strategy rather than a thing that pays off two sessions later.
+	#
+	# Foraging is the cheapest full branch (1+2+3+4 = 10 points) and the one a new player
+	# is most likely to push, so it is the honest floor to measure.
+	var branch_cost := 0
+	for skill in tree.branch_skills(SkillTree.FORAGING):
+		branch_cost += skill.cost()
+
+	var xp_needed := LevelUpManager.xp_for_level(branch_cost + 1)
+
+	return _T.assert_true(
+		xp_needed < 400,
+		"a full Foraging branch costs %d XP, which is more than a session" % xp_needed
+	)
+
+
+func test_the_curve_stops_compounding_before_it_runs_away() -> String:
+	# XP_STEP_CAP directly. Without it the curve is geometric for all 45 levels and the
+	# last one alone costs more than every level before it put together, which is the
+	# shape that made the tree unfinishable.
+	var previous := LevelUpManager.XP_FIRST_LEVEL
+	var largest_step := 0
+	for target_level in range(3, 50):
+		var threshold := LevelUpManager.xp_for_level(target_level)
+		largest_step = maxi(largest_step, threshold - previous)
+		previous = threshold
+
+	return _T.assert_true(
+		largest_step <= LevelUpManager.XP_STEP_CAP,
+		"a level costs %d more than the one before it, past the %d cap"
+			% [largest_step, LevelUpManager.XP_STEP_CAP]
 	)
 
 
@@ -158,6 +204,11 @@ func test_the_opening_does_not_hand_out_six_points() -> String:
 	# future pair that drifts back toward the old pacing fails here rather than shipping.
 	# The ceiling is the other half: six points still have to be a session's opening, not
 	# its whole arc.
+	#
+	# "A third of the tree" was the 2026-era reading and no longer holds: tiered costs
+	# (`gather-7p4`) make six points 13% of a 45-point tree, and they buy four skills
+	# rather than six. The XP figure is unmoved — the cap only bites past level 19 — so
+	# this test is measuring the same curve, just a smaller slice of tree.
 	var sixth_point := LevelUpManager.xp_for_level(7)
 
 	var err: String = _T.assert_true(

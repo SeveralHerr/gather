@@ -10,6 +10,8 @@ var id: String
 
 ## Which column of the panel this sits in, and how far down that column. Tier is
 ## also the visual row, so two skills in the same branch must not share one.
+##
+## Tier is also the price: see cost().
 var branch: String
 var tier: int
 
@@ -65,6 +67,22 @@ func _init(
 	self.effects = _effects
 	self.recipes = _recipes
 	self.resources = _resources
+
+
+## What this skill costs in banked skill points.
+##
+## Derived from the tier rather than authored per skill, deliberately: the price is a
+## statement about depth, and a hand-written number per node is a number that drifts out
+## of step with the row it is drawn in. tier 0 -> 1 point, tier 3 -> 4.
+##
+## Before this, every node cost exactly one point, so the whole 16-node tree cost 16
+## points and clearing it took 578 XP — a capstone was priced like an opener, and four
+## points into one branch bought its capstone outright. That is what made the Industry
+## beeline to gold the dominant opening (`gather-7p4`). Charging by depth makes the tree
+## 40 points without touching the XP curve, so the *opening* is unchanged (the first
+## skill still costs one point at 40 XP) and only depth got expensive.
+func cost() -> int:
+	return tier + 1
 
 
 ## True when this node changes nothing about the player's numbers — used by the UI

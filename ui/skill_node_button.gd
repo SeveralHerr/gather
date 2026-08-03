@@ -18,6 +18,8 @@ const ICON_SIZE := 34
 const PAD_H := 8
 const PAD_V := 6
 const ROW_GAP := 8
+## Reserved width for the point price. Two digits' worth — the tree tops out at 5.
+const COST_WIDTH := 14
 
 ## Card background. Darker than the panel behind it so the border colour reads.
 const BG_LOCKED := Color("1c1f26")
@@ -40,6 +42,10 @@ var affordable := false
 var _icon: TextureRect
 var _name_label: Label
 var _summary_label: Label
+## The point price, pinned to the right edge of the card. Skills cost tier+1 points
+## (`gather-7p4`), so this is the only place the depth-pricing is visible while the
+## player is choosing — the panel's header shows the bank, not the price.
+var _cost_label: Label
 var _branch_color: Color
 
 ## Held so _apply_scale() can re-reach the padding and the row gap on a resize.
@@ -93,6 +99,18 @@ func _init(_skill: Skill, branch_color: Color):
 	_summary_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text.add_child(_summary_label)
 
+	_cost_label = Label.new()
+	# Named so it is addressable by node path. The other three children here are not, and
+	# an unnamed Control lands under Godot's `@Label@249` auto-name, which `get-state`
+	# cannot resolve — so the price was the one part of this card that could be seen on
+	# screen and not asserted from a test or the devtools bus.
+	_cost_label.name = "Cost"
+	_cost_label.text = str(skill.cost())
+	_cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_cost_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_row.add_child(_cost_label)
+
 	# _init runs before the card is in a tree, so there is no viewport to measure
 	# yet and UiTheme falls back to 1.0. _ready() re-applies against the real one.
 	_apply_scale()
@@ -123,6 +141,12 @@ func _apply_scale() -> void:
 		"font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
 	_summary_label.add_theme_font_size_override(
 		"font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, factor))
+
+	_cost_label.add_theme_font_size_override(
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
+	# A reserved width rather than a shrink-to-fit, so a 1-point card and a 4-point one
+	# put their number in the same column and the summaries above them stay aligned.
+	_cost_label.custom_minimum_size = Vector2(UiTheme.scaled(COST_WIDTH, factor), 0)
 
 	var icon := UiTheme.scaled(ICON_SIZE, factor)
 	_icon.custom_minimum_size = Vector2(icon, icon)
@@ -155,6 +179,16 @@ func refresh() -> void:
 	style.set_corner_radius_all(4)
 	style.set_border_width_all(2)
 	style.content_margin_left = 0
+
+	# The price is spent, not owed, once the node is learned — showing "4" on a taken card
+	# reads as an outstanding cost. Hidden rather than blanked so the text column keeps the
+	# same width in every state and the cards do not reflow as the tree fills in.
+	_cost_label.visible = state != State.TAKEN
+	# Gold only when the bank can actually cover it. An AVAILABLE node the player cannot
+	# yet afford is the case tiering creates and the flat-cost tree never had, so the price
+	# is the thing that has to say so.
+	_cost_label.add_theme_color_override(
+		"font_color", UiTheme.COLOR_GOLD if affordable else TEXT_DIM.darkened(0.15))
 
 	match state:
 		State.TAKEN:
