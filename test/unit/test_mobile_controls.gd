@@ -437,6 +437,86 @@ func test_buttons_stay_inside_a_small_phone_viewport() -> String:
 	return ""
 
 
+## The hotbar's own width at these viewports, near enough. `hot_bar_inventory.gd`
+## solves for six TOUCH_MIN slots plus two 0.6-slot arrows inside its padding, which
+## comes out around here on any phone-sized viewport; the assertions below only need
+## it to be the right order of magnitude, and restating the whole solve would couple
+## this test to arithmetic that lives in another file.
+const HOTBAR_WIDTH := 376.0
+
+
+func test_the_bottom_centre_is_clear_in_landscape() -> String:
+	# 844x390 — a phone held sideways, which is most of what the web build gets. The
+	# joystick reaches ~176px up the *left* edge and the thumb cluster owns the
+	# right, but the whole middle of the bottom edge is empty and the hotbar fits in
+	# it with room either side. Answering this question without an `x` in it is what
+	# parked the hotbar 45% of the way up an otherwise empty screen.
+	var overlay = await _make_overlay(Vector2i(844, 390))
+	var vp: Vector2 = overlay.get_viewport_rect().size
+
+	var anywhere: float = overlay.get_bottom_obstruction_height()
+	var err: String = _T.assert_gt(
+		anywhere, vp.y * 0.25,
+		"the overlay really is that tall somewhere (%.0f up a %.0f screen)" % [anywhere, vp.y])
+	if err != "":
+		return err
+
+	var centred: float = overlay.get_bottom_obstruction_height(
+		vp.x * 0.5 - HOTBAR_WIDTH * 0.5, vp.x * 0.5 + HOTBAR_WIDTH * 0.5)
+	return _T.assert_float_eq(
+		centred, 0.0, 0.001,
+		"the middle %.0fpx of the bottom edge is clear (got %.0f)" % [HOTBAR_WIDTH, centred])
+
+
+func test_a_screen_wide_row_is_still_lifted_over_the_thumbs() -> String:
+	# The other half, and the reason the span is a filter rather than a replacement.
+	# On a portrait phone the hotbar is very nearly screen-wide, so it overlaps both
+	# corners and must still be pushed clear — put it back on the bottom edge here
+	# and a tap on slot 1 also presses the joystick.
+	var overlay = await _make_overlay(Vector2i(390, 844))
+	var vp: Vector2 = overlay.get_viewport_rect().size
+
+	var span: float = minf(HOTBAR_WIDTH, vp.x)
+	var lift: float = overlay.get_bottom_obstruction_height(
+		vp.x * 0.5 - span * 0.5, vp.x * 0.5 + span * 0.5)
+
+	return _T.assert_gt(
+		lift, overlay.get_viewport_rect().size.y * 0.1,
+		"a near-screen-wide row still clears the thumb cluster (got %.0f)" % lift)
+
+
+func test_the_obstruction_rects_cover_the_buttons_they_claim_to() -> String:
+	# The rects are computed from `_layout()`'s arithmetic rather than read off the
+	# nodes, so nothing but this stops the two drifting apart — a button moved in
+	# BUTTON_SPECS would otherwise keep reporting its old footprint and the hotbar
+	# would be routed straight over it.
+	var overlay = await _make_overlay(Vector2i(390, 844))
+	var rects: Array[Rect2] = overlay.bottom_obstructions()
+
+	for spec in MobileControls.BUTTON_SPECS:
+		if str(spec["corner"]) != "br":
+			continue
+		var button: Control = overlay.get_node_or_null(str(spec["name"]))
+		var err: String = _T.assert_true(button != null, "%s exists" % str(spec["name"]))
+		if err != "":
+			return err
+
+		var rect: Rect2 = button.get_global_rect()
+		var covered := false
+		for claimed in rects:
+			if claimed.encloses(rect):
+				covered = true
+				break
+
+		err = _T.assert_true(
+			covered, "%s at %s is inside a claimed obstruction %s" % [
+				str(spec["name"]), str(rect), str(rects)])
+		if err != "":
+			return err
+
+	return ""
+
+
 func test_hidden_overlay_ignores_touches() -> String:
 	var overlay = await _make_overlay()
 	var at := _center_of("gather")

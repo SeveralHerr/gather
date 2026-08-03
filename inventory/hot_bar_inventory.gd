@@ -375,7 +375,14 @@ func _apply_layout() -> void:
 	var minimum := get_combined_minimum_size()
 	var panel := Vector2(maxf(wanted.x, minimum.x), maxf(wanted.y, minimum.y))
 
-	var bottom := UiTheme.scaled(BOTTOM_MARGIN_BASE, vp) + _bottom_obstruction()
+	# The row is centred, so it owns the middle `panel.x` of the bottom edge and
+	# nothing else. Asking the overlay about that span rather than about the whole
+	# width is what keeps the hotbar on the bottom edge in landscape, where the
+	# joystick is tall but nowhere near the centre. See `_bottom_obstruction`.
+	var half := panel.x * 0.5
+	var centre := vp.x * 0.5
+	var bottom := UiTheme.scaled(BOTTOM_MARGIN_BASE, vp) \
+		+ _bottom_obstruction(centre - half, centre + half)
 
 	grow_horizontal = Control.GROW_DIRECTION_BOTH
 	grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -389,16 +396,22 @@ func _apply_layout() -> void:
 	offset_top = -bottom - panel.y
 
 
-## How much of the bottom of the screen the touch overlay is covering, so the row
-## sits above the joystick and the thumb cluster instead of underneath them. On a
-## portrait phone the two of them own both bottom corners and the hotbar is very
-## nearly screen-wide, so there is no bottom-centre gap to sit in. Zero on
+## How much of the bottom of the screen the touch overlay is covering *under this
+## row*, so it sits above the joystick and the thumb cluster instead of underneath
+## them. On a portrait phone the two of them own both bottom corners and the hotbar
+## is very nearly screen-wide, so there is no bottom-centre gap to sit in and this
+## lifts the whole row clear.
+##
+## In landscape there is such a gap, and the span is what finds it. The overlay used
+## to be asked a question with no `x` in it at all and answered with the tallest
+## thing it drew anywhere — the joystick, hard against the left edge — which on a
+## 844x390 phone parked the hotbar 45% of the way up an empty screen. Zero on
 ## desktop, where the overlay hides itself.
-func _bottom_obstruction() -> float:
+func _bottom_obstruction(x_min: float, x_max: float) -> float:
 	var mobile := _mobile_controls()
 	if mobile == null:
 		return 0.0
-	return mobile.get_bottom_obstruction_height()
+	return mobile.get_bottom_obstruction_height(x_min, x_max)
 
 
 ## The touch overlay, or null on a build that has none. Typed as MobileControls so

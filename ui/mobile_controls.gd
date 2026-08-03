@@ -809,20 +809,65 @@ func _joystick_scale(vp: Vector2) -> float:
 		minf(vp.x, vp.y) / UiTheme.REFERENCE_EDGE, JOYSTICK_SCALE_MIN, JOYSTICK_SCALE_MAX)
 
 
-## How many pixels up from the bottom edge this overlay is occupying, so other
-## bottom-anchored UI can sit clear of it. On a portrait phone the joystick and
-## the thumb cluster own both bottom corners and the hotbar is very nearly
-## screen-wide, so there is no bottom-centre gap for it to slip into — without
-## this the hotbar renders underneath MINE and HIT and a tap hits both.
+## How many pixels up from the bottom edge this overlay is occupying **across the
+## horizontal span `x_min .. x_max`**, so other bottom-anchored UI can sit clear of
+## it. On a portrait phone the joystick and the thumb cluster own both bottom
+## corners and the hotbar is very nearly screen-wide, so there is no bottom-centre
+## gap for it to slip into — without this the hotbar renders underneath MINE and HIT
+## and a tap hits both.
+##
+## The span is what stops that answer being wrong everywhere else. This used to
+## return a single `max` over the joystick and the whole cluster no matter where
+## they sat, and the joystick is by far the tallest thing here: 300px of authored
+## scene at up to 1.25 scale. On a landscape phone — 844x390, which is what a hand
+## holding a web build actually looks like — that reaches ~176px up the *left* edge,
+## so the hotbar was shoved 45% of the way up a 390px screen while the entire bottom
+## centre between the joystick and the thumb cluster sat empty. Hence the complaint
+## that the hotbar "is often in the middle of the screen". Asking per-span costs the
+## caller one extra pair of arguments it already knows (it has just solved for its
+## own width) and leaves the portrait answer untouched, because there the hotbar
+## really does overlap both corners.
+##
+## Defaults to the whole width, i.e. the old behaviour, for a caller that has no
+## span to offer.
 ##
 ## Zero while the overlay is hidden, which is the whole desktop session.
-func get_bottom_obstruction_height() -> float:
+func get_bottom_obstruction_height(x_min: float = -INF, x_max: float = INF) -> float:
 	if not visible:
 		return 0.0
 
 	var vp := get_viewport_rect().size
 	if vp.x <= 0.0 or vp.y <= 0.0:
 		return 0.0
+
+	var tallest := 0.0
+	for rect in bottom_obstructions():
+		# Touching edges do not overlap: a hotbar ending exactly where the joystick
+		# begins is clear of it.
+		if rect.position.x >= x_max or rect.end.x <= x_min:
+			continue
+		tallest = maxf(tallest, vp.y - rect.position.y)
+	return tallest
+
+
+## Every piece of chrome this overlay draws against the bottom edge, as screen-space
+## Rect2s, each one running down to the bottom of the viewport rather than stopping
+## at the art — what a caller wants to know is how far up the bottom edge is spoken
+## for, and the margin underneath a row is spoken for too.
+##
+## Derived from the same arithmetic `_layout()` uses rather than read off the live
+## button rects. The hotbar asks this during its own layout pass, and both nodes
+## answer `size_changed` in connection order, so a read of the node positions would
+## be a frame stale exactly on the resize that made the question worth asking.
+##
+## Public because it is the only way a test can say *where* the overlay is heavy
+## rather than merely how heavy.
+func bottom_obstructions() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+
+	var vp := get_viewport_rect().size
+	if vp.x <= 0.0 or vp.y <= 0.0:
+		return out
 
 	var metrics := _metrics(vp)
 	var big: float = metrics["big"]
@@ -831,16 +876,26 @@ func get_bottom_obstruction_height() -> float:
 	var margin: float = metrics["margin"]
 
 	# Same walk `_layout()` makes over the bottom-right corner, so a row added to
-	# BUTTON_SPECS raises this by itself.
-	var cluster := margin
+	# BUTTON_SPECS is accounted for by itself. The trailing `pad` is kept in the
+	# reach — it is the gap the cluster's own rows are separated by, and reusing it
+	# as clearance is what keeps the portrait answer identical to the one this
+	# replaced.
+	var inset := margin
 	for indices in _rows_for("br"):
-		cluster += _row_height(indices, big, small) + pad
+		var height := _row_height(indices, big, small)
+		var width := -pad
+		for i in indices:
+			width += pad + (big if BUTTON_SPECS[i]["big"] == true else small)
+		var reach := inset + height + pad
+		out.append(Rect2(vp.x - margin - width, vp.y - reach, width, reach))
+		inset += height + pad
 
-	var joystick := 0.0
 	if _joystick != null:
-		joystick = margin + JOYSTICK_SIZE.y * _joystick_scale(vp)
+		var side := JOYSTICK_SIZE.y * _joystick_scale(vp)
+		out.append(Rect2(margin, vp.y - margin - side, JOYSTICK_SIZE.x * _joystick_scale(vp),
+			margin + side))
 
-	return maxf(cluster, joystick)
+	return out
 
 
 ## Sizes and positions everything from the current viewport, because the project
