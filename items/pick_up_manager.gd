@@ -60,6 +60,15 @@ func create(slot_data: SlotData, position: Vector2):
 		randf_range(Juice.PICKUP_LAUNCH_Y_MIN, Juice.PICKUP_LAUNCH_Y_MAX)
 	)
 	pick_up.linear_velocity = initial_velocity
+	# A RigidBody2D, and one of the paths here starts inside a physics callback: player.gd's
+	# _on_body_entered_attack (an Area2D signal) -> Enemy.receive_hit ->
+	# health_manager.take_damage -> died -> enemy.gd's _on_died -> create_pickup. Adding a
+	# body while the space is locked is refused outright (gather-im1).
+	#
+	# It lands OUTSIDE the locked window only because _on_died awaits two 0.1s timers for its
+	# hit particles before it ever gets here, and an await resumes on an ordinary frame. Those
+	# awaits are cosmetic, so deleting them reads like a harmless tidy-up — and would silently
+	# move every kill's drops into the flush. If they go, this needs call_deferred.
 	get_node("/root/Main/World/PickUps").add_child(pick_up)
 	get_node("/root/Main/World/PickUps").add_child(shadow)
 	pick_up.slot_data = slot_data

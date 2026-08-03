@@ -3662,3 +3662,17 @@ Guidelines that make an entry useful later:
 - Gap: **no new gaps this turn.** `get_overlapping_bodies` over `run-method` is the read that
   made this diagnosable in one call — it separated "the geometry is wrong" from "the event
   never came", which is the whole question.
+
+## 2026-08-03 — comment the two latent physics-callback add_child paths (gather-im1)
+
+- Value: **overkill** — and correctly so: this is a comments-only diff, which /verify's own
+  triage puts in tier (b), lint-only. No runtime run, no ledger row.
+  - Expected: nothing. The change adds no behaviour; there is no runtime claim to make.
+  - Got: `lint: 0 error(s), 0 warning(s)` and the suite unchanged at 419. Exactly what a
+    24-line comment addition should produce.
+  - Cheaper: this WAS the cheaper thing — lint alone, ~15s, no game launched. Recording it
+    because the log's honest ratio matters more than its highlights, and a stretch of entries
+    with no `overkill` in it should make a reader suspicious of the log rather than impressed
+    by the tool.
+
+- Gap: **no gaps this turn.** Nothing was asked of the harness beyond a parse check.
