@@ -128,9 +128,28 @@ var _last_phase: Phase = Phase.DAY
 var running := true
 
 
+## The group registration happens in _enter_tree, NOT in _ready, and that is load-bearing.
+##
+## Godot runs the whole `_enter_tree` pass over a subtree before it runs any of the `_ready`
+## pass, but within `_ready` it goes in tree order — and this node lives under `Systems`,
+## which main.tscn declares LAST. So every node under `World` readies first, and anything
+## that looked this group up in its own `_ready` found it empty and silently got null.
+##
+## That is not hypothetical: `world/resource_spawn_timer.gd` connects to `weather_changed`
+## in `_ready()`, and with the registration in `_ready` the connection was never made. Rain
+## started, the sky darkened, the drops fell, and the regrowth cadence sat at its clear-
+## weather 24s — no error, no warning, and a bug that neither lint nor 464 unit tests can
+## see, because it is entirely a property of node order in the scene file.
+##
+## Registering in `_enter_tree` means the group is populated before ANY `_ready` runs, so a
+## consumer can look it up from its own `_ready` regardless of where it sits in the tree.
+## This is the same class of ordering hazard CLAUDE.md documents for `Systems` vs `UI`.
+func _enter_tree() -> void:
+	add_to_group("WorldClock")
+
+
 func _ready() -> void:
 	add_to_group("SaveLoad")
-	add_to_group("WorldClock")
 	randomize()
 
 

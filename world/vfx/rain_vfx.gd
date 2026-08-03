@@ -134,6 +134,14 @@ func _build_particles() -> void:
 ##
 ## The soft ends come from the gradient rather than from a filter, which is what lets the
 ## texture stay NEAREST-sampled and still not read as a hard rectangle.
+##
+## Note that `assets/art/rain.png` exists and is NOT this. It is a 272x208 sheet of drops
+## and splash frames, referenced by nothing, committed in the gather-c7o reorganization —
+## the art half of the abandoned `TileMapHandler.rain()` that painted 19 tiles and that this
+## change deleted. It is a tile/animation strip on an irregular diagonal layout rather than
+## a particle texture, so it cannot be fed to `particles_anim_h_frames` the way
+## `hit_particles.tscn` feeds `particle.png`. Worth revisiting if the splash-on-impact
+## frames are ever wanted; it is not a drop-in for this.
 func _drop_texture() -> Texture2D:
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.35, 1.0])

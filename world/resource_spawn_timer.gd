@@ -43,6 +43,13 @@ func _ready() -> void:
 	if clock != null:
 		clock.weather_changed.connect(_on_weather_changed)
 		_apply_weather(clock.weather)
+	else:
+		# Never silent. This node is under `World` and the clock under `Systems`, which
+		# main.tscn declares last, so this lookup happening too early is a live hazard rather
+		# than a theoretical one — it is exactly what went wrong before WorldClock moved its
+		# group registration into `_enter_tree`. The failure mode is rain that visibly falls
+		# while the regrowth cadence never changes, which looks like a balance decision.
+		push_warning("ResourceSpawnTimer: no WorldClock in the tree, so rain will not speed up regrowth")
 
 	if is_stopped():
 		start()

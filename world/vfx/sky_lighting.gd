@@ -50,11 +50,20 @@ const PLAYER_PATH := "World/Player"
 ## sitting at the world origin with `visible = false`, and this is what it was for.
 const LIGHT_TEXTURE := preload("res://assets/art/light.png")
 
-## Lantern brightness at full night, and the scale that sets its radius. The scale is the
-## one the old scene node carried; the energy is new, and is deliberately modest — a lantern
-## that lights the whole screen removes the reason night exists.
-const LANTERN_ENERGY := 0.9
-const LANTERN_SCALE := 0.365
+## Lantern brightness at full night, and the scale that sets its radius.
+##
+## Both are much lower than they started, and the screenshot is why. light.png is 256px, so
+## the scale the dead scene node carried (0.365) put the lantern 93 world units across —
+## nearly six tiles, 748 screen pixels at the camera's 8 zoom — and at 0.9 energy a Light2D
+## blends additively, so the middle of it saturated to a pale green blob covering a third of
+## the view. Every property read said the night tint was correct, and it was; the world was
+## simply lit back up on top of it. This is the one thing in the change that only a
+## screenshot could have caught.
+##
+## 0.16 is about two and a half tiles, which reaches roughly as far as the player can
+## interact, and 0.40 leaves the ground under it readable without erasing the tint.
+const LANTERN_ENERGY := 0.40
+const LANTERN_SCALE := 0.16
 
 ## The lantern is off in daylight and full at night, ramped across the twilights so it does
 ## not switch on in a single frame. `1.0 - brightness` drives it, where brightness is how

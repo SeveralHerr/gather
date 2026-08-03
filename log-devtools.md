@@ -4140,3 +4140,54 @@ Guidelines that make an entry useful later:
     `layer` int, `0` for the root canvas). "Will this CanvasModulate reach that node" then
     becomes one call per node instead of a manual read of the scene file, and every 2D
     project with a HUD hanging off a camera hits this exact question eventually.
+
+## 2026-08-03 — verified the rain + day/night cycle at runtime (gather-bqn.6)
+
+- Value: **warranted** — the run found two real defects that lint and all 464 unit tests
+  passed clean over, and neither was visible in the diff.
+  - Expected: at night the three canvases will disagree unless all three writes actually
+    landed — specifically `hud_modulate` must be the reciprocal of `world_tint`, and
+    `ocean_color` must be `OCEAN_COLOR * tint`. Both the HUD counter-modulate and the ocean
+    base-colour capture resolve lazily by node path, so either could silently no-op and the
+    diff cannot show it.
+  - Got: the prediction was *wrong about where the bug was* — all three canvases agreed to
+    six decimal places on the first try (`hud 2.38095 == 1/0.42`, `ocean.g 0.27420 ==
+    0.596078 * 0.46`). The defects were elsewhere, and both are the kind only a running game
+    reports:
+    1. **The rain-to-regrowth coupling was dead.** `wait_time: 24.0` during a storm that was
+       visibly falling. `run-method _apply_weather [1]` returned `wait_time: 13.2`, which
+       isolated it to the wiring: `ResourceTimer` lives under `World`, `WorldClock` under
+       `Systems`, and `Systems` is declared last — so the group lookup in `ResourceTimer._ready`
+       ran before `WorldClock._ready` had joined the group and silently got null. Fixed by
+       registering the group in `_enter_tree` (the whole `_enter_tree` pass precedes every
+       `_ready`), plus a `push_warning` so it can never be silent again. This is the same
+       ordering hazard CLAUDE.md documents for `Systems` vs `UI`, hit from the other side.
+    2. **The lantern erased the night.** Every property read said the tint was correct — and
+       it was. The screenshot showed a pale green blob over a third of the screen: `light.png`
+       is 256px, so the dead scene node's `scale = 0.365` meant 93 world units (748 screen px
+       at zoom 8), and a Light2D blends additively, so at `energy 0.9` the middle saturated.
+       Now 0.16 / 0.40.
+  - Cheaper: nothing. Defect 1 is purely a property of node order in `main.tscn` and no
+    static read reveals it; defect 2 needed a rendered frame. The `world_clock` verb's
+    read-back of all three canvases is what made defect 1 *diagnosable* in two calls rather
+    than by bisecting the signal chain.
+
+- Gap: **`quit` is still not ownership-checked, and it cost a mid-run session.** A foreign
+  instance appeared on the bus part-way through: `Foreign instance on the bus: the reply to
+  'screenshot' came from pid 13640, but ... devtools_owner.json says pid 4316 owns this bus.`
+  Only one process was actually alive, so the owner file was a stale claim from an instance
+  that had already exited. Detection fired only *after* several reads had already been taken,
+  so I could not tell which instance had answered them and had to kill everything, clear the
+  owner file by hand, relaunch under `-- --devtools-session vfy`, and re-run the two load-
+  bearing assertions to be able to report them honestly.
+  - [G-057] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: as filed — check ownership *before* acting, not after. Additionally: treat
+    an owner file whose pid is no longer alive as stale and reclaim it automatically, rather
+    than reporting a conflict against a process that does not exist.
+
+- Gap: **no verb reports a node's effective canvas.** Third sighting; this run is the one
+  that shows it was worth the workaround. `canvas-scale` already walks the canvas chain and
+  stops one field short of the answer.
+  - [G-105] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: have `canvas-scale` also return `canvas_layer_path` and `canvas_layer` (the
+    `layer` int, `0` for the root canvas).

@@ -306,6 +306,23 @@ func test_every_saved_bullet_comes_back_with_its_position() -> String:
 
 # --- the world clock: the storm in progress ----------------------------------
 
+## Clocks built by _clock(), freed in teardown().
+##
+## WorldClock is a Node, and a Node that never enters the tree is never freed for you — it
+## leaks one orphan per call, which is precisely the accounting `performance`'s
+## `orphan_growth_max` gate watches and the same mistake HealthManager made before it became
+## a RefCounted (see CLAUDE.md). Measured: the suite leaked 9 more objects at exit with
+## these tests than without them until this existed.
+var _clocks: Array[WorldClock] = []
+
+
+func teardown() -> void:
+	for clock in _clocks:
+		if is_instance_valid(clock):
+			clock.free()
+	_clocks.clear()
+
+
 ## A WorldClock outside the tree. `_ready` never runs, so it never joins a group and never
 ## touches anything else — which is exactly what is wanted: saveObject/loadObject are the
 ## subject here, and they are the only two methods that touch disk state.
@@ -314,7 +331,9 @@ func test_every_saved_bullet_comes_back_with_its_position() -> String:
 ## filepath. That is fine for a round-trip test and is not what the game does; the live node
 ## is authored into main.tscn at /root/Main/Systems/WorldClock.
 func _clock() -> WorldClock:
-	return WorldClock.new()
+	var clock := WorldClock.new()
+	_clocks.append(clock)
+	return clock
 
 
 func test_a_storm_in_progress_keeps_the_time_it_has_left() -> String:
