@@ -136,8 +136,8 @@ func _build() -> void:
 	_add(Skill.new(
 		"smelting", INDUSTRY, 2,
 		"Smelting",
-		"Iron veins start appearing. Smelt iron bars, burn wood down to charcoal, craft the iron pickaxe, and build the bone worker.",
-		"Iron + 4 recipes",
+		"Iron veins start appearing. Smelt iron bars, burn wood down to charcoal, craft the iron pickaxe, and build the bone and stone workers.",
+		"Iron + 5 recipes",
 		Types.Item.IronBar, ["iron_age"], {},
 		[
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
@@ -155,6 +155,10 @@ func _build() -> void:
 			# the same purchase, rather than the hidden cross-tier dependency the bone
 			# turret's costs had to be repriced to escape.
 			{"product": Types.Item.BoneWorker, "station": Types.Item.Sawmill},
+			# Both workers ride the one node. They are the same machine pointed at different
+			# resources, so splitting them across two purchases would price a pair the player
+			# will always want together as though it were two decisions.
+			{"product": Types.Item.StoneWorker, "station": Types.Item.Sawmill},
 		],
 		[Types.Item.IronResource]
 	))

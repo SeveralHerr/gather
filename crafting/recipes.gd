@@ -215,6 +215,16 @@ func sawmill_recipes():
 	bone_worker_costs[Types.Item.Plank] = 4
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
 
+	# The grey sibling, priced level with the blue one and deliberately not cheaper: it
+	# automates the OTHER day-one resource, and a player who has one wants the pair. Stone
+	# replaces the planks because that is what it goes on to farm, and the bone and iron are
+	# untouched - the frame and the skull cost the same whatever the machine ends up mining.
+	var stone_worker_costs = {}
+	stone_worker_costs[Types.Item.Bone] = 6
+	stone_worker_costs[Types.Item.IronBar] = 3
+	stone_worker_costs[Types.Item.Stone] = 8
+	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
+
 	var furnace_costs = {}
 	furnace_costs[Types.Item.Stone] = 9
 	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Furnace, furnace_costs))

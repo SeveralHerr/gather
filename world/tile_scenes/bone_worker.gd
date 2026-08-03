@@ -22,6 +22,12 @@ class_name BoneWorker
 ## in transit. There are only those four frames, so there is no walk cycle and none is
 ## faked: a distinct walking look needs new art, not new code.
 
+## What this worker harvests. The blue machine takes Tree, the grey one StoneResource; the
+## behaviour is identical either way, so the difference is an exported value and two sprite
+## regions rather than a second script. Anything registered in resources.gd works, which is
+## what makes a third variant a scene file and no code at all.
+@export var harvest_type: Types.Item = Types.Item.Tree
+
 ## Set by GameItemBoneEnemy once a captured skull has been dropped on the base. Nothing
 ## else may write it -- go through set_loaded(), which owns the sprite swap.
 var loaded: bool = false
@@ -30,12 +36,16 @@ var loaded: bool = false
 ## start() below overrides it, so this constant is the only number that matters and the
 ## reasoning can live beside it.
 ##
-## Twice the wooden pickaxe's 2.0s power (the slowest tier in items.gd), and the worker
-## rolls the tree's yield with a flat 0.0 bonus chance where even that first pickaxe can
-## carry one. So a player actively swinging the worst tool in the game still out-earns a
-## worker per second spent, and every tier above it does so by more. Automation is meant to
-## pay for the time you are not there, not to be the better way to fell a tree.
-const CHOP_SECONDS := 4.0
+## 20s: the 4.0s this shipped with, made 400% slower — i.e. five times the duration, reading
+## "400% slower" as "the old time plus 400% of it". If four times was meant, this is the one
+## number to change.
+##
+## For scale, the wooden pickaxe (the slowest tier in items.gd) clears a node in 2.0s, and
+## the worker rolls yield with a flat 0.0 bonus chance where even that first pickaxe can
+## carry one. So a player swinging the worst tool in the game out-earns a worker ten to one
+## per second spent. Automation pays for the time you are not there; it is emphatically not
+## the better way to clear a node.
+const CHOP_SECONDS := 20.0
 
 ## Only used if the scene's WorkArea ever loses its CircleShape2D. The authored shape is the
 ## source of truth for reach, so the collision shape and the search radius cannot drift.
@@ -699,7 +709,7 @@ func _tile_map_handler() -> TileMapHandler:
 func _tree_resource(handler: TileMapHandler) -> GameResource:
 	if handler.resources == null:
 		return null
-	var entry := handler.resources.get_item_or_resource_by_type(Types.Item.Tree)
+	var entry := handler.resources.get_item_or_resource_by_type(harvest_type)
 	return entry as GameResource
 
 

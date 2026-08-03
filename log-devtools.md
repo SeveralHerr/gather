@@ -2338,3 +2338,35 @@ Guidelines that make an entry useful later:
   cadence, through a new public `ResourceManager2.emit_gather_chips()` rather than a second
   particle node per worker. Making a tree flinch means making Tree a scene tile, which is a
   tileset and save-format change.
+
+## 2026-08-03 — grey stone worker, and both machines slowed 400%
+
+- Value: **warranted** — runtime is the only place the second machine exists at all; the
+  suite stayed 287/287 through a new enum entry, a new tileset source and a new scene.
+  - Expected: that Types.Item.StoneWorker resolves through tileset source 13 to
+    stone_worker.tscn, and that an exported harvest_type actually redirects the same script
+    at a different resource rather than silently falling back to Tree.
+  - Got: placed through the real inventory chain (give_item, select_slot, _on_gather) rather
+    than a setup verb, and `scene-tree` resolved
+    `/Main/World/TileMap/StoneWorker` running `res://world/tile_scenes/bone_worker.gd` — one
+    script, two machines. `get-state` returned `harvest_type: 0` (StoneResource) and
+    `_find_tree_cell()` returned `{'cell': (7, 2)}`, so it targets stone, not the Tree
+    default. Then `TO_CHEST carry=2` with `time_to_next_cycle` reading 19.6 and 18.3 —
+    it mined a node, took the 1..2 yield, and the 20s cadence is live.
+  - Cheaper: nothing. An exported default that silently wins is invisible to a type checker
+    and to lint, and the only proof is a running instance reporting the overridden value.
+
+- Gap: **[G-077] bit again, third sighting.** `place_tile` still does not exist, so placing
+  the new machine meant `give_item` then scanning eight hotbar slots with `select_slot` to
+  find which one it landed in, then `run-method _on_gather` — five calls plus a loop where
+  one would have done. It did have the accidental virtue of exercising the real placement
+  chain rather than a setup shortcut, which is worth keeping as an option, but it should be
+  the deliberate choice and not the only road.
+  - [G-077] status: open | seen: 3 | harness: 0.7.0
+  - Improvement: unchanged — one generic `place_tile` taking an item name and a cell.
+
+- Not verified, and not claimed: **the chest-delivery branch, still.** The stone worker
+  entered TO_CHEST and drained `carry` 2 -> 1 -> 0, but `chests_in_range` read `[]` at every
+  sample, so a chest deposit and the ground-drop fallback are indistinguishable from this
+  evidence. gather-yye.7 stays open. Distinguishing them needs a chest placed at a chosen
+  cell beside a worker, which is the same missing verb.

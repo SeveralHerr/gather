@@ -27,6 +27,10 @@ func _ready():
 	# The icon is the unassembled base at tiles.png (20,2); the four chop frames sit
 	# next to it at (21,2)..(24,2) and are only ever drawn by the scene itself.
 	item_list[Types.Item.BoneWorker] = GameItemPlaceable.new(Vector2i(0,0), 12, Types.Item.BoneWorker, 1, true, "Bone Worker", Vector2i(20,2), true)
+	# The grey sibling: same scene script, harvest_type overridden to StoneResource, and its
+	# own scenes-collection source because a scene tile is keyed by source id. Icon is the
+	# grey unassembled base at (22,3).
+	item_list[Types.Item.StoneWorker] = GameItemPlaceable.new(Vector2i(0,0), 13, Types.Item.StoneWorker, 1, true, "Stone Worker", Vector2i(22,3), true)
 	item_list[Types.Item.Net] = GameItemNet.new(Vector2i(17,1), 4, Types.Item.Net, 1, false, "Net", Vector2i.ZERO, false)
 	item_list[Types.Item.String] = GameItem.new(Vector2i(16,1), 4, Types.Item.String, 1, false, "String", Vector2i(16,1), false)
 	item_list[Types.Item.BoneEnemy] = GameItemBoneEnemy.new(Vector2i(14,0), 4, Types.Item.BoneEnemy, 1, false, "Bone Enemy", Vector2i.ZERO, false)
