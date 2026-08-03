@@ -4020,3 +4020,30 @@ Guidelines that make an entry useful later:
   - Improvement: unchanged and now well past due — credit a script when a reached script
     references its `class_name`. For a RefCounted or a static-only utility that is the only
     evidence that can exist.
+
+## 2026-08-03 — cleared layer 0 on load (gather-mcl)
+
+- Value: **warranted** — the shape of the evidence was the whole point; a totals number could
+  not have distinguished the bug from a wrong assumption about the save.
+  - Expected: The startup world's islands should stop surviving the load. Counting connected
+    grass components is the only thing that can show it - the node census reports totals, and
+    a totals number cannot distinguish "the saved world is bigger than I thought" from "there
+    is a second world underneath it".
+  - Got: `tilemap-region --atlas 9,17 --layer 0` on a booted world gave `282 cells in 4
+    component(s)` — the startup home island plus its three islands. Loading the fixture
+    before the fix left `1871 cells in 3 components`, two of them byte-for-byte the startup
+    islands (`63 cells at x=11 y=18`, `43 cells at x=32 y=-3`). After the fix: `1654 cells in
+    1 component`, and `grass total: 1654` against the 1654 the save recorded — home back to
+    1384 from 1586. Loading a second, different world over it gave `1561 cells in 1
+    component` at entirely different bounds, so the stacking is gone too.
+  - Cheaper: nothing. The load path needs a real TileMap so there is no headless seam, and
+    the census I had already been reading all session reports totals — it showed +202 tiles
+    and I could not tell from it whether the saved world was simply bigger than I assumed.
+    `tilemap-region` turning that into "four landmasses, two of which are still here" is what
+    made it a bug rather than a suspicion.
+
+- Gap: **no gaps this turn.** `tilemap-region` is the verb this needed and it did the whole
+  job in one call; the connected-component framing is what made an ambiguous scalar into an
+  unambiguous one. Worth recording as the counter-example to the three gaps logged earlier
+  today: the harness was not merely adequate here, it was the only tool that could answer the
+  question, and the answer was legible enough to paste into a bead unedited.

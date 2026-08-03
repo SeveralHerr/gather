@@ -1147,6 +1147,31 @@ func loadObject(loadedDict: Dictionary) -> void:
 			for cell in tile_grid:
 				tileMap.set_cell(layer, cell, -1)
 
+		# Layer 0 as well, and it used to be the one layer this skipped (gather-mcl).
+		#
+		# _ready() has ALREADY generated a whole world by the time a load runs - a home
+		# island at a random noise seed, plus three islands at a random islands_seed - and
+		# set_cells_terrain_connect below only ever *writes* the cells it is given. It
+		# cannot remove one. So the ground the player ended up on was the union of two
+		# unrelated worlds: loading test/fixtures/demo_homestead_save left the startup
+		# world's islands sitting in the sea at x=11,y=18 and x=32,y=-3, 106 cells of land
+		# from a game nobody played, and put the home region 202 grass tiles above what the
+		# save recorded. Neither is cosmetic - resource_cap() and enemy_cap() both scale
+		# against count_land_tiles_in(), so a loaded world quietly ran a larger budget than
+		# the same world did before it was saved, and loading a second save in one session
+		# stacked its leftovers on top again.
+		#
+		# Guarded on there being ground to put back, not merely on `parsed`. Every layer-0
+		# cell is saved as Types.Item.Ground (see saveObject), so a payload with none is a
+		# save this build cannot reconstruct a world from - and clearing on that reading
+		# hands the player an empty sea, which is the failure the `corrupt` check above
+		# exists to prevent, reached by a tidier route.
+		if not ground_tiles.is_empty():
+			for cell in tile_grid:
+				tileMap.set_cell(0, cell, -1)
+		else:
+			push_warning("TileMapHandler: the save carries no ground tiles, keeping the generated terrain rather than clearing it")
+
 		for entry in parsed:
 			var item = entry["item"]
 			set_tile(entry["location"], item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
