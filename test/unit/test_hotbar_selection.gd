@@ -100,3 +100,80 @@ func test_the_step_keys_are_the_arrow_keys() -> String:
 		return err
 	return _T.assert_eq(
 		int(constants["STEP_NEXT_KEY"]), int(KEY_RIGHT), "Right steps forward one slot")
+
+
+# --- row sizing ---------------------------------------------------------------
+
+## `solve_metrics()` is static, so the whole sizing rule is reachable without a tree.
+## The node itself is not instantiable on its own — `input_manager`,
+## `held_item_texture` and `tile_map` are `@onready` reaches up into main.tscn — which
+## is why this arithmetic had no test at all until it was pulled out.
+func _metrics(width: float, height: float) -> Dictionary:
+	var script: GDScript = load(HOTBAR_SCRIPT)
+	return script.solve_metrics(Vector2(width, height))
+
+
+## Total width the row occupies, which is what the "does it fit" questions are really
+## asking. Mirrors `_apply_layout()`'s own `wanted.x`.
+func _row_width(metrics: Dictionary, slots: int) -> float:
+	return 2.0 * float(metrics["pad"]) + 2.0 * float(metrics["arrow"]) \
+		+ float(slots) * float(metrics["slot"]) + float(slots + 1) * float(metrics["gap"])
+
+
+func test_arrows_reach_the_touch_floor_when_there_is_width_for_them() -> String:
+	# 844x390, a phone held sideways. The row needs ~375px of an 844px viewport, so
+	# there is over 400px going spare — and the arrows were still drawn 29px wide,
+	# because their width was a flat 0.6 of a slot no matter how much room existed.
+	# validate-ui called it: 'small_tap_target: PrevButton size 29x48 below minimum
+	# 40x40'.
+	var metrics := _metrics(844.0, 390.0)
+
+	var err: String = _T.assert_gte(
+		float(metrics["arrow"]), UiTheme.TOUCH_MIN,
+		"a landscape phone gets full-size arrows (got %.1f)" % float(metrics["arrow"]))
+	if err != "":
+		return err
+
+	# And not by starving the slots to pay for them.
+	return _T.assert_gte(
+		float(metrics["slot"]), UiTheme.TOUCH_MIN,
+		"the slots keep the touch floor too (got %.1f)" % float(metrics["slot"]))
+
+
+func test_the_slots_win_the_squeeze_on_a_portrait_phone() -> String:
+	# 390x844. Six 48px slots plus two 48px arrows need ~398px before padding and do
+	# not fit, so something has to give and it is deliberately the arrows: they are a
+	# convenience over tapping the slot itself. This is the knowing half of
+	# gather-bb7 — the arrows come out under the 40x40 floor here and that is the
+	# trade, not a bug to be fixed by shrinking what the player aims at.
+	var script: GDScript = load(HOTBAR_SCRIPT)
+	var constants := script.get_script_constant_map()
+	var metrics := _metrics(390.0, 844.0)
+
+	var err: String = _T.assert_gte(
+		float(metrics["slot"]), UiTheme.TOUCH_MIN,
+		"slots hold the touch floor in portrait (got %.1f)" % float(metrics["slot"]))
+	if err != "":
+		return err
+
+	err = _T.assert_gte(
+		float(metrics["arrow"]), float(constants["ARROW_WIDTH_MIN"]),
+		"arrows never go under their own floor (got %.1f)" % float(metrics["arrow"]))
+	if err != "":
+		return err
+
+	# The whole point of letting them shrink: the row still fits the screen.
+	var width := _row_width(metrics, int(constants["SLOT_COUNT"]))
+	return _T.assert_true(
+		width <= 390.0, "the row fits a 390px viewport (needs %.1f)" % width)
+
+
+func test_a_desktop_window_does_not_inflate_the_row_without_limit() -> String:
+	# The clamp has an upper end as well as a lower one. Half the leftover width on a
+	# 1920px window is ~700px per arrow, and two 700px chevrons flanking six 90px
+	# slots is not a hotbar.
+	var metrics := _metrics(1920.0, 1080.0)
+
+	return _T.assert_eq(
+		float(metrics["arrow"]), UiTheme.TOUCH_MIN,
+		"arrows stop growing at the touch floor (got %.1f)" % float(metrics["arrow"]))

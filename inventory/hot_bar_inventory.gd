@@ -55,10 +55,20 @@ const SLOT_BASE := 56.0
 const PAD_BASE := 4.0
 const BOTTOM_MARGIN_BASE := 10.0
 
-## An arrow is a fraction of a slot wide and a whole slot tall. Six 48px slots
-## plus two 48px arrows do not fit across a portrait phone, and of the two the
-## slots are what the player is aiming at, so the arrows give up the width.
-const ARROW_WIDTH_RATIO := 0.6
+## The narrowest an arrow may ever be. An arrow is a whole slot tall and *wants*
+## to be `UiTheme.TOUCH_MIN` wide like everything else a finger lands on; it gives
+## up width only when the row cannot afford it, and never past this.
+##
+## Six 48px slots plus two 48px arrows genuinely do not fit across a 390px portrait
+## phone — that needs 398px before padding — so something has to give, and the
+## slots win: they are what the player is aiming at, they carry the item art, and
+## they are the direct route to a slot that the arrows only approximate. The arrows
+## therefore come out around 28px in portrait, under the 40x40 tap floor
+## `validate-ui` checks, which is a knowing trade rather than an oversight
+## (`gather-bb7`). What is *not* a trade is the case this constant used to force
+## everywhere: the width was a fixed 0.6 of a slot, so a landscape phone with 470px
+## of clear space beside the row still drew 29px arrows. Room is now spent when
+## there is room.
 const ARROW_WIDTH_MIN := 28.0
 
 ## How much of the viewport width the whole row may occupy before the slots start
@@ -309,6 +319,43 @@ func _apply_selection() -> void:
 				"font_color", UiTheme.COLOR_GOLD if chosen else UiTheme.COLOR_TEXT_DIM)
 
 
+## The four lengths the row is built out of, for a viewport, as
+## `{"slot", "arrow", "pad", "gap"}`.
+##
+## The row is SLOT_COUNT slots plus two arrows, separated by SLOT_COUNT + 1 gaps,
+## inside the panel's padding. That budget is spent in **priority order** rather than
+## split by a fixed ratio, because the two are not equally important: the slots are
+## what the player aims at, and an arrow is a convenience over a tap on the slot
+## itself.
+##
+##   1. the slots take the size the theme asked for, floored at TOUCH_MIN;
+##   2. the arrows take half of whatever is left, up to TOUCH_MIN — so a landscape
+##      phone, a tablet or a desktop window, all of which have width to spare, get a
+##      full-sized target instead of the 29px sliver a fixed 0.6-of-a-slot ratio used
+##      to hand them everywhere (`gather-bb7`);
+##   3. only when that leaves less than ARROW_WIDTH_MIN do the slots start giving way
+##      in turn, and never below TOUCH_MIN — under roughly a 340px viewport the row
+##      overhangs instead, which is the documented last resort.
+##
+## Static and pure — the viewport is the only input — because the node it belongs to
+## cannot be instantiated on its own: `input_manager`, `held_item_texture` and
+## `tile_map` are all `@onready` reaches up into main.tscn, so a test that wants to
+## know what this row does at 390px would otherwise have to boot the whole game. The
+## same reasoning made `MobileControls.resolve_primary()` static.
+static func solve_metrics(viewport_size: Vector2) -> Dictionary:
+	var pad := UiTheme.scaled(PAD_BASE, viewport_size)
+	var gap := UiTheme.scaled(UiTheme.GAP, viewport_size) * 0.5
+
+	var budget := viewport_size.x * ROW_WIDTH_FRACTION - 2.0 * pad \
+		- float(SLOT_COUNT + 1) * gap
+	var side := UiTheme.scaled_touch(SLOT_BASE, viewport_size)
+	var arrow := clampf(
+		(budget - float(SLOT_COUNT) * side) * 0.5, ARROW_WIDTH_MIN, UiTheme.TOUCH_MIN)
+	side = maxf(UiTheme.TOUCH_MIN, minf(side, (budget - 2.0 * arrow) / float(SLOT_COUNT)))
+
+	return {"slot": side, "arrow": arrow, "pad": pad, "gap": gap}
+
+
 ## Re-derives every size, and the node's own rect, from the current viewport.
 ##
 ## main.tscn instances this scene with a hand-tuned offset rect and
@@ -323,16 +370,11 @@ func _apply_layout() -> void:
 	if vp.x <= 0.0 or vp.y <= 0.0:
 		return
 
-	var pad := UiTheme.scaled(PAD_BASE, vp)
-	var gap := UiTheme.scaled(UiTheme.GAP, vp) * 0.5
-
-	# The row is SLOT_COUNT slots plus two arrows, separated by SLOT_COUNT + 1
-	# gaps, inside the panel's padding. Solve that for the slot side that fits the
-	# width budget, then take the smaller of it and the size the theme asked for.
-	var budget := vp.x * ROW_WIDTH_FRACTION - 2.0 * pad - float(SLOT_COUNT + 1) * gap
-	var fits := budget / (float(SLOT_COUNT) + 2.0 * ARROW_WIDTH_RATIO)
-	var side := maxf(UiTheme.TOUCH_MIN, minf(UiTheme.scaled_touch(SLOT_BASE, vp), fits))
-	var arrow := maxf(ARROW_WIDTH_MIN, side * ARROW_WIDTH_RATIO)
+	var metrics := solve_metrics(vp)
+	var pad: float = metrics["pad"]
+	var gap: float = metrics["gap"]
+	var side: float = metrics["slot"]
+	var arrow: float = metrics["arrow"]
 
 	scale = Vector2.ONE
 
