@@ -2330,37 +2330,65 @@ const DEMO_HOUSE_H := 5
 ## Tops the island out to MAX_PARCELS.
 ##
 ## Not through purchase(): twelve parcels cost about 6300 coins on the BASE_COST 12 /
-## COST_GROWTH 1.6 curve, and the inventory cannot hold a fraction of that even with
-## every slot stacked, so the honest-looking path would need dozens of interleaved
-## grant-and-buy rounds. parcels_bought and radius are the only two fields LandManager
-## persists, and _expand() is the same call its own loadObject() makes, so writing all
-## three lands in a state the game can reach and can save.
+## COST_GROWTH 1.6 curve, and the inventory cannot hold a fraction of that even with every
+## slot stacked, so the honest-looking path would need dozens of interleaved grant-and-buy
+## rounds.
+##
+## grant_parcels() rather than the field writes this used to do. Those wrote `parcels_bought`,
+## `radius` and `_expand()` — the whole of what LandManager persists, which is why it looked
+## complete — and skipped the `land_purchased` emit that is the whole of what a parcel
+## actually drives (gather-3m9). See LandManager.grant_parcels.
 func _max_out_land(land: LandManager) -> Dictionary:
+	var handler := _tile_map_handler()
 	var before := land.radius
-	land.parcels_bought = LandManager.MAX_PARCELS
-	land.radius = LandManager.radius_for(land.parcels_bought)
-	var tiles_added: int = land._expand(land.radius)
-	land.state_changed.emit()
-	return {"radius_before": before, "radius_after": land.radius, "tiles_added": tiles_added}
+	var tiles_before: int = handler.count_land_tiles() if handler else 0
+
+	var granted := land.grant_parcels(LandManager.MAX_PARCELS)
+
+	return {
+		"radius_before": before,
+		"radius_after": land.radius,
+		"parcels_granted": granted,
+		"tiles_added": (handler.count_land_tiles() if handler else 0) - tiles_before,
+	}
 
 
-## The top-left corner of the first clear w x h block, scanning outward from origin.
+## The top-left corner of a w x h building site near origin, felling whatever has grown on
+## it. Returns null when there is nowhere on the island it fits.
 ##
 ## Rectangles rather than single cells because the island is noise-thresholded: a fixed
 ## offset from origin is open water for a good fraction of seeds, and a house half in the
 ## sea is not a fixture anyone can look at and trust.
+##
+## It CLEARS rather than merely finding a gap, and it has to. This used to require every
+## cell of the site to be empty, which worked only because _max_out_land had quietly skipped
+## stocking the mainland (gather-3m9) - a properly stocked island at SEED_FILL_RATIO carries
+## a node on about one tile in six, so the odds of 143 contiguous bare cells anywhere are
+## effectively nil and the demo build failed outright. Clearing the trees you are building
+## on is what a player does; what it must not do is clear something a player BUILT, so a
+## cell qualifies only if it is free or holds a registered resource.
 func _clear_block_near(handler: TileMapHandler, origin: Vector2i, w: int, h: int, margin: int):
 	for offset in TileMapHandler.cells_within(20):
 		var corner: Vector2i = origin + offset
-		var clear := true
+		var clearable := []
+		var usable := true
+
 		for dx in range(-margin, w + margin):
 			for dy in range(-margin, h + margin):
-				if handler.is_occupied(corner + Vector2i(dx, dy), true):
-					clear = false
+				var cell: Vector2i = corner + Vector2i(dx, dy)
+				if not handler.is_occupied(cell, true):
+					continue
+				# Occupied - but by a tree or a vein, or by the sea and the player's walls?
+				if handler.resource_at(cell) == null:
+					usable = false
 					break
-			if not clear:
+				clearable.append(cell)
+			if not usable:
 				break
-		if clear:
+
+		if usable:
+			for cell in clearable:
+				handler.clear_tile(cell)
 			return corner
 	return null
 

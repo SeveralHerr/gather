@@ -50,15 +50,22 @@ var ambient_enemies: bool = true
 ## Whether the player can walk here from the home island right now.
 ##
 ## Islands are drawn at world generation and are visible across the water for most of the
-## early game, but nothing is placed on one until the home coastline has been bought out far
-## enough to meet it. Two reasons, and the second is the one that bites:
+## early game. What that means for what lives on them is split, and the split is the point:
 ##
-##   - A fully stocked ore island the player can see and cannot reach is a shop window. The
-##     content is the reward for the land purchases, so it should arrive with them.
-##   - Both ceilings scale with land the region owns. An unreachable island was buying the
-##     mainland extra enemies and holding a share of the respawn timer's ticks, which came
-##     out of ground the player was actually standing on - the same argument that made the
-##     boss arena opt out of both, applied to land that has simply not opened yet.
+##   - **Resources grow there from the first frame.** An island is a place, and a place the
+##     player can see across the water has to look like one - the ore island reads as an ore
+##     island because there is visibly ore on it, which is the thing that makes crossing the
+##     water worth saving up for. This gate used to cover resources too, and a bare green
+##     disc is not a promise of anything.
+##   - **Enemies wait for the coastline to arrive.** Nothing may wander onto ground the
+##     player cannot reach, so an island stays quiet until it opens and then fills up. The
+##     boss is gated the same way, by IslandManager, and for the stronger version of the same
+##     reason: an elite parked across the water threatens nobody and is on screen from the
+##     first frame.
+##
+## The enemy ceiling scales with the land its regions own, so a closed island holds no share
+## of it either - see EnemySpawner. The resource ceiling deliberately does now, because those
+## nodes exist.
 ##
 ## Defaults true, so the home region and anything that never sets it behave as before.
 ## IslandManager clears it at generation and sets it from a flood fill; see
@@ -67,11 +74,16 @@ var connected: bool = true
 
 
 ## Whether the respawn timer may put a node down here as things stand.
+##
+## Not gated on `connected`: resources are what an island is made of, and it is made of them
+## before anyone can walk there. `ambient_resources` is still absolute - the boss arena stays
+## bare forever.
 func accepts_ambient_resources() -> bool:
-	return connected and ambient_resources
+	return ambient_resources
 
 
-## Whether the enemy spawner may pick a cell here as things stand.
+## Whether the enemy spawner may pick a cell here as things stand. Gated on `connected`, so
+## an island the player cannot reach yet stays empty of enemies.
 func accepts_ambient_enemies() -> bool:
 	return connected and ambient_enemies
 

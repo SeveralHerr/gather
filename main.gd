@@ -617,9 +617,11 @@ static func resource_key(atlas_location: Vector2i, source_id: int) -> String:
 
 ## The registered resource occupying layer-1 cell `cell`, or null.
 ##
-## One place that answers "what resource is this cell", so the three lookups that used to
-## each open-code a coordinate comparison cannot drift apart again.
-func _resource_at(cell: Vector2i) -> GameResource:
+## One place that answers "what resource is this cell", so the lookups that used to each
+## open-code a coordinate comparison cannot drift apart again. Public because it is also the
+## only honest way to ask whether an occupied cell is merely *grown over* - a tree that can
+## be cleared - rather than something the player built there.
+func resource_at(cell: Vector2i) -> GameResource:
 	var atlas := tileMap.get_cell_atlas_coords(1, cell)
 	var source := tileMap.get_cell_source_id(1, cell)
 	if source == -1:
@@ -859,7 +861,7 @@ func _find_nearest_tile_and_resource(location: Vector2):
 	
 	if distance < activation_distance and distance > 0:
 		# Source id as well as coordinate — see resource_key() (gather-54s).
-		return _resource_at(nearestPos)
+		return resource_at(nearestPos)
 
 func find_nearest_resource_to_location(location: Vector2):
 	var nearest_resource_info = get_location_of_nearby_resource(location)
@@ -922,7 +924,7 @@ func get_location_of_nearby_resource(location):
 		# Source id as well as coordinate — see resource_key(). Matching on the coordinate
 		# alone made every lookup on the gather path depend on no two resources on different
 		# sheets ever sharing one (gather-54s).
-		if _resource_at(tilePos) == null:
+		if resource_at(tilePos) == null:
 			continue
 
 		var dir = player.global_position - tileMap.map_to_local(tilePos)
@@ -939,7 +941,7 @@ func get_location_of_nearby_resource(location):
 	var activation_distance = 20
 
 	if distance < activation_distance and distance > 0:
-		var resource = _resource_at(nearestPos)
+		var resource = resource_at(nearestPos)
 		if resource != null:
 			return { "resource": resource,  "location": tileMap.map_to_local(nearestPos), "tile_data": tileMap.get_cell_tile_data(resource.layer, nearestPos ) }
 

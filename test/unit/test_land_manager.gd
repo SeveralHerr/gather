@@ -328,3 +328,112 @@ func test_a_save_roundtrip_restores_the_island_and_the_price() -> String:
 
 	loaded.free()
 	return err
+
+
+# --- granted land (gather-3m9) -----------------------------------------------
+#
+# Land can grow without being paid for: the devtools demo builder cannot route twelve
+# parcels through purchase(), because they cost about 6300 coins and the inventory does not
+# hold that many. The bug these guard against is what that path did instead - it wrote
+# `parcels_bought`, `radius` and `_expand()`, which is everything LandManager PERSISTS, and
+# never emitted `land_purchased`, which is everything a parcel DRIVES. TileMapHandler's
+# handler for that signal is the only thing that stocks the new mainland and opens any island
+# the coastline now reaches, so the demo world came out a radius-34 island still carrying the
+# starting island's resources, ringed by three walkable islands nobody had opened.
+#
+# The assertion that matters is therefore the emit, not the radius. A grant that grows the
+# map and says nothing looks completely correct in every reading below except that one.
+
+
+func _count_purchase_signals() -> Array:
+	var seen := []
+	manager.land_purchased.connect(func(new_radius, tiles_added): seen.append([new_radius, tiles_added]))
+	return seen
+
+
+func test_granted_land_announces_itself_like_a_purchase() -> String:
+	var seen := _count_purchase_signals()
+
+	var granted := manager.grant_parcels(3)
+
+	var err: String = _T.assert_eq(granted, 3, "three parcels granted")
+	if err == "":
+		err = _T.assert_eq(seen.size(), 1, "and land_purchased fired for them")
+	if err == "":
+		err = _T.assert_eq(seen[0][0], LandManager.radius_for(3), "carrying the radius it grew to")
+	if err == "":
+		err = _T.assert_eq(expanded_to, LandManager.radius_for(3), "and the world was actually expanded")
+	return err
+
+
+func test_granted_land_costs_nothing() -> String:
+	_give_coins(50)
+
+	manager.grant_parcels(2)
+
+	var err: String = _T.assert_eq(manager.gold(), 50, "a grant is not a purchase and takes no coins")
+	if err == "":
+		err = _T.assert_eq(manager.parcels_bought, 2, "but it does count toward the parcels bought")
+	return err
+
+
+func test_a_grant_stops_at_the_cap() -> String:
+	# Clamped rather than refused outright: the demo builder asks for MAX_PARCELS from
+	# whatever the world happens to be at, so a grant that overshot would push parcels_bought
+	# past the end of the price curve and save it there.
+	var granted := manager.grant_parcels(LandManager.MAX_PARCELS + 5)
+
+	var err: String = _T.assert_eq(granted, LandManager.MAX_PARCELS, "only the parcels that exist are granted")
+	if err == "":
+		err = _T.assert_true(manager.is_maxed(), "and the island is maxed")
+	if err == "":
+		err = _T.assert_eq(manager.radius, LandManager.radius_for(LandManager.MAX_PARCELS), "at the final radius")
+	return err
+
+
+func test_a_grant_on_a_maxed_island_changes_nothing() -> String:
+	manager.grant_parcels(LandManager.MAX_PARCELS)
+	var seen := _count_purchase_signals()
+	var calls_before := expand_calls
+
+	var granted := manager.grant_parcels(4)
+
+	var err: String = _T.assert_eq(granted, 0, "nothing left to grant")
+	if err == "":
+		err = _T.assert_eq(seen.size(), 0, "so nothing is announced")
+	if err == "":
+		err = _T.assert_eq(expand_calls, calls_before, "and the world is not re-expanded")
+	return err
+
+
+func test_a_purchase_still_announces_itself_exactly_once() -> String:
+	# purchase() routes its expansion through grant_parcels now. If that ever double-emits,
+	# the mainland is seeded twice per parcel and every island is opened on a stale flood
+	# fill - so the count is the assertion, not just that the signal arrived.
+	_give_coins(10000)
+	var seen := _count_purchase_signals()
+
+	var bought := manager.purchase()
+
+	var err: String = _T.assert_true(bought, "the parcel was bought")
+	if err == "":
+		err = _T.assert_eq(seen.size(), 1, "and announced exactly once")
+	if err == "":
+		err = _T.assert_eq(manager.parcels_bought, 1, "one parcel, not two")
+	return err
+
+
+func test_a_refused_purchase_announces_nothing() -> String:
+	# The negative control for the above: purchase() returns before grant_parcels when the
+	# player cannot pay, so a broke player must not grow the island for free.
+	_give_coins(1)
+	var seen := _count_purchase_signals()
+
+	var bought := manager.purchase()
+
+	var err: String = _T.assert_false(bought, "a coin short is refused")
+	if err == "":
+		err = _T.assert_eq(seen.size(), 0, "and announces nothing")
+	if err == "":
+		err = _T.assert_eq(manager.parcels_bought, 0, "and grants no land")
+	return err

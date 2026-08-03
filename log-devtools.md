@@ -3834,3 +3834,189 @@ Guidelines that make an entry useful later:
   - [G-102] status: open | seen: 6 | harness: 0.8.0
   - Improvement: unchanged and now overdue — credit a script when a reached script references
     its `class_name`, which for a static-only utility is the only evidence that can exist.
+
+## 2026-08-03 — diagnosed the bare demo world (gather-3m9), no code changes
+
+- Value: **warranted** — the diff was clean at HEAD and the bug is invisible in source; only a
+  running game separated "islands broken" from "the devtools verb that builds the demo world
+  never fires `land_purchased`".
+  - Expected: some regression in `IslandManager._stock` / `refresh_connections`, since the
+    report named the islands and the last commits touched world code.
+  - Got: the opposite. A fresh world stocks correctly (`home land=96 nodes=28`, then after 12
+    real `buy_land` parcels `home 274/315`, `forest 21`, `ore 21`, boss + chest placed). Then
+    `build_demo_world` on a fresh world: `home land=1312 nodes=28 cap=328 | forest/ore/boss
+    opened=false, 0 nodes` — the mainland grows 13x and the node count does not move. One
+    save/load later: `forest 32, ore 30, boss chest present, home still 34/413`, which is
+    exactly the shape of the two committed fixtures.
+  - Cheaper: nothing. Reading `_max_out_land` alone shows it writing the same three fields
+    `loadObject` writes, which is what its comment argues and which *looks* right; the census
+    is what makes the missing signal a number.
+
+- Gap: **`island_census` reports `opened`, but nothing reports what last called
+  `refresh_connections` or `seed_island`.** The census told me *that* home was starved and the
+  islands closed at radius 34, which is already the useful half. Attributing it still meant
+  grepping every writer of `parcels_bought`/`_expand` by hand to find the one path that skips
+  the signal. A verb-level "who stocked this region, and when" — even just a frame counter and
+  the caller — would have gone from symptom to `_max_out_land` in one call.
+  - [G-104] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `LandRegion` record `stocked_at_frame` and `opened_at_frame`, and surface
+    both in `island_census`. A region that is open with `stocked_at_frame == -1` is this bug,
+    stated rather than inferred.
+
+- Gap: **[G-057]-family again — the shared bus cost a user their running game.** Three Godot
+  instances were live (editor, the user's game, mine). `python tools/devtools.py quit` has no
+  target: it went to the foreign instance and closed the window the user was looking at, and
+  the owner-file check only reported the crossed reply *afterwards*:
+  ```
+  Foreign instance on the bus: the reply to 'screenshot' came from pid 21108, but
+  devtools_owner.json says pid 17916 owns this bus.
+  ```
+  Detection is there for reads; `quit` is the one verb where detect-after-the-fact is not
+  recoverable.
+  - [G-057] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: make `quit` refuse when the owner file names a pid other than the one that
+    answers, and give it a `--pid` it verifies against the reply. A destructive verb should
+    check ownership *before* it acts, not report the mismatch in the response.
+
+## 2026-08-03 — planned a rain + day/night system (no code changed)
+
+- Value: **inconclusive** — planning only; the harness was never run, so it neither helped
+  nor failed. Logged so the absence is deliberate rather than forgotten.
+  - Expected: nothing from runtime. Every question this turn was answerable from the scene
+    file and the scripts — which canvas each node sits in, what `Ocean` is, whether a
+    `rain()` already existed.
+  - Got: the three load-bearing facts came from `main.tscn:395/624` and `main.gd:191/971`
+    by reading, not by running: `World` is a bare `Node2D` (so a `CanvasModulate` there
+    catches the HUD), `Ocean` is a `CanvasLayer` at `-100` (so it does *not*), and a dead
+    `func rain()` painting 19 tiles from source 7 already squats the name.
+  - Cheaper: nothing cheaper existed — this was reading, and it was the right tool. The
+    harness has no verb that answers "which canvas is this node in", which is the one
+    question the whole lighting design turns on. See the gap below.
+
+- Gap: **no verb reports a node's effective canvas / `CanvasLayer` ancestry.** The plan's
+  central risk is that `CanvasModulate` tints exactly one canvas, so `Ocean` (layer -100)
+  and `UI` (layer 1) are missed while the diegetic `HUD` is hit. Establishing that meant
+  grepping `main.tscn` for every `type="CanvasLayer"` and hand-walking parents; `scene-tree`
+  reports `script` and `scene_file` per node but nothing about which canvas it renders into.
+  `canvas-scale --node PATH` is adjacent — it already walks the canvas chain to accumulate
+  scale — and stops one field short.
+  - [G-105] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `canvas-scale` also return `canvas_layer_path` and `canvas_layer` (the
+    `layer` int, or `0` for the root canvas). Then "will this CanvasModulate reach that node"
+    is one call per node instead of a manual read of the scene file.
+
+## 2026-08-03 — post the end-of-day devlog to itch.io
+
+- Value: **warranted** — the harness produced the deliverable itself; a screenshot of
+  today's crafting work cannot come from a diff.
+  - Expected: `build_demo_world` then `crafting_panel` would drop me into a dense
+    homestead with the tier-2 recipes on screen, one or two calls.
+  - Got: neither. `build_demo_world` answered `"no clear 7x5 site near the player"`
+    with `"success": false`, and the furnace panel it was supposed to set up rendered
+    every recipe greyed at `0/1 Coal Ore` with `Not enough Ore` under a dead CRAFT
+    button. That frame is indistinguishable from a broken game, and I would have
+    shipped it unseen if the plan had been "screenshot whatever comes up". What
+    actually worked was quickloading slot 1 (level 12), `learn_skill` x6,
+    `give_item` x8 and opening station 0 — the sawmill, where Bone/Iron/Gold Sword
+    all read affordable in green.
+  - Cheaper: nothing. A devlog screenshot needs the running game by definition.
+
+- Gap: **[G-100] again — the shared bus ate a capture mid-workflow.** `run-method`
+  + `screenshot` returned
+  `Foreign instance on the bus: the reply to 'screenshot' came from pid 19672, but ...
+  devtools_owner.json says pid 10476 owns this bus.` A second instance (not mine) had
+  claimed the bus between two calls in one workflow. Detection worked, which is the
+  point of the owner file — but there is still no way to *finish* a capture once it
+  fires short of relaunching with `--session`. Workaround: kept the screenshot taken
+  before the collision and abandoned the refinement (selecting the Iron Sword card so
+  the detail pane matched the shot).
+  - [G-100] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: unchanged from the earlier sightings — `launch` should claim a session
+    by default rather than sharing the unnamed bus.
+
+- Gap: **[G-106] no way to discover the item names `give_item` accepts.** Eight calls,
+  four of them wasted: `Iron`, `Gold`, `Coal`, `IronBar`, `GoldBar` each answered
+  `"no item named 'IronBar'"`. The verb keys off the display name, so the working
+  strings are `"Iron Ore"`, `"Gold Ore"`, `"Iron Bar"`, `"Gold Bar"` — with spaces —
+  while `Types.Item` spells them `IronOre`/`IronBar`. Nothing in the reply says which
+  space it wants, and `list-commands` describes the verb, not its vocabulary. Had to
+  read `items/types.gd` and infer the display-name mapping.
+  - [G-106] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have the failure reply carry candidates —
+    `"no item named 'IronBar' (did you mean 'Iron Bar'?)"` — built from a fuzzy match
+    over `GameItems.item_list`. A bare `items` verb listing registered names would
+    close it outright and costs about ten lines.
+
+- Gap: **[G-107] `build_demo_world` mutates the world, then fails.** Its `data` shows
+  `"land": {"parcels_granted": 0, "radius_after": 34, ...}` — it runs `_max_out_land`
+  *before* searching for a house site, so the refusal leaves land already bought. On a
+  fresh world that is a one-way change to the thing being set up, reported under
+  `"success": false` where it reads like nothing happened. It also gives no hint where
+  a clear 7x5 site does exist, so there is no retry short of walking the player somewhere
+  and guessing.
+  - [G-107] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: search for the site first and bail before granting land, or return the
+    nearest viable corner in `data` so the caller can `goto_cell` and retry.
+
+## 2026-08-03 — fixed the bare demo world and split the island gate (gather-3m9)
+
+- Value: **warranted** — every claim that mattered came from the running game; the diff and
+  the unit suite could each only show half of it.
+  - Expected: Runtime should say whether a closed island now carries resources but no
+    enemies, and whether growing the island through the demo builder stocks the mainland and
+    opens the islands - neither is visible in the diff, because both depend on a signal fired
+    during generation and on region flags read by three separate systems.
+  - Got: exactly that, as numbers. Closed islands: `forest opened=False nodes=18 res=True
+    enemy=False`, `ore ... nodes=19`, `boss nodes=0 res=False enemy=False`, boss unspawned.
+    Then `build_demo_world` -> `home land=1441 nodes=232 cap=360 (64%)`, all three islands
+    `opened=True`, `boss alive=True chest=['Gold Coin x40','Gold Ore x8','Iron Ore x12']`,
+    and `enemy_cap 3 -> 25`. Before the fix the same call gave `home land=1312 nodes=28`,
+    three islands `opened=False nodes=0`, and no boss.
+  - Cheaper: nothing. `test_land_manager` asserts `grant_parcels` emits `land_purchased` and
+    `test_island_gating` asserts the two predicates, but neither can show that the emit
+    actually stocks 232 nodes and opens three islands — that is four systems downstream of
+    the signal.
+
+- Gap: **`island_census` says `connects_at_max_land: True` for an island the live flood fill
+  refuses to open, and nothing reconciles them.** On a maxed island the same reply carried
+  `boss opened=False connects_at_max_land=True`. The two answers come from different sets —
+  the promise from `land_cells_for_radius` (raw noise cells), the refusal from
+  `walkable_cells_from_home` (grass only, coastline excluded) — so the census can promise a
+  reachable boss arena that the seed never delivers. Filed as gather-37z; it cost a
+  regenerated fixture, because the first world I built had an unreachable arena and the
+  census said it was fine.
+  - [G-105] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have the census compute both predicates and report them side by side, or
+    report the walkable one under the name that reads as a promise. A single field that is
+    right in one sense and wrong in the sense the reader needs is worse than two fields.
+
+- Gap: **`launch --isolated` prints a session id it does not pass to the game.** It reported
+  `session: 5a476098` and `Subsequent calls: ... --session 5a476098`, but the command line it
+  echoed on the line above was `--path ... --mute` with no `-- --devtools-session`, so every
+  call then failed with `This client is on session '5a476098'; the game must have been
+  launched with -- --devtools-session 5a476098`. Worked around by launching by hand via
+  `Start-Process ... '--','--devtools-session','isoA'`, which worked first time.
+  - [G-106] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: append `-- --devtools-session <id>` to the argv `--isolated` builds. The
+    instructions it prints are already correct; only the spawn is missing them.
+
+- Gap: **[G-057] again, seen 2 — `quit` has no target and closed a session it did not own.**
+  Three Godot instances were live (the user's game, the editor, mine). `quit` went to the
+  foreign one and closed the window the user was working in; the ownership check reported the
+  mismatch only on the *next* call, as `Foreign instance on the bus: the reply to 'screenshot'
+  came from pid 21108, but devtools_owner.json says pid 17916 owns this bus.` Detection after
+  the fact is fine for a read and unrecoverable for a quit. For the rest of the session I
+  stopped my own instances by pid through `Stop-Process` rather than through the bus.
+  - [G-057] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: make `quit` check the owner file *before* sending, and refuse when the pid
+    that answers is not the one that owns the bus unless `--force` is passed.
+
+- Gap: **[G-102] again, seen 7.** `NOT reached: world/land_region.gd` — the file the whole
+  behavioural change lives in. It is a `class_name RefCounted` held as a plain field, so it
+  owns no node a scene-tree snapshot can see, yet `island_census`'s `stocking.resources` /
+  `stocking.enemies` fields are literally `accepts_ambient_resources()` /
+  `accepts_ambient_enemies()` and every runtime assertion above went through them.
+  - [G-102] status: open | seen: 7 | harness: 0.8.0
+  - Improvement: unchanged and now well past due — credit a script when a reached script
+    references its `class_name`. For a RefCounted or a static-only utility that is the only
+    evidence that can exist.

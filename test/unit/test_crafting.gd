@@ -280,10 +280,17 @@ func test_the_committed_save_fixtures_still_restore_their_unlocks() -> String:
 	# load is not something CI or a fresh clone would ever show — these fixtures are the only
 	# standing check, and both predate the station-keyed payload.
 	#
-	# demo_homestead_save carries nested dictionaries; demo_homestead_save_v1 carries the
-	# double-encoded JSON strings from before gather-usv. Both go through the legacy-key
-	# branch of loadObject, and the second one also through decode_entries' String path.
-	for path in ["res://test/fixtures/demo_homestead_save", "res://test/fixtures/demo_homestead_save_v1"]:
+	# One file per shape the loader still has to read, which is the only reason there are
+	# three: demo_homestead_save carries the current station-keyed payload,
+	# demo_homestead_save_v3 the pre-gather-uaq per-station keys as nested dictionaries, and
+	# demo_homestead_save_v1 the same keys double-encoded as JSON strings from before
+	# gather-usv. The last two go through the legacy-key branch of loadObject, and v1 also
+	# through decode_entries' String path.
+	for path in [
+		"res://test/fixtures/demo_homestead_save",
+		"res://test/fixtures/demo_homestead_save_v3",
+		"res://test/fixtures/demo_homestead_save_v1",
+	]:
 		var entry := _recipes_entry_from(path)
 		var err: String = _T.assert_true(not entry.is_empty(), "%s has a Recipes entry" % path)
 		if err != "":

@@ -313,6 +313,24 @@ resolves islands before home, so an island absorbed by the growing mainland keep
 identity. A region states its cells outright rather than using its radius: an isthmus
 trails well outside the disc.
 
+**`LandRegion.connected` gates enemies, and only enemies.** An island is stocked with
+resources at world generation and stays stocked by the respawn timer whether or not the
+player can walk to it — that is what makes the ore island across the water read as an ore
+island and worth saving the parcels up for. What waits for the coastline to arrive is the
+ambient enemies and the boss, so unreachable ground is never threatening ground. The two
+halves are one word apart at every call site (`accepts_ambient_resources` vs
+`accepts_ambient_enemies`) and `test/unit/test_island_gating.gd` asserts the split as a
+transition, precisely because a refactor that reunites them reads as a tidy-up.
+
+**Growing the island outside a purchase goes through `LandManager.grant_parcels()`.**
+`land_purchased` is what stocks the newly revealed mainland and opens any island the
+coastline now reaches (`main.gd:_on_land_purchased`), and `parcels_bought` / `radius` /
+`_expand()` are merely what the node *persists*. The devtools demo builder wrote those
+three directly and skipped the signal, so `build_demo_world` produced a radius-34 island
+still carrying the starting island's 28 nodes, ringed by three walkable islands nobody had
+opened — for long enough to be baked into two committed fixtures (`gather-3m9`). If you
+need land without charging for it, call `grant_parcels`; do not re-derive it.
+
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
 individually. Bound to `[` (save) and `]` (load).
@@ -334,12 +352,14 @@ Two things guard this now, and both must be maintained:
 show you — the only way to catch it is to load a save written before your change.
 `test/fixtures/` holds committed saves for exactly that — see its README.
 `demo_homestead_save` is the current-format one (a maxed island with a walled house, chests,
-both stations, turrets and workers, and a furnace left deliberately mid-smelt at 52 of 60);
-regenerate it with the `build_demo_world` devtools verb rather than curating it by hand.
-`demo_homestead_save_v1` is a **backward-compatibility fixture and must never be
-regenerated** — its whole value is that it predates the double-encoding removal, the
-metadata header and the fidelity pass, so it is the only thing that exercises those old
-branches.
+both stations, turrets and workers, all three islands open and stocked, and a furnace left
+deliberately mid-smelt at 52 of 60); regenerate it with the `build_demo_world` devtools verb
+rather than curating it by hand, and check `island_census` before keeping the result — island
+placement is seeded and a seed can leave one island unopened even at max land (`gather-37z`).
+`demo_homestead_save_v3` and `demo_homestead_save_v1` are **backward-compatibility fixtures
+and must never be regenerated** — their whole value is being old. v3 is the only file left in
+the pre-`stations` recipes shape; v1 predates the double-encoding removal, the metadata header
+and the fidelity pass, so it is the only thing that exercises those older branches.
 
 **Saves live in slots.** `user://saves/slot_<n>.save`, `SLOT_COUNT` of them, listed by
 `SaveLoad.list_slots()` and shown by `ui/save_slot_ui.gd` (`O`, or SAVES in the toolbar and

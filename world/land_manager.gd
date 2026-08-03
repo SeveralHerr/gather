@@ -152,15 +152,39 @@ func purchase() -> bool:
 	if not inv.spend_type(Types.Item.Coin, cost):
 		return false
 
-	parcels_bought += 1
+	# Paid for, so it pays xp; the land itself is granted by the same call every other
+	# path uses, which is what keeps a grant from drifting from a purchase.
+	_award_purchase_xp()
+	grant_parcels(1)
+	return true
+
+
+## Grows the island by `count` parcels without charging for them. Returns how many it
+## actually granted — fewer than asked at the cap, and zero when already maxed.
+##
+## The one supported way to hand out land outside purchase(), and it exists because the
+## alternative has been got wrong every time it was written longhand. The devtools demo
+## builder set `parcels_bought` and `radius` and called `_expand()`, which is everything
+## this node PERSISTS and none of what a parcel DRIVES: `land_purchased` is what stocks the
+## new mainland and opens any island the grown coastline now reaches, and it never fired.
+## The demo world came out a radius-34 island still carrying the starting island's 28
+## resource nodes, with three walkable islands nobody had opened (gather-3m9).
+##
+## So the emit pair lives here rather than at the call site. No coins and no xp — a grant is
+## not a purchase and has no business moving the level curve — but everything downstream of
+## the land itself is identical, because it is the same code.
+func grant_parcels(count: int) -> int:
+	var granted: int = mini(count, MAX_PARCELS - parcels_bought)
+	if granted <= 0:
+		return 0
+
+	parcels_bought += granted
 	radius = radius_for(parcels_bought)
 
 	var tiles_added := _expand(radius)
-	_award_purchase_xp()
-
 	land_purchased.emit(radius, tiles_added)
 	state_changed.emit()
-	return true
+	return granted
 
 
 ## Buying land is the single biggest thing a player does, so it pays accordingly —

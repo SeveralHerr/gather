@@ -1,14 +1,15 @@
 extends RefCounted
 
-## An island is scenery until the home coastline reaches it.
+## An island is a place from the first frame; it is only dangerous once you can walk there.
 ##
-## Nothing is placed on one, nothing wanders onto it, and its grass does not count toward
-## anybody's ceiling until the player can walk there. The failure this guards against is not
-## a crash - it is a fully stocked ore island sitting across the water for the whole early
-## game, which looks entirely correct in a screenshot and is only wrong in relation to a
-## coastline the screenshot does not show.
+## `connected` gates enemies and the boss, and nothing else. Resources grow on a closed
+## island - that is what makes the ore island across the water read as an ore island and
+## worth saving up for, and a bare green disc promises nothing. The failure this guards
+## against is not a crash: it is one of those two halves quietly acquiring the other's rule,
+## which looks entirely correct in a screenshot and is wrong only in relation to a coastline
+## the screenshot does not show.
 ##
-## The gate is one bool travelling through four systems, and the interesting cases are the
+## The gate is one bool travelling through several systems, and the interesting cases are the
 ## ones where it has to survive a trip: rebuilding an island's region on load, and a save
 ## written before the gate existed.
 
@@ -66,18 +67,53 @@ func test_being_reachable_does_not_override_opting_out() -> String:
 	return _T.assert_false(arena.accepts_ambient_enemies(), "a reached arena still gets no wanderers")
 
 
-## And the other direction: an island that wants resources still gets none while closed.
-func test_wanting_resources_does_not_override_being_closed() -> String:
+## And the other direction, which is where the two halves part company: a grove nobody can
+## reach yet still grows its trees, and still gets no wanderers.
+##
+## The resource half is the assertion that costs something to keep. It is one word away from
+## the enemy half at every call site, and the version that gated both left every island a
+## bare disc for the whole stretch the player spends looking at it and deciding whether to
+## buy the land.
+func test_a_closed_island_grows_resources_but_gets_no_enemies() -> String:
 	var grove := LandRegion.new()
 	grove.ambient_resources = true
 	grove.ambient_enemies = true
 	grove.connected = false
 
-	var err: String = _T.assert_false(grove.accepts_ambient_resources(), "an unreached grove grows nothing")
+	var err: String = _T.assert_true(
+		grove.accepts_ambient_resources(), "an unreached grove still grows its trees"
+	)
 	if err != "":
 		return err
 
 	return _T.assert_false(grove.accepts_ambient_enemies(), "an unreached grove gets no wanderers")
+
+
+## Opening an island changes exactly one of the two answers. Stated as a transition rather
+## than as two independent reads, because the bug shape here is a refactor that reunites the
+## halves - and a pair of static assertions above would both still pass if `connected` were
+## put back in front of the resource check, as long as somebody also updated them.
+func test_opening_an_island_adds_enemies_and_nothing_else() -> String:
+	var grove := LandRegion.new()
+	grove.connected = false
+
+	var resources_before := grove.accepts_ambient_resources()
+	var enemies_before := grove.accepts_ambient_enemies()
+
+	grove.connected = true
+
+	var err: String = _T.assert_true(
+		resources_before and grove.accepts_ambient_resources(),
+		"resources were unaffected by the coastline arriving"
+	)
+	if err != "":
+		return err
+
+	err = _T.assert_false(enemies_before, "and enemies were held back before it did")
+	if err != "":
+		return err
+
+	return _T.assert_true(grove.accepts_ambient_enemies(), "and are let in once it has")
 
 
 ## One cell is enough. An island's interior is a single connected patch of grass, so
