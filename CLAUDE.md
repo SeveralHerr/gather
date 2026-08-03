@@ -334,7 +334,7 @@ Two things guard this now, and both must be maintained:
 show you — the only way to catch it is to load a save written before your change.
 `test/fixtures/` holds committed saves for exactly that — see its README.
 `demo_homestead_save` is the current-format one (a maxed island with a walled house, chests,
-both stations, turrets and workers, and a furnace left deliberately mid-smelt at 54 of 60);
+both stations, turrets and workers, and a furnace left deliberately mid-smelt at 52 of 60);
 regenerate it with the `build_demo_world` devtools verb rather than curating it by hand.
 `demo_homestead_save_v1` is a **backward-compatibility fixture and must never be
 regenerated** — its whole value is that it predates the double-encoding removal, the

@@ -167,3 +167,54 @@ func test_get_item_answers_null_for_an_unregistered_type_instead_of_raising() ->
 	return _T.assert_true(
 		items.get_item(Types.Item.Tree) == null,
 		"a type that lives in resources.gd answers null here rather than raising")
+
+
+# --- a station with no recipe -------------------------------------------------
+
+func test_a_station_payload_can_express_a_running_timer_with_no_recipe() -> String:
+	# save() writes selected_recipe -1 whenever the recipe is null, and timer_status false
+	# whenever the timer runs — nothing stops both being written at once. That combination
+	# threw "Invalid access to property or key 'product' on a base object of type 'Nil'" on
+	# the first tick after a load, because _on_timeout read selected_recipe.product.
+	var payload := {
+		"x": 0.0, "y": 0.0,
+		"selected_recipe": -1,
+		"count": 54,
+		"starting_count": 60,
+		"wait_time": 8.0,
+		"time_left": 3.4,
+		"timer_status": false,
+		"type": Types.Item.Furnace,
+		"filepath": "343",
+	}
+
+	var recipe_check: String = _T.assert_eq(
+		int(payload["selected_recipe"]), -1, "the payload really does say 'no recipe'")
+	if recipe_check != "":
+		return recipe_check
+
+	var running_check: String = _T.assert_false(
+		bool(payload["timer_status"]), "and 'timer running' at the same time")
+	if running_check != "":
+		return running_check
+
+	# The invariant the loader has to restore: no recipe means no work order, so the count
+	# must not survive either. Leaving count > 0 is not inert — _process restarts a stopped
+	# timer whenever count > 0, so the station would tick straight back into the crash.
+	return _T.assert_true(
+		int(payload["count"]) > 0,
+		"count is non-zero in the payload, which is why load() has to zero it rather than "
+		+ "just stopping the timer")
+
+
+func test_recipe_id_minus_one_resolves_to_no_recipe() -> String:
+	# Both lookups answer null for -1, which is what makes the guard reachable rather than
+	# theoretical.
+	var furnace: Variant = Recipes.get_furnace_recipe(-1)
+	var sawmill: Variant = Recipes.get_sawmill_recipe(-1)
+
+	var f: String = _T.assert_true(furnace == null, "get_furnace_recipe(-1) is null")
+	if f != "":
+		return f
+
+	return _T.assert_true(sawmill == null, "get_sawmill_recipe(-1) is null")

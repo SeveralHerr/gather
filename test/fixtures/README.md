@@ -28,11 +28,18 @@ A maxed island — 12 parcels, radius 34 — with a player-built homestead on it
 - 4 bone turrets on the corners, 2 bone workers and 2 stone workers flanking
 - level 12, banked skill points, wood/stone/planks in the bag
 
-**The furnace is deliberately left mid-smelt** — 54 ore of an original 60, part-way through
-the current one. That is not decoration: it is the state `gather-9x0` was about, where a
-load restored `count` and `starting_count` (so the progress bar looked right) while
+**The furnace is deliberately left mid-smelt** — iron bars, 52 of an original 60, part-way
+through the current one. That is not decoration: it is the state `gather-9x0` was about,
+where a load restored `count` and `starting_count` (so the progress bar looked right) while
 silently restarting the in-flight item. A fixture that only ever holds idle stations cannot
 catch that coming back.
+
+It also has to hold a *real* recipe. The first attempt at this fixture had a running timer
+with `selected_recipe: -1`, which is a state `save()` can write whenever the recipe is null
+— and loading it threw `Invalid access to property or key 'product' on a base object of
+type 'Nil'` on the first tick, because `_on_timeout` read `selected_recipe.product`. Both
+sides now enforce the invariant (no recipe means no work order), but the fixture carrying a
+real one is what keeps the happy path honest.
 
 Regenerate with the `build_demo_world` devtools verb rather than by hand — placement scans
 for a clear site because the island is noise-thresholded, so a fixed offset is open water

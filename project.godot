@@ -30,15 +30,8 @@ DevTools="*res://addons/godot_selftest/dev_tools.gd"
 
 [display]
 
-; A bigger window, deliberately with stretch disabled: the viewport grows with the
-; window instead of being scaled up, so sprites keep their exact pixel size and the
-; extra window area becomes extra visible world. Every HUD element is anchored to a
-; viewport edge (UI2 CanvasLayer) or to the camera's visible world rect
-; (Player/Camera2D/UI, sized by ui/camera_hud.gd), so these numbers are a starting
-; size and not a layout the UI depends on.
 window/size/viewport_width=1920
 window/size/viewport_height=1080
-window/stretch/mode="disabled"
 
 [dotnet]
 
@@ -46,10 +39,6 @@ project/assembly_name="Gather"
 
 [editor_plugins]
 
-; The virtual joystick behind ui/mobile_controls.tscn. The overlay instances
-; addons/virtual_joystick/virtual_joystick_scene.tscn directly, so the game does
-; not need the plugin enabled to run. This is only so the editor registers the
-; custom type and the addon stops showing up as disabled.
 enabled=PackedStringArray("res://addons/virtual_joystick/plugin.cfg")
 
 [input]
@@ -132,11 +121,4 @@ debug_panel={
 
 [rendering]
 
-; Desktop stays on Forward+. A Godot 4 web export cannot use it — the browser
-; target only supports the Compatibility (OpenGL/WebGL2) backend, and a Forward+
-; build exports cleanly but then fails to start in the browser, so the breakage
-; only ever surfaces on itch.io. The per-platform override keeps the desktop
-; build byte-identical while giving the web build a backend it can actually run.
-renderer/rendering_method="forward_plus"
-renderer/rendering_method.web="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

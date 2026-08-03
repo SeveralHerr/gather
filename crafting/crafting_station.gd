@@ -95,8 +95,20 @@ func cancel() -> int:
 
 
 func _on_timeout():
+	# A running timer with no recipe is a state the save format can express and the loader
+	# could not survive: save() writes selected_recipe -1 whenever the recipe is null, and
+	# load() restores the running timer either way — so the first tick read `.product` off
+	# null and threw "Invalid access to property or key 'product' on a base object of type
+	# 'Nil'". Stop rather than produce: there is nothing to make.
+	if selected_recipe == null:
+		timer.stop()
+		count = 0
+		starting_count = 0
+		order_changed.emit()
+		return
+
 	count -= 1
-	PickUpManager.create_pickup(GameItems.get_item( selected_recipe.product), position + Vector2(0, 6))
+	PickUpManager.create_pickup(GameItems.get_item(selected_recipe.product), position + Vector2(0, 6))
 
 	# Every produced item scores, so a station ticking away pays out visibly. Found by
 	# group rather than exported so a station placed at runtime needs no wiring.
@@ -156,6 +168,15 @@ func load(dict):
 	# How long ONE item takes. Held in a local because start() below overwrites it.
 	var interval: float = maxf(0.01, float(dict.get("wait_time", timer.wait_time)))
 	timer.wait_time = interval
+
+	# Same invariant, enforced on the way in: no recipe means no work order, so a payload
+	# that pairs a running timer with selected_recipe -1 comes back stopped instead of
+	# ticking toward a production it cannot perform.
+	if selected_recipe == null:
+		timer.stop()
+		count = 0
+		starting_count = 0
+		return
 
 	# `== true` on a JSON value raises "Invalid operands" against a String rather than
 	# evaluating false — the trap bone_worker.gd:782 documents at length. Compare the type.

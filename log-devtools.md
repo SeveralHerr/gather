@@ -3119,7 +3119,7 @@ Guidelines that make an entry useful later:
   from pid 22412, but ... devtools_owner.json says pid 11968 owns this bus`. The detection
   is good and it is exactly what the owner file is for; the problem is that the *first*
   call failed opaquely and the diagnosis only appeared on the retry.
-  - [G-100] status: open | seen: 1 | harness: 0.8.0
+  - [G-100] status: open | seen: 2 | harness: 0.8.0
   - Improvement: check the owner file before writing the command rather than when reading a
     crossed reply, so the very first call fails with the pid mismatch instead of with an
     empty response the caller has to interpret.
@@ -3128,3 +3128,39 @@ Guidelines that make an entry useful later:
   a `visible = false` panel, so putting it on screen needs an interaction I did not stage;
   the anchor change is arithmetic (594/1152 = 51.6% -> anchor 0.5) and wants a human eye on
   it regardless, which is what gather-t9x said in the first place.
+
+## 2026-08-03 — Installed the demo fixture into slot 3; a user-reported crash it exposed
+
+- Value: **warranted** — the run found a crash that no gate had any way to see, and the
+  fixture I generated was itself the thing that triggered it.
+  - Expected: installing the fixture into a slot and loading it should exercise the whole
+    slot + v3 + fidelity chain against a real file.
+  - Got: `Invalid access to property or key 'product' on a base object of type 'Nil'`,
+    reported by the user from a real load. `crafting_station.save()` writes
+    `selected_recipe: -1` whenever the recipe is null and `timer_status: false` whenever the
+    timer runs, and nothing stopped both being written together — so **the save format can
+    express a state the load path cannot survive**. My generated fixture happened to be
+    exactly that (the demo furnace had no unlocked recipe). Fixed on both sides; the fixture
+    now carries a real IronBar recipe at 52/60.
+  - Cheaper: nothing, and that is the uncomfortable part — lint, 369 tests and four of my
+    own runtime passes all went green over this. Nothing asserted that `save()` cannot emit
+    a payload `load()` chokes on, which is a different question from "does a round-trip
+    preserve state".
+
+- Gap: **three stale game instances accumulated across the session and silently fought over
+  the bus** — [G-100] again, and worse than the first sighting. Symptoms this time were a
+  `ping` that reported "No response" immediately before a `get-state` that worked, a
+  `screenshot` that answered `Another Godot instance owns this bus`, and slot 3 growing from
+  53218 to 61461 bytes because some other instance saved over it. `Get-Process | Where-Object
+  ProcessName -like 'Godot*'` showed pids 5348, 13788 and 19148 alive at once. My `quit` had
+  been landing on whichever instance owned the bus, leaving the rest running.
+  - [G-100] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: as well as the pre-write owner check already proposed, `launch` should
+    record its pid and `quit` should offer `--all` (or at least report how many instances of
+    this project are alive), so a session cannot silently accumulate them. A stale instance
+    that *writes save files* is not a read-only nuisance.
+
+- Note: I lost the reach figure for this run by deleting the scene-tree and scripts-seen
+  captures before writing the row, then trying to pipe `--run /dev/stdin`, which does not
+  exist on Windows. Recorded with `--no-reach` rather than skipping the row. Capture, record,
+  then clean up — in that order.
