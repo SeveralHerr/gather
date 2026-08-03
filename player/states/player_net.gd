@@ -1,10 +1,7 @@
-extends Node
-
-var fsm: StateMachine
-var p : Player
+extends PlayerState
 
 
-func enter():
+func enter() -> void:
 	p = PlayerManager.player
 	if not p.hot_bar_inventory.selected_slot_data:
 		return
@@ -26,14 +23,34 @@ func enter():
 		p.animation_player.play("Net_Left")
 
 
+## Puts the net away and drops the animation connection, however the state is left.
+##
+## Both early returns in enter() above land here without having armed anything — nothing
+## selected, or something that is not a net — which is why _stow_net() is written to tolerate
+## an area that was never armed and why the disconnect is guarded. That is the general rule
+## for exit() (see PlayerState), not a quirk of this state.
+##
+## Before there was an exit() to hold this, leaving PlayerNet by any route other than its own
+## animation_finished left the net live and connected: the connection is made on the PLAYER's
+## AnimationPlayer, so it outlived the state and fired for Attack too (gather-uem).
+func exit() -> void:
+	if p == null:
+		return
+
+	_stow_net(p.net)
+
+	if p.animation_player != null and p.animation_player.animation_finished.is_connected(animation_finished):
+		p.animation_player.animation_finished.disconnect(animation_finished)
+
+
 ## Swings the net out: one connection, visible, monitoring.
 ##
-## The connect is guarded because the player FSM has no exit() hook — change_to() only
-## calls enter() (state_machine.gd) — so nothing ever tears a state down on the way out
-## and every re-entry runs this line again. Swinging the net twice therefore reconnected
-## the same callable and Godot answered with "Signal 'body_entered' is already connected",
-## which is exactly the shape enemy_follow.gd was fixed into under gather-0du. There the
-## disconnect lives in exit(); here it has to live in _stow_net(), the one path out.
+## The connect is guarded because enter() can run twice without the state ever being left —
+## change_to() skips exit() when the machine is already in this state, so a repeat press
+## re-runs enter(). Unguarded that reconnected the same callable and Godot answered with
+## "Signal 'body_entered' is already connected", which is the shape enemy_follow.gd was fixed
+## into under gather-0du. A stacked connection is not merely noisy: on_hit consumes a Net
+## item, so two of them cost two nets for one skeleton.
 ##
 ## `monitoring` is written directly here on purpose. enter() runs from the hotbar's use
 ## path, not from a physics callback, so the area is not locked and there is nothing to
@@ -58,11 +75,6 @@ func _arm_net(area: Area2D) -> void:
 ## for the rest of the frame (gather-uem). `visible` is a CanvasItem property with no such
 ## constraint and is written immediately — deferring it too would only blur which of these
 ## two lines actually had the physics constraint.
-##
-## The disconnect is guarded because both early returns in enter() happen before _arm_net()
-## ever runs: enter the state with nothing selected, or with something that is not a net,
-## and animation_finished still arrives here with body_entered never connected. Godot
-## answers an unconnected disconnect with an error of its own.
 func _stow_net(area: Area2D) -> void:
 	if area == null:
 		return
@@ -99,12 +111,10 @@ func find_closest_object(nodes, type):
 
 ## True only while this state is the one the machine is running.
 ##
-## This state connects to the PLAYER's AnimationPlayer and that connection outlives the
-## state — it is made once and never disconnected — so every animation that finishes
-## anywhere, Attack and Gather included, arrives at animation_finished below. Without this
-## check, finishing an attack stowed the net and yanked the player back to PlayerIdle for
-## the rest of the session. player_gather.gd carries the same guard for the same reason
-## (gather-3zg.2); this file never got it (gather-uem).
+## exit() now drops the AnimationPlayer connection, so the stale-handler case this was
+## written for is closed at the source. It stays as the handler's own guard: change_to() is
+## reachable from item use and from player.gd, and a comparison is cheaper than reasoning
+## about every path into this file (gather-uem, gather-3zg.2).
 func _is_current_state() -> bool:
 	return fsm != null and fsm.state == self
 
@@ -114,5 +124,4 @@ func animation_finished(_anim_name):
 		return
 
 	p.animation_player.stop()
-	_stow_net(p.net)
 	fsm.change_to("PlayerIdle")

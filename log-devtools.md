@@ -3330,3 +3330,68 @@ Guidelines that make an entry useful later:
   and a `get-state` on the door's `_occupants` were enough to isolate a physics-detection
   failure to the body type in about four commands, and the `[G-101]` worker-index instability
   logged earlier did not bite again because every read here was keyed on a node path.
+
+## 2026-08-03 — extensibility review of the whole repo (read-only)
+
+- Value: **overkill** — nothing was changed, and both gates confirmed what a read already
+  showed. Logged anyway, because a clean gate on a review turn is exactly the entry that
+  goes unwritten.
+  - Expected: lint and the unit suite would come back clean, since the working tree is a
+    finished worker/door fix that /verify already covered last turn.
+  - Got: `lint: 0 error(s), 0 warning(s) -> exit 0` and `Total: 392 | Passed: 392 |
+    Failed: 0 | Skipped: 0`. stderr carried only the deliberate corrupt-payload fixtures
+    (`Parse JSON failed`, `skipping an entry with no filepath`), which are the assertions of
+    `test_save_load.gd` rather than errors. Neither run told me anything about the review's
+    actual subject — the shape of the extension points.
+  - Cheaper: reading the eight registry files (`items/`, `crafting/recipes.gd`,
+    `systems/skill_tree.gd`, `enemies/enemy_spawner.gd`, `world/island_manager.gd`) and
+    grepping `Types.Item.` by file, which is what produced every finding. ~2 minutes, no
+    Godot. The suite run was worth its 40s only as a baseline to hand the user, not as
+    evidence.
+
+- Gap: **no gaps this turn.** A design review has no runtime claim to make, so the harness
+  had nothing to be missing for. Worth stating plainly rather than leaving blank: the
+  absence here is the task's, not the tooling's. One note for the record — `harness-version`
+  requires a live game (`game not running: 'harness_version' was never picked up`), so a
+  read-only turn cannot fill the `harness:` field from the tool; 0.8.0 is carried forward
+  from the previous entry. That is a known property of the bus, not a new gap.
+
+## 2026-08-03 — StateMachine gains an exit() hook (gather-rcm)
+
+- Value: **warranted** — runtime produced a connection count no reading of the diff could.
+  - Expected: leaving PlayerAttack by any route other than its own animation_finished will
+    now leave Player/Attack.monitoring false and drop the state's animation_finished
+    connection — the old code disarmed only inside the handler, so an interrupted swing
+    stayed armed and connected.
+  - Got: exactly that, read off the live player. Holding the swing open with
+    `set-game-speed 0.02`, `get_signal_connection_list("animation_finished")` on
+    `/root/Main/World/Player/AnimationPlayer` returned
+    `[{'callable': 'Node(player_attack.gd)::animation_finished', ...}]` with
+    `monitoring: true`; one `change_to PlayerGather` later the same two reads were `Result: []`
+    and `monitoring: false`. The net case is the stronger one, because its `monitoring` write
+    is deferred: after `change_to PlayerIdle` + `wait-frames 3`, `Net.monitoring` was false,
+    `visible` false and `body_entered` connections `[]` — the free-second-catch window from
+    gather-uem, closed at the source rather than guarded around.
+  - Cheaper: nothing. The claim is about signal connections on a node the states do not own,
+    accumulated across transitions; the unit suite can assert that `exit()` is *called* (and
+    now does, in test_state_machine.gd) but cannot see the player's shared AnimationPlayer.
+
+- The headless half earned its place separately, and by failing: `run_tests.gd` reported
+  `Total: 392 | Passed: 392 | Failed: 0` **and** printed
+  `SCRIPT ERROR: Invalid assignment of property or key 'state' with value of type 'Node' on a
+  base object of type 'Node (StateMachine)'` to stderr. Typing `StateMachine.state` as
+  `PlayerState` broke `test_player_net.gd:150`, which assigned a bare `Node`, and the suite
+  stayed green because a runtime error inside a `-> String` test still returns `""`. This is
+  gather-1t9 exactly as documented, hit for real — the green count would have shipped it.
+
+- Gap: **reach cannot see a base class that owns no node of its own** — the same shape as
+  [G-102], so bumping that rather than filing a new one. `verify_ledger.py reach` reported
+  `worktree: reached 5/8 ... NOT reached: player/states/player_state.gd`, while all four
+  states that extend it were loaded and driven. A `scene-tree` node reports only its leaf
+  `script` path, so a `class_name` base is structurally invisible to the metric even when
+  every one of its subclasses ran.
+  - [G-102] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: unchanged from the original entry — credit a script when a reached node's
+    script inherits from it, or let `devtools_config.json` declare `reach_aliases`. The
+    inheritance case is the cheaper half: the harness already has the script path of every
+    reached node, and `GDScript.get_base_script()` walks the chain without any project config.

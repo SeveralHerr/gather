@@ -141,12 +141,19 @@ func test_stowing_twice_is_a_no_op() -> String:
 
 
 func test_a_foreign_current_state_is_rejected() -> String:
-	# animation_finished is connected to the PLAYER's AnimationPlayer and never
-	# disconnected, so every animation that finishes anywhere — Attack, Gather — arrives
-	# there. Without this check, finishing an attack stowed the net and forced the player
-	# back to PlayerIdle for the rest of the session (gather-3zg.2 fixed the identical
-	# defect in player_gather.gd; this file never got it).
-	var other := Node.new()
+	# animation_finished is connected to the PLAYER's AnimationPlayer, so every animation that
+	# finishes anywhere — Attack, Gather — used to arrive there: the connection outlived the
+	# state because StateMachine had no exit() to drop it in. Without this check, finishing an
+	# attack stowed the net and forced the player back to PlayerIdle for the rest of the
+	# session (gather-3zg.2 fixed the identical defect in player_gather.gd; this file never
+	# got it). exit() now drops the connection at the source (gather-rcm) and this guard is
+	# the second line of defence, so it is still worth holding.
+	#
+	# A PlayerState rather than a bare Node: StateMachine.state is typed now, and assigning a
+	# plain Node to it raises. That raise was invisible here — the suite stayed green because
+	# a runtime error inside a `-> String` test still returns "" (gather-1t9) — and only the
+	# runner's stderr showed it.
+	var other := PlayerState.new()
 	machine.state = other
 	state.fsm = machine
 
