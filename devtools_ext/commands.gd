@@ -40,6 +40,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("tile_at", _cmd_tile_at)
 	dev.register_command("island_census", _cmd_island_census)
 	dev.register_command("place_worker", _cmd_place_worker)
+	dev.register_command("place_tile", _cmd_place_tile)
 	dev.register_command("load_worker", _cmd_load_worker)
 	dev.register_command("worker_state", _cmd_worker_state)
 	dev.register_command("press_key", _cmd_press_key)
@@ -1099,9 +1100,136 @@ const BUILD_ITEMS := {
 
 
 ## The cell `dx`,`dy` away from the player, in tilemap coordinates.
+## The cell a verb is aimed at: absolute `x`/`y` when given, otherwise a `dx`/`dy` offset
+## from the player's own cell.
+##
+## The absolute branch is not decoration. Without it `tile_at --args '{"x":3,"y":-2}'`
+## silently fell through to the player's cell and reported that instead, so six queries for
+## six different cells all came back describing the same one — a read verb that answers a
+## question you did not ask (gather-tfb).
 func _cell_near_player(handler: TileMapHandler, args: Dictionary) -> Vector2i:
+	if args.has("x") or args.has("y"):
+		return Vector2i(int(args.get("x", 0)), int(args.get("y", 0)))
 	var origin: Vector2i = handler.tileMap.local_to_map(_player().global_position)
 	return origin + Vector2i(int(args.get("dx", 0)), int(args.get("dy", 0)))
+
+
+## Registry lookup by display name, insensitive to case, spaces, underscores and hyphens, so
+## "Bone Worker", "bone_worker" and "boneworker" all land. GameItems.get_type() is an exact
+## string match, which is why it is not used here.
+func _name_key(text: String) -> String:
+	return text.to_lower().replace(" ", "").replace("_", "").replace("-", "")
+
+
+func _item_by_name(wanted: String) -> GameItem:
+	var key := _name_key(wanted)
+	for type in GameItems.item_list.keys():
+		var item: GameItem = GameItems.item_list[type]
+		if item != null and _name_key(item.name) == key:
+			return item
+	return null
+
+
+func _placeable_names() -> Array:
+	var names: Array = []
+	for type in GameItems.item_list.keys():
+		var item: GameItem = GameItems.item_list[type]
+		if item != null and item.is_placeable:
+			names.append(item.name)
+	names.sort()
+	return names
+
+
+## Places any placeable tile from the registry, by name, at a chosen cell.
+##
+## Exists because place_station (sawmill/furnace), place_build (walls/floors) and
+## place_worker (bone workers) were three partial reimplementations of one operation, each
+## covering its own author's case, and a runtime pass that needed a chest beside a worker
+## could not get one from any of them (G-077).
+##
+## Two things it does that its predecessors did not:
+##
+##  * writes atlas_location, never tile_atlas_location. The latter is the inventory icon
+##    cell; feeding it to a scenes-collection source writes a cell that instances nothing
+##    and still reports success (gather-w41).
+##  * reads the cell back instead of assuming the write took. main.gd:set_tile returns
+##    early and silently whenever disableSetTile is set, which any open UI does — the exact
+##    shape of the "placement silently no-opped" hour that produced G-077. That flag is
+##    reported on every call.
+##
+## It writes the tilemap directly, so it does NOT run GameItemPlaceable._place() and awards
+## no build xp. It is a setup verb; anything asserting the real placement chain still has to
+## go through use_slot_data.
+func _cmd_place_tile(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var wanted: String = str(args.get("name", args.get("type", "")))
+	var item := _item_by_name(wanted)
+	if item == null:
+		return {"success": false, "message": "unknown item '%s'" % wanted,
+			"data": {"refused_reason": "unknown_item", "placeable": _placeable_names()}}
+	if not item.is_placeable:
+		return {"success": false, "message": "'%s' is not placeable" % item.name,
+			"data": {"refused_reason": "not_placeable", "placeable": _placeable_names()}}
+
+	var as_wall: bool = bool(args.get("as_wall", item is GameItemWall2))
+	var force: bool = bool(args.get("force", false))
+
+	var cell: Vector2i
+	if bool(args.get("near", false)):
+		var found = _free_cell_near(handler, player, as_wall)
+		if found == null:
+			return {"success": false, "message": "no free cell near the player",
+				"data": {"refused_reason": "no_free_tile"}}
+		cell = found
+	else:
+		cell = _cell_near_player(handler, args)
+
+	var occupied: bool = handler.is_occupied(cell, true, as_wall)
+	if occupied and not force:
+		return {"success": false, "message": "cell %s is occupied (pass force to overwrite)" % cell,
+			"data": {"refused_reason": "occupied", "cell": {"x": cell.x, "y": cell.y}}}
+
+	handler.set_tile(cell, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+	var written_source: int = handler.tileMap.get_cell_source_id(item.layer, cell)
+	var placed: bool = written_source == item.tile_source_id
+	var position: Vector2 = handler.tileMap.to_global(handler.tileMap.map_to_local(cell))
+	return {
+		"success": placed,
+		"message": ("placed %s at %s" % [item.name, cell]) if placed else
+			("set_tile did not take at %s (disableSetTile=%s)" % [cell, handler.disableSetTile]),
+		"data": {
+			"item": item.name,
+			"cell": {"x": cell.x, "y": cell.y},
+			"position": {"x": position.x, "y": position.y},
+			"layer": item.layer,
+			"source": item.tile_source_id,
+			"atlas": {"x": item.atlas_location.x, "y": item.atlas_location.y},
+			"is_scene_tile": item.is_scene_tile,
+			"as_wall": as_wall,
+			"occupied_before": occupied,
+			"placed": placed,
+			"written_source": written_source,
+			"set_tile_disabled": handler.disableSetTile,
+		},
+	}
+
+
+## First unoccupied cell walking outward from the player. Shared with place_station's own
+## ring search so the two cannot pick different squares.
+func _free_cell_near(handler: TileMapHandler, player: Node2D, as_wall: bool):
+	var origin: Vector2i = handler.tileMap.local_to_map(handler.tileMap.to_local(player.global_position))
+	for ring in range(1, 9):
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				var candidate: Vector2i = origin + Vector2i(dx, dy)
+				if not handler.is_occupied(candidate, true, as_wall):
+					return candidate
+	return null
 
 
 ## Places one building tile at an offset from the player. Goes through set_tile, the
