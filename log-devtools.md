@@ -3636,3 +3636,29 @@ Guidelines that make an entry useful later:
 - Gap: **no new gaps this turn.** `step-time` in 4-second slices with a `current_state` read
   between them is a good shape for watching a state machine progress, and it needed nothing
   the harness did not already have.
+
+## 2026-08-03 — EnemyFollow checks the bodies already in the area (gather-83d)
+
+- Value: **warranted** — the defect is entirely about which physics events the engine does and
+  does not generate, and the fix was confirmed by making the bug happen first.
+  - Expected: checking get_overlapping_bodies in enter() makes an enemy attack a player who is
+    already inside the area, where body_entered can never fire.
+  - Got: the reproduction is the good part. With the enemy teleported onto the player,
+    `run-method --node .../AttackRange --method get_overlapping_bodies` returned
+    `['Player:<CharacterBody2D#...>', 'SpiderEnemy:<CharacterBody2D#...>']` — the player
+    demonstrably inside the area — while `current_state` sat at `EnemyFollow` across three
+    4-second steps. Calling `enter()` on the follow state then moved the machine to
+    `EnemyAttack` immediately and the player went `10 -> 7`. The natural walk-in chain still
+    goes `Idle -> Follow -> Attack` and still kills.
+  - Cheaper: nothing. "Is the player in the area" and "did the engine send an entry event" are
+    different questions, and only a running physics server answers the second one.
+
+- Worth noting for the next person staging a fight: `set-state` on an enemy's `position` does
+  NOT generate `body_entered` for its own areas — the same broadphase behaviour that made the
+  bone worker invisible to the door until it became an AnimatableBody2D. That is what turned a
+  teleport into a false negative last turn; this turn it is what made the bug reproducible on
+  demand. Teleporting is a fine way to CREATE an overlap and a useless way to trigger one.
+
+- Gap: **no new gaps this turn.** `get_overlapping_bodies` over `run-method` is the read that
+  made this diagnosable in one call — it separated "the geometry is wrong" from "the event
+  never came", which is the whole question.
