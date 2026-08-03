@@ -59,6 +59,8 @@ func save():
 		"x": position.x,
 		"y": position.y,
 		"data": inv,
+		# See SaveLoad.CHUNK_KIND (gather-34n).
+		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343"
 	}
 

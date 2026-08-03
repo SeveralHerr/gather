@@ -259,3 +259,50 @@ func test_the_live_paths_are_under_user() -> String:
 		SaveLoad.TEMP_SAVE_PATH.begins_with("user://"),
 		"the temp file is under user:// too, so the rename over SAVE_PATH is a same-volume move"
 	)
+
+
+# --- chunk kind tagging (gather-34n) -----------------------------------------
+
+
+func test_an_untagged_payload_is_accepted_by_anything() -> String:
+	# Every save written before the tag existed has no "kind", and those payloads must keep
+	# matching exactly as they did — the tag can only ever NARROW a match that would
+	# otherwise have been made blind. Getting this backwards would invalidate every existing
+	# save at once, which is the failure this whole file exists to prevent.
+	var node := CraftingStation.new()
+	var accepted: bool = SaveLoad.chunk_kind_matches({"x": 0.0, "y": 0.0}, node)
+	node.free()
+
+	return _T.assert_true(accepted, "a payload with no kind still applies")
+
+
+func test_a_payload_is_refused_by_a_different_kind_of_node() -> String:
+	# The hazard the tag exists for. Chunk payloads are matched to nodes by POSITION alone,
+	# and all four chunk classes carry the same dummy "filepath": "343", so a turret's
+	# payload could be handed to a worker that ended up on the same coordinates. The
+	# receiving load() is fully defaulted, so it would not raise — it would quietly restore
+	# defaults for everything, which is this file's signature failure mode.
+	var turret := BoneTurret.new()
+	var station := CraftingStation.new()
+
+	var payload := {"x": 0.0, "y": 0.0, SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(turret)}
+	var to_turret: bool = SaveLoad.chunk_kind_matches(payload, turret)
+	var to_station: bool = SaveLoad.chunk_kind_matches(payload, station)
+
+	turret.free()
+	station.free()
+
+	var err: String = _T.assert_true(to_turret, "the turret's own payload still applies to it")
+	if err != "":
+		return err
+	return _T.assert_false(to_station, "and is refused by a station at the same position")
+
+
+func test_the_kind_is_the_script_class_name() -> String:
+	# Keyed on class_name rather than on the engine class, because all four chunk classes
+	# would otherwise collide on Node2D and the tag would distinguish nothing.
+	var station := CraftingStation.new()
+	var kind: String = SaveLoad.chunk_kind_of(station)
+	station.free()
+
+	return _T.assert_eq(kind, "CraftingStation", "the tag names the script's class")

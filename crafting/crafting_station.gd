@@ -138,6 +138,10 @@ func save():
 		"time_left": timer.time_left,
 		"timer_status": timer.is_stopped(),
 		"type": type,
+		# Which KIND of node wrote this. Chunk payloads are matched to nodes by position
+		# alone, so without it a station's payload could be handed to a worker standing
+		# where a station used to be (gather-34n).
+		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343"
 	}
 

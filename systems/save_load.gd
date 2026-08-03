@@ -461,6 +461,39 @@ func _process(_delta):
 	if Input.is_action_just_pressed("load"):
 		_load()
 
+## The key a chunk payload carries so it can only be applied to the same kind of node that
+## wrote it (gather-34n).
+##
+## Chunk payloads are matched to nodes by POSITION and nothing else, and they all carry the
+## same dummy "filepath": "343" purely to satisfy is_node_entry(). With four chunk classes —
+## CraftingStation, BoneTurret, BoneWorker, TestChest — nothing stopped a turret's payload
+## being handed to a worker that happened to occupy the same coordinates after a world
+## change. The receiving load() is fully defaulted, so it would not raise: it would restore
+## defaults for everything and report nothing, which is this file's signature failure.
+const CHUNK_KIND := "kind"
+
+
+## Whether `dict` may be applied to `chunk`.
+##
+## A payload with no kind is accepted by ANY node, which is what keeps every save written
+## before this change loading exactly as it did. The tag only ever narrows a match that would
+## otherwise have been made blind.
+static func chunk_kind_matches(dict: Dictionary, chunk: Node) -> bool:
+	var kind: String = str(dict.get(CHUNK_KIND, ""))
+	if kind == "":
+		return true
+	return kind == chunk_kind_of(chunk)
+
+
+## The kind string a node writes and is matched on: its script's class_name where it has one.
+## Falls back to the engine class so the answer is never empty.
+static func chunk_kind_of(chunk: Node) -> String:
+	var script: Variant = chunk.get_script()
+	if script is GDScript and script.get_global_name() != "":
+		return str(script.get_global_name())
+	return chunk.get_class()
+
+
 ## Hands the position-keyed payloads collected by _load() to the scene tiles they belong
 ## to. Must run at least one frame after the tilemap is replayed — a scene tile is
 ## instantiated by the engine the frame *after* its cell is written, so calling this any
@@ -480,9 +513,15 @@ func late_load():
 			# that comes back empty with no warning anywhere (gather-x93). Exact equality
 			# happens to hold today only because every placement is an integral multiple of
 			# the tile size; it is one non-integral position away from silently failing.
-			if is_equal_approx(float(dict.get("x", INF)), chunk.position.x) \
-					and is_equal_approx(float(dict.get("y", INF)), chunk.position.y):
-				chunk.call("load", dict)
+			if not (is_equal_approx(float(dict.get("x", INF)), chunk.position.x) \
+					and is_equal_approx(float(dict.get("y", INF)), chunk.position.y)):
+				continue
+
+			# Position alone used to be the whole test. See CHUNK_KIND.
+			if not chunk_kind_matches(dict, chunk):
+				continue
+
+			chunk.call("load", dict)
 
 ## Quicksave. Signature unchanged on purpose: ui/debug_panel_ui.gd, the devtools verbs and
 ## every existing test call this and _load() by name.

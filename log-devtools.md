@@ -3500,3 +3500,30 @@ Guidelines that make an entry useful later:
     `GDScript.get_base_script()` walks the chain), plus a `devtools_config.json` list of
     directories whose scripts are known-RefCounted so they report as `implicit` rather than as
     misses. Four sightings in one session is the argument for doing the inheritance half now.
+
+## 2026-08-03 — chunk payloads carry the kind of node that wrote them (gather-34n)
+
+- Value: **warranted** — the risk in this change is the opposite of the bug it fixes, and only
+  a world containing all four chunk types can show it.
+  - Expected: adding a kind tag narrows chunk matching without breaking any real restoration —
+    every chunk type in the demo world still comes back with its state.
+  - Got: `build_demo_world` then a `_save`/`_load` left 2 CraftingStations, 3 TestChests,
+    4 BoneTurrets and 4 BoneWorkers in the tree, and the chest that matters read back
+    `{'data': [{'count': 40, 'type': 31}, {'count': 8, 'type': 36}, {'count': 12, 'type': 10}],
+    'kind': 'TestChest', ...}` — contents intact and the tag present in what save() writes.
+    A tag that over-refused would have emptied exactly that chest and reported nothing, which
+    is the same silent shape as the bug it guards against.
+  - Cheaper: the matcher itself is pure and is covered headless, including the backward-compat
+    case that an untagged payload still applies to anything. What needed the running game was
+    that the tag does not accidentally refuse a LEGITIMATE payload, and that is only visible
+    against a world with every chunk type in it — which `build_demo_world` builds in one verb.
+
+- Mutation-checked: replacing the kind comparison with `return true` turns
+  `test_a_payload_is_refused_by_a_different_kind_of_node` red on its own
+  (`Total: 415 | Passed: 10 | Failed: 1`), so the guard is asserted rather than assumed.
+
+- Gap: **no new gaps this turn.** `build_demo_world` is the verb that made this cheap — one
+  call for a world containing every persistent node type, which is precisely the fixture a
+  save-format change wants and precisely the thing that is tedious to assemble by hand. Worth
+  recording as a case where a project-registered verb did the work a generic primitive could
+  not. [G-102] was not re-hit here: every file in this change owns a node.

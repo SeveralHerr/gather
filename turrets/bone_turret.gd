@@ -93,6 +93,8 @@ func save():
 		# it kept it (gather-ze1).
 		"loaded": loaded,
 		"data": bullet_data,
+		# See SaveLoad.CHUNK_KIND (gather-34n).
+		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343"
 	}
 

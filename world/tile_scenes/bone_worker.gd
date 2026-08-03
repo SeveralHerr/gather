@@ -872,6 +872,8 @@ func save() -> Dictionary:
 		# right amount lets the normal logic re-plan against the world that actually
 		# loaded, which is both simpler and correct.
 		"data": {"loaded": loaded, "carry": _carry},
+		# See SaveLoad.CHUNK_KIND (gather-34n).
+		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343",
 	}
 
