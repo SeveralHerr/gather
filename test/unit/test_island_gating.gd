@@ -195,3 +195,75 @@ func test_no_island_is_within_reach_of_the_starting_coastline() -> String:
 			return err
 
 	return ""
+
+
+# --- per-island boss state (gather-302) --------------------------------------
+
+
+func test_a_pre_keyed_save_still_reports_its_boss_dead() -> String:
+	# The migration, and the bug it prevents is the one the flag was added for: a save
+	# written before the state became keyed carries only the scalar `boss_defeated`, and
+	# reading it as false resurrects a boss the player has already killed on every load.
+	var manager := IslandManager.new()
+	manager.loadObject({
+		"islands_seed": 1,
+		"boss_defeated": true,
+		"islands": [],
+	})
+	var defeated: bool = manager.is_boss_defeated(IslandManager.BOSS_ID)
+	var via_property: bool = manager.boss_defeated
+	manager.free()
+
+	var err: String = _T.assert_true(defeated, "the old scalar promoted into the keyed state")
+	if err != "":
+		return err
+	# The compatibility property has to agree, or devtools and any older reader disagree
+	# with the thing actually driving the spawn.
+	return _T.assert_true(via_property, "the boss_defeated property reads through to it")
+
+
+func test_a_keyed_save_round_trips() -> String:
+	var manager := IslandManager.new()
+	manager.bosses_defeated[IslandManager.BOSS_ID] = true
+
+	var payload: Dictionary = manager.saveObject()
+	var reloaded := IslandManager.new()
+	reloaded.loadObject(payload)
+
+	var keyed: bool = reloaded.is_boss_defeated(IslandManager.BOSS_ID)
+	# Still written for a build rolled back to the previous loader. One bool, and it is the
+	# difference between a rollback being safe and a killed boss coming back.
+	var scalar_present: bool = payload.get("boss_defeated", false) == true
+	manager.free()
+	reloaded.free()
+
+	var err: String = _T.assert_true(keyed, "the keyed state survived the round trip")
+	if err != "":
+		return err
+	return _T.assert_true(scalar_present, "and the legacy scalar is written alongside it")
+
+
+func test_an_undefeated_island_is_reported_undefeated() -> String:
+	# The negative case, so the two above cannot pass by everything reading true.
+	var manager := IslandManager.new()
+	var fresh: bool = manager.is_boss_defeated(IslandManager.BOSS_ID)
+	var unknown: bool = manager.is_boss_defeated("no_such_island")
+	manager.free()
+
+	var err: String = _T.assert_false(fresh, "a fresh manager has no dead bosses")
+	if err != "":
+		return err
+	return _T.assert_false(unknown, "and an island with no boss is not 'defeated'")
+
+
+func test_every_boss_definition_names_a_real_island() -> String:
+	# BOSSES and ISLANDS are two tables that have to agree. A boss keyed to an island id
+	# that does not exist never spawns, and nothing reports it.
+	for island_id in IslandManager.BOSSES:
+		if IslandManager._definition_for(island_id).is_empty():
+			return _T.assert_true(false, "boss '%s' names no island in ISLANDS" % island_id)
+		var boss: Dictionary = IslandManager.BOSSES[island_id]
+		if not EnemyRegistry.has_type(boss["type"]):
+			return _T.assert_true(false,
+				"boss '%s' names unregistered enemy type '%s'" % [island_id, boss["type"]])
+	return ""

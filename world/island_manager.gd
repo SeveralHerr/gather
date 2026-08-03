@@ -191,6 +191,25 @@ const BOSS_REWARD := [
 ## boss island can have, so the cell is always land whatever the seed does to the edge.
 const BOSS_CHEST_OFFSET := Vector2i(0, 2)
 
+## Which islands have a boss, and what each one is. Keyed by island id (gather-302).
+##
+## The four constants above describe THE boss, singular, and they are kept because the
+## devtools verbs and this file's own readers name them — but everything that has to work
+## per island now goes through here. A second boss is an entry in this table plus an entry in
+## ISLANDS; it is not a change to the save format, because `bosses_defeated` below is already
+## keyed rather than scalar.
+##
+## Splitting this out now rather than when the second boss arrives is the whole point: the
+## defeated flag is PERSISTED, so turning a bool into a dictionary later would be a save
+## migration written under deadline. There is exactly one entry to migrate today.
+const BOSSES := {
+	BOSS_ID: {
+		"type": BOSS_TYPE,
+		"chest_offset": BOSS_CHEST_OFFSET,
+		"reward": BOSS_REWARD,
+	},
+}
+
 ## The ore island's seeded veins: a fixed handful of iron and gold, placed at generation
 ## rather than rolled.
 ##
@@ -229,10 +248,27 @@ const VEIN_RING_RADII := [2, 3]
 var tile_map_handler: TileMapHandler
 var resource_manager: ResourceManager2
 
-## Saved, so a killed boss stays killed. Without it the post-load re-assert cannot tell a
-## player who has already cleared the arena from one who has never seen it, and resurrects
-## the boss on every load.
-var boss_defeated := false
+## Which bosses have been killed, keyed by island id. Saved, so a killed boss stays killed:
+## without it the post-load re-assert cannot tell a player who has already cleared the arena
+## from one who has never seen it, and resurrects the boss on every load.
+##
+## A Dictionary rather than the bool this used to be (gather-302). The value is persisted, so
+## the shape had to change at some point; doing it while there is one boss makes the migration
+## a two-line read in loadObject instead of a format problem.
+var bosses_defeated := {}
+
+## The old scalar, kept as a property so devtools and any reader that predates the dictionary
+## still get a truthful answer. Reads through to the dictionary; there is no second copy of
+## the fact to fall out of step.
+var boss_defeated: bool:
+	get:
+		return is_boss_defeated(BOSS_ID)
+	set(value):
+		bosses_defeated[BOSS_ID] = value
+
+
+func is_boss_defeated(island_id: String) -> bool:
+	return bool(bosses_defeated.get(island_id, false))
 
 ## Saved, for exactly the same reason as boss_defeated and against exactly the same bug.
 ## The seeded veins are ordinary layer-1 tiles, so main.gd's tile save carries them and the
@@ -722,19 +758,28 @@ static func _is_interior(cell: Vector2i, land: Dictionary) -> bool:
 ## about to place, because it runs both at world generation and again after a save is
 ## replayed, and only one of those should ever actually place anything.
 func populate_boss_island() -> void:
-	if boss_defeated or not islands.has(BOSS_ID):
+	for island_id in BOSSES:
+		_populate_boss(island_id)
+
+
+## One island's boss and reward chest. Idempotent for the same reason the caller is: this
+## runs at world generation and again after a save is replayed, and only one of those should
+## ever actually place anything.
+func _populate_boss(island_id: String) -> void:
+	if is_boss_defeated(island_id) or not islands.has(island_id):
 		return
 	# The arena is the last thing the progression opens, so the elite waits for it. Spawning
 	# it at world generation put a boss on the far side of the water for the whole game: it
 	# counts against nothing and threatens nobody, but it is on screen from the first frame
 	# and its reward chest is sitting there filled.
-	if not _connected_state(BOSS_ID):
+	if not _connected_state(island_id):
 		return
 
-	var centre: Vector2i = islands[BOSS_ID]["centre"]
-	if _live_boss() == null:
-		_spawn_boss(centre)
-	_place_reward_chest(centre + BOSS_CHEST_OFFSET)
+	var boss: Dictionary = BOSSES[island_id]
+	var centre: Vector2i = islands[island_id]["centre"]
+	if _live_boss(island_id) == null:
+		_spawn_boss(island_id, centre)
+	_place_reward_chest(centre + boss["chest_offset"], boss["reward"])
 
 
 func _spawner() -> EnemySpawner:
@@ -743,12 +788,19 @@ func _spawner() -> EnemySpawner:
 	return tile_map_handler.get_node_or_null("World/EnemySpawner") as EnemySpawner
 
 
-func _live_boss() -> Enemy:
+## The live boss belonging to `island_id`, matched on its enemy type.
+##
+## Type is the only handle a reloaded boss has — it is parented to the EnemySpawner and
+## rebuilt by the ordinary enemy load path, so nothing carries which island it came from.
+## That holds as long as no two bosses share a type, which is a rule worth stating: give the
+## next boss its own EnemyRegistry entry rather than reusing the elite.
+func _live_boss(island_id: String = BOSS_ID) -> Enemy:
 	var spawner := _spawner()
 	if spawner == null:
 		return null
+	var wanted: String = BOSSES.get(island_id, {}).get("type", BOSS_TYPE)
 	for child in spawner.get_children():
-		if child is Enemy and child.type == BOSS_TYPE:
+		if child is Enemy and child.type == wanted:
 			return child
 	return null
 
@@ -756,25 +808,27 @@ func _live_boss() -> Enemy:
 ## Parented to the EnemySpawner rather than to this node, which buys the entire enemy
 ## save/load path for nothing. It costs nothing either: the arena refuses ambient enemies,
 ## so the boss never has company competing for the population cap.
-func _spawn_boss(centre: Vector2i) -> void:
+func _spawn_boss(island_id: String, centre: Vector2i) -> void:
 	var spawner := _spawner()
 	if spawner == null:
 		return
 
-	var boss = spawner.scene_for_type(BOSS_TYPE).instantiate()
+	var type: String = BOSSES.get(island_id, {}).get("type", BOSS_TYPE)
+	var boss = spawner.scene_for_type(type).instantiate()
 	boss.position = tile_map_handler.tileMap.map_to_local(centre)
 	spawner.add_child(boss)
 
 	# After add_child - _ready is what builds the HealthManager this hangs off.
+	# bind() carries which island died, because the signal itself cannot say.
 	if boss.health_manager:
-		boss.health_manager.died.connect(_on_boss_died)
+		boss.health_manager.died.connect(_on_boss_died.bind(island_id))
 
 
-func _on_boss_died() -> void:
-	boss_defeated = true
+func _on_boss_died(island_id: String) -> void:
+	bosses_defeated[island_id] = true
 
 
-func _place_reward_chest(cell: Vector2i) -> void:
+func _place_reward_chest(cell: Vector2i, reward: Array) -> void:
 	if _chest_at(cell) != null:
 		return
 
@@ -783,7 +837,7 @@ func _place_reward_chest(cell: Vector2i) -> void:
 		return
 
 	tile_map_handler.set_tile(cell, chest.tile_source_id, chest.atlas_location, chest.layer, chest.is_scene_tile)
-	_fill_reward_chest(cell)
+	_fill_reward_chest(cell, reward)
 
 
 func _chest_at(cell: Vector2i) -> TestChest:
@@ -797,17 +851,17 @@ func _chest_at(cell: Vector2i) -> TestChest:
 ## The engine instantiates a scene tile a frame after its cell is written, so the chest
 ## node does not exist yet - and TestChest._ready fills inventory_data with three empty
 ## slots, so anything written before that frame would be overwritten anyway.
-func _fill_reward_chest(cell: Vector2i) -> void:
+func _fill_reward_chest(cell: Vector2i, reward: Array) -> void:
 	await get_tree().process_frame
 
 	var chest := _chest_at(cell)
 	if chest == null or chest.inventory_data == null:
 		return
 
-	for i in mini(BOSS_REWARD.size(), chest.inventory_data.inventory_slot_datas.size()):
+	for i in mini(reward.size(), chest.inventory_data.inventory_slot_datas.size()):
 		var slot := SlotData.new()
-		slot.item = GameItems.get_item(BOSS_REWARD[i]["type"])
-		slot.count = BOSS_REWARD[i]["count"]
+		slot.item = GameItems.get_item(reward[i]["type"])
+		slot.count = reward[i]["count"]
 		chest.inventory_data.inventory_slot_datas[i] = slot
 
 
@@ -879,7 +933,12 @@ func saveObject() -> Dictionary:
 		# the placement maths testable without standing up the whole game.
 		"filepath": get_path() if is_inside_tree() else NodePath(),
 		"islands_seed": islands_seed,
-		"boss_defeated": boss_defeated,
+		# Keyed by island id (gather-302). The old scalar is written alongside it so a build
+		# rolled back to the previous loader still finds the arena cleared — it costs one
+		# bool and it is the difference between a rollback being safe and resurrecting a boss
+		# the player has already killed.
+		"bosses_defeated": bosses_defeated.duplicate(),
+		"boss_defeated": is_boss_defeated(BOSS_ID),
 		"ore_veins_seeded": ore_veins_seeded,
 		"islands": saved,
 	}
@@ -889,7 +948,18 @@ func loadObject(loadedDict: Dictionary) -> void:
 	# Every read defaulted: a direct index on a dict written by an older version aborts
 	# the method silently, because a -> void that errors looks exactly like one that ran.
 	islands_seed = int(loadedDict.get("islands_seed", islands_seed))
-	boss_defeated = bool(loadedDict.get("boss_defeated", false))
+
+	# Structural, like every other migration in this project: read the keyed dictionary if the
+	# save has one, otherwise promote the old scalar. A save written before gather-302 carries
+	# only `boss_defeated`, and reading it as false would resurrect a boss the player has
+	# already killed — the precise bug the flag was added for in the first place.
+	bosses_defeated.clear()
+	var saved_bosses: Variant = loadedDict.get("bosses_defeated", null)
+	if saved_bosses is Dictionary:
+		for island_id in saved_bosses:
+			bosses_defeated[str(island_id)] = bool(saved_bosses[island_id])
+	elif bool(loadedDict.get("boss_defeated", false)):
+		bosses_defeated[BOSS_ID] = true
 	# Defaults false, so a save written before the veins existed gets its one seeding pass
 	# from reassert_after_load. A save written since carries true and never seeds again.
 	ore_veins_seeded = bool(loadedDict.get("ore_veins_seeded", false))

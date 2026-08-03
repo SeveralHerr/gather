@@ -3527,3 +3527,47 @@ Guidelines that make an entry useful later:
   save-format change wants and precisely the thing that is tedious to assemble by hand. Worth
   recording as a case where a project-registered verb did the work a generic primitive could
   not. [G-102] was not re-hit here: every file in this change owns a node.
+
+## 2026-08-03 — boss state becomes per-island (gather-302)
+
+- Value: **warranted**, but the run is recorded **partial** and the reason matters more than
+  the verdict.
+  - Expected: making boss state per-island keeps the persisted flag working, with a pre-keyed
+    save still reading as defeated.
+  - Got: the half I could reach, cleanly. `set-state --property boss_defeated --value true`
+    on the live IslandManager produced `bosses_defeated: {"boss": true}`, so the compatibility
+    property writes through rather than shadowing. Saving, clearing `bosses_defeated` to `{}`
+    in memory (`boss_defeated: false`), then `_load` brought back `{"boss": true}` — and the
+    file on disk carries both `bosses_defeated: {'boss': True}` and the legacy scalar
+    `boss_defeated: True` for a rolled-back build. `island_census` still reads
+    `{"alive": false, "chest": [], "defeated": true}` through the compat property.
+  - Cheaper: the migration itself and the negative cases are pure and are covered headless,
+    mutation-checked by deleting the scalar-promotion branch. What genuinely needed the game
+    was the property setter/getter — a `var x: bool: get/set` that silently shadowed a field
+    would look identical in the diff.
+
+- **The blocked check, stated plainly:** I never saw a boss spawn, fight or die. That path is
+  gated on `_connected_state(BOSS_ID)`, which needs the home coastline bought out to ~36
+  tiles, and I could not get there (see the gap below). So `_populate_boss`, `_spawn_boss` and
+  the `.bind(island_id)` on the death signal are covered by reading and by the unit tests
+  only. The ledger downgraded the row to `partial` on the strength of that one `blocked`
+  entry, which is exactly what it is for.
+
+- Gap: **a project verb can kill the game, and the bus cannot tell you it was the verb.**
+  `cmd give_item --args '{"name":"Gold Coin","count":9000}'` — intended to fund the land
+  purchases that open the boss island — took the process down. The next call reported
+  `game not running: 'buy_land' was never picked up`, and `logs --tail` ended on
+  `[15:53:13] [command] Executing: give_item` with no error line after it, so the log shows
+  what was running when it died but nothing about why. Worse, the relaunch then failed its
+  precheck against a STALE `devtools_owner.json` (`says pid 7080 ... has likely exited`) while
+  a fresh instance was in fact up, and `tasklist` showed two live Godot processes — the
+  crashed one had not fully exited, which is the multi-instance cross-talk hazard arriving by
+  accident rather than by choice. Recovery was `taskkill //F`, delete the owner and
+  command/result files, relaunch.
+  - [G-103] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: two small things. (1) Have the bus write a `last_command` breadcrumb that
+    survives the process, so "the game died during verb X" is readable rather than inferred
+    from the last log line. (2) Make the ping precheck notice that the owner pid is dead AND
+    a bus file is being consumed, and clear the stale owner itself instead of refusing — a
+    stale owner file after a crash is the normal case, not an anomaly, and right now it makes
+    the recovery path look like a second failure.
