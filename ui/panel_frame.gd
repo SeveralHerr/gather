@@ -177,9 +177,7 @@ func _ready() -> void:
 		push_error("PanelFrame added to the tree without setup(); it will be empty")
 		return
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_apply_scale):
-		vp.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	# Owners fill `content` *after* parenting the frame, so the clamp computed
 	# during setup() saw an empty container. Re-running it when the content reports
@@ -207,23 +205,22 @@ func _apply_scale() -> void:
 		return
 
 	var factor := UiTheme.scale_for_node(self)
-	var vp_size := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
 
-	var pad := int(round(UiTheme.scaled(UiTheme.PAD_PANEL, vp_size)))
+	var pad := int(round(UiTheme.scaled(UiTheme.PAD_PANEL, factor)))
 	_margin.add_theme_constant_override("margin_left", pad)
 	_margin.add_theme_constant_override("margin_right", pad)
 	_margin.add_theme_constant_override("margin_top", pad)
 	_margin.add_theme_constant_override("margin_bottom", pad)
 
-	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, vp_size))))
+	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, factor))))
 
-	_title_label.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_TITLE, vp_size))
+	_title_label.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_TITLE, factor))
 
 	# The close button is the one control in here a finger must be able to hit, so
 	# it takes the touch floor rather than the plain scale.
-	var close_side := UiTheme.scaled_touch(CLOSE_BUTTON_BASE, vp_size)
+	var close_side := UiTheme.scaled_touch(CLOSE_BUTTON_BASE, factor)
 	_close_button.custom_minimum_size = Vector2(close_side, close_side)
-	_close_button.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, vp_size))
+	_close_button.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
 
 	_clamp_to_viewport(factor, float(pad))
 
@@ -251,8 +248,10 @@ func _clamp_to_viewport(factor: float, pad: float) -> void:
 		return
 
 	# Leave a margin so the frame never sits flush against the bezel, and so the
-	# backdrop stays visibly a backdrop rather than a border.
-	var gutter := maxf(pad, UiTheme.scaled(UiTheme.GAP, available)) * 2.0
+	# backdrop stays visibly a backdrop rather than a border. This line used to pass
+	# `available` where the rest of the method passed the synthetic size — the same
+	# factor either way, which is exactly why nobody noticed.
+	var gutter := maxf(pad, UiTheme.scaled(UiTheme.GAP, factor)) * 2.0
 	var fits := (available - Vector2(gutter, gutter)).max(Vector2(120.0, 120.0))
 
 	var wanted := _base_min_size * factor

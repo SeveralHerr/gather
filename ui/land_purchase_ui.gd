@@ -96,9 +96,7 @@ func _ready():
 
 	# Nothing here scales on its own — see the stretch-mode note at the top — so a
 	# resize has to re-run the whole derivation.
-	var viewport := get_viewport()
-	if viewport != null and not viewport.size_changed.is_connected(_apply_scale):
-		viewport.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	_bind_inventory()
 	_refresh()
@@ -222,28 +220,23 @@ func _apply_scale() -> void:
 	if _frame == null:
 		return
 
+	# The same factor PanelFrame builds its chrome at, so the two grow in step.
 	var factor := UiTheme.scale_for_node(self)
-	# UiTheme's helpers take a viewport size rather than a factor, so reconstruct
-	# the size that yields exactly this factor. Same round trip panel_frame.gd
-	# makes, which is why the frame's chrome and this content grow in step.
-	var vp := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
 
-	for entry in _typography:
-		var control: Control = entry[0]
-		control.add_theme_font_size_override("font_size", UiTheme.scaled_font(entry[1], vp))
+	UiTheme.apply_typography(_typography, factor)
 
-	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, vp))))
-	_rows.add_theme_constant_override("separation", int(round(UiTheme.scaled(ROW_GAP, vp))))
-	_inset_style.set_content_margin_all(UiTheme.scaled(INSET_PAD, vp))
+	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, factor))))
+	_rows.add_theme_constant_override("separation", int(round(UiTheme.scaled(ROW_GAP, factor))))
+	_inset_style.set_content_margin_all(UiTheme.scaled(INSET_PAD, factor))
 
 	# The blurb is the only thing in here wide enough to decide the panel's width,
 	# so it is pinned to the frame's own width minus its padding. Without this it
 	# would size itself to one very long line and drag the frame out with it.
 	_blurb.custom_minimum_size = Vector2(
-		UiTheme.scaled(PANEL_MIN_SIZE.x - UiTheme.PAD_PANEL * 2.0, vp), 0
+		UiTheme.scaled(PANEL_MIN_SIZE.x - UiTheme.PAD_PANEL * 2.0, factor), 0
 	)
 
-	_buy_button.custom_minimum_size = Vector2(0, UiTheme.scaled_touch(BUY_BUTTON_HEIGHT, vp))
+	_buy_button.custom_minimum_size = Vector2(0, UiTheme.scaled_touch(BUY_BUTTON_HEIGHT, factor))
 
 
 # --- open / close ------------------------------------------------------------

@@ -39,11 +39,11 @@ func apply_slot_size(side: float) -> void:
 	slot_size = side
 
 	var factor := UiTheme.scale_for_node(self)
-	var gap := int(round(UiTheme.GAP * factor * 0.5))
+	var gap := int(round(UiTheme.scaled(UiTheme.GAP * 0.5, factor)))
 	item_grid.add_theme_constant_override("h_separation", gap)
 	item_grid.add_theme_constant_override("v_separation", gap)
 
-	var pad := int(round(UiTheme.GAP * factor))
+	var pad := int(round(UiTheme.scaled(UiTheme.GAP, factor)))
 	_margin.add_theme_constant_override("margin_left", pad)
 	_margin.add_theme_constant_override("margin_top", pad)
 	_margin.add_theme_constant_override("margin_right", pad)

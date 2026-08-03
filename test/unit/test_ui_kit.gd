@@ -53,22 +53,83 @@ func test_touch_targets_never_fall_below_the_floor() -> String:
 	# clamp still multiplies by 0.85, so a 34px base would come out at 28.9px — well
 	# under a fingertip. This is the guard for the user-visible "too small on
 	# mobile" complaint.
-	var small := UiTheme.scaled_touch(34.0, Vector2(320, 480))
+	var small := UiTheme.scaled_touch(34.0, UiTheme.scale_for(Vector2(320, 480)))
 	var a: String = _T.assert_gte(small, UiTheme.TOUCH_MIN,
 		"a small base on a small viewport must still clear TOUCH_MIN")
 	if a != "":
 		return a
 
 	# And it must not clamp *down* something already comfortably large.
-	var large := UiTheme.scaled_touch(120.0, Vector2(1280, 720))
+	var large := UiTheme.scaled_touch(120.0, UiTheme.scale_for(Vector2(1280, 720)))
 	return _T.assert_float_eq(large, 120.0, 0.001,
 		"a base already above the floor should scale, not clamp")
 
 
 func test_font_sizes_never_fall_below_the_legibility_floor() -> String:
-	var small := UiTheme.scaled_font(4, Vector2(320, 480))
+	var small := UiTheme.scaled_font(4, UiTheme.scale_for(Vector2(320, 480)))
 	return _T.assert_gte(small, UiTheme.FONT_MIN,
 		"even an absurdly small base must clamp up to FONT_MIN")
+
+
+func test_scaling_a_viewport_derived_factor_matches_the_viewport() -> String:
+	# The regression guard for `gather-snn`. Six panels used to rebuild a synthetic
+	# viewport size out of a factor — `Vector2.ONE * REFERENCE_EDGE * factor` — purely
+	# to feed helpers that reduced it straight back to that float. The helpers take the
+	# factor now, and this pins the equivalence the old round trip was relying on: a
+	# factor obtained from a viewport must size exactly as that viewport did.
+	var vp := Vector2(1440, 900)
+	var factor := UiTheme.scale_for(vp)
+
+	var a: String = _T.assert_float_eq(
+		UiTheme.scale_for(Vector2.ONE * UiTheme.REFERENCE_EDGE * factor), factor, 0.001,
+		"re-deriving a factor from its own synthetic viewport must be a no-op")
+	if a != "":
+		return a
+
+	return _T.assert_float_eq(UiTheme.scaled(UiTheme.PAD_PANEL, factor),
+		UiTheme.PAD_PANEL * factor, 0.001,
+		"scaled() must be a plain multiply by the factor it is handed")
+
+
+func test_typography_is_applied_and_survives_a_freed_control() -> String:
+	# The four panels that keep a `_typography` list rebuild their rows, which leaves
+	# freed controls in it. The walk used to be inline in each panel and unguarded; a
+	# stale entry would raise on the next resize — weeks later, and nowhere near the
+	# rebuild that caused it.
+	var live := Label.new()
+	var stale := Label.new()
+	var entries: Array = [[live, UiTheme.FONT_BODY], [stale, UiTheme.FONT_SMALL]]
+	stale.free()
+
+	UiTheme.apply_typography(entries, 2.0)
+
+	var got := live.get_theme_font_size("font_size")
+	live.free()
+
+	return _T.assert_eq(got, UiTheme.scaled_font(UiTheme.FONT_BODY, 2.0),
+		"the live entry should be scaled even with a freed one beside it")
+
+
+func test_connect_resize_does_not_stack_handlers() -> String:
+	# The `is_connected` guard is the load-bearing half: `_ready()` is not the only
+	# caller, and a second connection means every size gets applied twice.
+	var node := Control.new()
+	await _T.instantiate_ui(node, Vector2i(640, 480))
+
+	var handler := func() -> void: pass
+	UiTheme.connect_resize(node, handler)
+	UiTheme.connect_resize(node, handler)
+
+	# Counting only *our* callable: the shared test viewport already carries whatever
+	# other UI in the tree has connected, so a bare connection count is not ours to
+	# assert on.
+	var count := 0
+	for connection in node.get_viewport().size_changed.get_connections():
+		if connection["callable"] == handler:
+			count += 1
+	_T.free_ui(node)
+
+	return _T.assert_eq(count, 1, "connecting twice should leave exactly one handler")
 
 
 # --- PanelFrame chrome -------------------------------------------------------

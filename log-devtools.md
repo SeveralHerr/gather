@@ -3717,7 +3717,7 @@ Guidelines that make an entry useful later:
   which is precisely the category this project adds to most often, so the metric is at its
   least informative exactly where the work is. `tools/generate_placeholder_art.gd` is also
   listed and should not be: it is a build-time generator the game never loads by design.
-  - [G-102] status: open | seen: 5 | harness: 0.8.0
+  - [G-102] status: open | seen: 6 | harness: 0.8.0
   - Improvement: unchanged and now overdue — credit a script when a reached node's script
     inherits from it, and let `devtools_config.json` name known-RefCounted directories.
     Additionally: a `reach_exclude` glob for build-time tooling, so `tools/` stops counting
@@ -3776,3 +3776,61 @@ Guidelines that make an entry useful later:
 - Gap: **no new gaps this turn.** `set-resolution` reporting the honest read-back
   (`Resized (1920, 1080) -> (390, 844)`, `visible rect: 390.0x844.0`) is what made the
   measurements trustworthy; a silent clamp would have made this whole investigation wrong.
+
+## 2026-08-03 — collapse the UI scaling round trip onto a factor currency (gather-snn)
+
+- Value: **warranted** — the A/B against the stashed baseline is a claim no diff could make,
+  and the guard I added to `connect_resize` was live code on a path no test reaches.
+  - Expected: the panels render at the same pixel sizes as before the refactor, and a resize
+    re-derives them exactly once per panel — the connect_resize guard is new code on a path
+    unit tests don't reach.
+  - Got: pixel-identical, verified by stashing the diff and re-measuring the same nodes on
+    unmodified code. Every `PanelFrame` close button `51x51` at 1920x1080 and `48x48` at
+    390x844 on **both** trees; `HotBarInventory` `Rect: 631, 965, 658x100` and the skill card
+    `Rect: 297, 312, 318x111` identical to the byte on both. The load-bearing one is the
+    resize round trip 51 → 48 → 51 across all five panels: `UiTheme.connect_resize()` adds an
+    `is_inside_tree()` check the six inline copies never had, so a panel that connected before
+    entering the tree would have silently stopped resizing — invisible to lint, to 426 unit
+    tests, and to anyone not dragging a window. Also confirmed `solve_metrics` still budgets
+    off the real width (`375 = 0.96 x 390`), which is the one place I deliberately kept the
+    viewport rather than the factor.
+  - Cheaper: nothing for the resize-connection check — it needs a live window changing size.
+    The pixel A/B could have been one panel instead of five; four of them told me nothing the
+    first did not.
+
+- Two defects, both caught before runtime, worth recording because of *which* gate caught them:
+  - The GDScript type checker caught `apply_scale(Vector2.ZERO)` in `recipe_card.gd:94` —
+    `Cannot pass a value of type "Vector2" as "float"`. Changing the parameter type is what
+    made 95 call sites self-checking; a `Vector2`-shaped helper that silently accepted a
+    factor would have shipped.
+  - The unit suite caught my own `apply_typography` casting a freed object before testing it
+    (`SCRIPT ERROR: Trying to cast a freed object. at: apply_typography (ui_theme.gd:183)`)
+    — **while reporting `[PASS]`**. That is `gather-1t9` exactly: the error aborted the method,
+    the `-> String` signature still yielded `""`, and stderr was the only signal. A green
+    suite genuinely is not sufficient.
+
+- Pre-existing, verified as such rather than assumed (both reproduced on the stashed tree):
+  `validate-ui` reports 4x `ui_zero_size: Control 'Tail' ... (318x0)` whenever the skill panel
+  is open, and `crafting_panel --args '{"open": true}'` reports `open: true` then reads back
+  `open: false` two seconds later. Neither is mine; both cost a stash-and-relaunch to prove.
+
+- Gap: **[G-025] again, seen 2 — and its `fixed-in: 0.8.0` does not hold for paths without a
+  `/root` prefix.** `scene-tree` prints node paths as `/Main/UI/SkillTreeUI/...`, so that is
+  what you copy into `--node`; git-bash then mangles it and the echo is still raw:
+  ```
+  Failed: Node not found: C:/Program Files/Git/Main/UI/SkillTreeUI/PanelFrame/.../CloseButton
+  ```
+  `MSYS_NO_PATHCONV=1` fixes the mangling but the path then genuinely needs `/root` prepended,
+  so the same error text covers two unrelated causes and you fix them one at a time.
+  - [G-025] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: normalize a leading `C:/.../Git` off *any* absolute node path, not only one
+    continuing with `/root`, and resolve a path starting `/<RootSceneName>` by prepending
+    `/root` — that is the form the tool's own `scene-tree` output hands you.
+
+- Gap: **[G-102] again, seen 6.** `NOT reached: ui/ui_theme.gd` — the file the whole change is
+  *about*. It is a `class_name` RefCounted of nothing but `static func`s, called by all twelve
+  reached files, and it owns no node for a snapshot to see. The metric reads "unreached" for
+  the single most-exercised file in the diff.
+  - [G-102] status: open | seen: 6 | harness: 0.8.0
+  - Improvement: unchanged and now overdue — credit a script when a reached script references
+    its `class_name`, which for a static-only utility is the only evidence that can exist.

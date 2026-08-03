@@ -257,9 +257,7 @@ func _ready() -> void:
 	_build_buttons()
 	_layout()
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_layout):
-		vp.size_changed.connect(_layout)
+	UiTheme.connect_resize(self, _layout)
 
 	_touch_available = DisplayServer.is_touchscreen_available()
 	_apply_visibility()

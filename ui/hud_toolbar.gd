@@ -128,9 +128,7 @@ func _ready() -> void:
 
 	watch_panels()
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_apply_scale):
-		vp.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	_apply_scale()
 	_refresh_points()
@@ -185,26 +183,21 @@ func _apply_scale() -> void:
 	if _row == null:
 		return
 
+	# The same factor the panels this strip opens are built at, so they grow in step.
 	var factor := UiTheme.scale_for_node(self)
-	# UiTheme's helpers take a viewport size rather than a factor, so reconstruct the
-	# size that yields exactly this factor — the same round trip `panel_frame.gd`
-	# makes, which is what keeps this strip growing in step with the panels it opens.
-	var vp := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
 
-	for entry in _typography:
-		var control: Control = entry[0]
-		control.add_theme_font_size_override("font_size", UiTheme.scaled_font(entry[1], vp))
+	UiTheme.apply_typography(_typography, factor)
 
-	var gap := int(round(UiTheme.scaled(UiTheme.GAP, vp)))
+	var gap := int(round(UiTheme.scaled(UiTheme.GAP, factor)))
 	_row.add_theme_constant_override("separation", gap)
 
-	var height := UiTheme.scaled_touch(BUTTON_HEIGHT, vp)
-	var width := UiTheme.scaled(BUTTON_MIN_WIDTH, vp)
+	var height := UiTheme.scaled_touch(BUTTON_HEIGHT, factor)
+	var width := UiTheme.scaled(BUTTON_MIN_WIDTH, factor)
 	for action in _buttons:
 		var button: Button = _buttons[action]
 		button.custom_minimum_size = Vector2(width, height)
 
-	var margin := UiTheme.scaled(MARGIN, vp)
+	var margin := UiTheme.scaled(MARGIN, factor)
 	_row.offset_top = margin
 	_row.offset_bottom = margin + height
 	_row.offset_right = -margin

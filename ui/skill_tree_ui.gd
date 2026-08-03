@@ -126,9 +126,7 @@ func _bind_level_up_manager() -> void:
 
 	# Nothing here scales on its own — see the stretch-mode note at the top — so a
 	# resize has to re-run the whole derivation.
-	var viewport := get_viewport()
-	if viewport != null and not viewport.size_changed.is_connected(_apply_scale):
-		viewport.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	# Deferred: the toolbar is created from main.gd's own _ready(), which runs after
 	# this one, so on the first pass the sibling does not exist yet.
@@ -402,58 +400,55 @@ func _typed(control: Control, base_size: int) -> Control:
 ## time and again on every window resize. The badge is included: it is outside the
 ## frame, so PanelFrame's own rescale never reaches it.
 func _apply_scale() -> void:
+	# The same factor PanelFrame builds its chrome at, so the two grow in step.
 	var factor := UiTheme.scale_for_node(self)
-	# UiTheme's helpers take a viewport size rather than a factor, so reconstruct
-	# the size that yields exactly this factor. Same round trip panel_frame.gd
-	# makes, which is why the frame's chrome and this content grow in step.
-	var vp := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
 
-	for entry in _typography:
-		var control: Control = entry[0]
-		control.add_theme_font_size_override("font_size", UiTheme.scaled_font(entry[1], vp))
+	UiTheme.apply_typography(_typography, factor)
 
-	_scale_badge(vp, factor)
+	_scale_badge(factor)
 
 	if _frame == null:
 		return
 
-	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, vp))))
-	_header.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP * 1.75, vp))))
-	_branch_columns.add_theme_constant_override("separation", int(round(UiTheme.scaled(BRANCH_GAP, vp))))
+	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, factor))))
+	_header.add_theme_constant_override(
+		"separation", int(round(UiTheme.scaled(UiTheme.GAP * 1.75, factor))))
+	_branch_columns.add_theme_constant_override(
+		"separation", int(round(UiTheme.scaled(BRANCH_GAP, factor))))
 
 	_xp_bar.custom_minimum_size = XP_BAR_SIZE * factor
-	_points_style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP * 0.75, vp))
+	_points_style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP * 0.75, factor))
 
-	_detail_box.custom_minimum_size = Vector2(0, UiTheme.scaled(DETAIL_MIN_HEIGHT, vp))
-	_detail_style.set_content_margin_all(UiTheme.scaled(DETAIL_PAD, vp))
+	_detail_box.custom_minimum_size = Vector2(0, UiTheme.scaled(DETAIL_MIN_HEIGHT, factor))
+	_detail_style.set_content_margin_all(UiTheme.scaled(DETAIL_PAD, factor))
 
 	# A card is the thing a finger aims at in this panel, so its height takes the
 	# touch floor rather than the plain scale. SkillNodeButton sets the unscaled
 	# value in its constructor; this is the same property, re-derived.
-	var card_height := UiTheme.scaled_touch(float(SkillNodeButton.CARD_HEIGHT), vp)
+	var card_height := UiTheme.scaled_touch(float(SkillNodeButton.CARD_HEIGHT), factor)
 	for skill_id in _cards:
 		var card: SkillNodeButton = _cards[skill_id]
 		card.custom_minimum_size = Vector2(0, card_height)
 
-	var link_height := UiTheme.scaled(CONNECTOR_SIZE.y, vp)
+	var link_height := UiTheme.scaled(CONNECTOR_SIZE.y, factor)
 	for holder in _connector_holders:
 		holder.custom_minimum_size = Vector2(0, link_height)
 	for skill_id in _connectors:
 		var line: ColorRect = _connectors[skill_id]
-		line.custom_minimum_size = Vector2(UiTheme.scaled(CONNECTOR_SIZE.x, vp), link_height)
+		line.custom_minimum_size = Vector2(UiTheme.scaled(CONNECTOR_SIZE.x, factor), link_height)
 
 	for gap in _branch_gaps:
-		gap.custom_minimum_size = Vector2(0, UiTheme.scaled(UiTheme.GAP, vp))
+		gap.custom_minimum_size = Vector2(0, UiTheme.scaled(UiTheme.GAP, factor))
 
 
-func _scale_badge(vp: Vector2, factor: float) -> void:
+func _scale_badge(factor: float) -> void:
 	if _hud_badge == null:
 		return
 
-	_hud_badge_style.set_content_margin_all(UiTheme.scaled(BADGE_PAD, vp))
+	_hud_badge_style.set_content_margin_all(UiTheme.scaled(BADGE_PAD, factor))
 
 	var width := BADGE_WIDTH * factor
-	var margin := UiTheme.scaled(BADGE_MARGIN, vp)
+	var margin := UiTheme.scaled(BADGE_MARGIN, factor)
 	var top := margin + _toolbar_height()
 	_hud_badge.custom_minimum_size = Vector2(width, 0)
 

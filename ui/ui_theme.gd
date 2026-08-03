@@ -28,6 +28,17 @@ class_name UiTheme
 ##
 ## Do not use these to compute a *position*. Positions come from anchors; a raw
 ## viewport offset is the bug `gather-6fx` fixed and CLAUDE.md warns about.
+##
+## **The currency is a factor, not a viewport size.** `scale_for()` and
+## `scale_for_node()` are the two ways to obtain one; `scaled()`, `scaled_font()`
+## and `scaled_touch()` consume one. The `scaled_*` helpers used to take a
+## `Vector2` and reduce it to that same float on the first line, which meant a
+## caller holding only a node had to invent a viewport size to feed them —
+## `Vector2.ONE * REFERENCE_EDGE * factor`, in six files, each with a comment
+## apologising for it. It survived only because `scale_for()`'s clamp happens to
+## be idempotent, and `panel_frame.gd` ended up passing the synthetic size to some
+## calls and the real one to others without any visible difference (`gather-snn`).
+## Taking the factor directly makes that round trip unrepresentable.
 
 # --- palette -----------------------------------------------------------------
 
@@ -119,22 +130,65 @@ static func scale_for_node(node: Node) -> float:
 	return scale_for(vp.get_visible_rect().size)
 
 
-## A base font size scaled for this viewport, never below FONT_MIN.
-static func scaled_font(base: int, viewport_size: Vector2) -> int:
-	return maxi(FONT_MIN, int(round(float(base) * scale_for(viewport_size))))
+## A base font size at this scale factor, never below FONT_MIN.
+##
+## `factor` comes from `scale_for()` or `scale_for_node()` — those clamp, this does
+## not, so hand it one of theirs rather than a ratio worked out on the spot.
+static func scaled_font(base: int, factor: float) -> int:
+	return maxi(FONT_MIN, int(round(float(base) * factor)))
 
 
-## A base length scaled for this viewport. Use for padding, gaps and icon sizes —
+## A base length at this scale factor. Use for padding, gaps and icon sizes —
 ## anything that is a *size*, never an on-screen position.
-static func scaled(base: float, viewport_size: Vector2) -> float:
-	return base * scale_for(viewport_size)
+static func scaled(base: float, factor: float) -> float:
+	return base * factor
 
 
-## A base length scaled for this viewport but never allowed below TOUCH_MIN. Use
-## for anything a finger is expected to hit: hotbar slots, close buttons, the
+## A base length at this scale factor, but never allowed below TOUCH_MIN. Use for
+## anything a finger is expected to hit: hotbar slots, close buttons, the
 ## inventory's own slots.
-static func scaled_touch(base: float, viewport_size: Vector2) -> float:
-	return maxf(TOUCH_MIN, base * scale_for(viewport_size))
+static func scaled_touch(base: float, factor: float) -> float:
+	return maxf(TOUCH_MIN, base * factor)
+
+
+# --- wiring ------------------------------------------------------------------
+
+## Re-runs `handler` whenever the window changes size, once.
+##
+## The project's stretch mode is "disabled" (see the sizing note above), so nothing
+## re-derives itself on a resize for free — every panel has to ask. This was nine
+## copies of the same four lines, and the `is_connected` guard is the load-bearing
+## one: `_ready()` is not the only place that reaches for it, so connecting
+## unguarded stacks a second handler and every size gets applied twice.
+static func connect_resize(node: Node, handler: Callable) -> void:
+	if node == null or not node.is_inside_tree():
+		return
+	var vp := node.get_viewport()
+	if vp == null or vp.size_changed.is_connected(handler):
+		return
+	vp.size_changed.connect(handler)
+
+
+## Applies `factor` to a list of `[control, base_font_size]` pairs.
+##
+## Four panels keep a `_typography` array of exactly this shape so that adding a
+## label is one `append` rather than another line in `_apply_scale()`; this is the
+## walk over it that all four were repeating. Entries whose control has since been
+## freed are skipped rather than raising — a panel that rebuilds its rows leaves
+## stale pairs behind, and a resize weeks later is a bad place to discover it.
+static func apply_typography(entries: Array, factor: float) -> void:
+	for entry in entries:
+		if entry.size() < 2:
+			continue
+		# `is_instance_valid` before the cast, not after: casting a freed object is
+		# itself what raises, so `entry[0] as Control` never gets far enough to return
+		# null for one.
+		if not is_instance_valid(entry[0]):
+			continue
+		var control := entry[0] as Control
+		if control == null:
+			continue
+		control.add_theme_font_size_override("font_size", scaled_font(int(entry[1]), factor))
 
 
 # --- style factories ---------------------------------------------------------

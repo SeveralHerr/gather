@@ -88,10 +88,10 @@ func _init(_product: Types.Item, display_name: String, icon: Texture2D, accent: 
 	_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_column.add_child(_badge)
 
-	# A zero viewport is UiTheme's "no viewport yet" case and reads as scale 1.0, so a
-	# card built outside the tree is still sized rather than collapsed to nothing. The
-	# owner calls apply_scale() again with the real viewport the moment it has one.
-	apply_scale(Vector2.ZERO)
+	# Scale 1.0 is UiTheme's "no viewport yet" fallback, so a card built outside the
+	# tree is still sized rather than collapsed to nothing. The owner calls
+	# apply_scale() again with the real factor the moment it has one.
+	apply_scale(1.0)
 
 
 func _ready() -> void:
@@ -103,35 +103,35 @@ func _ready() -> void:
 	_restyle()
 
 
-## Re-derives every size on the card from the current viewport. Called by the owner at
+## Re-derives every size on the card for a UiTheme scale factor. Called by the owner at
 ## build time and again on every window resize; safe before the card is in the tree,
 ## because it only touches nodes _init already made.
-func apply_scale(viewport_size: Vector2) -> void:
+func apply_scale(factor: float) -> void:
 	# scaled_touch on *both* axes: a recipe card is a finger target first and a label
 	# second, so TOUCH_MIN is the floor even on the smallest viewport in range.
 	custom_minimum_size = Vector2(
-		UiTheme.scaled_touch(CARD_SIZE.x, viewport_size),
-		UiTheme.scaled_touch(CARD_SIZE.y, viewport_size))
+		UiTheme.scaled_touch(CARD_SIZE.x, factor),
+		UiTheme.scaled_touch(CARD_SIZE.y, factor))
 
-	var pad := int(round(UiTheme.scaled(CARD_PAD, viewport_size)))
+	var pad := int(round(UiTheme.scaled(CARD_PAD, factor)))
 	_margin.add_theme_constant_override("margin_left", pad)
 	_margin.add_theme_constant_override("margin_right", pad)
 	_margin.add_theme_constant_override("margin_top", pad)
 	_margin.add_theme_constant_override("margin_bottom", pad)
 
-	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(CARD_GAP, viewport_size))))
+	_column.add_theme_constant_override("separation", int(round(UiTheme.scaled(CARD_GAP, factor))))
 
-	_icon.custom_minimum_size = Vector2(0, UiTheme.scaled(ICON_HEIGHT, viewport_size))
+	_icon.custom_minimum_size = Vector2(0, UiTheme.scaled(ICON_HEIGHT, factor))
 
 	# Body rather than small: the item name is what the player reads to find a recipe,
 	# and at the old fixed 12 it was the first text in the game to stop being legible.
 	# The height is a minimum, so a name that wraps to two lines grows the card instead
 	# of being clipped by it.
-	_name_label.custom_minimum_size = Vector2(0, UiTheme.scaled(NAME_HEIGHT, viewport_size))
+	_name_label.custom_minimum_size = Vector2(0, UiTheme.scaled(NAME_HEIGHT, factor))
 	_name_label.add_theme_font_size_override(
-		"font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, viewport_size))
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
 	_badge.add_theme_font_size_override(
-		"font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, viewport_size))
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, factor))
 
 
 func set_selected(value: bool) -> void:

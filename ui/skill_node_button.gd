@@ -102,9 +102,7 @@ func _ready():
 	mouse_entered.connect(func(): node_hovered.emit(skill.id))
 	gui_input.connect(_on_gui_input)
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_apply_scale):
-		vp.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	_apply_scale()
 	refresh()
@@ -119,22 +117,24 @@ func _ready():
 ## drives that from outside through custom_minimum_size, and two writers would
 ## fight over it every resize.
 func _apply_scale() -> void:
-	var vp_size := Vector2.ONE * UiTheme.REFERENCE_EDGE * UiTheme.scale_for_node(self)
+	var factor := UiTheme.scale_for_node(self)
 
-	_name_label.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, vp_size))
-	_summary_label.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, vp_size))
+	_name_label.add_theme_font_size_override(
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
+	_summary_label.add_theme_font_size_override(
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, factor))
 
-	var icon := UiTheme.scaled(ICON_SIZE, vp_size)
+	var icon := UiTheme.scaled(ICON_SIZE, factor)
 	_icon.custom_minimum_size = Vector2(icon, icon)
 
-	var pad_h := int(round(UiTheme.scaled(PAD_H, vp_size)))
-	var pad_v := int(round(UiTheme.scaled(PAD_V, vp_size)))
+	var pad_h := int(round(UiTheme.scaled(PAD_H, factor)))
+	var pad_v := int(round(UiTheme.scaled(PAD_V, factor)))
 	_margin.add_theme_constant_override("margin_left", pad_h)
 	_margin.add_theme_constant_override("margin_right", pad_h)
 	_margin.add_theme_constant_override("margin_top", pad_v)
 	_margin.add_theme_constant_override("margin_bottom", pad_v)
 
-	_row.add_theme_constant_override("separation", int(round(UiTheme.scaled(ROW_GAP, vp_size))))
+	_row.add_theme_constant_override("separation", int(round(UiTheme.scaled(ROW_GAP, factor))))
 
 
 func _on_gui_input(event: InputEvent) -> void:

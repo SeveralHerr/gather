@@ -88,9 +88,7 @@ func _ready():
 	visibility_changed.connect(_on_visibility_changed)
 	set_process_input(visible)
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_apply_scale):
-		vp.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 	_apply_scale()
 
 
@@ -196,11 +194,12 @@ func _apply_scale() -> void:
 	var vp_size := vp.get_visible_rect().size
 	if vp_size.x <= 0.0 or vp_size.y <= 0.0:
 		return
+	var factor := UiTheme.scale_for(vp_size)
 
 	# One edge for every cell on screen, floored at UiTheme.TOUCH_MIN. This is the
 	# whole "the UI is too small on a phone" fix: the scene's flat 64px is barely half
 	# a fingertip on a device whose viewport reports its real pixels.
-	var side := UiTheme.scaled_touch(NewSlot.BASE_SIZE, vp_size)
+	var side := UiTheme.scaled_touch(NewSlot.BASE_SIZE, factor)
 	player_inventory.apply_slot_size(side)
 	external_inventory.apply_slot_size(side)
 	if equip_inventory is NewInventory:
@@ -214,14 +213,14 @@ func _apply_scale() -> void:
 	grabbed_slot.size = Vector2(side, side)
 
 	_column.add_theme_constant_override(
-		"separation", int(round(UiTheme.scaled(UiTheme.GAP, vp_size))))
+		"separation", int(round(UiTheme.scaled(UiTheme.GAP, factor))))
 
-	var heading_font := UiTheme.scaled_font(UiTheme.FONT_SMALL, vp_size)
+	var heading_font := UiTheme.scaled_font(UiTheme.FONT_SMALL, factor)
 	_external_heading.add_theme_font_size_override("font_size", heading_font)
 	_player_heading.add_theme_font_size_override("font_size", heading_font)
 
-	_cursor_trail = UiTheme.scaled(CURSOR_TRAIL, vp_size)
-	_touch_lift = UiTheme.scaled(UiTheme.GAP, vp_size)
+	_cursor_trail = UiTheme.scaled(CURSOR_TRAIL, factor)
+	_touch_lift = UiTheme.scaled(UiTheme.GAP, factor)
 
 
 # --- pointer -----------------------------------------------------------------

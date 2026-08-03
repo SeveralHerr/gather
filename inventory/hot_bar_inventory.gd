@@ -125,9 +125,7 @@ func _ready():
 	input_manager.gather_input_press.connect(_on_gather)
 	input_manager.gather_input_release.connect(_on_gather_stop)
 
-	var vp := get_viewport()
-	if vp != null and not vp.size_changed.is_connected(_apply_layout):
-		vp.size_changed.connect(_apply_layout)
+	UiTheme.connect_resize(self, _apply_layout)
 
 	# The touch overlay covers the bottom corners of the screen when it is up, so
 	# the hotbar has to know when that changes and lift itself clear.
@@ -342,13 +340,17 @@ func _apply_selection() -> void:
 ## `tile_map` are all `@onready` reaches up into main.tscn, so a test that wants to
 ## know what this row does at 390px would otherwise have to boot the whole game. The
 ## same reasoning made `MobileControls.resolve_primary()` static.
+## Takes the viewport rather than a bare factor because the row's width *budget* is a
+## real fraction of the real screen — the one place in the UI where the pixel count
+## itself is an input and not just the factor derived from it.
 static func solve_metrics(viewport_size: Vector2) -> Dictionary:
-	var pad := UiTheme.scaled(PAD_BASE, viewport_size)
-	var gap := UiTheme.scaled(UiTheme.GAP, viewport_size) * 0.5
+	var factor := UiTheme.scale_for(viewport_size)
+	var pad := UiTheme.scaled(PAD_BASE, factor)
+	var gap := UiTheme.scaled(UiTheme.GAP, factor) * 0.5
 
 	var budget := viewport_size.x * ROW_WIDTH_FRACTION - 2.0 * pad \
 		- float(SLOT_COUNT + 1) * gap
-	var side := UiTheme.scaled_touch(SLOT_BASE, viewport_size)
+	var side := UiTheme.scaled_touch(SLOT_BASE, factor)
 	var arrow := clampf(
 		(budget - float(SLOT_COUNT) * side) * 0.5, ARROW_WIDTH_MIN, UiTheme.TOUCH_MIN)
 	side = maxf(UiTheme.TOUCH_MIN, minf(side, (budget - 2.0 * arrow) / float(SLOT_COUNT)))
@@ -370,6 +372,7 @@ func _apply_layout() -> void:
 	if vp.x <= 0.0 or vp.y <= 0.0:
 		return
 
+	var factor := UiTheme.scale_for(vp)
 	var metrics := solve_metrics(vp)
 	var pad: float = metrics["pad"]
 	var gap: float = metrics["gap"]
@@ -388,7 +391,7 @@ func _apply_layout() -> void:
 	row.add_theme_constant_override("separation", gap_px)
 	h_box_container.add_theme_constant_override("separation", gap_px)
 
-	var number_font := UiTheme.scaled_font(UiTheme.FONT_SMALL, vp)
+	var number_font := UiTheme.scaled_font(UiTheme.FONT_SMALL, factor)
 	for child in h_box_container.get_children():
 		var slot := child as NewSlot
 		if slot == null:
@@ -402,7 +405,7 @@ func _apply_layout() -> void:
 		if number != null:
 			number.add_theme_font_size_override("font_size", number_font)
 
-	var arrow_font := UiTheme.scaled_font(UiTheme.FONT_TITLE, vp)
+	var arrow_font := UiTheme.scaled_font(UiTheme.FONT_TITLE, factor)
 	var arrows: Array[Button] = [prev_button, next_button]
 	for button in arrows:
 		button.custom_minimum_size = Vector2(arrow, side)
@@ -423,7 +426,7 @@ func _apply_layout() -> void:
 	# joystick is tall but nowhere near the centre. See `_bottom_obstruction`.
 	var half := panel.x * 0.5
 	var centre := vp.x * 0.5
-	var bottom := UiTheme.scaled(BOTTOM_MARGIN_BASE, vp) \
+	var bottom := UiTheme.scaled(BOTTOM_MARGIN_BASE, factor) \
 		+ _bottom_obstruction(centre - half, centre + half)
 
 	grow_horizontal = Control.GROW_DIRECTION_BOTH

@@ -122,9 +122,7 @@ func _ready() -> void:
 
 	# Nothing here scales on its own — see the stretch-mode note at the top — so a
 	# resize has to re-run the whole derivation.
-	var viewport := get_viewport()
-	if viewport != null and not viewport.size_changed.is_connected(_apply_scale):
-		viewport.size_changed.connect(_apply_scale)
+	UiTheme.connect_resize(self, _apply_scale)
 
 	# Deferred: this panel lives in the UI CanvasLayer, which main.tscn declares
 	# *before* Systems, so SaveLoad and InputManager have not been readied yet. Binding
@@ -323,17 +321,12 @@ func _apply_scale() -> void:
 	if _frame == null:
 		return
 
+	# The same factor PanelFrame builds its chrome at, so the two grow in step.
 	var factor := UiTheme.scale_for_node(self)
-	# UiTheme's helpers take a viewport size rather than a factor, so reconstruct the
-	# size that yields exactly this factor. Same round trip panel_frame.gd makes, which
-	# is why the frame's chrome and this content grow in step.
-	var vp := Vector2.ONE * UiTheme.REFERENCE_EDGE * factor
 
-	for entry in _typography:
-		var control: Control = entry[0]
-		control.add_theme_font_size_override("font_size", UiTheme.scaled_font(entry[1], vp))
+	UiTheme.apply_typography(_typography, factor)
 
-	var gap := int(round(UiTheme.scaled(UiTheme.GAP, vp)))
+	var gap := int(round(UiTheme.scaled(UiTheme.GAP, factor)))
 	_column.add_theme_constant_override("separation", gap)
 	_slots_column.add_theme_constant_override("separation", gap)
 
@@ -349,20 +342,20 @@ func _apply_scale() -> void:
 	# PanelFrame's own arithmetic: two pads of gutter outside the frame and two of
 	# padding inside it (its gutter is `max(pad, gap)`, and PAD_PANEL is always the
 	# larger of the two).
-	var pad := UiTheme.scaled(UiTheme.PAD_PANEL, vp)
+	var pad := UiTheme.scaled(UiTheme.PAD_PANEL, factor)
 	var room := INF
 	if is_inside_tree() and get_viewport() != null:
 		room = get_viewport().get_visible_rect().size.x - pad * 4.0
 	_blurb.custom_minimum_size = Vector2(
-		minf(UiTheme.scaled(PANEL_MIN_SIZE.x - UiTheme.PAD_PANEL * 2.0, vp), room), 0
+		minf(UiTheme.scaled(PANEL_MIN_SIZE.x - UiTheme.PAD_PANEL * 2.0, factor), room), 0
 	)
 
-	var row_gap := int(round(UiTheme.scaled(ROW_GAP, vp)))
-	var button_height := UiTheme.scaled_touch(ACTION_BUTTON_HEIGHT, vp)
+	var row_gap := int(round(UiTheme.scaled(ROW_GAP, factor)))
+	var button_height := UiTheme.scaled_touch(ACTION_BUTTON_HEIGHT, factor)
 
 	for row in _rows:
 		var style: StyleBoxFlat = row["style"]
-		style.set_content_margin_all(UiTheme.scaled(ROW_PAD, vp))
+		style.set_content_margin_all(UiTheme.scaled(ROW_PAD, factor))
 
 		var column: VBoxContainer = row["column"]
 		column.add_theme_constant_override("separation", row_gap)
@@ -371,15 +364,16 @@ func _apply_scale() -> void:
 		actions.add_theme_constant_override("separation", row_gap)
 
 		var title: Label = row["title"]
-		title.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, vp))
+		title.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_BODY, factor))
 
 		var detail: Label = row["detail"]
-		detail.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, vp))
+		detail.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, factor))
 
 		for key: String in ["save", "load", "delete"]:
 			var button: Button = row[key]
 			button.custom_minimum_size = Vector2(0, button_height)
-			button.add_theme_font_size_override("font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, vp))
+			button.add_theme_font_size_override(
+				"font_size", UiTheme.scaled_font(UiTheme.FONT_SMALL, factor))
 
 
 # --- the save system ---------------------------------------------------------

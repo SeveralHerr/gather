@@ -196,9 +196,9 @@ func _build_panel() -> void:
 ## UiTheme's recessed style plus the content margin a pane needs to keep its own
 ## children off its edges. The margin is the only part that scales - the colour and
 ## the corner radius are shared with every other inset in the game.
-func _inset_style(viewport_size: Vector2) -> StyleBoxFlat:
+func _inset_style(factor: float) -> StyleBoxFlat:
 	var style := UiTheme.inset_style()
-	style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP + 2.0, viewport_size))
+	style.set_content_margin_all(UiTheme.scaled(UiTheme.GAP + 2.0, factor))
 	return style
 
 
@@ -431,9 +431,8 @@ func _layout() -> void:
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return
 
-	_apply_scale(viewport_size)
-
 	var factor := UiTheme.scale_for(viewport_size)
+	_apply_scale(factor)
 
 	# PANEL_MAX is unscaled: PanelFrame multiplies it by the same factor and then
 	# clamps the result to the viewport, so it is the single writer of the frame's
@@ -447,28 +446,28 @@ func _layout() -> void:
 
 	# What is left for the card grid once the frame's own padding, its border and (in
 	# the wide layout) the detail pane have taken their share.
-	var gap := UiTheme.scaled(UiTheme.GAP, viewport_size)
+	var gap := UiTheme.scaled(UiTheme.GAP, factor)
 	var browser_width: float = panel_size.x \
-		- UiTheme.scaled(UiTheme.PAD_PANEL, viewport_size) * 2.0 \
+		- UiTheme.scaled(UiTheme.PAD_PANEL, factor) * 2.0 \
 		- float(UiTheme.BORDER_WIDTH) * 2.0
 	if not _compact:
 		browser_width -= _detail.custom_minimum_size.x + gap
 	_grid.columns = clampi(
-		int(browser_width / (UiTheme.scaled_touch(RecipeCard.CARD_SIZE.x, viewport_size) + gap)),
+		int(browser_width / (UiTheme.scaled_touch(RecipeCard.CARD_SIZE.x, factor) + gap)),
 		2, 6)
 
 
 ## Re-derives every font size, pad and control size in the panel from the viewport.
 ## Same job as PanelFrame's own `_apply_scale`, for the parts of the panel PanelFrame
 ## does not own, and driven by the same `size_changed`.
-func _apply_scale(viewport_size: Vector2) -> void:
+func _apply_scale(factor: float) -> void:
 	if _chrome == null:
 		return
 
-	var gap := int(round(UiTheme.scaled(UiTheme.GAP, viewport_size)))
-	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, viewport_size)
-	var font_small := UiTheme.scaled_font(UiTheme.FONT_SMALL, viewport_size)
-	var button_side := UiTheme.scaled_touch(BUTTON_SIDE, viewport_size)
+	var gap := int(round(UiTheme.scaled(UiTheme.GAP, factor)))
+	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, factor)
+	var font_small := UiTheme.scaled_font(UiTheme.FONT_SMALL, factor)
+	var button_side := UiTheme.scaled_touch(BUTTON_SIDE, factor)
 
 	# PanelFrame scales its own column but not the container it hands us, so the gaps
 	# between our header, body, queue bar and footer are ours to keep in step.
@@ -481,12 +480,12 @@ func _apply_scale(viewport_size: Vector2) -> void:
 	_product_row.add_theme_constant_override("separation", gap)
 	_qty_row.add_theme_constant_override("separation", gap)
 	_queue_row.add_theme_constant_override("separation", gap)
-	_cost_rows.add_theme_constant_override("separation", int(round(UiTheme.scaled(2.0, viewport_size))))
+	_cost_rows.add_theme_constant_override("separation", int(round(UiTheme.scaled(2.0, factor))))
 
-	var station_icon := UiTheme.scaled(STATION_ICON, viewport_size)
+	var station_icon := UiTheme.scaled(STATION_ICON, factor)
 	_station_icon.custom_minimum_size = Vector2(station_icon, station_icon)
 
-	_search.custom_minimum_size = Vector2(UiTheme.scaled(SEARCH_WIDTH, viewport_size), button_side)
+	_search.custom_minimum_size = Vector2(UiTheme.scaled(SEARCH_WIDTH, factor), button_side)
 	_search.add_theme_font_size_override("font_size", font_body)
 
 	_empty_hint.add_theme_font_size_override("font_size", font_body)
@@ -494,29 +493,29 @@ func _apply_scale(viewport_size: Vector2) -> void:
 
 	# The detail pane and the queue bar are the panel's two recessed areas; their
 	# content margin is the only scaled part of the shared inset style.
-	_detail.add_theme_stylebox_override("panel", _inset_style(viewport_size))
-	_queue_bar.add_theme_stylebox_override("panel", _inset_style(viewport_size))
-	_detail.custom_minimum_size.x = _detail_width(viewport_size)
+	_detail.add_theme_stylebox_override("panel", _inset_style(factor))
+	_queue_bar.add_theme_stylebox_override("panel", _inset_style(factor))
+	_detail.custom_minimum_size.x = _detail_width(factor)
 
-	var detail_icon := UiTheme.scaled(DETAIL_ICON, viewport_size)
+	var detail_icon := UiTheme.scaled(DETAIL_ICON, factor)
 	_detail_icon.custom_minimum_size = Vector2(detail_icon, detail_icon)
 	# The detail pane's own heading, one step up from the body text around it so the
 	# selected product reads as the subject of the pane.
 	_detail_name.add_theme_font_size_override(
-		"font_size", UiTheme.scaled_font(UiTheme.FONT_TITLE, viewport_size))
+		"font_size", UiTheme.scaled_font(UiTheme.FONT_TITLE, factor))
 	_detail_rate.add_theme_font_size_override("font_size", font_small)
 	_ingredients_heading.add_theme_font_size_override("font_size", font_small)
 
-	_qty_label.custom_minimum_size = Vector2(UiTheme.scaled(QTY_WIDTH, viewport_size), button_side)
+	_qty_label.custom_minimum_size = Vector2(UiTheme.scaled(QTY_WIDTH, factor), button_side)
 	_qty_label.add_theme_font_size_override("font_size", font_body)
 
-	_status.custom_minimum_size = Vector2(0, UiTheme.scaled(STATUS_HEIGHT, viewport_size))
+	_status.custom_minimum_size = Vector2(0, UiTheme.scaled(STATUS_HEIGHT, factor))
 	_status.add_theme_font_size_override("font_size", font_small)
 
-	var row_icon := UiTheme.scaled(ROW_ICON, viewport_size)
+	var row_icon := UiTheme.scaled(ROW_ICON, factor)
 	_queue_icon.custom_minimum_size = Vector2(row_icon, row_icon)
 	_queue_label.add_theme_font_size_override("font_size", font_body)
-	_queue_progress.custom_minimum_size = Vector2(0, UiTheme.scaled(PROGRESS_HEIGHT, viewport_size))
+	_queue_progress.custom_minimum_size = Vector2(0, UiTheme.scaled(PROGRESS_HEIGHT, factor))
 
 	# Every button in the panel is a finger target, so each one takes the touch floor
 	# on the axis that would otherwise collapse to its label's height.
@@ -526,7 +525,7 @@ func _apply_scale(viewport_size: Vector2) -> void:
 	_max_button.custom_minimum_size = Vector2(button_side, button_side)
 	_cancel_button.custom_minimum_size = Vector2(0, button_side)
 	_craft_button.custom_minimum_size = Vector2(
-		0, UiTheme.scaled_touch(CRAFT_HEIGHT, viewport_size))
+		0, UiTheme.scaled_touch(CRAFT_HEIGHT, factor))
 	for button in [_back_button, _minus_button, _plus_button,
 			_max_button, _craft_button, _cancel_button]:
 		button.add_theme_font_size_override("font_size", font_body)
@@ -534,7 +533,7 @@ func _apply_scale(viewport_size: Vector2) -> void:
 	# The cards are the panel's primary touch target and the reason any of this
 	# matters; they carry their own scaling so a card built mid-session gets it too.
 	for card in _cards:
-		card.apply_scale(viewport_size)
+		card.apply_scale(factor)
 
 	# Rebuilt rather than restyled: the rows are thrown away on every refresh anyway,
 	# and they read the scale from the viewport when they are made.
@@ -543,8 +542,8 @@ func _apply_scale(viewport_size: Vector2) -> void:
 
 ## Zero in compact mode, where the detail pane is a page of its own and must be free to
 ## use the whole panel width.
-func _detail_width(viewport_size: Vector2) -> float:
-	return 0.0 if _compact else UiTheme.scaled(DETAIL_WIDTH, viewport_size)
+func _detail_width(factor: float) -> float:
+	return 0.0 if _compact else UiTheme.scaled(DETAIL_WIDTH, factor)
 
 
 func _refresh_detail_if_open() -> void:
@@ -560,7 +559,7 @@ func _set_compact(value: bool) -> void:
 	# Two pages rather than a reflow: swapping the body between an HBox and a VBox at
 	# runtime means reparenting live children, and a detail pane stacked under a grid
 	# is unreadable at the width that triggers this anyway.
-	_detail.custom_minimum_size.x = _detail_width(get_viewport_rect().size)
+	_detail.custom_minimum_size.x = _detail_width(UiTheme.scale_for_node(self))
 	_search.visible = not _compact
 	_footer.visible = not _compact
 	if _compact:
@@ -736,13 +735,15 @@ func _rebuild_grid() -> void:
 		else:
 			blocked.append(recipe)
 
-	var viewport_size := get_viewport_rect().size if is_inside_tree() else Vector2.ZERO
+	# Outside the tree this is UiTheme's 1.0 fallback, which is what the old
+	# `Vector2.ZERO` viewport read resolved to anyway.
+	var factor := UiTheme.scale_for_node(self)
 	for recipe in ready_now + blocked + locked:
 		var card := RecipeCard.new(
 			recipe.product, _item_name(recipe.product), _icon_for(recipe.product), _accent())
 		# Sized for this viewport before it is ever drawn; _apply_scale() re-runs this
 		# for every live card when the window changes.
-		card.apply_scale(viewport_size)
+		card.apply_scale(factor)
 		card.chosen.connect(_on_card_chosen)
 		_grid.add_child(card)
 		_cards.append(card)
@@ -901,16 +902,16 @@ func _refresh_detail() -> void:
 		_status.add_theme_color_override("font_color", UiTheme.COLOR_TEXT_DIM)
 
 
-## Built fresh on every refresh, so it reads its own sizes from the viewport rather
-## than waiting for _apply_scale() to come round and restyle it.
+## Built fresh on every refresh, so it reads its own scale rather than waiting for
+## _apply_scale() to come round and restyle it.
 func _build_cost_row(type: Types.Item, have: int, need: int) -> Control:
-	var viewport_size := get_viewport_rect().size if is_inside_tree() else Vector2.ZERO
-	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, viewport_size)
-	var icon_side := UiTheme.scaled(ROW_ICON, viewport_size)
+	var factor := UiTheme.scale_for_node(self)
+	var font_body := UiTheme.scaled_font(UiTheme.FONT_BODY, factor)
+	var icon_side := UiTheme.scaled(ROW_ICON, factor)
 
 	var row := HBoxContainer.new()
 	row.name = "CostRow"
-	row.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, viewport_size))))
+	row.add_theme_constant_override("separation", int(round(UiTheme.scaled(UiTheme.GAP, factor))))
 
 	var icon := TextureRect.new()
 	icon.name = "Icon"
