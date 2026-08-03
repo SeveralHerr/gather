@@ -214,19 +214,20 @@ func on_interact(body: Node2D):
 		chests.append(body)
 		
 	if nearest_chest:
-		tilemap.add_highlight(nearest_chest.position)	
+		tilemap.set_interact_highlight(nearest_chest.position)
 	pass
-	
+
 func on_interact_exit(body: Node2D):
 	chests.erase(body)
-			
+
 	if chests.size() == 0:
 		nearest_chest = null
-		tilemap.remove_highlight()
-			
+		# Only this system's own cell. remove_highlight() wipes the whole of layer 3,
+		# which is also where the gather selector lives (gather-3zg.6).
+		tilemap.clear_interact_highlight()
+
 	if nearest_chest:
-		tilemap.remove_highlight()
-		tilemap.add_highlight(nearest_chest.position)	
+		tilemap.set_interact_highlight(nearest_chest.position)
 	pass
 	
 func is_facing_left():
@@ -344,6 +345,19 @@ func _process(_delta):
 		elif nearest_chest is CraftingStation:
 			nearest_chest.player_interact()
 			
+	# A chest freed while still inside the Interact area never fires body_exited, so `chests`
+	# can hold a freed object. Reading .position off one errors every frame; dropping them
+	# here is what keeps nearest_chest honest (gather-3zg.6).
+	var live_chests: Array = []
+	for chest in chests:
+		if is_instance_valid(chest):
+			live_chests.append(chest)
+	if live_chests.size() != chests.size():
+		chests = live_chests
+		if not is_instance_valid(nearest_chest):
+			nearest_chest = null
+			tilemap.clear_interact_highlight()
+
 	var nearestDistance = 1000000
 	for i in chests.size():
 		var tilePos = tilemap.tileMap.local_to_map(chests[i].position)
@@ -353,8 +367,9 @@ func _process(_delta):
 			nearestDistance = distance
 			nearest_chest = chests[i]
 	if nearest_chest:
-		tilemap.remove_highlight()
-		tilemap.add_highlight(nearest_chest.position)	
+		# set_interact_highlight is idempotent, so the common case — same chest, same cell —
+		# is a comparison rather than a wipe-and-restamp of the whole layer every frame.
+		tilemap.set_interact_highlight(nearest_chest.position)
 	pass
 	
 func get_drop_position() -> Vector2:

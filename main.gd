@@ -365,8 +365,44 @@ func add_highlight(location):
 	
 func remove_highlight():
 	var tiles = tileMap.get_used_cells(3)
-	for tile in tiles: 
+	for tile in tiles:
 		tileMap.set_cell(3, tile, -1)
+
+
+## The cell the interact highlight currently occupies, or null when there is none.
+##
+## Layer 3 is shared by the gather selector and the chest/station interact highlight, and
+## remove_highlight() above wipes the *whole* layer. player.gd used to call that pair every
+## frame while any chest was in range, so the gather selector was overwritten within one
+## frame of being drawn and was simply invisible near any chest or crafting station
+## (gather-3zg.6). It also masked a stranded selector, which is why the stuck highlight only
+## ever showed up early game — before the player had built anything to stand next to.
+##
+## Tracking the one cell this system owns lets it clean up after itself without touching
+## anything else drawn on the layer.
+var _interact_highlight_cell = null
+
+
+## Moves the interact highlight to `location`, clearing only its own previous cell.
+##
+## Idempotent: player.gd calls this every frame from _process, and re-stamping the same cell
+## would be a pointless tilemap write per frame per chest.
+func set_interact_highlight(location) -> void:
+	var cell: Vector2i = tileMap.local_to_map(location)
+	if _interact_highlight_cell != null and _interact_highlight_cell == cell:
+		return
+
+	clear_interact_highlight()
+	_interact_highlight_cell = cell
+	tileMap.set_cell(3, cell, 4, Vector2i(7, 1))
+
+
+func clear_interact_highlight() -> void:
+	if _interact_highlight_cell == null:
+		return
+
+	tileMap.set_cell(3, _interact_highlight_cell, -1)
+	_interact_highlight_cell = null
 
 	
 func _on_destroy_removing(location: Vector2i, _item: GameItem):
@@ -480,8 +516,16 @@ func clear_tile(location: Vector2i):
 	tileMap.set_cell(3, location, -1)
 	tileMap.set_cell(1, location, -1)
 	
+## Places `item`'s tile at `location`.
+##
+## atlas_location, NOT tile_atlas_location. The latter is the inventory ICON cell, which
+## GameItem.get_atlas() prefers — and feeding it to a TileSetScenesCollectionSource writes a
+## cell that instances nothing at all while set_cell() still reports success. A devtools verb
+## that copied the old body produced a sawmill that never appeared (gather-w41).
+## player_manager.place_tile:29 is the path the game itself uses, and it passes
+## atlas_location; this now matches it.
 func set_tile_item(location: Vector2i, item: GameItem):
-	set_tile(location,item.tile_source_id, item.tile_atlas_location, item.layer, item.is_scene_tile)
+	set_tile(location, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
 	
 func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i, layer: int, is_scene: bool = false):
 	if disableSetTile == true:

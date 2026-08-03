@@ -154,9 +154,17 @@ func use_slot_data(index: int):
 	if not slot_data:
 		return	
 	
-	if slot_data.item is GameItemConsumable: # or slot_data.item is GameItemCraftingStation:
-		if not slot_data.item.can_use():
-			return
+	# can_use() is asked of EVERY item, not just consumables. Its documented purpose is to
+	# stop a no-op use from eating the stack, and gating the call on GameItemConsumable made
+	# it dead code for every other type — so an item whose use() does nothing still spent a
+	# charge, and any item that wanted the guard had to re-implement it inside use() where
+	# the two answers can drift (gather-tan).
+	if not slot_data.item.can_use():
+		return
+
+	# Only consumables are spent by using them. A pickaxe, a placeable or a net answering
+	# can_use() true is permission to act, not a charge.
+	if slot_data.item is GameItemConsumable:
 		slot_data.count -= 1
 
 	PlayerManager.use_slot_data(slot_data)

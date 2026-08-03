@@ -3056,3 +3056,43 @@ Guidelines that make an entry useful later:
   the tile count went 490 -> 890 because ambient resources respawned during the session.
   Per entry the escaping really was the overhead: 50 bytes -> 42 for one tile. Comparing
   whole-file sizes across a live session measures the world, not the format.
+
+## 2026-08-03 — Gameplay bead batch: gather restart guard, highlight decoupling, enemy signal
+
+- Value: **warranted** — three of these live only on the gameplay path and no unit test in
+  the repo can reach them.
+  - Expected: these are gameplay-path fixes that unit tests cannot reach: the gather restart
+    guard, the highlight decoupling and the enemy signal reconnect all only manifest in a
+    running game.
+  - Got: the gather guard is the clean one. With `wait_time` inflated to 60 on the *running*
+    HoldTimer, a second press left `time_left` going `1.608 -> 0.923` instead of snapping to
+    60 — a restart would have been unmissable. `clear-nodes --group Enemy` answered
+    `Cleared 3 node(s)`, which proves the new group is populated rather than merely declared.
+    3 enemies lived through ~60 game-seconds with **0** `already connected` on stderr.
+  - Cheaper: nothing for the gather guard — `is_holding_e` is only meaningful in a live
+    session, and the inflate-the-running-timer trick is what made a restart distinguishable
+    from an ordinary countdown at CLI latency.
+
+- **Could not verify, recorded as blocked:** both highlights on layer 3 in the same frame,
+  which is the literal claim of gather-3zg.6. Every staging order defeated itself —
+  `goto_resource` walks away from the station, `place_station` interrupts the gather, and on
+  one attempt the resource and the station resolved to the *same cell* (-2,-1), so "1 used
+  cell" looked like a failure when it was two coincident highlights. I verified the halves
+  instead: the selector draws during a gather, the interact highlight clears exactly its own
+  cell, and grep confirms nothing calls the wholesale `remove_highlight()` any more.
+
+- Gap: **no way to stage two interacting world states without the setup verbs undoing each
+  other.** `place_station` puts a station at the nearest free cell *to the player* and
+  `goto_resource` teleports the player to a resource; there is no "put the player somewhere
+  that satisfies both predicates at once". Every attempt cost a launch-to-assert cycle and
+  the run still ends with a blocked check.
+  - [G-099] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let the project's own setup verbs take an explicit target cell
+    (`place_station --args '{"cell":{"x":-8,"y":3}}'`, `goto_cell` already does) so a test
+    can compose a scene deliberately instead of hoping two nearest-free-cell searches
+    happen to cooperate. That is a `devtools_ext` change, not a harness one, but the gap is
+    the harness's: nothing in it makes composing world state any easier than by hand.
+
+- Note: `cmd spawn_resource` takes `name`, not `type`, and answered
+  `"no resource named ''"` — a well-formed success-shaped failure. Worth reading messages,
+  not just `success`.

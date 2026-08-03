@@ -744,7 +744,7 @@ func _enemy_in_reach() -> bool:
 		return false
 
 	var reach_squared := ENEMY_REACH * ENEMY_REACH
-	for node in tree.get_nodes_in_group("SaveLoad"):
+	for node in tree.get_nodes_in_group("Enemy"):
 		var enemy := node as Enemy
 		if enemy == null or not is_instance_valid(enemy):
 			continue

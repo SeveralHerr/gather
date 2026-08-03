@@ -49,6 +49,10 @@ var lunge_time = 1
 
 func _ready():
 	add_to_group("SaveLoad")
+	# Its own group, so nothing has to find enemies by filtering the save system's
+	# membership. mobile_controls.gd used to walk "SaveLoad" and cast each member to Enemy,
+	# which worked but coupled a UI file to who happens to persist themselves (gather-xcl).
+	add_to_group("Enemy")
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Idle")
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))

@@ -19,9 +19,12 @@ func use(_target):
 	PlayerManager.player.inventory_data.remove_by_type(Types.Item.BoneEnemy)
 
 
-## Whether using the skull right now would load anything. `use_slot_data()` only consults
-## this for consumables, so `use()` still guards itself; keeping the question in one place
-## is what stops the two answers drifting apart.
+## Whether using the skull right now would load anything.
+##
+## `use_slot_data()` consults this for every item now (gather-tan), so this is the live
+## guard rather than advisory. `use()` still checks for itself — it is reachable from
+## PlayerManager directly — and keeping the question in one function is what stops the two
+## answers drifting apart.
 func can_use() -> bool:
 	return find_closest_loadable() != null
 
