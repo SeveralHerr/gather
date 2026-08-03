@@ -128,6 +128,9 @@ func _build() -> void:
 			{"product": Types.Item.Furnace, "station": Types.Item.Sawmill},
 			{"product": Types.Item.CopperBar, "station": Types.Item.Furnace},
 			{"product": Types.Item.CopperPickaxe, "station": Types.Item.Sawmill},
+			# Cooking arrives with the furnace, because it is the first reason to visit one
+			# that is not metal (gather-cte).
+			{"product": Types.Item.CookedFood, "station": Types.Item.Furnace},
 		]
 	))
 	# Iron veins arrive on the same node that can smelt them. Gating the ore one tier
@@ -159,6 +162,11 @@ func _build() -> void:
 			# resources, so splitting them across two purchases would price a pair the player
 			# will always want together as though it were two decisions.
 			{"product": Types.Item.StoneWorker, "station": Types.Item.Sawmill},
+			# The iron bar had exactly one buyer (the pickaxe) for the whole branch, and the
+			# brick gives fired stone a home on the tier that already doubles coal use
+			# (gather-cte).
+			{"product": Types.Item.IronSword, "station": Types.Item.Sawmill},
+			{"product": Types.Item.StoneBrick, "station": Types.Item.Furnace},
 		],
 		[Types.Item.IronResource]
 	))
@@ -177,6 +185,10 @@ func _build() -> void:
 			# and gold veins only start spawning from here, so unlocking it sooner
 			# would hand the player a recipe with an unobtainable ingredient.
 			{"product": Types.Item.Coin, "station": Types.Item.Furnace},
+			# Same reasoning as the iron sword one tier down: the gold bar fed only the
+			# pickaxe and the mint, and the capstone should arm the player as well as tool
+			# them.
+			{"product": Types.Item.GoldSword, "station": Types.Item.Sawmill},
 		],
 		[Types.Item.GoldResource]
 	))
@@ -186,18 +198,25 @@ func _build() -> void:
 	_add(Skill.new(
 		"bone_sword", COMBAT, 0,
 		"Bone Sword",
-		"+2 damage on every swing.",
-		"+2 damage",
+		"+2 damage on every swing, and craft the bone sword itself.",
+		"+2 damage, a sword",
 		Types.Item.Sword, [],
-		{"damage_bonus": 2}
+		{"damage_bonus": 2},
+		# The node was named for a sword the player could never make (gather-cte). Combat had
+		# no craftable of its own at all — every node was a stat bump or a turret — so the
+		# branch that fights crafted nothing at its own stations.
+		[{"product": Types.Item.BoneSword, "station": Types.Item.Sawmill}]
 	))
 	_add(Skill.new(
 		"tough_hide", COMBAT, 1,
 		"Tough Hide",
-		"+5 max health, and heal for the difference now.",
-		"+5 max HP",
+		"+5 max health, heal for the difference now, and bind bandages from string.",
+		"+5 max HP, bandages",
 		Types.Item.Bone, ["bone_sword"],
-		{"max_health_bonus": 5}
+		{"max_health_bonus": 5},
+		# Sustain lands on the survivability node, and costs string — which spiders drop — so
+		# the branch that fights is the branch that heals.
+		[{"product": Types.Item.Bandage, "station": Types.Item.Sawmill}]
 	))
 	_add(Skill.new(
 		"bone_turret", COMBAT, 2,

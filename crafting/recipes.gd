@@ -166,6 +166,25 @@ func furnace_recipes():
 	coin_costs[Types.Item.CoalOre] = 1
 	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.Coin, coin_costs))
 
+	# --- Furnace additions (gather-cte).
+	#
+	# Cooking. Food drops from trees at a 0.2 chance and heals 4; two of them plus fuel heal
+	# 10, so the furnace is what turns a forager's incidental drops into real sustain. It is
+	# also the first furnace recipe whose inputs are not ore, which is the point — the machine
+	# should be worth walking to for something other than metal.
+	var cooked_food_costs = {}
+	cooked_food_costs[Types.Item.Food] = 2
+	cooked_food_costs[Types.Item.CoalOre] = 1
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.CookedFood, cooked_food_costs))
+
+	# Firing brick. Stone is the resource the player trips over most (spawn_weight 4.0 + 4.0
+	# of 16.7 in Resources.TUNING) and its only sinks are the furnace itself, one wall and one
+	# floor. This gives the surplus somewhere to go and coal a consumer that is not a bar.
+	var stone_brick_costs = {}
+	stone_brick_costs[Types.Item.Stone] = 4
+	stone_brick_costs[Types.Item.CoalOre] = 1
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.StoneBrick, stone_brick_costs))
+
 func sawmill_recipes():
 	var plank_costs = {}
 	plank_costs[Types.Item.Wood] = 1
@@ -313,6 +332,39 @@ func sawmill_recipes():
 	gold_pickaxe_costs[Types.Item.GoldBar] = 5
 	gold_pickaxe_costs[Types.Item.Plank] = 4
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
+
+	# --- The sword ladder (gather-cte). Combat had no craftable of its own: every one of its
+	# skills was a stat bump or a turret, so a player pushing that branch crafted nothing at
+	# their own stations. Each tier hangs off a skill the player already had a reason to buy,
+	# so none of them needs a new node — the tree is capped at 16 by the XP budget a single
+	# run can produce (test_skill_tree.test_the_whole_tree_is_reachable_in_one_run).
+	#
+	# Priced deliberately BELOW the pickaxe of the same tier: the pickaxe is the tool that
+	# compounds (it makes everything else faster), so it should stay the bigger ask. Bone at 6
+	# against the bone pickaxe's 9; iron at 4 bars against the iron pickaxe's 5; gold at 4
+	# against 5.
+	var bone_sword_costs = {}
+	bone_sword_costs[Types.Item.Bone] = 6
+	bone_sword_costs[Types.Item.Plank] = 2
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneSword, bone_sword_costs))
+
+	var iron_sword_costs = {}
+	iron_sword_costs[Types.Item.IronBar] = 4
+	iron_sword_costs[Types.Item.Plank] = 2
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronSword, iron_sword_costs))
+
+	var gold_sword_costs = {}
+	gold_sword_costs[Types.Item.GoldBar] = 4
+	gold_sword_costs[Types.Item.Plank] = 3
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldSword, gold_sword_costs))
+
+	# The Combat branch's sustain, and the second thing string is for. Costing it in string
+	# rather than in food is what makes it Combat's own: spiders drop string, so the branch
+	# that fights is the branch that heals.
+	var bandage_costs = {}
+	bandage_costs[Types.Item.String] = 2
+	bandage_costs[Types.Item.Food] = 1
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Bandage, bandage_costs))
 
 
 

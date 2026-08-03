@@ -3460,7 +3460,7 @@ Guidelines that make an entry useful later:
   so none of them will ever appear in a `scene-tree` snapshot or in `scripts-seen` — and the
   item registry is precisely where this project's content lives, so the metric will keep
   under-reporting exactly the files a content change touches.
-  - [G-102] status: open | seen: 4 | harness: 0.8.0
+  - [G-102] status: open | seen: 5 | harness: 0.8.0
   - Improvement: as before — credit a script when a reached node's script inherits from it,
     and additionally allow `devtools_config.json` to name directories whose scripts are
     known-RefCounted (`items/`, here) so they are reported as `implicit` rather than as
@@ -3494,7 +3494,7 @@ Guidelines that make an entry useful later:
   and `GameResource` is a RefCounted item, so neither will ever own a node a snapshot can see.
   Between this, the `GameItem` subclasses and `PlayerState`, the metric now misses most of
   what a content change touches in this codebase.
-  - [G-102] status: open | seen: 4 | harness: 0.8.0
+  - [G-102] status: open | seen: 5 | harness: 0.8.0
   - Improvement: as logged — credit a script when a reached node's script inherits from it
     (free; the harness already has every reached node's script path and
     `GDScript.get_base_script()` walks the chain), plus a `devtools_config.json` list of
@@ -3676,3 +3676,49 @@ Guidelines that make an entry useful later:
     by the tool.
 
 - Gap: **no gaps this turn.** Nothing was asked of the harness beyond a parse check.
+
+## 2026-08-03 — crafting content phase 2 (gather-cte)
+
+- Value: **warranted** — and this run is the one that tested the morning's refactors rather
+  than the content.
+  - Expected: six new items, three recipes' worth of unlocks and a new enum tail all work
+    without touching anything structural — the registries take content as data now.
+  - Got: exactly that, and the shape of the diff is the evidence. Each recipe is one
+    `_register` call; each unlock is one line appended to a skill's `recipes` array; no new
+    skill node, no new accessor, no format change. At runtime the sword ladder read
+    `Sword 4 -> Bone 6 -> Iron 9 -> Gold 13` straight off `player.damage` as each was
+    equipped; the sawmill showed `['Plank', 'Stone Pickaxe', 'Chest', 'Bone Sword', 'Bandage']`
+    after two Combat skills; the furnace showed all five of its recipes with `GoldSword` still
+    `False` as a negative control; and a Stone Brick crafted end to end and turned up in the
+    save as `{"count": 1, "type": 50}`, surviving a load and re-save.
+  - Cheaper: the ladder monotonicity, the "each sword costs its own bar" rule and the "a sword
+    never outprices the pickaxe of its tier" balance rule are pure and are covered headless —
+    mutation-checked by dropping the iron sword to 5 power, which fails with
+    `Iron Sword (5) does not hit harder than Bone Sword (6)`. Runtime was needed for the equip
+    path, the unlock tiers on a live station, and that an appended enum value survives a real
+    save.
+
+- **Two of today's fixes paid off directly here.** The placeholder sheet's rows 0-2 were
+  reserved with a comment saying they could not be used because main.gd matched resources by
+  atlas coordinate alone; that was fixed this morning (gather-54s), so row 1 is now usable and
+  this content went there instead of growing the sheet. And `GameItemSword` calling `super()`
+  (gather-q6t) is what makes three new sword tiers a three-line edit rather than three copies
+  of eight field assignments.
+
+- One self-inflicted detour worth recording: `queue_craft` refused, and the cause was
+  `give_item` reporting `added 0 of 4 Coal Ore` — the bag was full of the six items I had just
+  handed myself to check registration. Not a content bug and not a harness bug; the honest
+  read is that a test which hands the player everything cannot then test crafting, and the fix
+  was to relaunch and give exactly the two stacks the recipe needed.
+
+- Gap: **[G-102] again, seen 5.** `NOT reached: items/types.gd, systems/skill_tree.gd` — the
+  first is a bare `class_name` holding an enum, the second is the RefCounted SkillTree that
+  `learn_skill` had just been driving through three purchases. Both are content registries,
+  which is precisely the category this project adds to most often, so the metric is at its
+  least informative exactly where the work is. `tools/generate_placeholder_art.gd` is also
+  listed and should not be: it is a build-time generator the game never loads by design.
+  - [G-102] status: open | seen: 5 | harness: 0.8.0
+  - Improvement: unchanged and now overdue — credit a script when a reached node's script
+    inherits from it, and let `devtools_config.json` name known-RefCounted directories.
+    Additionally: a `reach_exclude` glob for build-time tooling, so `tools/` stops counting
+    against a diff it can never be part of.

@@ -50,5 +50,14 @@ enum Item {
 	StoneWall,
 	StoneFloor,
 	BoneWorker,
-	StoneWorker
+	StoneWorker,
+
+	# The tier-2 crafting set (gather-cte). Appended, like everything above the line: iron and
+	# gold bars each had exactly one buyer, and Combat had no craftable of its own at all.
+	BoneSword,
+	IronSword,
+	GoldSword,
+	Bandage,
+	CookedFood,
+	StoneBrick
 }

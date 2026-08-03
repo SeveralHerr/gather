@@ -36,16 +36,38 @@ const GOLD := Color(1.0, 0.81, 0.24)
 ## tiers, which is the tier it sits between.
 const STONE := Color(0.62, 0.64, 0.70)
 
+## The tier-2 crafting set (gather-cte). Bone is the warm off-white of the skeleton tiles so a
+## bone sword reads as kin to the bone pickaxe; iron keeps the blue-grey the hand-drawn iron
+## tiles already use, so the sword ladder is legible against the pickaxe ladder at a glance.
+## Gold reuses GOLD above rather than a second yellow, for the same reason.
+const BONE := Color(0.90, 0.88, 0.76)
+const IRON := Color(0.60, 0.67, 0.78)
+
+## Bandage is near-white with the faintest warm cast, so it does not read as ice; cooked food
+## is a deeper brown than raw so the two are distinguishable in a hotbar slot at 16px; brick
+## is the red-brown that says "fired" against the grey of plain stone.
+const BANDAGE := Color(0.95, 0.94, 0.90)
+const COOKED := Color(0.78, 0.47, 0.26)
+const BRICK := Color(0.70, 0.42, 0.34)
+
 ## Recolours are luminance-driven, so the original tile's shading survives. The
 ## gain lifts midtones back up after the tint multiply, which otherwise reads as
 ## a uniformly muddy silhouette.
 const TINT_GAIN := 1.45
 
-## Rows 0-2 of the generated sheet are left empty on purpose. Several lookups in
-## main.gd match a resource by atlas coordinate ALONE, ignoring the source id
-## (see get_location_of_nearby_resource), so a generated node that reused a
-## coordinate already held by tree (1,0) or stone (2,1) would be gathered as that
-## resource instead. Rows 3 and 4 are unused by every existing resource.
+## Rows 3 and 4 hold the ore tiers. Row 1 holds the tier-2 crafting set added by gather-cte;
+## rows 0 and 2 are still free.
+##
+## Those rows used to be reserved deliberately: several lookups in main.gd matched a resource
+## by atlas coordinate ALONE, ignoring the source id, so a generated cell reusing a coordinate
+## already held by tree (1,0) or stone (2,1) would have been gathered as that resource. That
+## is fixed — main.gd now keys on source + coordinate together (gather-54s, see
+## TileMapHandler.resource_key) — so the rows are usable and row 1 is used.
+##
+## The rule that remains, and it is a weaker one: a few coordinate-only comparisons survive in
+## tile_path_finder.gd and bone_worker.gd, all of them scanning TILEMAP cells for water, door
+## or tree. Nothing on row 1 is placeable, so none of them can ever see these cells. Put a
+## PLACEABLE tile on this sheet and that constraint comes back — check those call sites first.
 const RECOLOURS := [
 	{"from": Vector2i(4, 1), "to": Vector2i(0, 3), "tint": COPPER, "what": "copper node"},
 	{"from": Vector2i(4, 1), "to": Vector2i(1, 3), "tint": GOLD, "what": "gold node"},
@@ -58,6 +80,17 @@ const RECOLOURS := [
 	{"from": Vector2i(6, 1), "to": Vector2i(5, 4), "tint": GOLD, "what": "gold pickaxe"},
 	{"from": Vector2i(6, 1), "to": Vector2i(4, 3), "tint": COPPER, "what": "copper pickaxe"},
 	{"from": Vector2i(12, 0), "to": Vector2i(5, 3), "tint": STONE, "what": "stone pickaxe"},
+
+	# --- the tier-2 crafting set (gather-cte), all on row 1.
+	# Each is a recolour of the hand-drawn tile it is a variant OF, so the silhouettes stay
+	# consistent with what the player already knows: the swords come off the starting sword,
+	# the bandage off string, cooked food off food, and the brick off plain stone.
+	{"from": Vector2i(6, 0), "to": Vector2i(0, 1), "tint": BONE, "what": "bone sword"},
+	{"from": Vector2i(6, 0), "to": Vector2i(1, 1), "tint": IRON, "what": "iron sword"},
+	{"from": Vector2i(6, 0), "to": Vector2i(2, 1), "tint": GOLD, "what": "gold sword"},
+	{"from": Vector2i(16, 1), "to": Vector2i(3, 1), "tint": BANDAGE, "what": "bandage"},
+	{"from": Vector2i(15, 0), "to": Vector2i(4, 1), "tint": COOKED, "what": "cooked food"},
+	{"from": Vector2i(1, 2), "to": Vector2i(5, 1), "tint": BRICK, "what": "stone brick"},
 ]
 
 ## The coin has no plausible ancestor on the sheet, so it is drawn rather than

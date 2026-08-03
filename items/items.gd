@@ -81,6 +81,34 @@ func _ready():
 	item_list[Types.Item.StoneFloor] = GameItemFloor.new(Vector2i(0, 6), GameItem.STONE_BUILD_SOURCE_ID, Types.Item.StoneFloor, 2, true, "Stone Floor", Vector2i.ZERO)
 	item_list[Types.Item.StoneWall] = GameItemWall2.new(Vector2i(0, 4), GameItem.STONE_BUILD_SOURCE_ID, Types.Item.StoneWall, 1, true, "Stone Wall", Vector2i.ZERO)
 
+	# --- The tier-2 crafting set (gather-cte), on row 1 of the generated placeholder sheet.
+	#
+	# The sword ladder mirrors the pickaxe ladder above and is read the same way: `power` is
+	# the damage the swing carries (PlayerManager.show_slot_data pushes it into player.damage,
+	# and PlayerStats.damage_bonus adds to it). The starting Sword is 4, so these are the tiers
+	# above it — and unlike the pickaxes they are pure damage, because a sword has no gather
+	# time to shorten.
+	#
+	# Bone at 6 sits level with the bone pickaxe's place in the ladder: craftable early off a
+	# resource combat itself produces. Iron at 9 and gold at 13 keep the same widening steps
+	# the pickaxes use, so the two ladders stay comparable at a glance.
+	item_list[Types.Item.BoneSword] = GameItemSword.new(Vector2i(0, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.BoneSword, 1, false, "Bone Sword", Vector2i.ZERO, false, 6)
+	item_list[Types.Item.IronSword] = GameItemSword.new(Vector2i(1, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.IronSword, 1, false, "Iron Sword", Vector2i.ZERO, false, 9)
+	item_list[Types.Item.GoldSword] = GameItemSword.new(Vector2i(2, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.GoldSword, 1, false, "Gold Sword", Vector2i.ZERO, false, 13)
+
+	# Consumables, and both heal more than the 4 that raw Food does. The bandage is the
+	# Combat branch's own sustain — it costs string, which combat drops — and cooked food is
+	# what the furnace does for the forager. Neither can be used at full health
+	# (GameItemConsumable.can_use), so a bigger number is not a bigger waste.
+	item_list[Types.Item.Bandage] = GameItemConsumable.new(Vector2i(3, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.Bandage, 1, false, "Bandage", Vector2i.ZERO, false, 8)
+	item_list[Types.Item.CookedFood] = GameItemConsumable.new(Vector2i(4, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.CookedFood, 1, false, "Cooked Food", Vector2i.ZERO, false, 10)
+
+	# A plain GameItem with no behaviour of its own: it is a crafting INTERMEDIATE, the stone
+	# equivalent of the plank, and exists so coal has a second consumer and stone has a sink
+	# that is not a wall. Nothing consumes it yet — the building set it is meant to feed is a
+	# later tier — so it is deliberately the one item here with no downstream recipe.
+	item_list[Types.Item.StoneBrick] = GameItem.new(Vector2i(5, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.StoneBrick, 1, false, "Stone Brick", Vector2i.ZERO, false)
+
 	
 	
 	

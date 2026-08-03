@@ -334,3 +334,92 @@ func test_gold_is_the_node_that_pays_currency() -> String:
 		return err
 
 	return _T.assert_gt(gold.secondary_drop_chance, 0.0, "and does so at a real rate")
+
+
+# --- the sword ladder (gather-cte) -------------------------------------------
+
+
+## Every sword tier in ascending order. Adding a tier means adding it here, which is the
+## point: the invariants below then cover it without anyone remembering to write a test.
+const SWORD_LADDER := [
+	Types.Item.Sword,
+	Types.Item.BoneSword,
+	Types.Item.IronSword,
+	Types.Item.GoldSword,
+]
+
+
+func test_each_sword_tier_hits_harder_than_the_one_below() -> String:
+	# The same invariant the pickaxe ladder has, and worth holding for the same reason: a tier
+	# that is not strictly better than its predecessor is a recipe nobody has a reason to
+	# craft, and nothing else in the project would report it.
+	for i in range(1, SWORD_LADDER.size()):
+		var lower := items.get_item(SWORD_LADDER[i - 1]) as GameItemSword
+		var upper := items.get_item(SWORD_LADDER[i]) as GameItemSword
+
+		if lower == null or upper == null:
+			return _T.assert_true(false, "a sword tier is not registered in items.gd")
+		if upper.power <= lower.power:
+			return _T.assert_true(false,
+				"%s (%d) does not hit harder than %s (%d)"
+					% [upper.name, upper.power, lower.name, lower.power])
+	return ""
+
+
+func test_every_craftable_sword_costs_its_own_tier_of_bar() -> String:
+	# The ladder is only legible if each rung is paid for in the material it is named after.
+	# Sword itself is the starting weapon and has no recipe, hence the skip.
+	var expected := {
+		Types.Item.BoneSword: Types.Item.Bone,
+		Types.Item.IronSword: Types.Item.IronBar,
+		Types.Item.GoldSword: Types.Item.GoldBar,
+	}
+
+	for product in expected:
+		var recipe = recipes.get_recipe(Types.Item.Sawmill, product)
+		if recipe == null:
+			return _T.assert_true(false, "%s has no sawmill recipe" % items.get_item(product).name)
+		if recipe.cost_list.get(expected[product], 0) <= 0:
+			return _T.assert_true(false,
+				"%s does not cost any %s"
+					% [items.get_item(product).name, items.get_item(expected[product]).name])
+	return ""
+
+
+func test_a_sword_never_outprices_the_pickaxe_of_its_own_tier() -> String:
+	# Deliberate balance, stated so it cannot drift: the pickaxe compounds (it makes every
+	# other loop faster) and the sword does not, so the pickaxe stays the bigger ask at each
+	# tier. If that ever stops being true the sword becomes the obvious first buy and the
+	# whole tool ladder loses its opening.
+	var pairs := [
+		{"sword": Types.Item.IronSword, "pickaxe": Types.Item.IronPickaxe, "bar": Types.Item.IronBar},
+		{"sword": Types.Item.GoldSword, "pickaxe": Types.Item.GoldPickaxe, "bar": Types.Item.GoldBar},
+	]
+
+	for pair in pairs:
+		var sword = recipes.get_recipe(Types.Item.Sawmill, pair["sword"])
+		var pickaxe = recipes.get_recipe(Types.Item.Sawmill, pair["pickaxe"])
+		if sword == null or pickaxe == null:
+			return _T.assert_true(false, "a tier is missing one of its two recipes")
+
+		var sword_bars: int = sword.cost_list.get(pair["bar"], 0)
+		var pickaxe_bars: int = pickaxe.cost_list.get(pair["bar"], 0)
+		if sword_bars >= pickaxe_bars:
+			return _T.assert_true(false,
+				"%s costs %d bars, the pickaxe of the same tier costs %d - the pickaxe should be dearer"
+					% [items.get_item(pair["sword"]).name, sword_bars, pickaxe_bars])
+	return ""
+
+
+func test_both_new_consumables_heal_more_than_raw_food() -> String:
+	# A cooked or bound item that heals no better than the thing it was made from is a recipe
+	# that costs the player fuel to go backwards.
+	var raw := items.get_item(Types.Item.Food) as GameItemConsumable
+	for type in [Types.Item.Bandage, Types.Item.CookedFood]:
+		var made := items.get_item(type) as GameItemConsumable
+		if made == null:
+			return _T.assert_true(false, "a consumable is not registered")
+		if made.heal_value <= raw.heal_value:
+			return _T.assert_true(false,
+				"%s heals %d, raw food heals %d" % [made.name, made.heal_value, raw.heal_value])
+	return ""
