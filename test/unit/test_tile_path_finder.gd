@@ -88,7 +88,14 @@ func test_a_fully_enclosed_target_is_unreachable() -> String:
 	return _T.assert_eq(path.size(), 0, "a sealed-in target returns no path rather than a wrong one")
 
 
-func test_an_unwalkable_endpoint_returns_no_path() -> String:
+## Asymmetric on purpose, and the asymmetry is the point.
+##
+## A solid DESTINATION is refused — that is find_path_adjacent's job. A solid START is not:
+## a walker can always leave the cell it occupies, and in this game it routinely occupies a
+## solid one. A BoneWorker *is* a layer-1 scene tile, so its own cell reads as solid;
+## requiring a walkable start refused every route out of it and left workers standing still
+## forever with a tree two cells away. Runtime caught that; nothing headless did.
+func test_a_solid_destination_is_refused_but_a_solid_start_is_not() -> String:
 	var f := _finder([Vector2i(2, 0)])
 	var into_wall := f.find_path(Vector2i(-3, 0), Vector2i(2, 0))
 	var blocked: String = _T.assert_eq(into_wall.size(), 0, "cannot path onto a solid cell")
@@ -96,7 +103,30 @@ func test_an_unwalkable_endpoint_returns_no_path() -> String:
 		return blocked
 
 	var out_of_wall := f.find_path(Vector2i(2, 0), Vector2i(-3, 0))
-	return _T.assert_eq(out_of_wall.size(), 0, "cannot path out of a solid cell")
+	var leaves: String = _T.assert_gt(out_of_wall.size(), 0, "can always walk out of the cell you stand on")
+	if leaves != "":
+		return leaves
+	return _T.assert_eq(out_of_wall[0], Vector2i(2, 0), "the route starts where the walker stands")
+
+
+## Forcing the start cell open must not survive into the next query, or one walker leaving a
+## wall punches a permanent hole through it for whoever asks next off the same cached grid.
+func test_forcing_a_start_open_does_not_leak_into_later_queries() -> String:
+	var f := _finder(_sealed_wall())
+
+	var leaving := f.find_path(Vector2i(0, 0), Vector2i(3, 0))
+	var left: String = _T.assert_gt(leaving.size(), 0, "a walker inside the wall can leave it")
+	if left != "":
+		return left
+
+	# Same grid, different query: (0,0) must be solid again, so crossing has to go around.
+	var crossing := f.find_path(Vector2i(-3, 0), Vector2i(3, 0))
+	for cell in crossing:
+		var clear: String = _T.assert_false(cell == Vector2i(0, 0),
+			"the previously-forced cell is solid again")
+		if clear != "":
+			return clear
+	return ""
 
 
 func test_a_target_outside_the_bounds_returns_no_path() -> String:

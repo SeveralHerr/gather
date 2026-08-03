@@ -36,6 +36,10 @@ var _grid: AStarGrid2D = null
 var _grid_region := Rect2i()
 var _built_at_ms := -1
 
+## The cell most recently forced open as a path start, so it can be restored. Untyped so
+## null can mean "none"; every Vector2i is a legal cell.
+var _forced_open = null
+
 
 ## Pathfinder over the live world.
 static func for_world(handler: TileMapHandler) -> TilePathFinder:
@@ -70,9 +74,17 @@ func is_walkable(cell: Vector2i) -> bool:
 		return false
 	var tile_map: TileMap = _handler.tileMap
 
-	# 1. There has to be land. GRASS_ATLAS is the tile LandManager writes for bought ground;
-	#    open water and unbought sea are simply a different atlas coord or nothing at all.
-	if tile_map.get_cell_atlas_coords(0, cell) != TileMapHandler.GRASS_ATLAS:
+	# 1. There has to be dry land under the cell.
+	#
+	#    Deliberately "layer 0 has a tile that is not water" rather than "layer 0 is
+	#    GRASS_ATLAS". GRASS_ATLAS (9,17) is only what LandManager writes for *purchased*
+	#    ground; the pre-baked starting island in world/tile_map.tscn is authored as source 0
+	#    atlas (0,0). Testing for the bought tile therefore rejects the entire home island,
+	#    which is where every worker is placed — the pathfinder returned no route at all and
+	#    the worker sat in IDLE forever. Open sea is simply an absent tile.
+	if tile_map.get_cell_source_id(0, cell) == -1:
+		return false
+	if _is_water(tile_map, cell):
 		return false
 
 	# 2. Layer 1 is objects — walls, buildings, resources. Anything there blocks...
@@ -85,6 +97,14 @@ func is_walkable(cell: Vector2i) -> bool:
 	# 3. Layer 2 is floors. A floor is the inside of a building and is walked on, not
 	#    around, so it is deliberately not consulted at all.
 	return true
+
+
+func _is_water(tile_map: TileMap, cell: Vector2i) -> bool:
+	var water := GameItems.get_item(Types.Item.Water) if GameItems != null else null
+	if water == null:
+		return false
+	return (tile_map.get_cell_source_id(0, cell) == water.tile_source_id
+		and tile_map.get_cell_atlas_coords(0, cell) == water.atlas_location)
 
 
 func _is_door(tile_map: TileMap, cell: Vector2i) -> bool:
@@ -103,12 +123,18 @@ func find_path(from: Vector2i, to: Vector2i) -> Array[Vector2i]:
 		if is_walkable(from):
 			out.append(from)
 		return out
-	if not is_walkable(from) or not is_walkable(to):
+	# Only the DESTINATION has to be walkable. A walker can always leave the cell it is
+	# standing on, and in this game it routinely is not walkable: a BoneWorker is itself a
+	# layer-1 scene tile, so its own cell reads as solid and every route out of it would be
+	# refused. Chests and any future placed machine that walks have the same shape.
+	if not is_walkable(to):
 		return out
 
 	_ensure_grid(from, to)
 	if _grid == null or not _grid.region.has_point(from) or not _grid.region.has_point(to):
 		return out
+
+	_open_start(from)
 
 	for cell in _grid.get_id_path(from, to):
 		out.append(cell)
@@ -141,6 +167,20 @@ func find_path_adjacent(from: Vector2i, target: Vector2i) -> Array[Vector2i]:
 func invalidate() -> void:
 	_grid = null
 	_built_at_ms = -1
+	_forced_open = null
+
+
+## Force the start cell open, undoing any previous forcing first. Tracked and restored
+## rather than left set, because the grid is cached across queries and a stale open cell
+## would quietly punch a walkable hole through a wall for whoever asked next.
+func _open_start(from: Vector2i) -> void:
+	if _forced_open != null and _forced_open != from:
+		_grid.set_point_solid(_forced_open, not is_walkable(_forced_open))
+	if not is_walkable(from):
+		_grid.set_point_solid(from, false)
+		_forced_open = from
+	else:
+		_forced_open = null
 
 
 func _ensure_grid(from: Vector2i, to: Vector2i) -> void:
