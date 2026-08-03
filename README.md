@@ -5,6 +5,13 @@ It combines a simple item-driven gather loop with resource nodes, enemies, craft
 
 ![Gather screenshot](docs/screenshot.png)
 
+### The turret loop
+
+Place a bone turret, catch a skeleton in the net, drop the skull into the turret — then let
+a bank of them hold the line. ([mp4](docs/media/turret-showcase.mp4))
+
+![Placing a bone turret, catching a skeleton with the net, loading the skull into the turret, and a ring of loaded turrets firing on a wave](docs/media/turret-showcase.gif)
+
 ## Key Features
 
 - Resource gathering with tool-based timing and bonus yields
@@ -31,7 +38,7 @@ declarations and node names.
 - `systems/` — input, health, save/load, sound, level-up, and collision helpers
 - `ui/` — HUD elements such as the gather progress bar and floating damage numbers
 - `assets/` — `art/`, `audio/`, `tilesets/`, `materials/`, and `shaders/`
-- `tools/` — lint and test runner scripts
+- `tools/` — lint and test runner scripts, plus `capture_clip.py` (records the README clips)
 - `test/unit/` — headless unit tests
 - `devtools_ext/` — project-specific DevTools commands
 - `addons/godot_selftest/` — test harness implementation

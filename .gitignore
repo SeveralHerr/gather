@@ -47,3 +47,8 @@ screenshots/
 # leaves them behind and they then read as untracked work.
 .devtools/tree-*.json
 .devtools/run.json
+
+# Per-run stdout/stderr from `devtools.py launch`. Overwritten on every launch, so they
+# only ever describe the last run on this machine.
+.devtools/launch_stdout.log
+.devtools/launch_stderr.log

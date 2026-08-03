@@ -16,6 +16,9 @@ var _dev: Node
 var _ambient_frozen := false
 var _frozen_timers: Array = []
 
+## Built on first use, so a session that never records a clip never constructs it.
+var _director: DemoDirector = null
+
 
 func register_commands(dev: Node) -> void:
 	_dev = dev
@@ -53,6 +56,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("load_worker", _cmd_load_worker)
 	dev.register_command("worker_state", _cmd_worker_state)
 	dev.register_command("press_key", _cmd_press_key)
+	dev.register_command("demo_clip", _cmd_demo_clip)
+	dev.register_command("demo_state", _cmd_demo_state)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -2215,4 +2220,35 @@ func _cmd_worker_state(args: Dictionary) -> Dictionary:
 			"wood_held": player.inventory_data.count_of_type(Types.Item.Wood) if player else 0,
 			"worker_states": reports,
 		},
+	}
+
+
+## Starts a scripted README capture clip and returns immediately — the choreography runs
+## inside the game as a coroutine (see devtools_ext/demo_director.gd for why it has to).
+##
+## Poll `demo_state` for the frame marks; under `--write-movie` those are output frame
+## numbers, which is what lets the trim be exact rather than a stopwatch guess.
+func _cmd_demo_clip(args: Dictionary) -> Dictionary:
+	if _director == null:
+		_director = DemoDirector.new(_dev)
+
+	var wanted: String = str(args.get("name", args.get("clip", "turrets")))
+	return _director.start(wanted)
+
+
+func _cmd_demo_state(_args: Dictionary) -> Dictionary:
+	if _director == null:
+		return {
+			"success": true,
+			"message": "no clip has been started this session",
+			"data": {"running": false, "clip": "", "beat": "idle", "marks": {}, "notes": []},
+		}
+
+	var state: Dictionary = _director.state()
+	return {
+		"success": true,
+		"message": "clip '%s' %s at beat '%s'" % [
+			state["clip"], "running" if state["running"] else "stopped", state["beat"],
+		],
+		"data": state,
 	}

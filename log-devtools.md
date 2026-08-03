@@ -1347,7 +1347,7 @@ Guidelines that make an entry useful later:
   reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
   the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
   object model, not the run.
-  - [G-050] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
+  - [G-050] status: open | seen: 3 | harness: 0.8.0
   - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
     touched it — the client already knows every verb it invoked, so recording the invoked
     verb names in the run row and letting projects map verb -> files would cover both
@@ -2707,3 +2707,72 @@ Guidelines that make an entry useful later:
 
 - No new gaps this turn otherwise. [G-090] (stale class cache undiagnosable) was not
   re-triggered — the cache was rebuilt in the previous run.
+
+## 2026-08-03 — a scripted demo director + movie-writer capture for the README turret clip
+
+- Value: **warranted** — runtime found a defect that no reading of the diff would have,
+  and found it twice in different guises.
+  - Expected: that `demo_clip` drives all four beats to completion with an empty `notes`
+    array — specifically that the net swing lands a `BoneEnemy` in the inventory and the
+    load press flips a turret's `loaded` flag. Neither is derivable from the diff: the
+    capture depends on the 0.2s swing surviving the key release and on the skeleton
+    sitting inside a ~15px hitbox, and both fail silently.
+  - Got: on the final run, `demo_state` → `beat=done, notes=[]` and `worker_state` →
+    all five turrets `loaded: true` with `skulls_held: 0` (the skull was spent loading
+    one). Getting there took four failed takes, and the payoff was the third: releasing
+    the use key runs `Player._gather_input_release`, which calls `animation_player.stop()`
+    — so a two-frame simulated tap killed the 0.2s `Net_Right` animation about fifteen
+    milliseconds in, before the net swept anywhere near the skeleton. `stop()` emits no
+    `animation_finished`, so `PlayerNet` never exited either, and the only trace anywhere
+    was `ERROR: Signal 'body_entered' is already connected` on the *second* swing. A held
+    key fixed it. Runtime also produced two facts the source cannot state: `EnemyIdle`
+    only hands over to `EnemyFollow` inside 30px (so a wave spawned 5 tiles out just
+    wanders), and a turret's `LineOfSight` is 40px — which together set the entire shot,
+    and turned a planned camera pull-back into "do not change the zoom at all".
+  - Cheaper: nothing. The net capture has no headless path — it needs a live `Area2D`
+    overlap during a 0.2-second animation, driven by real input, with a chasing
+    `CharacterBody2D` on the other end.
+
+- Gap: **[G-050] again on 0.8.0 — reach still cannot see a `RefCounted`, and it
+  downgraded a run that demonstrably exercised the file.** `verify_ledger.py record`
+  printed `downgraded warranted -> insufficient: no changed file was loaded at runtime
+  (devtools_ext/demo_director.gd)`, in the same run where `cmd demo_clip` had just driven
+  that file through six beat marks and `worker_state` confirmed five turrets loaded by it.
+  `DemoDirector` extends `RefCounted` and is held as a field by `commands.gd`, so it is
+  never any node's script and cannot appear in a `scene-tree` snapshot by construction —
+  the same shape as `skill_tree.gd` when this was first filed. `commands.gd` is credited
+  as `implicit`; a script it owns is not. Workaround: report the downgrade as a reach
+  blind spot in the summary and cite the `worker_state` assertion instead.
+  - [G-050] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: unchanged and now overdue — credit a file when a `cmd`/`run-method` call
+    during the run touched it. The client knows every verb it invoked; mapping an invoked
+    verb back to the extension's `_director`/handler file closes this without any engine
+    support. Failing that, extend the `implicit` credit from the extension script to
+    scripts it `preload`s or constructs.
+
+- Gap: **`devtools.py launch --isolated` advertises userdata isolation it does not
+  deliver, and the failure reads as a dead game.** It prints `userdata:
+  C:\...\devtools_userdata__8__cbit` and `Subsequent calls: ... --userdata <that path>`,
+  but Godot resolves `user://` from the engine and honours no `GODOT_USERDATA`, so the
+  temp dir stayed empty (`ls` → nothing) and every call with the flag it told me to use
+  failed with `game not running: 'ping' was never picked up`. Dropping `--userdata` and
+  keeping only `--session` worked first try. This is the *client* half of the note already
+  under [G-036]; the difference is that `--isolated` now actively hands you the broken
+  invocation.
+  - [G-091] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: either drop the `userdata` line from `--isolated` output and say plainly
+    that only the bus is isolated, or make it real by writing a scratch copy of
+    `project.godot` with `use_custom_user_dir=true` — which is the [G-057] ask anyway.
+
+- Gap: **`launch` cannot pass extra arguments to the Godot binary, so any run needing an
+  engine flag has to re-implement launching.** Recording needs `--write-movie
+  <dir>/frame.png --fixed-fps 30`, and `cmd_launch` builds a fixed
+  `[godot, --path, project, --mute]` with no passthrough. `tools/capture_clip.py` therefore
+  duplicates the whole launch path — binary resolution from `devtools_config.json`, the
+  `GODOT_DEVTOOLS_SESSION` env var, detached stdout/stderr redirection — about 30 lines
+  that will drift from the harness's copy. It also has to *not* pass `--mute`, since the
+  movie writer records the audio bus into a `.wav` and a muted run captures silence.
+  - [G-092] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let `launch` forward everything after a bare `--` to the Godot command
+    line (`devtools.py launch --isolated -- --write-movie out/frame.png --fixed-fps 30`),
+    and make `--mute` opt-out rather than unconditional.
