@@ -86,7 +86,7 @@ Guidelines that make an entry useful later:
   pass looks like to an agent grepping for the exit code. Workaround: fell back to
   running the whole suite, which defeats the point of a filter when several agents are
   adding test files concurrently.
-  - [G-004] status: open | seen: 2 | harness: 0.4.0
+  - [G-004] status: fixed | fixed-in: 0.5.0 | seen: 2 | harness: 0.4.0
   - Improvement: match `--filter` against the test *script filename* as well as the
     method name, and make a run that selected zero tests exit non-zero (or at minimum
     print `filter '<x>' selected 0 of N tests` as a warning).
@@ -117,7 +117,7 @@ Guidelines that make an entry useful later:
   most of `test_skill_tree.gd` and all of `test_ore_chain.gd`, so it too fell back to the
   full 111-test suite. Two of four agents hit it, which makes it the highest-value fix in
   this log for concurrent work.
-  - [G-004] status: open | seen: 2 | harness: 0.4.0
+  - [G-004] status: fixed | fixed-in: 0.5.0 | seen: 2 | harness: 0.4.0
   - Improvement (restated concretely): add `--file <basename>` to `run_tests.gd`, matched
     against the test script path, so an agent can run exactly the file it owns.
 
@@ -129,7 +129,7 @@ Guidelines that make an entry useful later:
   required leaving the project entirely: `git -C ~/Documents/GitHub/godot-selftest-harness
   log --oneline` showed `922c45d Ship the devtools gaps log, and close the gaps it recorded
   (0.4.0)`. Nothing in this repo records that.
-  - [G-007] status: open | seen: 1 | harness: 0.4.0
+  - [G-007] status: fixed | fixed-in: 0.5.0 | seen: 1 | harness: 0.4.0
   - Improvement: give each gap a stable id and a status line —
     `- [G-007] status: open | fixed-in: 0.5.0 | seen: 2` — so a fixed gap can be filtered
     out before the log is pasted back, and recurrences can be counted instead of narrated.
@@ -160,7 +160,7 @@ Guidelines that make an entry useful later:
   hunting a non-existent load crash before checking the process list. The existing
   "Crossed replies" detection did not fire, because the stale instance was answering
   every request — just for a different world.
-  - [G-009] status: open | seen: 1 | harness: 0.4.0
+  - [G-009] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: have the DevTools autoload write a `devtools_owner.json` with its PID
     and start time, and have `devtools.py` refuse to run (naming the other PID) when a
     live owner file belongs to a different process. Failing that, make `ping`'s
@@ -171,7 +171,7 @@ Guidelines that make an entry useful later:
   Main/InputManager`, but `cmd`-registered verbs resolve `Main/...` fine via
   `get_tree().root.get_node_or_null`. The inconsistency cost a debugging round on a
   path that was actually correct.
-  - [G-010] status: open | seen: 1 | harness: 0.4.0
+  - [G-010] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: have `run-method` / `get-state` / `set-state` retry a failed lookup
     with `/root/` prefixed, or say so in the error text.
 
@@ -200,7 +200,7 @@ Guidelines that make an entry useful later:
   transport has never run for this batch: the harness log's only heading is
   `## 2026-08-01 — Ship the gaps log, close what it recorded (0.4.0)`, so all six of this
   project's gaps are still local.
-  - [G-012] status: open | seen: 2 | harness: 0.4.0
+  - [G-012] status: fixed | fixed-in: 0.7.0 | seen: 2 | harness: 0.4.0
   - Improvement: as already filed — an `upstream_gaps` script that appends open gaps to
     the harness repo's log, deduped by id. The prompt written this turn is the manual
     version of exactly that script, which is the strongest evidence yet that it should
@@ -248,7 +248,7 @@ Guidelines that make an entry useful later:
   (`uid="uid://cw7a6wede53n1"` for `res://icon.svg`) while gather's is `uid://c6knbegisd067`,
   so `lint_project.gd` (`scan_root: "res://"`) would have reported it as a project defect
   rather than as imported third-party debt. Found by hand-diffing, patched by hand.
-  - [G-015] status: open | seen: 1 | harness: 0.4.0
+  - [G-015] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: teach `lint_project.gd` a `--baseline`-style vendored-path skip list (or reuse
     the existing `--baseline` split) so `addons/*` findings report as PRE-EXISTING/VENDORED
     instead of NEW.
@@ -262,7 +262,7 @@ Guidelines that make an entry useful later:
   `cmd player_state` (`state=PlayerGather`) for gather, and
   `get-state --node /root/Main/DestroyManager --property is_holding_e` for destroy. A project
   without such a node could not assert a held action at all.
-  - [G-021] status: open | seen: 1 | harness: 0.4.0
+  - [G-021] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: add `input state [ACTION...]` returning
     `{action: {pressed: bool, strength: float}}` from `Input.is_action_pressed` /
     `get_action_strength`, so a hold/release pair is assertable without a gameplay proxy.
@@ -274,7 +274,7 @@ Guidelines that make an entry useful later:
   "the project patched this locally" and "the install predates the plugin" look identical, and
   the workflow's own instruction to compare `git log -1 --format=%cd` fails for the plugin side
   because those templates live outside this repo. Resolved by reporting drift unresolved.
-  - [G-022] status: open | seen: 1 | harness: 0.4.0
+  - [G-022] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: stamp a `# harness-template: <sha>` line into each copied template at scaffold
     time; the drift check then compares stamps and reports ahead/behind instead of just differs.
     Closes with [G-003], which is the same missing-version-identity problem at verb level.
@@ -294,7 +294,7 @@ Guidelines that make an entry useful later:
   `--value '[1280,720]'` produced the same `(232, 64)`. The run still proved the reflow
   (the HUD tracked 232x64 exactly: `Rect: -160, -62, 47x13` == `232/4.935 x 64/4.935`), but
   by accident — the resize I asked for is not the resize I got, and nothing said so.
-  - [G-016] status: open | seen: 1 | harness: 0.4.0
+  - [G-016] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: have `set-state` coerce a 2/3/4-element array or an `{x,y,...}` dict to the
     property's declared type via `type_convert()`, and **fail loudly** when the target
     property is a vector type and the value cannot be converted, instead of writing whatever
@@ -307,7 +307,7 @@ Guidelines that make an entry useful later:
   project is only ever exercised at one size unless you quit and relaunch with
   `--resolution WxH`, which costs a full boot per data point and cannot test the
   *transition* at all.
-  - [G-017] status: open | seen: 1 | harness: 0.4.0
+  - [G-017] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: add a generic `set-resolution --size WxH` verb that calls
     `DisplayServer.window_set_size()` and returns the resulting `get_viewport_rect().size`,
     so a caller can assert the resize landed before asserting on layout.
@@ -348,7 +348,7 @@ Guidelines that make an entry useful later:
   stale `.bak` files from an earlier refresh (`tools/devtools.py.bak`, `tools/lint_project.gd.bak`,
   `tools/run_tests.gd.bak`) are still sitting untracked in the tree, which is what a
   half-finished refresh looks like.
-  - [G-020] status: open | seen: 1 | harness: 0.4.0
+  - [G-020] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.4.0
   - Improvement: have `/scaffold-godot-harness` delete its own `.bak` files once the refreshed
     file passes a syntax check, so a completed refresh leaves no residue to mistake for drift.
 
@@ -402,7 +402,7 @@ Guidelines that make an entry useful later:
   `@Timer@14:<Timer#92090140860>` — an opaque object id, not a remaining time. The hold was
   verified indirectly instead (the ITEM button cycling `HotBarInventory.selected_index` 0 -> 1
   proves the same touch -> `_input` -> `send_action` path).
-  - [G-024] status: open | seen: 1 | harness: unknown
+  - [G-024] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: unknown
   - Improvement: add `is_gathering`, `hold_time_left` and `target_resource` to the
     `gather_stats` payload — three fields off `ResourceManager2`, and the gather loop becomes
     assertable at runtime instead of only in unit tests.
@@ -415,7 +415,7 @@ Guidelines that make an entry useful later:
   `devtools.py` normalizes it back (the node resolved and `hold_timer` returned fine), but the
   mangled path is echoed in every error message, so a genuine typo and a path-conversion
   artifact look identical and the first instinct is to debug the wrong thing.
-  - [G-025] status: open | seen: 1 | harness: unknown
+  - [G-025] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: unknown
   - Improvement: echo the *normalized* path in error messages, not the raw argv one.
 
 - Gap: **`.gdignore` does not exclude a directory from `validate-all`** — added
@@ -426,7 +426,7 @@ Guidelines that make an entry useful later:
     [INFO] relative_nodepath: Node 'Player' property 'joystick_left' uses relative path: ...
   ```
   Two of the 28 validate-all findings are from a directory Godot itself is told to skip.
-  - [G-026] status: open | seen: 1 | harness: unknown
+  - [G-026] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: unknown
   - Improvement: have `scene_validator.gd` skip any directory containing a `.gdignore`, the
     same rule the engine applies.
 
@@ -459,7 +459,7 @@ Guidelines that make an entry useful later:
   through to `WARN: no Godot binary found` and steps 12's smoke check would be skipped
   entirely. Only this project's own `CLAUDE.md` records the real path; a first-time scaffold
   on a Windows box would report install-success having verified nothing.
-  - [G-027] status: open | seen: 1 | harness: 0.7.0
+  - [G-027] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: add a Windows branch to the step 11 probe — glob
     `~/Documents/Godot_v*_win64.exe`, `/c/Program Files/Godot/*.exe` and
     `$LOCALAPPDATA/Programs/Godot/*.exe` — and, once found, write the resolved path into
@@ -492,7 +492,7 @@ Guidelines that make an entry useful later:
   shipped inside a "harness refresh" commit nobody would think to check for a renderer change.
   Workaround: `git checkout -- project.godot`, then re-confirmed the `DevTools` autoload
   survived (it did — it was already committed).
-  - [G-028] status: open | seen: 1 | harness: 0.7.0
+  - [G-028] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have the scaffolder and `/verify` snapshot `project.godot` before any
     `--import` and restore it (or diff and warn loudly) afterward — the import step needs the
     *cache* rebuilt, never the project file edited. Failing that, CLAUDE.md's `--import` rule
@@ -558,7 +558,7 @@ Guidelines that make an entry useful later:
   Workaround: computed the depth by hand
   (`max depth in snapshot: 10`, `recipe_card.gd -> False`) and reported reach with the
   structural blind spots named, rather than reporting 6/18 as if it were a coverage number.
-  - [G-030] status: open | seen: 2 | harness: 0.7.0
+  - [G-030] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: three things, cheapest first — (1) exclude paths deleted in the diff from the
     denominator; (2) have `scene-tree` take a depth argument for the reach snapshots, or have
     `reach` warn when the tree hit its depth cap; (3) widen the reach signal beyond node
@@ -606,7 +606,7 @@ Guidelines that make an entry useful later:
   `Input.parse_input_event` from a headless test does not reach a `_input()` handler without
   a live viewport. Workaround this turn: static tracing plus a new `gather_state` project verb
   to assert the *consequence* (stranded tilemap cells) at runtime instead of the cause.
-  - [G-031] status: open | seen: 1 | harness: 0.7.0
+  - [G-031] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a `_T.dispatch_events(viewport, [events])` helper that pushes an array of
     events through `Viewport.push_input` without yielding between them, so frame-scoped vs
     event-scoped input bugs — a whole class, and the one that only bites on touch where the
@@ -635,7 +635,7 @@ Guidelines that make an entry useful later:
   cells sitting on a `gathering_atlas_location`, with a `stranded` flag. Writing it also
   surfaced why a generic verb would not have done: the flag has to discount the chest
   highlight `player.gd:_process` legitimately redraws every frame, which is game knowledge.
-  - [G-032] status: open | seen: 2 | harness: 0.7.0
+  - [G-032] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: a generic `tilemap-cells --node PATH --layer N` verb returning used cells
     with their source id and atlas coords. Tile-based games keep real state in cells, and it
     is currently the one part of the scene the bridge cannot read at all — every project
@@ -676,7 +676,7 @@ Guidelines that make an entry useful later:
   early-returns on `_panel_root.visible == open`, so a panel whose root and wrapper disagree
   answers confidently and wrongly. Workaround: re-ran the sequence from a known-closed state
   and asserted every step instead of trusting the first reading.
-  - [G-033] status: open | seen: 1 | harness: 0.7.0
+  - [G-033] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: for state a verb derives from a method, also report the raw fields it derives
     from (here `_panel_root.visible` alongside `open`), so a disagreement is visible in the
     reply rather than inferred three commands later. Same argument as the status provider.
@@ -713,7 +713,7 @@ Guidelines that make an entry useful later:
   `cmd` call in this run went through; `game_item.gd` supplied the
   `STONE_BUILD_SOURCE_ID` the placements keyed off. Bumped the existing entry rather
   than filing a second one.
-  - [G-030] status: open | seen: 2 | harness: 0.7.0
+  - [G-030] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: as recorded on G-030 — a "not a node script, reach cannot speak to
     this" bucket, which the tool already has for `.uid`/`.png`, would stop autoload and
     RefCounted scripts from reading as untested code.
@@ -728,7 +728,7 @@ Guidelines that make an entry useful later:
   to load rather than to run. Two gates in a row reported success on a project that
   could not boot. Workaround: grepped the test log for `SCRIPT ERROR` by hand, which is
   the only reason it was caught at all.
-  - [G-034] status: open | seen: 1 | harness: 0.7.0
+  - [G-034] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: lint already walks every `.gd` under `scan_root` for the UID pass —
     have it `load()` each one and report a failed compile as a lint *error*. Failing
     that, `run_tests.gd` should exit 2 when any `Failed to load script` appears on
@@ -741,7 +741,7 @@ Guidelines that make an entry useful later:
   Workaround: added `place_build` and `tile_at` project verbs, which is the documented
   answer and worked first try — recording it because the *generic* gap is real and
   every project hits it independently.
-  - [G-035] status: open | seen: 1 | harness: 0.7.0
+  - [G-035] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: teach `run-method` to coerce a 2-element JSON array into `Vector2`/
     `Vector2i` when the target method's argument list says so — `Object.get_method_list()`
     exposes the parameter types, so the coercion can be driven off the signature rather
@@ -786,7 +786,7 @@ Guidelines that make an entry useful later:
   pass. Workaround: relaunch with `-- --devtools-session uiverify` and call with
   `--session uiverify`, which gives a private file pair; `ping` then confirms
   `session: uiverify`.
-  - [G-036] status: open | seen: 1 | harness: 0.7.0
+  - [G-036] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have the DevTools autoload delete any pre-existing command/result file
     for its own bus id during `_ready()`, and have `devtools.py` reject a result whose
     request id it never issued instead of returning it. Note `GODOT_USERDATA` does not
@@ -810,7 +810,7 @@ Guidelines that make an entry useful later:
   Filed as gather-7y9. (The commit that introduced this entry, 441668f, cites a
   non-existent `gather-1ph` for the same bug — the id was written before the bead was
   read back. gather-7y9 is the real one.)
-  - [G-037] status: open | seen: 1 | harness: 0.7.0
+  - [G-037] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `place_station` collect the candidate free cells and pick the one
     nearest the player rather than the first the scan hits, so the station lands inside
     the interaction radius the panel itself requires.
@@ -841,7 +841,7 @@ Guidelines that make an entry useful later:
   Workaround for this turn: none needed, since nothing was built yet — recording it now
   because the acceptance criterion on `gather-b6r.5` ("reachable across a sample of random
   seeds") is unverifiable without it and will otherwise get eyeballed on one run.
-  - [G-036] status: open | seen: 1 | harness: 0.7.0
+  - [G-065] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0 (was G-036, reassigned — ID collision)
   - Improvement: a generic `tilemap-region --layer N --atlas X,Y` verb returning the
     connected components of matching cells as bounding boxes plus cell counts. That is
     game-agnostic (it only needs a `TileMap` and an atlas coord), and it turns "did the
@@ -889,7 +889,7 @@ Guidelines that make an entry useful later:
   was the same before and after my change, which means it told me nothing about whether I
   made the known leak worse. Workaround: none; I recorded the absolute (`absolute 0`)
   alongside the growth and moved on.
-  - [G-037] status: open | seen: 1 | harness: 0.7.0
+  - [G-066] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0 (was G-037, reassigned — ID collision)
   - Improvement: have `performance` report the baseline's *age* in frames and whether it
     was taken this session, and let `--reset-baseline` be asserted against explicitly, so
     "+0" can be distinguished from "+0 because the baseline moved under you".
@@ -901,7 +901,7 @@ Guidelines that make an entry useful later:
   healthy bridge throughout. This is the documented one-bus hazard and a stored memory, and
   I still lost about ten minutes to it because nothing in the reply says which process
   produced it. Workaround: `Get-Process Godot* | Stop-Process -Force` before every launch.
-  - [G-038] status: open | seen: 1 | harness: 0.7.0
+  - [G-038] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: put the answering process's pid and its script-load timestamp in the
     `status` block on every reply. The bus already echoes a request id to catch crossed
     replies; a pid would catch the case where the reply is *not* crossed but comes from a
@@ -936,7 +936,7 @@ Guidelines that make an entry useful later:
   shape (`Result: None`). I wanted `len(properties['loads'])` as an assertion and had to
   eyeball the string instead, which is precisely the read that a tired session gets wrong.
   `run_tests.gd` has `--json`; the bridge client does not.
-  - [G-039] status: open | seen: 1 | harness: 0.7.0
+  - [G-039] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: add a global `--json` flag to `tools/devtools.py` that prints the raw
     response dictionary the game already sends, for every verb. The data is structured on
     the wire — only the client's pretty-printer discards it. `cmd island_census` already
@@ -949,7 +949,7 @@ Guidelines that make an entry useful later:
   without arguments to install from the Microsoft Store". CLAUDE.md warns to probe by
   running it, and I still spent a launch cycle on it because the harness docs and the
   `/verify` skill both spell `python3`.
-  - [G-040] status: open | seen: 3 | harness: 0.7.0
+  - [G-040] status: fixed | fixed-in: 0.8.0 | seen: 3 | harness: 0.7.0
   - Improvement: ship a `tools/devtools` shim (or have the skill resolve the interpreter
     once and cache it) so the documented invocation is interpreter-agnostic; the Store stub
     exits 9009 with a message on stdout, which is detectable.
@@ -981,7 +981,7 @@ Guidelines that make an entry useful later:
   string whether the action reached a handler or fell on the floor. Workaround was to
   re-anchor with `goto_resource` and drive it as `input press` + `step-time --seconds 6` +
   `input release`, sampling state between each.
-  - [G-041] status: open | seen: 1 | harness: 0.7.0
+  - [G-041] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `input tap`/`press` return the count of handlers the dispatched
     `InputEventAction` was consumed by (`get_viewport().set_input_as_handled` already
     distinguishes this), or at minimum echo the acting node's state machine state before
@@ -993,7 +993,7 @@ Guidelines that make an entry useful later:
   Every xp assertion in this run had to be read as "at least/at most", and the coal
   assertion (+1) is only conclusive because the old value (3) is above the noise floor. A
   smaller change than 3->1 would not have been measurable this way at all.
-  - [G-042] status: open | seen: 1 | harness: 0.7.0
+  - [G-042] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a project verb `xp_ledger` returning the last N awards as
     `{source, amount}` rather than a running total — the awards are already individually
     routed through `LevelUpManager.add_xp`, so attribution exists at the call site and is
@@ -1023,7 +1023,7 @@ Guidelines that make an entry useful later:
   truth and it requires a live bus; recovering the roster meant hand-parsing the
   `register_command` block in `devtools_ext/commands.gd:14-46`. Worked, but it is the kind
   of list that silently drifts from the docs.
-  - [G-043] status: open | seen: 1 | harness: 0.7.0
+  - [G-043] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a headless mode for `list-commands` (load the extension script, call
     `register_commands` against a stub Node, dump the `_handlers` keys and exit) so the
     verb roster is readable from the same place lint and tests run.
@@ -1062,7 +1062,7 @@ Guidelines that make an entry useful later:
   established by subtracting the NOT-reached list from `git status --porcelain` by hand.
   The failure mode is the flattering one: a large branch dilutes the ratio, so a run that
   reached everything it changed still reads as 65% covered.
-  - [G-044] status: open | seen: 1 | harness: 0.7.0
+  - [G-044] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: report reach for the working-tree diff and the branch diff as two
     numbers, or take a `--since` ref so the run can scope reach to what it actually edited.
 
@@ -1102,7 +1102,7 @@ Guidelines that make an entry useful later:
   changes — which is guaranteed here, since every CLI call runs while the game is
   unfocused. Workaround: drove the rest of the run with explicit `press`/`release` and
   `run-method`.
-  - [G-044] status: open | seen: 1 | harness: 0.7.0
+  - [G-067] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0 (was G-044, reassigned — ID collision)
   - Improvement: have `input tap` await its own release and report the action's final
     state in the reply (`{"action": "...", "pressed": false}`), so a tap that left
     something held is visible at the call rather than four commands later. Failing that,
@@ -1116,7 +1116,7 @@ Guidelines that make an entry useful later:
   which these sit indistinguishable from real edits, and the tileset rewrite is exactly
   the kind of thing that gets waved through in a diff that large. Reverted with
   `git checkout --` after confirming none of it was mine.
-  - [G-045] status: open | seen: 1 | harness: 0.7.0
+  - [G-045] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have Phase 5 snapshot `git status --short` before Phase 2 and diff it
     against the post-run status, listing engine-touched files separately from the working
     diff — the data is free and it is the difference between reverting three files and
@@ -1129,7 +1129,7 @@ Guidelines that make an entry useful later:
   the only field the workflow says to believe over self-reported checks. (Reach *was*
   computed separately: `reached 16/23 changed file(s)`, with all four of my scripts in the
   reached set.)
-  - [G-046] status: open | seen: 1 | harness: 0.7.0
+  - [G-046] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `reach` cache its computed result next to the ledger so `record` can
     pick it up without the raw snapshots, or make Phase 5 state plainly that the snapshots
     must outlive the `record` call.
@@ -1187,7 +1187,7 @@ Guidelines that make an entry useful later:
   extension rather than the harness core, but the shape is general: several verbs here
   (`skill_panel`, `land_panel`, `crafting_panel`) are setter-or-toggle depending on
   whether a key is present, and none of them has a pure reader.
-  - [G-047] status: open | seen: 2 | harness: 0.7.0
+  - [G-047] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: give the toggle verbs a read-only sibling, or make the status provider
     carry the panel-open flags (it already carries `skill_panel_open`) so state can be
     read without dispatching a mutation. Asserting on a mutating verb is a mistake the
@@ -1237,7 +1237,7 @@ Guidelines that make an entry useful later:
   because the read itself had closed what the button opened. The workaround was to stop
   using the verbs entirely and read `node-bounds …/PanelFrame | grep Visible`, which is a
   pure read and worked first time.
-  - [G-047] status: open | seen: 2 | harness: 0.7.0
+  - [G-047] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: unchanged from the original entry — give the toggle verbs a read-only
     sibling, or put the panel-open flags in the status provider.
 
@@ -1287,7 +1287,7 @@ Guidelines that make an entry useful later:
   harness. That is not a small corner: it is why `E` being simultaneously `gather` and
   "next hotbar slot" — every pickaxe swing advancing the hotbar a slot — survived lint, the
   full unit suite and a complete `/verify` run earlier the same day.
-  - [G-049] status: open | seen: 1 | harness: 0.7.0
+  - [G-049] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a generic `key <press|release|tap> --key NAME` verb in the harness core,
     taking the name `OS.find_keycode_from_string` accepts and setting both `keycode` and
     `physical_keycode` (projects split between the two — this one compares `keycode` in
@@ -1347,7 +1347,7 @@ Guidelines that make an entry useful later:
   reached by construction. Same for `crafting/recipes.gd`: autoloads live at `/root`, outside
   the `Main`-rooted snapshot. A verdict that silently downgrades on these is measuring the
   object model, not the run.
-  - [G-050] status: open | seen: 1 | harness: 0.7.0
+  - [G-050] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `reach` credit a file when a `cmd`/`run-method` call during the run
     touched it — the client already knows every verb it invoked, so recording the invoked
     verb names in the run row and letting projects map verb -> files would cover both
@@ -1428,7 +1428,7 @@ Guidelines that make an entry useful later:
   the run demonstrably exercised is filed as unverified. Worked around by taking the
   evidence from the live `get-state` and saying so in the summary — but the ledger row now
   under-reports, which is the one thing the ledger exists to prevent.
-  - [G-051] status: open | seen: 1 | harness: 0.7.0
+  - [G-051] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have the game side accumulate a set of script paths seen across *every*
     `scene-tree` call in the session (or a `scripts-seen` verb that reports it), so reach is
     a union over the run rather than a single instant. A transient node — a splash, a
@@ -1491,11 +1491,11 @@ Guidelines that make an entry useful later:
   - Cheaper: nothing. The `@export` NodePath failure in particular has no static signature — `lint_project.gd` reports `SceneState: … NodePath unresolved` for *every* NodePath in the file as a documented false positive, so the three genuinely-broken ones were indistinguishable from the seven fine ones until `Player._ready` ran.
 
 - Gap: **lint cannot distinguish a genuinely unresolvable scene NodePath from its own false positives** — `lint_project.gd` printed `res://main.tscn | : SceneState: 'resource_manager' NodePath unresolved: Systems/ResourceManager` for correct paths and stayed silent about `Player.input_manager = NodePath("../../InputManager")`, which pointed at a node that no longer existed. Workaround was launching the game and reading `Player._ready` blow up. The checker already walks `SceneState`; resolving each NodePath against the scene's own node list would separate "cannot see into an instanced sub-scene" from "this target is not in this file", and the second class is exactly what a restructure produces.
-  - [G-052] status: open | seen: 1 | harness: 0.7.0
+  - [G-052] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: in the `SceneState` pass, resolve each NodePath against the set of node paths declared in the same `.tscn`. Report `ERROR` when the path is rooted in this scene and matches nothing; keep the current advisory `INFO` only when it crosses into an instanced sub-scene it genuinely cannot see.
 
 - Gap: **`reach` cannot see code that runs but owns no node** — the ledger reported `NOT reached: devtools_ext/commands.gd`, yet every assertion this run made went through it (`add_xp`, `goto_resource`, `gather_state`, `island_census`, `player_state`). Same for `items/pick_up_manager.gd`, whose pickups were created and vacuumed between two snapshots. Reach is computed by intersecting the diff against `script`/`scene_file` paths in a `scene-tree` snapshot, so an autoload, a devtools extension, or a transient node is structurally invisible to it and lands in the "not reached" list beside files that genuinely were not loaded.
-  - [G-053] status: open | seen: 1 | harness: 0.7.0
+  - [G-053] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: fold the autoload list (`project.godot [autoload]`) and the configured `extension_script` into the reached set, and report transient-node scripts separately as `reached-transient` rather than as not reached — so the not-reached list stays a list of things that actually went unverified.
 
 ## 2026-08-02 — Moved LevelUpManager out of the camera HUD into Systems
@@ -1541,7 +1541,7 @@ Guidelines that make an entry useful later:
   (`Selected: 1 of 194 discovered`, exit 1), then deleting the file. Abusing a failing
   assert as a print statement means the artifact that answers the question is one that
   must never be committed, and a forgotten cleanup ships a permanently-red suite.
-  - [G-054] status: open | seen: 1 | harness: 0.7.0
+  - [G-054] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a headless `tools/eval.gd` taking a GDScript expression on the command
     line, resolving `class_name` globals, and printing the result — the no-game sibling of
     `run-method`. `godot --headless --path . --script res://tools/eval.gd -- --expr
@@ -1603,7 +1603,7 @@ Guidelines that make an entry useful later:
   because the selected 7 verifiably ran and passed. Workaround was reading the per-test
   lines and the `Selected:` line and disregarding the exit code, which is precisely the
   habit the exit codes exist to prevent.
-  - [G-055] status: open | seen: 1 | harness: 0.7.0
+  - [G-055] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: score the exit code over the *selected* set. A discovery-time compile
     failure in an unselected script should be a printed `[ERR]` and a distinct signal (a
     `Discovery errors: N` line, or exit 3), never the same 2 that means "your run did not
@@ -1649,7 +1649,7 @@ Guidelines that make an entry useful later:
   every test that needs a non-default answer; it makes the *pairing* assertable, which is the
   part that can strand a timer, and explicitly gives up on the *reading*. A typo in the
   `"selected_slot_data"` string literal would pass this entire suite.
-  - [G-056] status: open | seen: 1 | harness: 0.7.0
+  - [G-056] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a `_T.stub_siblings({name: Node})` that mounts named siblings alongside the
     control `instantiate_ui` creates, plus a documented way to populate an autoload field
     (`PlayerManager.player`) and a group for the duration of one test. Both `_held_item()` and
@@ -1730,7 +1730,7 @@ Guidelines that make an entry useful later:
   engage unless `Engine.time_scale` is already exactly 1.0, so the two never overlap in the
   engaging direction; that is a decision I made from source-reading, and it is untested
   against the actual verbs.
-  - [G-058] status: open | seen: 1 | harness: 0.7.0
+  - [G-058] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a `time-scale` status field in the standard status provider (who set it, and
     when), plus `step-time` reporting `time_scale_changed_during: bool` instead of folding a
     deliberate game-side dip into `budget_exhausted`. That turns "is this a hitch or is this
@@ -1767,7 +1767,7 @@ Guidelines that make an entry useful later:
   hit-stop safety property as verified on the strength of a measurement that could not fail.
   Workaround: used camera `trauma` decay as the probe instead — it advances on scaled delta,
   and discriminated 0.667 / 0.933 / (0.96 predicted for a stuck 0.12 dip) cleanly.
-  - [G-059] status: open | seen: 1 | harness: 0.7.0
+  - [G-059] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `performance` report `Engine.time_scale` in its output. It is one line,
     it is the state most likely to be left dirty by a test run, and there is currently **no**
     verb that reads it — `set_game_speed` only writes. A `get-state` on a node cannot reach
@@ -1788,7 +1788,7 @@ Guidelines that make an entry useful later:
   `_primary_action` / `_primary_label`: slot 0 pickaxe → `gather/MINE`, slot 1 sword →
   `attack/HIT`, slot 2 placeable → `gather/BUILD`. The stub was never the problem; nobody had
   driven the real thing.
-  - [G-056] status: open | seen: 2 | harness: 0.7.0
+  - [G-056] status: fixed | fixed-in: 0.8.0 | seen: 2 | harness: 0.7.0
   - Improvement: unchanged — the resolver seam is right, but the log should record that the
     live path is verifiable in ~6 bridge calls and is worth doing once per change to it.
 
@@ -1825,7 +1825,7 @@ Guidelines that make an entry useful later:
   read `xp: 0, built_cells: {}` after a successful `"placed Wood Wall at (-1, 0)"`, which
   looks exactly like the new code being broken. It is not — the verb was never on that path,
   before this change or after. Ten minutes went into the wrong hypothesis.
-  - [G-061] status: open | seen: 1 | harness: 0.7.0
+  - [G-061] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: either route `place_build` through `PlayerManager.place_tile(slot_data)` so
     it exercises the real chain, or rename it `set_build_tile` and say in its message that it
     writes the tilemap directly. A setup verb that silently skips the gameplay path is the
@@ -1837,7 +1837,7 @@ Guidelines that make an entry useful later:
   simultaneously empty and unbuildable, because `_cell_near_player` does not apply the
   facing offset that `main.gd:get_tile_in_front_of_player()` does (`+/- Vector2i(1, 0)` on
   `is_facing_left()`). Every placement assertion I tried to anchor on it was ambiguous.
-  - [G-062] status: open | seen: 1 | harness: 0.7.0
+  - [G-062] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: have `tile_at` default to the game's own facing-aware front cell (call
     `get_tile_in_front_of_player()` when no offset args are given), and return the facing in
     `data` so the caller can see which square was read.
@@ -1902,7 +1902,7 @@ Guidelines that make an entry useful later:
   is empty for all 8. The project's copies have Windows line endings, the plugin's have Unix,
   and the check compares bytes — so "DRIFT" here means nothing at all, and a real local patch
   would be indistinguishable from this noise.
-  - [G-063] status: open | seen: 1 | harness: 0.7.0
+  - [G-063] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: normalize line endings on both sides before comparing, e.g.
     `diff -q <(tr -d '\r' < "$src") <(tr -d '\r' < "$f")` in the Phase 0 snippet.
 
@@ -1915,7 +1915,7 @@ Guidelines that make an entry useful later:
   end-to-end coverage, but finding a plain-grass cell and an open-water cell took ~15 bridge
   calls of blind walking because the only way to ask "what is in front of me" is `tile_at` one
   offset at a time.
-  - [G-064] status: open | seen: 1 | harness: 0.7.0
+  - [G-064] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a project verb `goto_cell` taking a predicate (`"grass_clear"`, `"shore"`,
     `"resource"`) that teleports the player beside a matching cell and sets facing — the
     placement analogue of `goto_resource`, which already exists for exactly this reason on the
@@ -2000,7 +2000,7 @@ Guidelines that make an entry useful later:
   `camera_hud.gd:37-48` saying why `FloatingText` must stay out of `SCALED_CHILDREN` — a
   convention, not a gate. A future edit re-adding it would make the label blurry again and
   every test here would still pass.
-  - [G-073] status: open | seen: 1 | harness: 0.7.0
+  - [G-073] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a `run-method`-free bridge verb (or a headless helper) that reports a
     node's accumulated canvas transform scale, so "these glyphs rasterize 1:1" is one
     assertion against the live tree rather than an argument reconstructed from three
@@ -2066,7 +2066,7 @@ Guidelines that make an entry useful later:
   *pass condition* for this change) and every drop was collected. The failure mode is
   perverse: **the better the cleanup, the worse the reported reach**, so a leak-free
   short-lived node can never be credited.
-  - [G-074] status: open | seen: 1 | harness: 0.7.0
+  - [G-068] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0 (was G-074, reassigned — ID collision)
   - Improvement: have `dev_tools.gd` accumulate a set of every script path seen on any node
     across the session (hook `node_added`, or union the script paths on each `scene-tree`
     call into a persistent set) and expose it as a `scripts-seen` verb. `reach` should union
@@ -2079,10 +2079,133 @@ Guidelines that make an entry useful later:
   multiplication in my head against a zoom I fetched from a third node, but nothing asserts
   the *product*. A future edit that changes the camera zoom re-breaks every world-space label
   in the game and every check here still passes.
-  - [G-075] status: open | seen: 1 | harness: 0.7.0
+  - [G-075] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
   - Improvement: a `canvas-scale --node PATH` verb returning the accumulated
     `get_global_transform_with_canvas().get_scale()` plus the effective texture filter, so
     "this text rasterizes 1:1" is one assertion instead of three reads and an inference.
     This is the same gap [G-073] filed from the HUD side; if that entry is still open, these
     should be merged — [G-073] wanted the accumulated transform, this wants the filter with
     it, and they are one verb.
+
+## 2026-08-02 — Log bookkeeping: renumber ID collisions, file the un-filed friction (0.8.0 prep)
+
+- Value: **inconclusive** — no code ran; this entry converts prose observations already in
+  this log into tracked gaps so the 0.8.0 close-out can cite them. Four ID collisions were
+  also repaired above: G-036(b)→G-065, G-037(b)→G-066, G-044(b)→G-067, G-074(b)→G-068
+  (edited in place with a reassignment note; G-069..G-072 remain unissued).
+  - Expected: n/a (bookkeeping).
+  - Got: n/a.
+  - Cheaper: nothing — the collisions made "is this fixed?" ambiguous for four IDs.
+
+- Gap: **`step-time` does not sustain a held input action across stepped frames** — first
+  observed as an unfiled Note (2026-08-02): `step-time --seconds 3` advanced a held-move
+  player 4px where 2.5s of wall-clock `input press` + `sleep` moved it ~55px. The docs only
+  promise the clock advances, but the practical effect is that "press, step-time, read"
+  silently asserts nothing about held-input behavior.
+  - [G-076] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
+  - Improvement: `step-time --hold <action>` that re-asserts the action's pressed state on
+    every stepped frame, and a `held_actions` field in the reply so the caller can see
+    whether anything was sustained.
+
+- Gap: **a `blocked` check does not affect the run verdict** — ledger row
+  2026-08-02T04:58:57Z records `{"name": "crafting recipe cards rendered", "result":
+  "blocked"}` and still `"verdict": "pass"`. A check that could not run is being scored as
+  if it had passed.
+  - [G-077] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
+  - Improvement: `verify_ledger.py record` should refuse `verdict: pass` when any check is
+    `blocked` (downgrade to `aborted` or a new `partial`), so the summary can't claim more
+    than the run demonstrated.
+
+- Gap: **a stash-based A/B that stashes only one file of a multi-file change produces a
+  false "already fixed"** — recorded 2026-08-01: stashing `input_manager.gd` alone made the
+  bug not reproduce because the rest of the causal chain was still applied. Nothing in the
+  /verify workflow warns that an A/B must carry the whole diff.
+  - [G-078] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a Phase 4 note (and checklist line) for A/B testing: stash/restore the
+    full changed-file set from Phase 0's diff, never a hand-picked subset.
+
+- Gap: **slow-motion screenshots distort size and stacking judgments** — recorded
+  2026-08-02: at `set-game-speed 0.08` the XP splash "looked enormous" purely because a
+  stacking tween was stretched eight-fold. Good for draw-order questions, misleading for
+  scale questions; nothing documents the distinction.
+  - [G-079] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: one paragraph in the verify skill's screenshot guidance: use slow-mo for
+    ordering/occlusion, use `canvas-scale`-style reads (see G-073/G-075) for size claims.
+
+- Gap: **`--import`'s blast radius is known only from prose** — two entries (2026-08-01,
+  2026-08-02) narrowed it by hand: running the test suite does not dirty `project.godot`;
+  only `--import` does, and not every import. That scoping lives nowhere actionable, so
+  every agent re-derives when a dirty `project.godot` is self-inflicted.
+  - [G-080] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
+  - Improvement: document the blast radius next to the `--import` instruction in
+    CLAUDE.harness.md, and have the verify skill snapshot/restore `project.godot` around
+    any `--import` it performs (pairs with G-028).
+
+- Gap: **no seed-sweep / property-test tier, though it repeatedly proved the cheapest
+  decisive check** — the island-connectivity work found a 6% stranding rate only via a
+  200-seed headless sweep after two live runs both reported "every island connects"
+  (2026-08-01), and the entry concluded the sweep "should have come before the launch, not
+  after". The lesson exists only as prose.
+  - [G-081] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a documented sweep pattern in the verify skill (Phase 1.5: "if the diff
+    touches procedural generation, run the relevant `test_*` sweep with a seed count from
+    config before launching"), plus a `sweep_hints` config key mapping path globs to test
+    filters.
+
+## 2026-08-02 — Implemented the gather-side verb stream: goto_cell, panels_state, freeze_ambient, place_build-via-real-path, tile_at in-front default, place_station nearest-cell, gather_stats in-progress fields (beads gather-dsk/15o/tfb/7y9/6l7/j99/2b4)
+
+- Value: **warranted** — runtime produced three claims the diff could not: (1) facing
+  alignment actually holds end-to-end (`goto_cell` grass_clear: stand (3,1), facing_left
+  true, `tile_in_front` (2,1) == matched cell — the game's own
+  get_tile_in_front_of_player agreeing with the verb's math); (2) the real placement path
+  pays xp (`place_build` woodwall: `"xp_before": 0, "xp_after": 1, "consumed": 1` — the
+  exact G-061 symptom, dead); (3) freeze really holds the world still
+  (`time_to_next_spawn` bit-identical at 0.187189594905178 across 30 stepped seconds,
+  live_nodes 69 -> 69 over 60 more, then resumed and re-rolled to 19.4s after unfreeze).
+  - Expected: alignment or occupancy would be where goto_cell/place_build broke, since
+    facing is only recorded as a sprite flip and nothing in the diff exercises it.
+  - Got: all three assertions above, plus `place_station` `"distance_px": 21.76` (< the
+    24-unit keep-open radius; the pre-fix far-corner scan landed at 48), and one honest
+    surprise: live enemies bump the teleported player between CLI calls, so a
+    goto_cell-then-place_build recipe must recompute dx from the player's *current* cell
+    (place_build's own re-teleport makes it self-aligning; the first refused attempt was
+    a genuinely occupied cell, not a verb bug).
+  - Cheaper: nothing headless reaches facing/occupancy/xp — but the pure nearest-cell
+    half (cells_within + cell_nearest_to) was settled by 4 unit tests in 2ms, which is
+    exactly where that logic was extracted to so it could be.
+
+- Gap: **`cmd` verbs are not hyphen-aliased, contradicting commands.gd's own header** —
+  `cmd goto-cell --args '{"predicate":"grass_clear"}'` returned
+  `"message": "Unknown action: goto-cell"`; `cmd gather-stats` (the header's own example)
+  fails identically. Workaround: underscore forms work; my new docstrings now show those.
+  - [G-082] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: normalize hyphens to underscores in the game-side dispatcher for `cmd`
+    payload actions (the top-level verbs already get this), or fix the header comment.
+
+- Gap: **a fresh git worktree cannot run ANY harness validation before `--import`, and
+  `--import` is barred by its project.godot rewrite (G-028/G-080)** — first lint run in
+  the never-imported worktree produced 1108 SCRIPT ERRORs ("Identifier "Types" not
+  declared…" for every global class) yet still `exit 0`, and the runner then printed
+  `[PASS]` for tests whose first line had errored (`Invalid call. Nonexistent function
+  'cells_within' in base 'GDScript'` — the gather-1t9 shape, four times). Workaround that
+  worked end-to-end: copy the project (minus .git/.godot) to a scratch dir, run
+  `--import` there, verify there — 0 script errors, 250/250, full runtime session.
+  - [G-083] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a documented `worktree-verify` recipe (or flag on /verify) that
+    auto-stages the scratch copy + import; failing that, the runner should refuse to
+    report PASS when the class cache is absent, since every "pass" in that state is
+    unverified.
+
+## 2026-08-02 — Harness 0.8.0 refresh landed on this branch; 53 gaps above closed
+
+- Value: **warranted** — the refresh itself was the assertion: all 8 installed files
+  updated "unmodified - no backup needed" (the G-001/G-020 fix demonstrating itself),
+  `eval.gd` newly installed, `godot_bin` recorded, and the sticky config ownership
+  held (`hud_layer_name`/`main_scene` kept project-owned).
+  - Expected: a clean pristine-upgrade with zero `.bak` residue and no config clobber.
+  - Got: exactly that, quoted above; plus lint against the real tree now reads
+    `0 error(s), 0 warning(s)` where every prior run carried 7 false positives.
+  - Cheaper: nothing — upgrade behavior only shows on a real upgrade.
+
+- Gap: **no gaps this turn** — the status flips above (fixed-in: 0.8.0) are the
+  closures; G-082 and G-083 from the verb-stream session remain the open items.

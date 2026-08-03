@@ -33,12 +33,13 @@
   "log_check_value": true,
   "_scaffold_defaults": {
     "note": "Written by /scaffold-godot-harness. 'values' is what scaffold last left here and 'owned' lists the keys it may still update; edit a key and it becomes yours permanently. Safe to commit; delete to reset the tracking.",
-    "harness_version": "0.7.0",
+    "harness_version": "0.8.0",
     "owned": [
       "entry_hook",
       "entry_points",
       "extension_script",
       "fps_min",
+      "godot_bin",
       "log_check_block",
       "log_check_dated_entry",
       "log_check_globs",
@@ -85,7 +86,9 @@
       "log_check_block": false,
       "log_check_dated_entry": true,
       "log_check_value": true,
-      "mute": true
+      "mute": true,
+      "godot_bin": "C:/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe"
     }
-  }
+  },
+  "godot_bin": "C:/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe"
 }
