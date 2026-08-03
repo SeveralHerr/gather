@@ -160,9 +160,15 @@ const JOYSTICK_SCALE_MAX := 1.25
 ## in the project that forged raw InputEventKey KEY_1..KEY_6 to drive the hotbar,
 ## which is what gather-shz was filed to fix.
 ##
-## Left off deliberately: `save` and `load` (debug bindings, and there are already
-## Save/Load buttons in the camera HUD) and the mouse buttons (touch already
-## emulates a left click).
+## Left off deliberately: `save` and `load` (debug bindings — they quicksave and
+## quickload the current slot, and `saves` below opens the panel that picks one) and
+## the mouse buttons (touch already emulates a left click).
+##
+## `saves` sits in row 1 rather than beside SKILL/BAG/LAND: the `tr` row 0 already
+## carries three, and this strip is the *only* way to reach a panel on a touch device —
+## `hud_toolbar.gd` hides its whole cluster whenever DisplayServer reports a touchscreen
+## (`hud_toolbar.gd:240`), so a panel missing from here is unreachable on a phone rather
+## than merely inconvenient.
 const BUTTON_SPECS := [
 	{"name": "PrimaryButton", "action": PRIMARY_ACTION, "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
 	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1},
@@ -170,6 +176,7 @@ const BUTTON_SPECS := [
 	{"name": "InventoryButton", "action": "inventory", "label": "BAG", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "tr", "row": 1},
+	{"name": "SavesButton", "action": "saves", "label": "SAVE", "big": false, "primary": false, "corner": "tr", "row": 1},
 ]
 
 ## The corners the layout walks, in the order rows stack away from each.
@@ -178,7 +185,7 @@ const CORNERS := ["br", "tr"]
 ## The buttons that open a panel rather than acting on the world. They stay live
 ## while `disable_input` is raised for death and respawn, matching the keyboard
 ## bindings in input_manager.gd. See _press_blocked_for().
-const MENU_ACTIONS := ["inventory", "skills", "land"]
+const MENU_ACTIONS := ["inventory", "skills", "land", "saves"]
 
 var _joystick: Control
 

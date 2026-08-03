@@ -145,9 +145,13 @@ func test_mine_and_hit_are_now_one_button() -> String:
 	if err != "":
 		return err
 
-	# Six buttons, down from eight: the primary, USE, the three panels and BREAK.
+	# Seven buttons, down from eight: the primary, USE, the four panels and BREAK.
+	# This was six until the SAVES panel arrived. The count is here to pin the MINE/HIT
+	# merge — the thing the bead was about — so it moves when a *panel* is added and must
+	# not move when someone re-splits the primary button into two world verbs. The
+	# world_actions check below is the half that actually guards that.
 	err = _T.assert_eq(
-		MobileControls.BUTTON_SPECS.size(), 6, "the overlay draws six buttons")
+		MobileControls.BUTTON_SPECS.size(), 7, "the overlay draws seven buttons")
 	if err != "":
 		return err
 

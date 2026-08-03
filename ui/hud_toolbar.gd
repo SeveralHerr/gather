@@ -1,8 +1,8 @@
 extends Control
 class_name HudToolbar
 
-## The always-on-screen buttons that open the game's three panels: the bag, the
-## skill tree and the land purchase panel.
+## The always-on-screen buttons that open the game's four panels: the bag, the
+## skill tree, the land purchase panel and the save slots.
 ##
 ## ## Why this exists
 ##
@@ -46,7 +46,7 @@ signal layout_changed
 ## hint printed on the face — the binding itself lives in `project.godot`, and these
 ## two agreeing is checked by `test_hud_toolbar.gd` rather than by eye.
 ##
-## Which panels earn a button, and why these three:
+## Which panels earn a button, and why these four:
 ##   inventory  the bag. Also the only screen that shows what the player is carrying
 ##              beyond the six hotbar slots.
 ##   skills     the skill tree. Every stat the player will ever gain is behind it and
@@ -54,14 +54,33 @@ signal layout_changed
 ##              into something the player can act on.
 ##   land       buying land is the only way to reach the three islands, and nothing
 ##              else in the game hints that it is possible.
+##   saves      the save-slot panel. The strongest case of the four: `[` and `]` are
+##              keyboard-only, the Save / Load Controls this node's comments used to
+##              point at are gone (`Systems/SaveLoad` is an empty invisible Control
+##              now), and nothing else on screen says a save exists. Every other entry
+##              here makes a feature discoverable; this one is the only affordance the
+##              feature has.
+##
+## NOT sufficient on a phone on its own. This strip hides itself the moment
+## DisplayServer reports a touchscreen (see `_touch_active()`), and `mobile_controls.gd`
+## carries the thumb-reachable cluster instead — its own BUTTON_SPECS and its
+## MENU_ACTIONS list both need a `saves` entry before a touch device can open this panel
+## at all. Adding it here does not do that, and the two files do not share a table.
 ##
 ## Deliberately absent: crafting (opened by walking up to a station and pressing the
-## `action` key — it is a *place* in the world, not a menu), and save / load (debug
-## bindings on `[` and `]`).
+## `action` key — it is a *place* in the world, not a menu). The bare `[` / `]`
+## quick-save and quick-load keys stay as they are; this button opens the slot panel,
+## which is the same state by a route a mouse can take.
+##
+## Width: four buttons is not free. See `test_a_fourth_button_still_fits_a_portrait_phone`
+## in `test/unit/test_hud_toolbar.gd` for the budget — the row grows leftwards from the
+## top-right corner, so one too many walks the first button off the LEFT edge rather than
+## wrapping or clipping, and nothing on screen would say so.
 const BUTTON_SPECS := [
 	{"name": "BagButton", "action": "inventory", "label": "BAG", "key": "I"},
 	{"name": "SkillsButton", "action": "skills", "label": "SKILLS", "key": "K"},
 	{"name": "LandButton", "action": "land", "label": "LAND", "key": "B"},
+	{"name": "SavesButton", "action": "saves", "label": "SAVES", "key": "O"},
 ]
 
 ## Unscaled metrics. Height goes through `UiTheme.scaled_touch()` — these are the

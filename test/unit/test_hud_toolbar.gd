@@ -1,7 +1,7 @@
 extends RefCounted
 
-## Covers the HUD toolbar — the BAG / SKILLS / LAND buttons that are the only
-## on-screen way into the game's three panels.
+## Covers the HUD toolbar — the BAG / SKILLS / LAND / SAVES buttons that are the only
+## on-screen way into the game's four panels.
 ##
 ## The two that matter are test_the_key_hint_matches_the_real_binding and
 ## test_pressing_a_button_sends_both_halves_of_the_action. The first is the one a
@@ -83,8 +83,10 @@ func test_every_button_names_an_action_the_input_map_has() -> String:
 			return err
 
 	# The skill tree and the land economy are the whole reason this strip exists;
-	# neither had any on-screen way in before it.
-	for required in ["inventory", "skills", "land"]:
+	# neither had any on-screen way in before it. `saves` is here for a harder reason:
+	# `[` and `]` are keyboard-only and Systems/SaveLoad is an empty invisible Control,
+	# so this button is the only affordance the save system has at all on desktop.
+	for required in ["inventory", "skills", "land", "saves"]:
 		err = _T.assert_true(strip.get_actions().has(required), "'%s' has a button" % required)
 		if err != "":
 			return err
@@ -142,6 +144,7 @@ func test_pressing_a_button_sends_both_halves_of_the_action() -> String:
 func test_the_strip_stays_inside_a_small_phone_viewport() -> String:
 	# stretch mode is "disabled", so a phone really does report a viewport this
 	# small and a fixed pixel layout would push the strip off the right edge.
+	# 720 wide is roomy for this row; the narrow case is the portrait test below.
 	var strip := await _make_toolbar(Vector2i(720, 360))
 	strip.visible = true
 
@@ -156,6 +159,50 @@ func test_the_strip_stays_inside_a_small_phone_viewport() -> String:
 			return err
 
 	return ""
+
+
+## The width budget a fourth button spends into, asserted rather than estimated.
+##
+## 390x844 is a phone held upright and the narrowest viewport the game is expected to
+## report. The test above cannot stand in for it: `UiTheme.scale_for()` clamps at
+## SCALE_MIN, so 390 and 720 both land on the same 0.85 factor and produce the *same*
+## row — but one of them has 720px to put it in and the other has 390.
+##
+## Nothing clips or wraps when the budget is blown. `_build_row()` anchors the row to
+## the top-right with `grow_horizontal = GROW_DIRECTION_BEGIN`, so an over-wide row
+## grows off the LEFT edge and the leftmost button simply stops being reachable, with
+## no visual cue that a button is missing.
+func test_a_fourth_button_still_fits_a_portrait_phone() -> String:
+	var strip := await _make_toolbar(Vector2i(390, 844))
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	strip.visible = true
+
+	var screen := Rect2(Vector2.ZERO, strip.get_viewport_rect().size)
+
+	for action in strip.get_actions():
+		var rect: Rect2 = strip.get_button_for(action).get_global_rect()
+		var err: String = _T.assert_true(
+			screen.encloses(rect),
+			"'%s' fits a portrait phone at %s (got %s)" % [action, str(screen.size), str(rect)])
+		if err != "":
+			return err
+
+	# ...and by more than a hair. The skills button rewrites its own face when points
+	# bank ("SKILLS +9  [K]"), and `style_button` gives every button 8px of unscaled
+	# content margin per side, so the widest the row ever gets is not the width it has
+	# while idle. A budget that only passes for the idle row fails in the game, on the
+	# very screen the player earned a level on.
+	strip.get_button_for("skills").text = "SKILLS +99  [K]"
+	await tree.process_frame
+
+	var left := INF
+	for action in strip.get_actions():
+		left = minf(left, strip.get_button_for(action).get_global_rect().position.x)
+
+	return _T.assert_gte(
+		left, 0.0,
+		"the loaded row still starts on screen (leftmost edge at %.1f of %.0f)"
+			% [left, screen.size.x])
 
 
 func test_the_strip_reports_the_corner_it_occupies() -> String:

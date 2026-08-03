@@ -16,6 +16,7 @@ signal attack
 signal toggle_inventory
 signal toggle_skills
 signal toggle_land
+signal toggle_saves
 signal toggle_debug
 
 @export var isUiOpen = false
@@ -94,6 +95,18 @@ func _input(event):
 	# out of it while dead or mid-respawn is worse than opening it there.
 	if event.is_action_released("land"):
 		toggle_land.emit()
+	# Same again for the save-slot panel, and ungated for a stronger reason than the
+	# others: picking a slot and loading it is the way OUT of a wedged or dead run, so
+	# it is exactly the panel that must stay reachable while disable_input is up.
+	#
+	# The has_action guard is not defensive style, it is load-bearing. `saves` is a
+	# newer binding than the three above, and is_action_released() on an action the
+	# InputMap does not know pushes an error rather than returning false — from
+	# _input(), which runs several times a frame, so it floods the log and makes the
+	# game unplayable rather than merely noisy. A clone that has not re-imported since
+	# the binding landed is exactly that case.
+	if InputMap.has_action("saves") and event.is_action_released("saves"):
+		toggle_saves.emit()
 	# Same again, and more so: the debug panel is the thing you want when the run is
 	# already wedged, so gating it on disable_input would lock it away exactly when it
 	# is useful. The panel only exists in a debug build (main.gd builds it behind

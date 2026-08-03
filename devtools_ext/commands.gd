@@ -59,6 +59,9 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("press_key", _cmd_press_key)
 	dev.register_command("demo_clip", _cmd_demo_clip)
 	dev.register_command("demo_state", _cmd_demo_state)
+	dev.register_command("save_slots", _cmd_save_slots)
+	dev.register_command("use_slot", _cmd_use_slot)
+	dev.register_command("slot_panel", _cmd_slot_panel)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -157,6 +160,51 @@ func _tile_map_handler() -> TileMapHandler:
 		if node is TileMapHandler:
 			return node
 	return null
+
+
+## The SaveLoad manager. Deliberately NOT a group lookup: the "SaveLoad" group is every
+## node in the game that persists itself — dozens of them, plus main.tscn's root, which
+## main.gd re-adds at :77 — and not one of them is the manager. The manager is a fixed
+## node in main.tscn, so the path is the honest way to it.
+func _save_load() -> SaveLoad:
+	return _dev.get_tree().root.get_node_or_null("Main/Systems/SaveLoad") as SaveLoad
+
+
+## The save-slot panel (ui/save_slot_ui.gd), by node path first and then by walking the
+## UI layer.
+##
+## Matched on the four calls these verbs actually make rather than cast to its class.
+## That is what tells it apart from its neighbours without this file taking a hard
+## dependency on a class name it does not own: SkillTreeUi and LandPurchaseUi both expose
+## is_open() and toggle(), and neither has open() or close(), so requiring all four is
+## sufficient. A PanelFrame answers all four too, but frames are built *inside* a panel
+## and this only ever looks at direct children of the UI layer.
+##
+## The fallback walks and matches; it never indexes. An index into get_children() or into
+## a group encodes how many members that collection happens to have today — the trap
+## CLAUDE.md documents, and the one that made test_chest.gd's `[1]` go out of bounds the
+## moment the root's groups were removed.
+func _save_slot_ui() -> Control:
+	var root := _dev.get_tree().root
+
+	var direct := root.get_node_or_null("Main/UI/SaveSlotUI") as Control
+	if _is_slot_panel(direct):
+		return direct
+
+	var layer := root.get_node_or_null("Main/UI")
+	if layer != null:
+		for child in layer.get_children():
+			var control := child as Control
+			if _is_slot_panel(control):
+				return control
+	return null
+
+
+func _is_slot_panel(node: Control) -> bool:
+	if node == null:
+		return false
+	return node.has_method("open") and node.has_method("close") \
+		and node.has_method("toggle") and node.has_method("is_open")
 
 
 ## A Vector2/Vector2i flattened for the wire. Vectors always cross as {"x":..,"y":..}
@@ -2403,5 +2451,129 @@ func _cmd_build_demo_world(args: Dictionary) -> Dictionary:
 			"door": {"x": door_cell.x, "y": door_cell.y},
 			"placed": placed,
 			"land_tiles": handler.count_land_tiles(),
+		},
+	}
+
+
+# --- save slots ---------------------------------------------------------------
+
+## Every slot's metadata in one read.
+##
+## slot_info() reads the header and the summary fields only; it never loads a save, so
+## this is safe to call mid-run and cannot disturb the world it is reporting on. It also
+## always carries every key, so a reader branches on the *value* — `exists: false` rather
+## than an absent "exists" — and an empty slot is distinguishable from a corrupt one
+## (`exists: true, readable: false`) instead of both reading as nothing.
+##
+## The alternative, reading `user://` from the shell, cannot answer any of that: it sees
+## file names and sizes, not level, land radius, or whether the game can parse the thing.
+func _cmd_save_slots(_args: Dictionary) -> Dictionary:
+	# Untyped on purpose. Held in a `SaveLoad`-typed local, every call below would be
+	# resolved statically at parse time, and this file failing to parse takes ALL of
+	# gather's devtools verbs down with it — including the ones used to diagnose that.
+	var saves = _save_load()
+	if saves == null:
+		return {"success": false, "message": "no SaveLoad in the scene", "data": {}}
+
+	var slots: Array = saves.list_slots()
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"slot_count": slots.size(),
+			"current_slot": saves.current_slot,
+			"slots": slots,
+		},
+	}
+
+
+## Saves to, loads from, or deletes one slot. `{"slot": 2, "action": "save"}`.
+##
+## `action` is `save` | `load` | `delete`; `slot` defaults to the current one. Reports
+## what actually CHANGED rather than echoing the request — the slot's metadata before and
+## after — so "did a file appear", "did the delete take" and "can the game still read it"
+## are answered by the same reply that performed the write, with no second call in
+## between for the world to move underneath.
+##
+## A refused action comes back success=false with the slot untouched, so a test can
+## assert the guard as well as the happy path.
+func _cmd_use_slot(args: Dictionary) -> Dictionary:
+	var saves = _save_load()
+	if saves == null:
+		return {"success": false, "message": "no SaveLoad in the scene", "data": {}}
+
+	# From list_slots() rather than a constant, so this bound cannot drift from the one
+	# SaveLoad itself enforces.
+	var count: int = saves.list_slots().size()
+	var slot: int = int(args.get("slot", saves.current_slot))
+	if slot < 1 or slot > count:
+		return {
+			"success": false,
+			"message": "slot %d is outside 1..%d" % [slot, count],
+			"data": {"slot": slot, "slot_count": count},
+		}
+
+	var action: String = str(args.get("action", "save")).to_lower()
+	var before: Dictionary = saves.slot_info(slot)
+
+	var ok := false
+	match action:
+		"save":
+			ok = saves.save_to_slot(slot)
+		"load":
+			ok = saves.load_from_slot(slot)
+		"delete":
+			ok = saves.delete_slot(slot)
+		_:
+			return {
+				"success": false,
+				"message": "unknown action '%s' (want save, load or delete)" % action,
+				"data": {"slot": slot, "action": action},
+			}
+
+	var after: Dictionary = saves.slot_info(slot)
+	return {
+		"success": ok,
+		"message": "%s slot %d: %s" % [action, slot, "ok" if ok else "refused"],
+		"data": {
+			"slot": slot,
+			"action": action,
+			"existed_before": before.get("exists", false),
+			"exists": after.get("exists", false),
+			"readable": after.get("readable", false),
+			"current_slot": saves.current_slot,
+			"before": before,
+			"after": after,
+		},
+	}
+
+
+## Opens or closes the save-slot panel. `{"open": true|false}`, or omit to toggle.
+##
+## Goes through the panel's own open()/close()/toggle() rather than writing `visible`,
+## for the reason skill_panel and land_panel document: the panel owns a mouse-mode and
+## disable_input handshake, and setting the property behind its back leaves half of that
+## state where the panel left it.
+func _cmd_slot_panel(args: Dictionary) -> Dictionary:
+	var ui = _save_slot_ui()
+	if ui == null:
+		return {"success": false, "message": "no save-slot panel in the scene", "data": {}}
+
+	if args.has("open"):
+		if bool(args["open"]):
+			ui.open()
+		else:
+			ui.close()
+	else:
+		ui.toggle()
+
+	var saves = _save_load()
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"open": bool(ui.is_open()),
+			"node": str(ui.get_path()),
+			"current_slot": saves.current_slot if saves != null else -1,
 		},
 	}

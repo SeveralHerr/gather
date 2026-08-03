@@ -2880,7 +2880,7 @@ Guidelines that make an entry useful later:
   binned as "not applicable", so the classifier already has the concept — the test scripts
   just are not in it. Effect is the unflattering mirror of the fixed [G-044]: writing a test
   alongside a fix permanently caps your reach ratio below 100%.
-  - [G-095] status: open | seen: 2 | harness: 0.8.0
+  - [G-095] status: open | seen: 3 | harness: 0.8.0
   - Improvement: put paths under the configured `test_dir` in the existing "not applicable"
     bucket, or better, credit them from the Phase 1 run — `run_tests.gd` already knows
     exactly which test scripts it selected and executed.
@@ -2921,3 +2921,80 @@ Guidelines that make an entry useful later:
 
 - Note: `--rect` needs `--rect="-24,-2,14,12"` (with `=`) when the value starts with `-`;
   the space form is eaten by argparse as a flag. Not filed as a gap — standard argparse.
+
+## 2026-08-03 — Answered where the demo save fixture shows up in-game
+
+- Value: **overkill** — no harness use, and none was warranted: the question was answered by
+  two greps over `project.godot` and `ui/debug_panel_ui.gd`.
+  - Expected: n/a, no run planned or needed.
+  - Got: n/a. `grep` found exactly two load triggers (the `]` binding, keycode 93, and
+    `debug_panel_ui.gd:384`), both calling `SaveLoad._load()`, which reads one path. No save
+    enumeration exists anywhere, so the fixture cannot appear in a list.
+  - Cheaper: this WAS the cheap path — two greps, ~2s. Launching the game to look for a load
+    menu would have cost a minute and proven less, since absence of a UI is easier to
+    establish from the input map and the one button than from a screenshot.
+
+- Gap: **no gaps this turn** — the harness was not exercised. Recorded so this turn stays
+  distinguishable from a forgotten log.
+
+## 2026-08-03 — Save slots: wiring agent landed, mobile reachability closed
+
+- Value: **inconclusive** — no harness run; two of three agents are still writing and the
+  tree does not compile as a whole yet.
+  - Expected: n/a, no run attempted.
+  - Got: n/a from the harness. The turn's real finding was static — `hud_toolbar.gd:240`
+    hides the whole button cluster when `DisplayServer` reports a touchscreen, and
+    `mobile_controls.gd:181` listed only `["inventory", "skills", "land"]`, so the new panel
+    would have been unreachable on a phone. My own brief to the agent claimed the opposite.
+  - Cheaper: two greps, which is exactly what found it. Runtime would have needed
+    `set-feature --touchscreen true` and a screenshot to show the same thing, and would have
+    shown it as an absence — the hardest thing to notice in a screenshot.
+
+- Gap: **no headless way to check a layout budget** — deciding whether a fourth toolbar
+  button fits a 390px portrait viewport meant deriving it on paper across `UiTheme.scale_for`,
+  `scaled`, `scaled_touch` and `_apply_scale`, because the only executable check needs a
+  running game or a full test run with `_T.instantiate_ui`. The subagent reached the same
+  wall and proposed the same fix independently.
+  - [G-097] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a headless `layout-probe` that takes a scene path plus a viewport size and
+    prints the resulting node rects, so a width budget is one command rather than a launch.
+  - Note: the agent proposed filing this as [G-060], which is already taken *and* resolved
+    `wontfix` in this file. Ids are assigned by the orchestrator, not by subagents — worth
+    stating in the brief next time, since a colliding id silently corrupts `upstream_gaps.py`.
+
+## 2026-08-03 — Save/load slots: three parallel agents, integrated and verified
+
+- Value: **warranted** — runtime caught an integration break that lint and 349 unit tests
+  could not see, because each half was correct on its own.
+  - Expected: the three agents' pieces would meet at seams I under-specified; runtime should
+    show whether the panel, the storage layer and the input path actually connect, not just
+    whether each parses.
+  - Got: `cmd slot_panel --args '{"open":true}'` answered **`no save-slot panel in the
+    scene`** on a build where lint reported `Scripts: 127 compiled OK` and the suite reported
+    `349 passed, 0 failed`. The panel exposed `is_open`/`toggle`/`set_open`; the devtools
+    lookup duck-typed on `open`+`close`+`toggle`+`is_open`. Both were internally consistent
+    and unit-tested; only the running game had both in one process. Then, once fixed:
+    migration put the pre-slot save in slot 1 as `version 1, readable, metadata zeroed`, a
+    fresh save wrote `version 2, level 1, radius 10` with a real timestamp, the touch SAVE
+    button flipped `is_open` False -> True with the desktop toolbar hidden, and `O` toggled
+    it both ways.
+  - Cheaper: nothing. This is the case the ledger exists to record — two green gates and a
+    feature that could not be opened.
+
+- Gap: **a contract handed to N agents has no checker, so a seam only fails at runtime.**
+  I pinned the `SaveLoad` slot API precisely and all three agents matched it exactly; the
+  break was in the API I described only in prose — I told the verbs agent the panel would
+  expose `open()`/`close()`, and told the panel agent to build on `PanelFrame` without
+  pinning its wrapper names. It chose `set_open(bool)`. Nothing in lint, the type system or
+  the tests connects a `has_method("open")` string in one file to a `func set_open` in
+  another.
+  - [G-098] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: extend `--find-orphans`-style static analysis to flag `has_method("x")` /
+    `call("x")` / `connect("x", …)` string literals naming a method or signal that exists
+    nowhere in the project. It is the same scan, and it would have printed this one as a
+    finding before the game was ever launched.
+
+- Note: `cmd slot_panel` with no args *toggles*, so my first two "read the state" calls
+  mutated it and I misread a working tap as a failure. Read state with `run-method … is_open`
+  instead. Not a harness gap — the verb documents the toggle — but a reminder that a status
+  read and a state change must not share a verb.
