@@ -139,7 +139,7 @@ func state() -> Dictionary:
 
 
 func clips() -> Array:
-	return ["turrets"]
+	return ["turrets", "workers"]
 
 
 ## Starts a clip. Returns immediately — the performance continues as a coroutine, and the
@@ -156,7 +156,11 @@ func start(clip_name: String) -> Dictionary:
 	_notes = []
 	_running = true
 
-	_run_turret_clip()
+	match clip_name:
+		"workers":
+			_run_worker_clip()
+		_:
+			_run_turret_clip()
 	return {"success": true, "message": "clip '%s' started" % clip_name, "data": state()}
 
 
@@ -325,6 +329,631 @@ func _beat_wave(handler: TileMapHandler, player: Player, _centre: Vector2i) -> v
 	await _wait(BEAT["between_waves"])
 	await _telegraph_wave(handler, _offset_cells(here, WAVE_TWO))
 	await _wait(BEAT["wave_hold"])
+
+
+# --- the worker clip ------------------------------------------------------------------
+#
+# The automation loop end to end: lay out a chest and two worker bases, drop a captured
+# skull into each, then watch one fell a tree and the other break a rock and both carry the
+# haul back to the chest — which the player opens on the last beat to show what arrived.
+#
+# Shot on a save rather than on a fresh world, which the turret clip is not. A worker chain
+# is a thing you build once you already have a base; standing it up on empty starting grass
+# films the mechanic and loses the reason anyone would want it.
+
+## Which save slot the worker clip loads before it starts.
+##
+## Slot 3 on this machine is the demo homestead — the same world as
+## `test/fixtures/demo_homestead_save`, regenerable into any slot with the `build_demo_world`
+## devtools verb. The clip needs a walled house, chests and turrets standing behind the
+## action, and nothing about the choreography below cares which slot they come from, so a
+## slot whose contents have moved on is a one-word change here rather than a reshoot.
+const WORKER_SLOT := 3
+
+## What one chop or one mine is shortened to for the recording, against
+## `BoneWorker.CHOP_SECONDS`' twenty.
+##
+## This is the clip's second deliberate lie — `player.invulnerable` in the turret clip is the
+## first — and the only one that touches a number a player would feel. Twenty seconds is a
+## balance decision and a load-bearing one (its own comment explains that automation is meant
+## to be the *slow* way to clear a node), but it is also twenty seconds of a skeleton standing
+## still, twice, in a clip that has about twenty-five to spend in total. Five is the 4.0s the
+## feature shipped with before the 400% slowdown, rounded up: long enough that the chips read
+## as work rather than as a flicker, short enough that both workers complete a whole errand —
+## walk out, fell, carry back, deposit — on camera.
+const WORKER_CHOP := 5.0
+
+## The set, as offsets in tiles from the pocket centre.
+##
+## Two rules shaped every number here. The camera is a child of the player and shows about
+## ±7 by ±4 tiles at zoom 8, so the whole errand has to fit in a strip six wide; and a
+## placeable lands in `get_tile_in_front_of_player()`, which is the cell horizontally beside
+## the player, so every `stand_*` mark sits exactly one tile from what it puts down.
+##
+## The chest is on the far side of the player from the trees on purpose. Worker and target
+## two tiles apart with the drop-off four the other way makes the delivery the long leg,
+## which is the half of the loop worth watching — a chest tucked in beside the tree would
+## show the same behaviour as a shuffle on the spot.
+const WORKER_SET := {
+	"mark": Vector2i(1, 0),
+	"stand_chest": Vector2i(0, 0),
+	"chest": Vector2i(-1, 0),
+	"stand_wood": Vector2i(1, 0),
+	"wood_worker": Vector2i(2, 0),
+	"stand_stone": Vector2i(1, 1),
+	"stone_worker": Vector2i(2, 1),
+	"tree_a": Vector2i(4, 0),
+	"tree_b": Vector2i(4, -1),
+	"stone": Vector2i(4, 1),
+	"stand_watch": Vector2i(0, -1),
+	"stand_reveal": Vector2i(0, 0),
+}
+
+## The rectangle, relative to the pocket centre, that has to be clear grass before anything
+## is staged. It is exactly the bounding box of WORKER_SET, and it is checked rather than
+## cleared: the turret clip bulldozes its arena, but this one is shot in someone's finished
+## base and flattening a wall of it to make room would be filming a different save.
+const POCKET_MIN := Vector2i(-1, -1)
+const POCKET_MAX := Vector2i(4, 1)
+
+## Distance in pixels within which a walk counts as having arrived. Under a pixel, because
+## the walk stops on the first frame past its mark and at 50px/s over a 60fps frame that
+## overshoot is 0.83px — a tighter test would never pass and a looser one accumulates across
+## four walks into a set visibly off its own grid.
+const WALK_EPSILON := 0.5
+
+## Ceiling on the work beat. A full errand is a ~2 tile walk out, WORKER_CHOP standing at the
+## node and a ~4 tile walk back, so about fifteen seconds for both workers; the rest is slack
+## for a path that has to route around the turret standing between the bases and the grove.
+const WORKER_WORK_TIMEOUT := 45.0
+
+const WORKER_BEAT := {
+	"settle": 0.8,
+	"after_select": 0.45,
+	"after_place": 0.7,
+	"after_assemble": 0.9,
+	"after_delivery": 1.0,
+	"before_reveal": 0.5,
+	"reveal_hold": 3.0,
+	"tail": 0.6,
+}
+
+
+func _run_worker_clip() -> void:
+	if not _load_slot(WORKER_SLOT):
+		_fail("could not load save slot %d" % WORKER_SLOT)
+		return
+	# A load rebuilds most of the world, and the scene tiles it re-instances are not in the
+	# tree — so not in their groups, and not findable — until the frames after it returns.
+	await _frames(4)
+
+	var handler := _handler()
+	var player := _player()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player after loading slot %d" % WORKER_SLOT)
+		return
+
+	var centre = _stage_worker_set(handler, player)
+	if centre == null:
+		_fail("no clear %sx%s pocket within %s tiles of where slot %d put the player" % [
+			POCKET_MAX.x - POCKET_MIN.x + 1, POCKET_MAX.y - POCKET_MIN.y + 1,
+			ARENA_SEARCH, WORKER_SLOT,
+		])
+		return
+
+	await _wait(WORKER_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_place_set(handler, player, centre)
+	var workers := await _beat_assemble(handler, player, centre)
+	await _beat_deliver(handler, player, centre, workers)
+	await _beat_reveal(handler, player, centre)
+
+	_mark("show_end")
+	await _wait(WORKER_BEAT["tail"])
+
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — the player lays the station out: a chest on his left, two worker bases on his
+## right.
+##
+## Every placement is preceded by a walk in the direction it goes down, and that is the
+## reason the marks are arranged the way they are. Facing is `AnimatedSprite2D.flip_h`, set
+## by the last horizontal step, and a placeable lands in the cell the player faces — so
+## walking to the mark *is* aiming. Nothing here taps a key to pivot on the spot, which is
+## both what a person does and what keeps the player on a whole tile between beats.
+func _beat_place_set(handler: TileMapHandler, player: Player, centre: Vector2i) -> void:
+	_beat = "place_set"
+	_mark("place_set")
+
+	await _walk_to(handler, player, centre + WORKER_SET["stand_chest"])
+	await _place_from_bag(handler, player, Types.Item.Chest, centre + WORKER_SET["chest"])
+
+	await _walk_to(handler, player, centre + WORKER_SET["stand_wood"])
+	await _place_from_bag(handler, player, Types.Item.BoneWorker, centre + WORKER_SET["wood_worker"])
+
+	# Down a tile rather than along: `move_down` leaves flip_h alone, so the player is still
+	# pointed right and the second base goes in beside the first without a walk that would
+	# take him past it.
+	await _walk_to(handler, player, centre + WORKER_SET["stand_stone"])
+	await _place_from_bag(handler, player, Types.Item.StoneWorker, centre + WORKER_SET["stone_worker"])
+
+
+## Beat B — a captured skull into each base, which is what turns a prop into a unit.
+##
+## No walk between the two presses: `GameItemBoneEnemy` searches the areas the player's own
+## Area2D overlaps, and a WorkArea is a 40px circle, so from the mark both bases are already
+## in reach. The first press takes the nearer one and the second skips it — a machine that is
+## already loaded is not a candidate at all, which is exactly why two presses load two bases
+## rather than one base twice.
+func _beat_assemble(handler: TileMapHandler, player: Player, centre: Vector2i) -> Array:
+	_beat = "assemble"
+	_mark("assemble")
+
+	var mine := []
+	for key in ["stone_worker", "wood_worker"]:
+		var worker = _worker_at(handler, centre + WORKER_SET[key])
+		if worker != null:
+			mine.append(worker)
+	if mine.is_empty():
+		_note("neither base is in the tree to be loaded")
+		return mine
+
+	if not _select(Types.Item.BoneEnemy):
+		_note("no skull in the bag to assemble with")
+		return mine
+	await _wait(WORKER_BEAT["after_select"])
+
+	for _i in mine.size():
+		await _use()
+		await _wait(WORKER_BEAT["after_assemble"])
+
+	var loaded := 0
+	for worker in mine:
+		if worker.loaded:
+			loaded += 1
+	if loaded < mine.size():
+		_note("%d of %d bases took a skull" % [loaded, mine.size()])
+	return mine
+
+
+## Beat C — the loop itself. The player steps out of the lane and the two workers fell a
+## tree, break a rock, and carry both back to the chest.
+##
+## Waiting on the chest's contents rather than on a stopwatch: a worker plans its errand on
+## its own tick and routes around whatever is in the way, so how long the round trip takes is
+## not knowable from here. The chest filling is also the only evidence that matters — a
+## worker can walk the whole path and arrive holding nothing if the tree went down before the
+## swing landed.
+func _beat_deliver(handler: TileMapHandler, player: Player, centre: Vector2i,
+		workers: Array) -> void:
+	_beat = "deliver"
+	_mark("deliver")
+
+	await _walk_to(handler, player, centre + WORKER_SET["stand_watch"])
+
+	var chest = _chest_at(handler, centre + WORKER_SET["chest"])
+	if chest == null:
+		_note("no chest at %s to deliver into" % [centre + WORKER_SET["chest"]])
+		return
+
+	# One of each worker's own drop, not a total count. A tree yields one or two logs, so a
+	# total of two is reached by the wood worker alone about half the time — and a beat that
+	# ends there cuts the stone worker off mid-walk with the shot's other half unfinished.
+	var wanted := _drops_of(handler, workers)
+	var waited := 0.0
+	while waited < WORKER_WORK_TIMEOUT:
+		_compress_work(workers)
+		if _chest_holds_all(chest, wanted):
+			break
+		await _dev.get_tree().process_frame
+		waited += _dev.get_process_delta_time()
+
+	if not _chest_holds_all(chest, wanted):
+		_note("only %d item(s) reached the chest in %.0fs, wanted one of each of %s" % [
+			_chest_count(chest), WORKER_WORK_TIMEOUT, wanted])
+	await _wait(WORKER_BEAT["after_delivery"])
+
+
+## Beat D — the payoff: the player opens the chest and the haul is in it.
+##
+## Through the `action` key rather than by calling `player_interact()`, because the thing
+## being shown is that this is the ordinary chest the player already uses. `Player._process`
+## reads that key with `is_action_just_pressed` and routes it through `nearest_chest`, which
+## is set by the Interact area — so standing on the adjacent tile is a precondition of the
+## beat and not just where the walk happened to end.
+func _beat_reveal(handler: TileMapHandler, player: Player, centre: Vector2i) -> void:
+	_beat = "reveal"
+	_mark("reveal")
+
+	await _walk_to(handler, player, centre + WORKER_SET["stand_reveal"])
+	await _wait(WORKER_BEAT["before_reveal"])
+
+	if player.nearest_chest == null:
+		_note("standing at %s the player has no chest in interact range"
+			% [centre + WORKER_SET["stand_reveal"]])
+
+	await _tap_key_for("action")
+	await _frames(2)
+
+	if not _bag_open():
+		_note("the action press did not open the chest")
+	await _wait(WORKER_BEAT["reveal_hold"])
+
+
+# --- worker staging -------------------------------------------------------------------
+
+## Puts the loaded save into the state the worker clip opens on, and returns the pocket
+## centre — or null when the save has nowhere clear to build.
+func _stage_worker_set(handler: TileMapHandler, player: Player):
+	_beat = "staging"
+
+	var centre = _find_pocket(handler, player)
+	if centre == null:
+		return null
+
+	_freeze_ambient()
+	_clear_enemies()
+	# Every worker that exists at this point belongs to the save, not to the clip.
+	_still_existing_workers()
+
+	# The grove, planted rather than found. `BoneWorker.SEARCH_CELLS` records the measurement
+	# that makes this necessary: in this very save the two bone workers' nearest trees were
+	# 19.4 and 20.6 cells out, because a developed homestead sits in an apron its owner
+	# cleared by hand. Anywhere with the house in frame has nothing to harvest, and anywhere
+	# with something to harvest has no house — so the clip brings three nodes with it and
+	# leaves the rest of the save alone.
+	_plant(handler, centre + WORKER_SET["tree_a"], Types.Item.Tree)
+	_plant(handler, centre + WORKER_SET["tree_b"], Types.Item.Tree)
+	_plant(handler, centre + WORKER_SET["stone"], Types.Item.StoneResource)
+
+	player.position = handler.tileMap.map_to_local(centre + WORKER_SET["mark"])
+	player.velocity = Vector2.ZERO
+	player.invulnerable = true
+
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+	_stock_worker_kit(player)
+	return centre
+
+
+## The pocket centre: the cell whose WORKER_SET bounding box is entirely clear grass, ranked
+## on how much *built* world its opening frame would contain, then on nearness to where the
+## save put the player.
+##
+## The middle key is the whole reason this is a search and not a constant. Clear ground is
+## abundant on a maxed island and the nearest clear pocket is out in a field, which films the
+## automation loop against grass — the exact thing loading a homestead save was meant to
+## avoid. Ranking on built cells in shot pulls the set back against the house without
+## hardcoding the house's coordinates, which no longer survive the save being regenerated.
+func _find_pocket(handler: TileMapHandler, player: Player):
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var best = null
+	var best_key := [-1, -(1 << 30)]
+
+	for dy in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+		for dx in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+			var candidate := origin + Vector2i(dx, dy)
+			if not _pocket_clear(handler, candidate):
+				continue
+			var key := [_built_in_frame(handler, candidate), -(dx * dx + dy * dy)]
+			if key > best_key:
+				best = candidate
+				best_key = key
+	return best
+
+
+## Whether every cell the clip writes to is empty, buildable grass.
+##
+## `is_occupied(cell, true)` is the game's own build test, so this asks exactly what the
+## placement presses will ask a few seconds later — including the ground check, which is what
+## keeps the set off the water, and the scene-tile check, which is what keeps it off a rock
+## that has no cell of its own on the object layer.
+func _pocket_clear(handler: TileMapHandler, centre: Vector2i) -> bool:
+	for y in range(POCKET_MIN.y, POCKET_MAX.y + 1):
+		for x in range(POCKET_MIN.x, POCKET_MAX.x + 1):
+			if handler.is_occupied(centre + Vector2i(x, y), true):
+				return false
+	return true
+
+
+## How many cells of the frame this pocket would open on already have something on them —
+## walls, floors, stations, turrets, ore. A proxy for "is the base in shot", counted over the
+## same VIEW_HALF the turret clip uses to reason about framing.
+func _built_in_frame(handler: TileMapHandler, centre: Vector2i) -> int:
+	var built := 0
+	var mark: Vector2i = centre + WORKER_SET["mark"]
+	for y in range(mark.y - VIEW_HALF.y, mark.y + VIEW_HALF.y + 1):
+		for x in range(mark.x - VIEW_HALF.x, mark.x + VIEW_HALF.x + 1):
+			var cell := Vector2i(x, y)
+			if handler.tileMap.get_cell_source_id(1, cell) != -1 \
+					or handler.tileMap.get_cell_source_id(2, cell) != -1:
+				built += 1
+	return built
+
+
+## Writes a resource node onto a cell, through the same call `main.gd` uses for a placed
+## tile — atlas_location and source id together, which is the pair a cell is mapped back to
+## its registry entry by, and therefore the pair `_is_tree_at` will match on.
+func _plant(handler: TileMapHandler, cell: Vector2i, type: Types.Item) -> void:
+	if handler.resources == null:
+		return
+	# get_item_or_resource_by_type, not Resources.Get: the latter indexes its dictionary
+	# directly and errors on a type that is not registered.
+	var entry = handler.resources.get_item_or_resource_by_type(type)
+	if entry == null:
+		_note("no resource registered for type %d, nothing planted at %s" % [type, cell])
+		return
+	handler.set_tile_item(cell, entry)
+
+
+## The kit, into the first four hotbar slots only.
+##
+## Deliberately not the turret clip's `_stock`, which empties all six. The demo save keeps
+## the player's own wood and stone in the slots past those four, and this clip ends with the
+## bag open beside a chest — a player standing there with nothing of his own would read as
+## the wood in the chest having come out of his pockets rather than off a tree.
+func _stock_worker_kit(player: Player) -> void:
+	var slots: Array = player.inventory_data.inventory_slot_datas
+	for index in mini(4, slots.size()):
+		slots[index] = null
+
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.Chest), 1))
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.BoneWorker), 1))
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.StoneWorker), 1))
+	# Two skulls in one stack: the assemble beat spends them one press at a time, and the
+	# hotbar shows a count going 2 -> 1 -> gone, which is the feedback the beat is about.
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.BoneEnemy), 2))
+	player.inventory_data.inv_updated()
+
+
+## Stops the think tick of every worker already standing in the save.
+##
+## A loaded worker with nothing in range does not stand still — it wanders, on purpose, so
+## that a starving one does not read as a broken one. That is right in the game and wrong in
+## a clip: it puts a second skeleton drifting through the shot doing something the footage
+## never explains. The demo save ships four of them, two already loaded.
+##
+## Pausing the timer alone is not enough, and the first take showed why: a worker restored
+## mid-errand keeps whatever state the save left it in, and a paused timer means the tick that
+## would END that state never arrives. Two of them stood there swinging at nothing for the
+## whole clip. Clearing the path and the swing as well is what actually parks them — and
+## `_set_working(false)` rather than a direct `visible` write, because it is what puts the
+## pickaxe back at its authored offset instead of leaving it frozen mid-arc.
+func _still_existing_workers() -> void:
+	for node in _dev.get_tree().get_nodes_in_group("BoneWorker"):
+		if not (node is BoneWorker):
+			continue
+		if node.work_timer != null:
+			node.work_timer.paused = true
+		node._path.clear()
+		node._state = BoneWorker.State.IDLE
+		node._set_working(false)
+
+
+## Holds the clip's own workers at WORKER_CHOP, called once a frame through the work beat.
+##
+## It has to run repeatedly rather than once at load: `_on_arrived` restarts the timer with
+## `CHOP_SECONDS` at the start of every chop, so a single override lasts exactly one cycle.
+## The `wait_time` test is what stops this being a bug — `Timer.start()` *restarts* the
+## countdown, so calling it unconditionally every frame would produce a timer that never
+## fires at all and a worker that swings forever.
+func _compress_work(workers: Array) -> void:
+	for worker in workers:
+		if not is_instance_valid(worker):
+			continue
+		var timer: Timer = worker.work_timer
+		if timer != null and timer.wait_time > WORKER_CHOP:
+			timer.start(WORKER_CHOP)
+
+
+# --- worker lookups and input ---------------------------------------------------------
+
+## By node path, the way `commands.gd:_save_load` reaches it, and NOT by the "SaveLoad"
+## group. That group is the list of nodes that *have state to save* — every chest, the
+## player, the spawner — and the manager itself is not a member of it. Looking there finds
+## a dozen nodes and none of them the one that can load a slot.
+func _load_slot(slot: int) -> bool:
+	var saves := _dev.get_tree().root.get_node_or_null("Main/Systems/SaveLoad") as SaveLoad
+	return saves != null and saves.load_from_slot(slot)
+
+
+## The worker standing on `cell`, or null. Matched on the cell rather than held from the
+## placement call because a scene tile is instanced by the TileMap, so the placing code never
+## sees the node it created.
+func _worker_at(handler: TileMapHandler, cell: Vector2i):
+	for node in _dev.get_tree().get_nodes_in_group("BoneWorker"):
+		if node is BoneWorker and handler.tileMap.local_to_map(node.position) == cell:
+			return node
+	return null
+
+
+func _chest_at(handler: TileMapHandler, cell: Vector2i):
+	for node in _dev.get_tree().get_nodes_in_group("external_inventory"):
+		if node is TestChest and handler.tileMap.local_to_map(node.position) == cell:
+			return node
+	return null
+
+
+## What each worker in `workers` puts in a chest, as item types. Read off the resource
+## registry through the worker's own `harvest_type` rather than assumed, for the reason
+## `BoneWorker._fell` states: the blue machine is a wood farmer because trees drop wood, and
+## a fourth variant should need no edit here.
+func _drops_of(handler: TileMapHandler, workers: Array) -> Array:
+	var drops := []
+	if handler.resources == null:
+		return drops
+	for worker in workers:
+		var entry = handler.resources.get_item_or_resource_by_type(worker.harvest_type)
+		if entry is GameResource and entry.drop not in drops:
+			drops.append(entry.drop)
+	return drops
+
+
+func _chest_holds_all(chest, types: Array) -> bool:
+	if types.is_empty() or chest == null or chest.inventory_data == null:
+		return false
+	for type in types:
+		var found := false
+		for slot in chest.inventory_data.inventory_slot_datas:
+			if slot != null and slot.item != null and slot.item.type == type and slot.count > 0:
+				found = true
+				break
+		if not found:
+			return false
+	return true
+
+
+func _chest_count(chest) -> int:
+	if chest == null or chest.inventory_data == null:
+		return 0
+	var total := 0
+	for slot in chest.inventory_data.inventory_slot_datas:
+		if slot != null and slot.item != null:
+			total += slot.count
+	return total
+
+
+func _bag_open() -> bool:
+	var panel := _dev.get_tree().root.get_node_or_null("Main/UI/InventoryInterface") as Control
+	return panel != null and panel.visible
+
+
+## Taps the real key `action` is bound to, as an `InputEventKey`.
+##
+## `_press()` is not usable for this one and the first take is the proof: `Player._process`
+## reads the interact key with `Input.is_action_just_pressed`, which is true only on the
+## process frame whose counter matches the press — and `Input.action_press()` called from a
+## coroutine already resumed inside that frame stamps a frame the player has finished reading.
+## The chest never opened, silently, with the player standing right beside it.
+##
+## The keycode comes out of the InputMap rather than being written here, so a rebound interact
+## key is not a clip that quietly ends on a closed chest.
+func _tap_key_for(action: String) -> void:
+	var key: InputEventKey = null
+	for event in InputMap.action_get_events(action):
+		if event is InputEventKey:
+			key = event
+			break
+	if key == null:
+		_note("'%s' has no key bound to tap" % action)
+		return
+
+	var down := key.duplicate() as InputEventKey
+	down.pressed = true
+	Input.parse_input_event(down)
+	await _frames(2)
+
+	var up := key.duplicate() as InputEventKey
+	up.pressed = false
+	Input.parse_input_event(up)
+
+
+## Selects `type` in the hotbar, aims by walking, and puts the tile down with one use press.
+## Reports rather than raises: a beat that placed nothing still has to hand control to the
+## next one, and the note is what tells the capture script the take is not usable.
+func _place_from_bag(handler: TileMapHandler, player: Player, type: Types.Item,
+		cell: Vector2i) -> void:
+	if not _select(type):
+		_note("nothing of type %d in the bag to place at %s" % [type, cell])
+		return
+	await _wait(WORKER_BEAT["after_select"])
+
+	await _aim(handler, player, cell)
+	var front := _front_cell(handler, player)
+	if front != cell:
+		_note("aimed at %s but the set wants %s" % [front, cell])
+
+	await _use()
+	await _frames(2)
+
+	if handler.tileMap.get_cell_source_id(1, cell) == -1:
+		_note("the placement press left cell %s empty" % cell)
+	await _wait(WORKER_BEAT["after_place"])
+
+
+## Turns the player to face `cell`, then puts him back exactly where he was standing.
+##
+## Inheriting the facing from the walk that arrived is not good enough, and the first take
+## proved it: facing is `flip_h = velocity.x < 0` sampled every physics frame, so ANY sideways
+## motion after the walk rewrites it — including `move_and_slide` pushing the player off the
+## solid tile he has just built beside himself. That take walked right, placed the wood
+## worker, stepped down one tile and put the stone worker down on the player's LEFT, three
+## cells from where the set wanted it; the shot then had a base standing in the delivery lane
+## and nothing for the second skull to load.
+##
+## Held until the sprite actually flips rather than for a fixed number of frames: one physics
+## frame is enough at 50px/s and the position is restored afterwards, so the cost on screen is
+## a turn on the spot, which is what the key does anyway.
+func _aim(handler: TileMapHandler, player: Player, cell: Vector2i) -> void:
+	var here: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	if cell.x == here.x:
+		_note("cannot aim at %s from %s: a placeable only ever goes left or right" % [cell, here])
+		return
+
+	var want_left := cell.x < here.x
+	if player.is_facing_left() == want_left:
+		return
+
+	var mark := player.position
+	var action := "move_left" if want_left else "move_right"
+	_press(action)
+	var turned := await _until(func() -> bool: return player.is_facing_left() == want_left, 0.5)
+	_release(action)
+	player.position = mark
+	player.velocity = Vector2.ZERO
+
+	if not turned:
+		_note("the player would not turn to face %s" % cell)
+
+
+## Walks the player onto the centre of `cell` by holding the movement actions a person would,
+## horizontal leg first.
+##
+## The order is not cosmetic. Facing follows the last *horizontal* step — `move_up` and
+## `move_down` leave `flip_h` alone — so doing x first would leave the player pointed by a leg
+## that is not the last one he took. Doing it this way means a walk that ends vertically keeps
+## whatever facing the horizontal leg set, which is what lets the reveal beat approach the
+## chest from above and still be looking at it.
+func _walk_to(handler: TileMapHandler, player: Player, cell: Vector2i,
+		timeout: float = 8.0) -> bool:
+	var target: Vector2 = handler.tileMap.map_to_local(cell)
+	var reached := true
+
+	for axis in [0, 1]:
+		var delta: float = target[axis] - player.position[axis]
+		if absf(delta) < WALK_EPSILON:
+			continue
+
+		var forward := delta > 0.0
+		var action := ""
+		if axis == 0:
+			action = "move_right" if forward else "move_left"
+		else:
+			action = "move_down" if forward else "move_up"
+
+		_press(action)
+		# Polls the position rather than counting frames: the player is a CharacterBody2D
+		# running move_and_slide, so a wall or a chest in the way changes how far a held key
+		# actually travels and a frame count would walk straight through the answer.
+		var arrived := await _until(func() -> bool:
+			var remaining: float = target[axis] - player.position[axis]
+			return (remaining <= 0.0) if forward else (remaining >= 0.0), timeout)
+		_release(action)
+
+		if not arrived:
+			_note("the walk to %s stalled on axis %d" % [cell, axis])
+			reached = false
+
+	# The sub-pixel remainder. The loop above stops on the first frame past the mark, which
+	# is under a pixel at 50px/s over a 60fps frame — invisible on its own and, left
+	# uncorrected across four walks, a set that no longer sits on its own grid.
+	player.position = target
+	player.velocity = Vector2.ZERO
+	return reached
 
 
 # --- staging --------------------------------------------------------------------------

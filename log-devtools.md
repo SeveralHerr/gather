@@ -4047,3 +4047,15 @@ Guidelines that make an entry useful later:
   unambiguous one. Worth recording as the counter-example to the three gaps logged earlier
   today: the harness was not merely adequate here, it was the only tool that could answer the
   question, and the answer was legible enough to paste into a bead unedited.
+
+## 2026-08-03 — Proposed replacement titles for the game
+
+- Value: **inconclusive** — no harness involvement; this was a naming question answered from
+  `project.godot`, `README.md` and `itch/`, none of which need a running game.
+  - Expected: nothing from runtime — a title is not a runtime property.
+  - Got: n/a. The only repo facts that mattered were `config/name="Gather"` and the fact that
+    saves key on `get_path()`, so a rename is save-safe.
+  - Cheaper: exactly what was done — two greps and a `ls itch/`.
+
+- Gap: **no gaps this turn.** The harness has no role in naming and correctly wasn't reached
+  for; logging it only so an absent entry isn't mistaken for a forgotten one.
