@@ -1,9 +1,23 @@
 extends Node
 
-var furnace_recipe_list = []
-var sawmill_recipe_list = []
-var current_furnace_recipe_list = []
-var current_sawmill_recipe_list = []
+## Every recipe in the game, keyed by the station that makes it.
+##
+## Both dictionaries are Types.Item (the station) -> Array[CraftingRecipe]. They used to be
+## four hand-named arrays with an if/elif chain per accessor, which meant a third station was
+## a seven-place edit — two vars, get_recipes, all_recipes, get_*_recipe, saveObject and
+## loadObject — plus the if/elif in crafting_station.gd. It is now one _register() call per
+## recipe and nothing else (gather-uaq).
+##
+## The arrays in `unlocked` are handed out by reference and mutated in place, never
+## reassigned. Every live CraftingStation captures its own in _ready (recipe_list =
+## Recipes.get_recipes(type)), so replacing one leaves that station bound to an orphan and
+## blind to everything unlocked afterwards.
+
+## Everything the station can ever make, unlocked or not.
+var master: Dictionary = {}
+
+## What the player has actually unlocked, in unlock order.
+var unlocked: Dictionary = {}
 
 ## What every save starts with, and what every save is topped up to on load. The
 ## plank belongs here rather than on a skill: three of the four pickaxes cost planks,
@@ -15,6 +29,14 @@ const DAY_ONE_RECIPES := [
 	{"product": Types.Item.StonePickaxe, "station": Types.Item.Sawmill},
 	{"product": Types.Item.Chest, "station": Types.Item.Sawmill},
 ]
+
+## The save keys the two original stations were written under, before the payload became
+## station-keyed. Read on load and never written again; see loadObject.
+const LEGACY_SAVE_KEYS := {
+	"furnace_recipes": Types.Item.Furnace,
+	"sawmill_recipes": Types.Item.Sawmill,
+}
+
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -33,40 +55,74 @@ func _seed_day_one() -> void:
 		add_recipe(entry["product"], entry["station"])
 
 
-func get_recipes(type):
-	if type == Types.Item.Sawmill:
-		return current_sawmill_recipe_list
-	if type == Types.Item.Furnace:
-		return current_furnace_recipe_list
+## Normalises a station id to the int both dictionaries are keyed by.
+##
+## Godot compares Dictionary keys by type as well as value, so `7.0` and `7` are two
+## different keys. JSON has one number type, so every station id that has been through a save
+## file arrives as a float — and an unnormalised lookup does not merely miss, it silently
+## creates a SECOND empty list beside the real one and hands that out. A station bound to
+## that fork would show no recipes and never see an unlock, with nothing logged anywhere.
+##
+## Found by asking the running game for `get_recipes(7)` over the devtools bus, which
+## marshals its arguments as JSON: the station on screen was holding three recipes and the
+## call came back `[]`.
+static func _key(station) -> int:
+	return int(station)
+
+
+## Adds `recipe` to what `station` can ever make. The one call a new recipe needs.
+func _register(station: Types.Item, recipe: CraftingRecipe) -> void:
+	var key := _key(station)
+	if not master.has(key):
+		master[key] = []
+	master[key].append(recipe)
+
+
+## What the player can currently make at `station`.
+##
+## Creates the array on first ask rather than returning a shared empty one, because callers
+## hold on to it: a furnace placed before anything is unlocked at it must bind to the same
+## array that a later skill purchase appends to. Returning null here — which is what the old
+## if/elif did for any station it did not name — meant a station type registered in items.gd
+## but missing from this file crashed on placement, on `.is_empty()` of a Nil.
+func get_recipes(station) -> Array:
+	var key := _key(station)
+	if not unlocked.has(key):
+		unlocked[key] = []
+	return unlocked[key]
 
 
 ## Every recipe the station can ever make, unlocked or not. The crafting panel shows
 ## locked recipes greyed out rather than hiding them — a recipe the player cannot see
 ## is a skill they have no reason to buy.
-func all_recipes(type):
-	if type == Types.Item.Sawmill:
-		return sawmill_recipe_list
-	if type == Types.Item.Furnace:
-		return furnace_recipe_list
-	return []
+func all_recipes(station) -> Array:
+	return master.get(_key(station), [])
 
 
-func is_unlocked(product: Types.Item, type) -> bool:
-	for recipe in get_recipes(type):
+func is_unlocked(product: Types.Item, station) -> bool:
+	for recipe in get_recipes(station):
 		if recipe and recipe.product == product:
 			return true
 	return false
 
 
-func get_sawmill_recipe(type):
-	for recipe in sawmill_recipe_list:
-		if recipe.product == type:
+## The master-list recipe making `product` at `station`, or null.
+func get_recipe(station, product) -> CraftingRecipe:
+	for recipe in all_recipes(station):
+		if recipe.product == product:
 			return recipe
-			
-func get_furnace_recipe(type):
-	for recipe in furnace_recipe_list:
-		if recipe.product == type:
-			return recipe
+	return null
+
+
+## Kept because tests and crafting_station.gd's loader name them. Thin wrappers now — the
+## station is an argument, not a function name.
+func get_sawmill_recipe(product) -> CraftingRecipe:
+	return get_recipe(Types.Item.Sawmill, product)
+
+
+func get_furnace_recipe(product) -> CraftingRecipe:
+	return get_recipe(Types.Item.Furnace, product)
+
 
 func furnace_recipes():
 	# Copper is the first metal the furnace ever sees, and its veins spawn unlocked, so
@@ -75,12 +131,12 @@ func furnace_recipes():
 	var copper_bar_costs = {}
 	copper_bar_costs[Types.Item.CoalOre] = 1
 	copper_bar_costs[Types.Item.CopperOre] = 1
-	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.CopperBar, copper_bar_costs))
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.CopperBar, copper_bar_costs))
 
 	var iron_bar_costs = {}
 	iron_bar_costs[Types.Item.CoalOre] = 1
 	iron_bar_costs[Types.Item.IronOre] = 1
-	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.IronBar, iron_bar_costs))
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.IronBar, iron_bar_costs))
 
 	# Gold is alloyed, not smelted straight. The copper bar in here is deliberate: it
 	# is what stops copper becoming a dead tier the moment iron is unlocked, and it
@@ -90,7 +146,7 @@ func furnace_recipes():
 	gold_bar_costs[Types.Item.CoalOre] = 2
 	gold_bar_costs[Types.Item.GoldOre] = 1
 	gold_bar_costs[Types.Item.CopperBar] = 1
-	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.GoldBar, gold_bar_costs))
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.GoldBar, gold_bar_costs))
 
 	# Charcoal. Coal is the only ore with a single consumer and it is also the input
 	# every furnace recipe needs, so a run that rolls badly on coal veins stalls the
@@ -98,7 +154,7 @@ func furnace_recipes():
 	# is the floor that stops a stall, not a replacement for mining.
 	var charcoal_costs = {}
 	charcoal_costs[Types.Item.Wood] = 6
-	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.CoalOre, charcoal_costs))
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.CoalOre, charcoal_costs))
 
 	# Minting. Gold veins pay a coin only half the time and coins are the only thing
 	# land can be bought with, so map expansion is otherwise pure luck on the rarest
@@ -108,32 +164,32 @@ func furnace_recipes():
 	var coin_costs = {}
 	coin_costs[Types.Item.GoldOre] = 1
 	coin_costs[Types.Item.CoalOre] = 1
-	furnace_recipe_list.append(CraftingRecipe.new(Types.Item.Coin, coin_costs))
+	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.Coin, coin_costs))
 
 func sawmill_recipes():
 	var plank_costs = {}
 	plank_costs[Types.Item.Wood] = 1
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Plank, plank_costs))
-	
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Plank, plank_costs))
+
 	# The building set is priced in planks rather than raw wood. Until the crafting
 	# panel started charging the quantities it displayed, every one of these was "1
 	# wood" and the plank was a step you could skip entirely; costing them in the
 	# sawmill's own output is what gives the first recipe in the list a reason to exist.
 	var wood_floor_costs = {}
 	wood_floor_costs[Types.Item.Plank] = 1
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
 
 	var wood_wall_costs = {}
 	wood_wall_costs[Types.Item.Plank] = 2
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.WoodWall, wood_wall_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodWall, wood_wall_costs))
 
 	var wood_door_costs = {}
 	wood_door_costs[Types.Item.Plank] = 3
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
 
 	var chest_costs = {}
 	chest_costs[Types.Item.Plank] = 4
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Chest, chest_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Chest, chest_costs))
 
 	# The stone building set. Priced in raw stone rather than in a worked intermediate
 	# because stone has no sawmill step of its own - the plank is what makes the wood
@@ -145,11 +201,11 @@ func sawmill_recipes():
 	# one tier up the Building branch rather than gating it behind the furnace.
 	var stone_floor_costs = {}
 	stone_floor_costs[Types.Item.Stone] = 2
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
 
 	var stone_wall_costs = {}
 	stone_wall_costs[Types.Item.Stone] = 3
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
 
 	# The first tool the player can build, and the first thing stone is for. Stone and
 	# scene-stone together are roughly half of everything that spawns (spawn_weight
@@ -159,7 +215,7 @@ func sawmill_recipes():
 	var stone_pickaxe_costs = {}
 	stone_pickaxe_costs[Types.Item.Stone] = 8
 	stone_pickaxe_costs[Types.Item.Wood] = 2
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StonePickaxe, stone_pickaxe_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StonePickaxe, stone_pickaxe_costs))
 
 	# A second sawmill. A station makes one item per second, so another one is parallel
 	# throughput rather than a convenience — and the player has been handed exactly one
@@ -168,7 +224,7 @@ func sawmill_recipes():
 	var sawmill_costs = {}
 	sawmill_costs[Types.Item.Wood] = 10
 	sawmill_costs[Types.Item.Plank] = 4
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Sawmill, sawmill_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Sawmill, sawmill_costs))
 
 	# Twine. String had no craftable source of any kind — it dropped from spiders and
 	# nowhere else, which left the Net and the Bone Turret (a whole Combat tier) hostage
@@ -177,7 +233,7 @@ func sawmill_recipes():
 	# for it.
 	var string_costs = {}
 	string_costs[Types.Item.Wood] = 3
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.String, string_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.String, string_costs))
 
 	# Copper rather than iron on purpose. The turret is a Combat-branch unlock, and
 	# pricing it in iron bars made it secretly depend on Industry tier 2; copper bars
@@ -188,15 +244,15 @@ func sawmill_recipes():
 	bone_turret_costs[Types.Item.Wood] = 1
 	bone_turret_costs[Types.Item.CopperBar] = 2
 	bone_turret_costs[Types.Item.String] = 1
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
-	
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
+
 	# Was 5 wood + 5 string, i.e. five spider kills for one single-use item. With twine
 	# craftable the number can come down, and the wood half moves to planks so the
 	# sawmill's own output has somewhere to go.
 	var net_costs = {}
 	net_costs[Types.Item.Plank] = 2
 	net_costs[Types.Item.String] = 3
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Net, net_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Net, net_costs))
 
 	# The one thing on the list that removes the player from a loop rather than
 	# speeding it up, so it is priced as a middle-of-the-run project, not a purchase.
@@ -213,7 +269,7 @@ func sawmill_recipes():
 	bone_worker_costs[Types.Item.Bone] = 6
 	bone_worker_costs[Types.Item.IronBar] = 3
 	bone_worker_costs[Types.Item.Plank] = 4
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
 
 	# The grey sibling, priced level with the blue one and deliberately not cheaper: it
 	# automates the OTHER day-one resource, and a player who has one wants the pair. Stone
@@ -223,22 +279,22 @@ func sawmill_recipes():
 	stone_worker_costs[Types.Item.Bone] = 6
 	stone_worker_costs[Types.Item.IronBar] = 3
 	stone_worker_costs[Types.Item.Stone] = 8
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
 
 	var furnace_costs = {}
 	furnace_costs[Types.Item.Stone] = 9
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
-	
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
+
 	var bone_pickaxe_costs = {}
 	bone_pickaxe_costs[Types.Item.Bone] = 9
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
-	
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
+
 	# Gated behind the furnace: iron bars are the whole point of unlocking iron, so the
 	# top-tier pickaxe should cost them rather than repeating the bone pickaxe's price.
 	var iron_pickaxe_costs = {}
 	iron_pickaxe_costs[Types.Item.IronBar] = 5
 	iron_pickaxe_costs[Types.Item.Plank] = 2
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
 
 	# The top of the ladder, and it should read as an undertaking rather than one more
 	# rung. Same shape as the iron pickaxe (bars + planks) so the comparison is
@@ -251,79 +307,75 @@ func sawmill_recipes():
 	var copper_pickaxe_costs = {}
 	copper_pickaxe_costs[Types.Item.CopperBar] = 3
 	copper_pickaxe_costs[Types.Item.Plank] = 1
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
 
 	var gold_pickaxe_costs = {}
 	gold_pickaxe_costs[Types.Item.GoldBar] = 5
 	gold_pickaxe_costs[Types.Item.Plank] = 4
-	sawmill_recipe_list.append(CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
-			
+	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
 
 
-## Unlocks `recipe` at `type`. Guards against both duplicates and misses: the day-one
+
+## Unlocks `recipe` at `station`. Guards against both duplicates and misses: the day-one
 ## seed now runs on load as well as at boot, and a product that no longer exists in
 ## the master list would otherwise append a null that every consumer dereferences.
-func add_recipe(recipe: Types.Item, type ):
-	if is_unlocked(recipe, type):
+func add_recipe(recipe: Types.Item, station):
+	if is_unlocked(recipe, station):
 		return
 
-	var found = null
-	if type == Types.Item.Furnace:
-		found = get_furnace_recipe(recipe)
-	elif type == Types.Item.Sawmill:
-		found = get_sawmill_recipe(recipe)
-
+	var found := get_recipe(station, recipe)
 	if found == null:
-		push_warning("Recipes: no recipe for product %s at station %s" % [recipe, type])
+		push_warning("Recipes: no recipe for product %s at station %s" % [recipe, station])
 		return
 
-	get_recipes(type).append(found)
+	get_recipes(station).append(found)
+
 
 func saveObject() -> Dictionary:
-	var current_furnace_recipe_list_json = []
-	var current_sawmill_recipe_list_json = []
+	# Station-keyed, so a new station persists with no change here. JSON object keys are
+	# always strings, so the station id is written as one and parsed back with int() below —
+	# the same round trip every other enum in the save format makes.
+	var stations := {}
+	for station in unlocked:
+		var products := []
+		for recipe in unlocked[station]:
+			products.append({"type": recipe.product})
+		stations[str(station)] = products
 
-	for i in current_furnace_recipe_list.size():
-		var json := {
-			"type": current_furnace_recipe_list[i].product
-		}
-	
-		# A nested dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
-		# payload anyway, so the inner layer was pure overhead and one more failure point.
-		# SaveLoad.decode_entries reads both shapes, so older saves still load (gather-usv).
-		current_furnace_recipe_list_json.append(json)
-		
-	for i in current_sawmill_recipe_list.size():
-		var json := {
-			"type": current_sawmill_recipe_list[i].product
-		}
-	
-		current_sawmill_recipe_list_json.append(json)	
-	
-		
-	var dict := {
+	return {
 		"filepath": get_path(),
-		"furnace_recipes": current_furnace_recipe_list_json,
-		"sawmill_recipes": current_sawmill_recipe_list_json
+		"stations": stations,
 	}
-	return dict
-	
+
+
 func loadObject(loadedDict: Dictionary) -> void:
-	# Cleared in place, never reassigned. Every live CraftingStation captured this
-	# exact array by reference in its _ready (recipe_list = Recipes.get_recipes(type)),
-	# so handing out a fresh [] leaves every station on the map bound to an orphan and
-	# blind to anything unlocked afterwards.
-	current_furnace_recipe_list.clear()
-	current_sawmill_recipe_list.clear()
+	# Cleared in place, never reassigned. Every live CraftingStation captured its own array
+	# by reference in its _ready (recipe_list = Recipes.get_recipes(type)), so handing out a
+	# fresh [] leaves every station on the map bound to an orphan and blind to anything
+	# unlocked afterwards.
+	for station in unlocked:
+		unlocked[station].clear()
 
 	_seed_day_one()
 
-	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
-	# written now, and .get keeps a payload with no such key from raising (gather-xc0).
-	for node in SaveLoad.decode_entries(loadedDict.get("furnace_recipes", [])):
-		if node.has("type"):
-			add_recipe(int(node["type"]), Types.Item.Furnace)
+	# Structural, not version-branched: a save written before the payload became
+	# station-keyed has no "stations" key and two named ones instead, and both shapes have to
+	# be readable at once because a v3 file migrated verbatim into a slot is still v3 on disk
+	# while this build writes v4. Same reasoning as decode_entries (gather-usv).
+	var stations: Variant = loadedDict.get("stations", null)
+	if stations is Dictionary:
+		for station_key in stations:
+			_load_station(int(station_key), stations[station_key])
+		return
 
-	for node in SaveLoad.decode_entries(loadedDict.get("sawmill_recipes", [])):
+	for legacy_key in LEGACY_SAVE_KEYS:
+		_load_station(LEGACY_SAVE_KEYS[legacy_key], loadedDict.get(legacy_key, []))
+
+
+## Replays one station's unlocked list. decode_entries reads both the pre-gather-usv JSON
+## strings and the nested dictionaries written now, and .get keeps a payload with no such key
+## from raising (gather-xc0).
+func _load_station(station: int, raw: Variant) -> void:
+	for node in SaveLoad.decode_entries(raw):
 		if node.has("type"):
-			add_recipe(int(node["type"]), Types.Item.Sawmill)
+			add_recipe(int(node["type"]), station)

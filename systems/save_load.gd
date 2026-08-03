@@ -26,7 +26,14 @@ var loads = []
 ## chest slots and turret bullets. The migration is decode_entries() below, which reads both
 ## shapes structurally rather than by consulting this number, so v1 and v2 files keep loading
 ## and a v2 file migrated verbatim into a slot is not misread by a v3 build.
-const FORMAT_VERSION := 3
+##
+## 4 (gather-uaq): the Recipes entry stopped naming its two stations and became station-keyed
+## — one "stations" object of {station id: [products]} in place of "furnace_recipes" and
+## "sawmill_recipes". The point is that a third station now persists with no format change at
+## all. The migration is Recipes.loadObject, structural for the same reason decode_entries is:
+## a v3 file migrated verbatim into a slot is still v3 on disk while this build writes v4, so
+## the reader has to recognise the shape rather than trust the number.
+const FORMAT_VERSION := 4
 
 ## The version reported for a file with no header, i.e. every save written before gather-8rs.
 const PRE_VERSION := 0

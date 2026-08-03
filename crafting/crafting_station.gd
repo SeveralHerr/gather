@@ -154,11 +154,11 @@ func load(dict):
 
 	type = int(dict.get("type", type))
 
+	# One lookup keyed on the station, rather than an if/elif naming each one. A station type
+	# this chain did not name used to restore with selected_recipe still null and its work
+	# order silently dropped on the next line (gather-uaq).
 	var recipe_id: int = int(dict.get("selected_recipe", -1))
-	if type == Types.Item.Sawmill:
-		selected_recipe = Recipes.get_sawmill_recipe(recipe_id)
-	elif type == Types.Item.Furnace:
-		selected_recipe = Recipes.get_furnace_recipe(recipe_id)
+	selected_recipe = Recipes.get_recipe(type, recipe_id)
 
 	count = int(dict.get("count", 0))
 	# Saves written before starting_count was persisted have no key for it; falling

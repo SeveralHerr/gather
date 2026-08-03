@@ -3395,3 +3395,32 @@ Guidelines that make an entry useful later:
     script inherits from it, or let `devtools_config.json` declare `reach_aliases`. The
     inheritance case is the cheaper half: the harness already has the script path of every
     reached node, and `GDScript.get_base_script()` walks the chain without any project config.
+
+## 2026-08-03 — Recipes becomes station-keyed (gather-uaq)
+
+- Value: **warranted** — the running game produced a defect the suite structurally could not.
+  - Expected: the station-keyed rewrite preserves the by-reference binding a placed station
+    holds, and a pre-change save still restores its unlocks.
+  - Got: both, and then a third thing nobody was looking for. `run-method --node /root/Recipes
+    --method get_recipes --args "[7]"` returned `Result: []` while the sawmill on screen was
+    holding `['Plank', 'Stone Pickaxe', 'Chest']`. The bus marshals arguments as JSON, JSON has
+    one number type, and Godot compares Dictionary keys by TYPE as well as value — so `7.0`
+    missed `7` and `get_recipes` did not merely fail to find the list, it created a second
+    empty one beside it and returned that. Every station id in a save file is a float. The
+    game only ever passes `Types.Item` ints, so no unit test could reach it; after `_key()`
+    normalisation the same call returns three recipes.
+  - Cheaper: nothing for that one. The rest — the legacy-payload migration, the by-reference
+    binding, the empty-station accessor — the suite could cover and now does, including a test
+    that reads the two committed fixtures off disk rather than reconstructing a payload.
+
+- The fixture test was mutation-checked before being trusted: deleting the legacy-key branch
+  of `loadObject` turned it red (`Total: 400 | Passed: 0 | Failed: 1`), so it is asserting the
+  migration rather than passing alongside it. Worth the extra minute — a save-compat test that
+  cannot fail is the most expensive kind of green.
+
+- Gap: **no new gaps this turn.** The float-key surprise is Godot semantics meeting JSON, not a
+  missing harness capability — and it is arguably the harness working exactly as intended, since
+  marshalling through JSON is what exposed a hazard the save format shares. `place_station`,
+  `learn_skill`, `add_xp` and `craft_state` composed into an end-to-end unlock/save/load check
+  without a single workaround, and copying a fixture into `user://saves/slot_2.save` and calling
+  `load_from_slot` was enough to exercise a v3 file in a live world.

@@ -55,9 +55,14 @@ func setup() -> void:
 	recipes.sawmill_recipes()
 
 
-## Every product either station can make, plus the cost of making it.
+## Every product any station can make, plus the cost of making it. Flattened out of the
+## station-keyed master registry rather than naming the two stations, so a station added
+## later is covered without editing this (gather-uaq).
 func _all_recipes() -> Array:
-	return recipes.furnace_recipe_list + recipes.sawmill_recipe_list
+	var all := []
+	for station in recipes.master:
+		all.append_array(recipes.master[station])
+	return all
 
 
 func test_every_ore_node_drops_its_own_ore() -> String:
