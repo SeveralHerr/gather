@@ -30,11 +30,11 @@
 [ext_resource type="Script" uid="uid://dwtu2wm422jao" path="res://ui/inventory_interface.gd" id="30_b5rqb"]
 [ext_resource type="PackedScene" uid="uid://dd2q0v3dv06k8" path="res://inventory/inventory_slot.tscn" id="31_uow64"]
 [ext_resource type="PackedScene" uid="uid://cv8jrb20usn5d" path="res://inventory/hot_bar_inventory.tscn" id="33_m4ngi"]
-[ext_resource type="Texture2D" uid="uid://rnkkygbmsau6" path="res://assets/art/light.png" id="40_m2a4r"]
 [ext_resource type="Script" uid="uid://dsai87yytx74m" path="res://ui/skill_tree_ui.gd" id="41_sktui"]
 [ext_resource type="Script" uid="uid://dm7nwefr3iwur" path="res://ui/camera_hud.gd" id="42_camhud"]
 [ext_resource type="PackedScene" path="res://ui/mobile_controls.tscn" id="43_mobile"]
 [ext_resource type="Script" uid="uid://cor04yevqobh1" path="res://ui/save_slot_ui.gd" id="44_svslt"]
+[ext_resource type="Script" path="res://systems/world_clock.gd" id="45_wclck"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -621,12 +621,6 @@ shape = SubResource("CircleShape2D_onssn")
 z_index = 1
 y_sort_enabled = true
 
-[node name="PointLight2D" type="PointLight2D" parent="World" unique_id=1022111482]
-visible = false
-scale = Vector2(0.365, 0.365)
-shadow_enabled = true
-texture = ExtResource("40_m2a4r")
-
 [node name="UI" type="CanvasLayer" parent="." unique_id=855152589]
 
 [node name="HotBarInventory" parent="UI" unique_id=1235066516 instance=ExtResource("33_m4ngi")]
@@ -781,5 +775,8 @@ script = ExtResource("2_u57kl")
 
 [node name="LevelUpManager" type="Node" parent="Systems"]
 script = ExtResource("12_hyjmf")
+
+[node name="WorldClock" type="Node" parent="Systems"]
+script = ExtResource("45_wclck")
 
 [connection signal="timeout" from="World/ResourceTimer" to="World/ResourceTimer" method="_on_timeout"]

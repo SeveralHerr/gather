@@ -62,6 +62,9 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("save_slots", _cmd_save_slots)
 	dev.register_command("use_slot", _cmd_use_slot)
 	dev.register_command("slot_panel", _cmd_slot_panel)
+	dev.register_command("world_clock", _cmd_world_clock)
+	dev.register_command("set_time_of_day", _cmd_set_time_of_day)
+	dev.register_command("set_weather", _cmd_set_weather)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -292,7 +295,36 @@ func _status(_args: Dictionary) -> Dictionary:
 		status["skill_points"] = level_up.points
 		status["skill_panel_open"] = _skill_panel_open()
 
+	# The hour and the weather ride along on every reply because almost everything else in
+	# this status block now depends on them and none of it says so: the enemy cap and the
+	# spawn cadence are multiplied at night, the regrowth cadence is multiplied in the rain,
+	# and the whole screen is a different colour. A `live_enemies` that has climbed past the
+	# daytime cap is correct at 3am and a bug at noon, and without this it reads the same
+	# either way.
+	var clock := _world_clock()
+	if clock:
+		status["phase"] = WorldClock.phase_name(clock.phase())
+		status["weather"] = WorldClock.weather_name(clock.weather)
+		status["day"] = clock.day
+
 	return status
+
+
+## The clock, by group and type-checked rather than indexed — see the note above
+## _level_up_manager.
+func _world_clock() -> WorldClock:
+	for node in _dev.get_tree().get_nodes_in_group("WorldClock"):
+		if node is WorldClock:
+			return node
+	return null
+
+
+## The lighting, so a setter can force a repaint rather than waiting a frame for one.
+func _sky_lighting() -> SkyLighting:
+	for node in _dev.get_tree().get_nodes_in_group("SkyLighting"):
+		if node is SkyLighting:
+			return node
+	return null
 
 
 ## Sends a real `InputEventKey` — both halves — for a key named the way
@@ -2615,3 +2647,130 @@ func _cmd_slot_panel(args: Dictionary) -> Dictionary:
 			"current_slot": saves.current_slot if saves != null else -1,
 		},
 	}
+
+
+# --- the world clock ----------------------------------------------------------
+
+
+## Everything the clock and the lighting currently believe, as one read.
+##
+## The tint is reported alongside the hour because they are two different facts and the
+## whole feature is the mapping between them. A phase of "night" with a tint of white means
+## the clock is fine and SkyLighting is not — which is exactly the failure a
+## `get-state --property color` on the CanvasModulate alone cannot distinguish from a clock
+## that never advanced.
+func _cmd_world_clock(_args: Dictionary) -> Dictionary:
+	var clock := _world_clock()
+	if clock == null:
+		return {"success": false, "message": "no WorldClock in the scene", "data": {}}
+
+	var tint := clock.tint()
+	var data := {
+		"time_of_day": clock.time_of_day,
+		"day": clock.day,
+		"phase": WorldClock.phase_name(clock.phase()),
+		"weather": WorldClock.weather_name(clock.weather),
+		"weather_time_left": clock.weather_time_left,
+		"is_night": clock.is_night(),
+		"running": clock.running,
+		"tint": [tint.r, tint.g, tint.b],
+		"day_length_seconds": WorldClock.DAY_LENGTH_SECONDS,
+	}
+
+	# What the tint actually landed on, read back off the nodes rather than recomputed —
+	# the point of the day/night work is that three separate canvases agree, and only a
+	# read-back can tell you whether they do.
+	var main := _dev.get_tree().root.get_node_or_null("Main")
+	if main:
+		var modulate := main.get_node_or_null("World/SkyModulate") as CanvasModulate
+		if modulate:
+			data["world_tint"] = [modulate.color.r, modulate.color.g, modulate.color.b]
+
+		var water := main.get_node_or_null("Ocean/Water") as ColorRect
+		if water:
+			data["ocean_color"] = [water.color.r, water.color.g, water.color.b]
+
+		var hud := main.get_node_or_null("World/Player/Camera2D/HUD") as CanvasItem
+		if hud:
+			# Should be the reciprocal of world_tint. Reported raw rather than as a verdict
+			# so a reader can see WHICH channel drifted.
+			data["hud_modulate"] = [hud.modulate.r, hud.modulate.g, hud.modulate.b]
+
+		var rain := main.get_node_or_null("World/RainVfx")
+		if rain:
+			var drops := rain.get_node_or_null("Drops") as GPUParticles2D
+			if drops:
+				data["rain_emitting"] = drops.emitting
+				data["rain_drops"] = drops.amount
+
+	return {"success": true, "message": "ok", "data": data}
+
+
+## Jumps the clock. `{"t": 0.85}`, or `{"phase": "night"}` for the middle of a phase.
+##
+## Repaints before returning, so the reply describes a world the caller could screenshot.
+## A setter that moved the model and left the screen on the old frame would be the
+## half-applied state CLAUDE.md warns about — and it is a real risk here rather than a
+## theoretical one, because SkyLighting only repaints in _process and a devtools call that
+## is followed immediately by a `screenshot` need not have yielded a frame in between.
+func _cmd_set_time_of_day(args: Dictionary) -> Dictionary:
+	var clock := _world_clock()
+	if clock == null:
+		return {"success": false, "message": "no WorldClock in the scene", "data": {}}
+
+	var t: float
+	if args.has("phase"):
+		var named := _time_for_phase(str(args["phase"]))
+		if named < 0.0:
+			return {
+				"success": false,
+				"message": "unknown phase '%s' (dawn, day, dusk, night)" % args["phase"],
+				"data": {},
+			}
+		t = named
+	else:
+		t = float(args.get("t", 0.5))
+
+	clock.set_time_of_day(t)
+
+	var sky := _sky_lighting()
+	if sky:
+		sky.apply()
+
+	return _cmd_world_clock({})
+
+
+## The middle of a named phase — the useful point to jump to, rather than its edge, where
+## a boundary-rounding difference decides which phase you actually landed in.
+func _time_for_phase(name: String) -> float:
+	match name.to_lower():
+		"dawn":
+			return WorldClock.DAWN_END * 0.5
+		"day", "noon":
+			return (WorldClock.DAWN_END + WorldClock.DAY_END) * 0.5
+		"dusk":
+			return (WorldClock.DAY_END + WorldClock.DUSK_END) * 0.5
+		"night", "midnight":
+			return (WorldClock.DUSK_END + 1.0) * 0.5
+	return -1.0
+
+
+## Starts or stops a storm. `{"weather": "rain", "seconds": 60}`; omit `weather` to clear.
+##
+## `seconds` defaults to a whole storm rather than to zero, because a zero-length storm
+## would be set and immediately expired on the next tick — a verb that appears to do
+## nothing is worse than one that errors.
+func _cmd_set_weather(args: Dictionary) -> Dictionary:
+	var clock := _world_clock()
+	if clock == null:
+		return {"success": false, "message": "no WorldClock in the scene", "data": {}}
+
+	var wanted := WorldClock.weather_from_name(str(args.get("weather", "clear")))
+	var default_seconds := WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
+	clock.set_weather(wanted, float(args.get("seconds", default_seconds)))
+
+	var sky := _sky_lighting()
+	if sky:
+		sky.apply()
+
+	return _cmd_world_clock({})

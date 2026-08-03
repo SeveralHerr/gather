@@ -50,6 +50,22 @@ const PLACEMENT_ATTEMPTS := 12
 ## pending_spawns below.
 const TELEGRAPH_SECONDS := 2.0
 
+## What night does to the trickle (gather-bqn): more of them, arriving sooner.
+##
+## Night is the negative half of the day/night cycle — rain is the positive half, and a
+## cycle where both halves are a bonus is just a light show. Both numbers are deliberately
+## modest: the population ceiling is what actually governs how dangerous a place feels, and
+## a 1.6x ceiling on an island the player has cleared is a noticeable but survivable change
+## rather than a siege. The old 7s cadence was already found to read as a siege at the
+## *day* cap, so this leans on the ceiling rather than on the cadence.
+##
+## Applied in the instance methods below, never inside the statics: `cap_for_land_tiles` and
+## `jittered_interval` are pure and unit-tested as pure, and folding a clock read into them
+## would make them untestable without a SceneTree and silently change what
+## test_enemy_spawner.gd is asserting.
+const NIGHT_CAP_MULT := 1.6
+const NIGHT_INTERVAL_MULT := 0.7
+
 ## A spawn telegraphs for TELEGRAPH_SECONDS before the enemy exists as a node, and
 ## that window can overlap the next timeout — so in-flight spawns have to count
 ## against the cap too, or a burst slips past it.
@@ -138,7 +154,31 @@ static func normalize_enemy_entry(raw: Dictionary) -> Dictionary:
 
 
 func next_interval() -> float:
-	return jittered_interval(randf())
+	var interval := jittered_interval(randf())
+	if is_night():
+		# maxf against the same floor the static uses: the night multiplier must not be able
+		# to push the cadence below the bound that exists to stop it becoming a stream.
+		interval = maxf(MIN_INTERVAL, interval * NIGHT_INTERVAL_MULT)
+	return interval
+
+
+## The clock, by group — this node is under `World` and the clock under `Systems`, so there
+## is no stable relative path. Null in any scene that is not the full game, which is what
+## keeps the spawner usable in a test.
+func _clock() -> WorldClock:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("WorldClock"):
+		if node is WorldClock:
+			return node
+	return null
+
+
+## Whether the world is currently dark. Dusk does not count — see WorldClock.is_dark.
+func is_night() -> bool:
+	var clock := _clock()
+	return clock != null and clock.is_night()
 
 
 ## Current spawn cadence, in seconds. Read by devtools.
@@ -158,7 +198,15 @@ func enemy_cap() -> int:
 		for region in tilemap_handler.regions:
 			if region.accepts_ambient_enemies():
 				land += tilemap_handler.count_land_tiles_in(region)
-	return cap_for_land_tiles(land)
+
+	var cap := cap_for_land_tiles(land)
+	if is_night():
+		# MAX_ENEMY_CAP still binds. That ceiling exists because enemies the player never
+		# kills accumulate until the frame rate collapses, and nightfall is not a reason to
+		# suspend it — on a bought-out island the day cap is already the ceiling, so there
+		# night is felt as the faster cadence rather than as a bigger crowd.
+		cap = mini(int(round(cap * NIGHT_CAP_MULT)), MAX_ENEMY_CAP)
+	return cap
 
 
 func count_live_enemies() -> int:

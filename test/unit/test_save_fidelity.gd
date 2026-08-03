@@ -302,3 +302,110 @@ func test_every_saved_bullet_comes_back_with_its_position() -> String:
 	if err != "":
 		return err
 	return _T.assert_eq(str(rotations), str([0.5, 1.5, 2.5]), "and pointing the way it was")
+
+
+# --- the world clock: the storm in progress ----------------------------------
+
+## A WorldClock outside the tree. `_ready` never runs, so it never joins a group and never
+## touches anything else — which is exactly what is wanted: saveObject/loadObject are the
+## subject here, and they are the only two methods that touch disk state.
+##
+## `get_path()` on a node outside the tree is empty, so `saveObject` writes an empty
+## filepath. That is fine for a round-trip test and is not what the game does; the live node
+## is authored into main.tscn at /root/Main/Systems/WorldClock.
+func _clock() -> WorldClock:
+	return WorldClock.new()
+
+
+func test_a_storm_in_progress_keeps_the_time_it_has_left() -> String:
+	# The same shape as the furnace bug (gather-9x0): the CONFIGURED length of a storm is a
+	# constant and never moves, so saving it tells you nothing about how far through this
+	# one you are. A load that restored the configured value would hand a player who had
+	# waited out all but ten seconds of a downpour a fresh three-minute one.
+	var clock := _clock()
+	clock.set_weather(WorldClock.Weather.RAIN, 12.5)
+	clock.time_of_day = 0.83
+	clock.day = 4
+
+	var payload := clock.saveObject()
+
+	var err: String = _T.assert_true(payload.has("weather_time_left"), "the storm's remaining time is written")
+	if err != "":
+		return err
+
+	var restored := _clock()
+	restored.loadObject(payload)
+
+	err = _T.assert_float_eq(restored.weather_time_left, 12.5, 0.0001, "the storm resumes where it stopped")
+	if err != "":
+		return err
+	err = _T.assert_eq(restored.weather, WorldClock.Weather.RAIN, "and it is still raining")
+	if err != "":
+		return err
+	err = _T.assert_float_eq(restored.time_of_day, 0.83, 0.0001, "at the same hour")
+	if err != "":
+		return err
+	return _T.assert_eq(restored.day, 4, "on the same day")
+
+
+func test_a_clock_saved_at_night_loads_at_night() -> String:
+	# The phase is derived rather than stored, so this is really asserting that time_of_day
+	# survives with enough precision to land in the same phase — a rounded or truncated
+	# value would put the player back in daylight with the enemy cap still raised.
+	var clock := _clock()
+	clock.time_of_day = 0.88
+
+	var restored := _clock()
+	restored.loadObject(clock.saveObject())
+
+	return _T.assert_eq(restored.phase(), WorldClock.Phase.NIGHT, "midnight survives the round-trip")
+
+
+func test_a_save_from_before_the_clock_existed_leaves_it_at_its_defaults() -> String:
+	# Every save written before gather-bqn has no entry for this node at all, and a player
+	# loading one must get a playable world rather than a crash. Every read is get()-with-a-
+	# default for exactly this, and a raise here would abort loadObject silently — it is
+	# `-> void`, so the abort is indistinguishable from success.
+	var restored := _clock()
+	restored.loadObject({})
+
+	var err: String = _T.assert_eq(restored.day, 1, "an absent entry starts on day one")
+	if err != "":
+		return err
+	err = _T.assert_eq(restored.weather, WorldClock.Weather.CLEAR, "and in clear weather")
+	if err != "":
+		return err
+	return _T.assert_eq(restored.phase(), WorldClock.Phase.DAY, "and in daylight, not mid-storm at midnight")
+
+
+func test_clearing_the_weather_clears_the_time_left_with_it() -> String:
+	# Otherwise a save taken after a storm ends carries a stale countdown, and the next load
+	# restores CLEAR weather with seconds left on a clock nothing is running — which the
+	# next `set_weather(RAIN)` would then be measured against.
+	var clock := _clock()
+	clock.set_weather(WorldClock.Weather.RAIN, 30.0)
+	clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+
+	var payload := clock.saveObject()
+	return _T.assert_float_eq(
+		float(payload["weather_time_left"]), 0.0, 0.0001, "clear weather has no countdown"
+	)
+
+
+func test_a_load_into_the_night_does_not_reannounce_nightfall() -> String:
+	# night_started drives the spawner's ceiling. If loadObject let the next tick "discover"
+	# the phase it would fire again on every load taken after dark, and anything that
+	# reacts to nightfall with a one-off (a sound, a splash, a spawn burst) would repeat it.
+	var clock := _clock()
+	clock.time_of_day = 0.9
+	clock.loadObject(clock.saveObject())
+
+	# An Array, not an int. GDScript lambdas capture locals BY VALUE, so `count += 1` inside
+	# the callable would increment a copy and this test would report zero no matter what the
+	# clock did — a false pass that looks identical to a real one. An Array is a reference,
+	# so appending through the capture is visible out here.
+	var announcements: Array = []
+	clock.night_started.connect(func(_day): announcements.append(1))
+	clock.tick(0.016)
+
+	return _T.assert_eq(announcements.size(), 0, "already being at night is not a new nightfall")

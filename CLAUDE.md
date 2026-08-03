@@ -123,7 +123,7 @@ nodes belong in one of them rather than loose at the root:
 ```
 Main
 ├── World      (Node2D, y-sorted)  everything with a world position
-│   ├── TileMap, EnemySpawner, ResourceTimer, PickUps, PointLight2D
+│   ├── TileMap, EnemySpawner, ResourceTimer, PickUps
 │   └── Player
 │       └── Camera2D
 │           └── HUD  (Control, ui/camera_hud.gd)  the *diegetic*, world-space HUD
@@ -133,7 +133,8 @@ Main
 │                             CraftingUI, SkillTreeUI, InventoryInterface, and
 │                             everything main.gd builds at runtime
 └── Systems    (Node)  Items, Resources, ResourceManager, SoundManager, InputManager,
-                       DestroyManager, SaveLoad, InventoryManager, LevelUpManager
+                       DestroyManager, SaveLoad, InventoryManager, LevelUpManager,
+                       WorldClock
 ```
 
 Three things about this are load-bearing and easy to undo:
@@ -147,10 +148,12 @@ Three things about this are load-bearing and easy to undo:
   `Camera2D` at the camera's `8` zoom; a full-screen panel put there is drawn into
   the world. These were `UI2` and `UI` respectively, which is why so many scripts still
   carry a comment warning you not to confuse them.
-- **`LandManager`, `IslandManager` and the `Ocean` CanvasLayer are created by `main.gd`
-  at runtime as direct children of `Main`**, so they sit outside the three branches by
-  design — their save entries and `land_manager.gd:65`'s `get_parent()` both depend on
-  it.
+- **`LandManager`, `IslandManager`, `SkyLighting` and the `Ocean` CanvasLayer are created
+  by `main.gd` at runtime as direct children of `Main`**, so they sit outside the three
+  branches by design — their save entries and `land_manager.gd:65`'s `get_parent()` both
+  depend on it. `SkyLighting` is there for a different reason from the rest: it writes into
+  three separate canvases (see **Day/night lighting** below) and none of them is a natural
+  parent for it.
 
 Renaming or moving a node here is a save-format change: see **Saving** below.
 
@@ -235,6 +238,45 @@ camera's `8` zoom. Nothing may hardcode a viewport dimension:
   now), and every element drifted toward the middle of the
   screen the moment the window grew. If you see a raw `-115` or a `470` in a layout,
   it is a leftover of that and is a bug at any other size.
+
+**Day/night lighting, and the three canvases.** `Systems/WorldClock`
+(`systems/world_clock.gd`) owns the time of day and the weather and draws nothing;
+`SkyLighting` (`world/vfx/sky_lighting.gd`) draws what it says. The split is the
+`LevelUpManager` / `SkillTreeUi` one, for the same reasons.
+
+The thing to know before touching any of it: **a `CanvasModulate` tints exactly one
+canvas — the one it is a child of — and this game has three.**
+
+| Canvas | Holds | Under a `CanvasModulate` in `World`? |
+|---|---|---|
+| root (no CanvasLayer) | `World`, TileMap, Player, Camera2D, **and the diegetic HUD** | tinted |
+| `Ocean`, layer `-100` | the sea (`main.gd:_setup_ocean_backdrop`) | **not** tinted |
+| `UI`, layer `1` | hotbar, panels, screen flash | **not** tinted |
+
+Two of those three rows are wrong by default, so `SkyLighting` makes three writes, not one:
+
+- The **sea** is missed. Left alone it stays daylight blue at midnight while the land it
+  surrounds goes dark, which reads as a rendering bug rather than as night. It gets the
+  same tint multiplied into `OCEAN_COLOR` by hand — against a *captured base colour*, never
+  against the current one, or the multiply compounds to black in about a second.
+- The **HUD** is hit when it should not be: it hangs off `Camera2D`, so it is in the root
+  canvas, and the HP and XP bars dim exactly when the player most needs to read them. It is
+  cancelled with the reciprocal tint in `modulate` — a per-item multiply against a
+  whole-canvas multiply, which is exact. That is deliberately cheaper than moving the HUD
+  into the `UI` layer: it is world-space by design and `camera_hud.gd`, the anchor rules
+  above and the save paths all depend on it staying there.
+- The **`UI` layer is left alone on purpose.** Screen-space UI is not in the world and does
+  not take the world's weather.
+
+`NIGHT_TINT`'s `0.42` floor is a *readability* floor, not an aesthetic one — below roughly
+`0.35` the 16px art stops being identifiable. Turn the blue up, not the floor down.
+`test_world_clock.gd` pins the floor, and pins that the tint curve is continuous across
+every phase boundary *and across the wrap at midnight* — a seam no single screenshot can
+show you.
+
+Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
+canvas item. The player lantern is deliberately one light; anything added later (a torch, a
+campfire) has to be distance-culled against the same budget.
 
 **Tilemap layers** (`main.gd`): `0` ground/terrain, `1` objects (resources, walls,
 buildings), `2` floors, `3` highlight overlay. A tile is mapped back to its registry
@@ -411,10 +453,19 @@ lose one slot, it empties the whole container permanently.
 
 **DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
 `player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
-`gather_stats`, `spawn_stats`, `goto_resource`, `island_census` — plus a status provider
-merged into every response. Use `goto_resource` before any gather test: gathering only
+`gather_stats`, `spawn_stats`, `goto_resource`, `island_census`, `world_clock`,
+`set_time_of_day`, `set_weather` — plus a status provider merged into every response. Use `goto_resource` before any gather test: gathering only
 engages with a node in reach, so otherwise the test stands in empty grass and proves
 nothing.
+
+`world_clock` is the one to reach for on anything touching lighting or weather. It reports
+the hour *and* reads the tint back off all three canvases (`world_tint`, `ocean_color`,
+`hud_modulate`), which is the only way to tell "the clock never advanced" apart from "the
+clock advanced and SkyLighting did not follow" — a `get-state` on the CanvasModulate alone
+cannot. `set_time_of_day` takes `{"phase": "night"}` as well as a raw `t`, and both setters
+repaint before replying so the answer describes a world you could screenshot. The status
+provider carries `phase`, `weather` and `day` on every reply, because `live_enemies` above
+the daytime cap is correct at 3am and a bug at noon.
 
 `island_census` is the one to reach for on anything touching land, resources or spawning.
 It reports every region's tile and node counts, the per-region resource census, the boss

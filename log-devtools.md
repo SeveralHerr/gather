@@ -4108,3 +4108,35 @@ Guidelines that make an entry useful later:
   - Improvement: as filed — credit a changed file as reached when a `run-method`/`cmd` call
     in the session returned through it, or let projects declare RefCounted registries as
     `implicit` the way autoloads already are.
+## 2026-08-03 — built the rain + day/night cycle (gather-bqn), verification deferred
+
+- Value: **inconclusive** — the user explicitly asked that nothing be run this turn, so the
+  harness was not used. Logged rather than skipped, because "the gate did not run" and "the
+  gate ran and passed" have to be distinguishable in this file.
+  - Expected: nothing, by instruction. `gather-bqn.6` is filed to carry the run, and it
+    names the one assertion no headless gate can make (below) so the deferral does not
+    quietly become a skip.
+  - Got: nothing from runtime. What the *reading* produced is the design's load-bearing
+    fact — `main.tscn:395` makes `World` a bare `Node2D`, so the root canvas holds the
+    diegetic HUD, while `Ocean` is a `CanvasLayer` at `-100` and `UI` at `1`. One
+    `CanvasModulate` therefore hits the HUD (wrong) and misses the sea (also wrong), which
+    is why `SkyLighting` makes three writes instead of one.
+  - Cheaper: n/a — nothing was run. Had it been, the cheap half (lint + the new
+    `test_world_clock.gd`) would have settled the tint curve's continuity and the save
+    round-trip on its own; only the three-canvas agreement needs the game up.
+
+- Gap: **no verb reports a node's effective canvas, so the central risk of this change was
+  unaskable.** Repeat of what I filed last turn; hitting it again while actually building
+  against it is what confirms it is worth upstreaming rather than a one-off. `scene-tree`
+  gives `script` and `scene_file` per node and says nothing about which canvas a node
+  renders into; `canvas-scale --node PATH` already walks the canvas chain to accumulate
+  scale and stops one field short of the answer. I worked around it by hand-reading every
+  `type="CanvasLayer"` in `main.tscn` and walking parents — and then by writing the
+  read-back into a project verb, which is the tell: `world_clock` returns `world_tint`,
+  `ocean_color` and `hud_modulate` side by side precisely because the generic bridge cannot
+  express "do these three canvases agree".
+  - [G-105] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: have `canvas-scale` also return `canvas_layer_path` and `canvas_layer` (the
+    `layer` int, `0` for the root canvas). "Will this CanvasModulate reach that node" then
+    becomes one call per node instead of a manual read of the scene file, and every 2D
+    project with a HUD hanging off a camera hits this exact question eventually.

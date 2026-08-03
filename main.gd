@@ -66,6 +66,16 @@ var land_manager: LandManager
 ## replay has to run before anything re-asserts land on top of it.
 var island_manager: IslandManager
 
+## Paints the day/night tint into the world, the sea and the HUD. Created in _ready() for
+## the same reason as the two above, and additionally because it has to reach across three
+## separate canvases — there is no one node in the tree that is a natural parent for it.
+## Persists nothing: everything it draws is derived from Systems/WorldClock.
+var sky_lighting: SkyLighting
+
+## The rain sheet. Lives under `World` rather than beside the node above, so the day/night
+## tint reaches it. Persists nothing either — whether it is raining is the clock's business.
+var rain_vfx: RainVfx
+
 var late_load = false
 
 var disableSetTile = false
@@ -76,7 +86,6 @@ func _ready():
 	randomize()
 	add_to_group("SaveLoad")
 	add_to_group("TileMapHandler")
-	#rain() 
 	resource_manager.connect("resource_added", Callable(self, "_on_resource_added"))
 	resource_manager.connect("resource_removed", Callable(self, "_on_resource_removed"))
 	resource_manager.connect("resource_removing", Callable(self, "_on_resource_removing"))
@@ -106,8 +115,41 @@ func _ready():
 
 	_setup_land_purchase()
 	_setup_islands()
+	_setup_weather()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
+
+
+## The day/night tint and the rain. Created after the world exists, because the lighting
+## captures the sea's base colour on first use and both of them read the player.
+##
+## The clock itself is NOT created here — it is a model, it is authored into main.tscn under
+## Systems with the rest of them, and its save entry is keyed on that path. These two only
+## draw what it says, and persist nothing.
+func _setup_weather() -> void:
+	var clock := get_node_or_null("Systems/WorldClock") as WorldClock
+	if clock == null:
+		push_warning("TileMapHandler: no Systems/WorldClock, so the world will not light itself")
+		return
+
+	sky_lighting = SkyLighting.new()
+	sky_lighting.name = "SkyLighting"
+	sky_lighting.clock = clock
+	sky_lighting.main = self
+	add_child(sky_lighting)
+
+	# Into World, not here: the rain has to be inside the root canvas so the day/night
+	# CanvasModulate tints it along with everything it is falling on. A screen-space rain
+	# layer would keep its daylight brightness and glow against a dark world.
+	var world := get_node_or_null("World")
+	if world == null:
+		push_warning("TileMapHandler: no World node, so it will never rain")
+		return
+
+	rain_vfx = RainVfx.new()
+	rain_vfx.name = "RainVfx"
+	rain_vfx.clock = clock
+	world.add_child(rain_vfx)
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself
@@ -969,13 +1011,6 @@ func place_auto_tile( atlas_location):
 	#tileMap.bitma(cell_position - Vector2(1, 1), cell_position + Vector2(1, 1))
 	tileMap.set_cells_terrain_connect(3, _wall_cells_for(WALL_TYPES[0]), 0, WALL_TYPES[0]["terrain"])
 
-
-func rain():
-	var amt = 19
-	for i in amt:
-		var tile = get_random_tile()
-		tileMap.set_cell(1, tile, 7, Vector2(0,0))
-		#get_tree().create_timer(0.1).timeout
 
 func get_random_tile():
 	return get_random_tile_in(null)
