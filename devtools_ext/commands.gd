@@ -43,6 +43,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("skill_panel", _cmd_skill_panel)
 	dev.register_command("learn_skill", _cmd_learn_skill)
 	dev.register_command("place_station", _cmd_place_station)
+	dev.register_command("build_demo_world", _cmd_build_demo_world)
 	dev.register_command("crafting_panel", _cmd_crafting_panel)
 	dev.register_command("craft_state", _cmd_craft_state)
 	dev.register_command("queue_craft", _cmd_queue_craft)
@@ -2251,4 +2252,156 @@ func _cmd_demo_state(_args: Dictionary) -> Dictionary:
 			state["clip"], "running" if state["running"] else "stopped", state["beat"],
 		],
 		"data": state,
+	}
+
+
+# --- demo world --------------------------------------------------------------
+#
+# Builds a representative late-game homestead in one call so a save fixture can be
+# regenerated rather than hand-curated: a maxed island, a walled house with a door,
+# a wood floor, chests and both crafting stations inside, and turrets and workers
+# outside. Placement is by run-method-proof verb rather than by generic primitives
+# because every step here takes a Vector2i, and run-method hands callv raw JSON with
+# no vector coercion (gather-6sp).
+
+## Interior is (DEMO_HOUSE_W - 2) x (DEMO_HOUSE_H - 2); the rest is wall.
+const DEMO_HOUSE_W := 7
+const DEMO_HOUSE_H := 5
+
+
+## Tops the island out to MAX_PARCELS.
+##
+## Not through purchase(): twelve parcels cost about 6300 coins on the BASE_COST 12 /
+## COST_GROWTH 1.6 curve, and the inventory cannot hold a fraction of that even with
+## every slot stacked, so the honest-looking path would need dozens of interleaved
+## grant-and-buy rounds. parcels_bought and radius are the only two fields LandManager
+## persists, and _expand() is the same call its own loadObject() makes, so writing all
+## three lands in a state the game can reach and can save.
+func _max_out_land(land: LandManager) -> Dictionary:
+	var before := land.radius
+	land.parcels_bought = LandManager.MAX_PARCELS
+	land.radius = LandManager.radius_for(land.parcels_bought)
+	var tiles_added: int = land._expand(land.radius)
+	land.state_changed.emit()
+	return {"radius_before": before, "radius_after": land.radius, "tiles_added": tiles_added}
+
+
+## The top-left corner of the first clear w x h block, scanning outward from origin.
+##
+## Rectangles rather than single cells because the island is noise-thresholded: a fixed
+## offset from origin is open water for a good fraction of seeds, and a house half in the
+## sea is not a fixture anyone can look at and trust.
+func _clear_block_near(handler: TileMapHandler, origin: Vector2i, w: int, h: int, margin: int):
+	for offset in TileMapHandler.cells_within(20):
+		var corner: Vector2i = origin + offset
+		var clear := true
+		for dx in range(-margin, w + margin):
+			for dy in range(-margin, h + margin):
+				if handler.is_occupied(corner + Vector2i(dx, dy), true):
+					clear = false
+					break
+			if not clear:
+				break
+		if clear:
+			return corner
+	return null
+
+
+func _place(handler: TileMapHandler, cell: Vector2i, type: int) -> void:
+	var item: GameItem = GameItems.get_item(type)
+	# atlas_location, not tile_atlas_location: the latter is the inventory ICON cell, and
+	# feeding it to a TileSetScenesCollectionSource writes a cell that instances nothing
+	# (the same trap _cmd_place_station documents, and gather-w41).
+	handler.set_tile(cell, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+
+
+func _cmd_build_demo_world(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var land := _land_manager()
+	var player := _player()
+	if handler == null or land == null or player == null:
+		return {"success": false, "message": "no TileMapHandler, LandManager or player", "data": {}}
+
+	var land_report := _max_out_land(land)
+
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var corner = _clear_block_near(handler, origin, DEMO_HOUSE_W, DEMO_HOUSE_H, 3)
+	if corner == null:
+		return {"success": false, "message": "no clear %dx%d site near the player" % [DEMO_HOUSE_W, DEMO_HOUSE_H], "data": {"land": land_report}}
+
+	# _clear_block_near returns Variant (it can answer null), and every cell below is
+	# derived from this — without the typed rebind, inference fails on all of them.
+	var house: Vector2i = corner
+	var placed := {"wall": 0, "floor": 0, "door": 0, "chest": 0, "station": 0, "turret": 0, "worker": 0}
+
+	# Floors first, then walls on top: is_occupied() exempts floors for walls and nothing
+	# else, so the reverse order refuses every wall cell that already has a floor under it.
+	for dx in DEMO_HOUSE_W:
+		for dy in DEMO_HOUSE_H:
+			var cell := house + Vector2i(dx, dy)
+			var edge: bool = dx == 0 or dy == 0 or dx == DEMO_HOUSE_W - 1 or dy == DEMO_HOUSE_H - 1
+			if not edge:
+				_place(handler, cell, Types.Item.WoodFloor)
+				placed["floor"] += 1
+
+	var door_cell := house + Vector2i(DEMO_HOUSE_W / 2, DEMO_HOUSE_H - 1)
+	for dx in DEMO_HOUSE_W:
+		for dy in DEMO_HOUSE_H:
+			var cell := house + Vector2i(dx, dy)
+			if not (dx == 0 or dy == 0 or dx == DEMO_HOUSE_W - 1 or dy == DEMO_HOUSE_H - 1):
+				continue
+			if cell == door_cell:
+				_place(handler, cell, Types.Item.WoodDoor)
+				placed["door"] += 1
+			else:
+				_place(handler, cell, Types.Item.WoodWall)
+				placed["wall"] += 1
+
+	# Furniture along the back wall, leaving the two rows nearest the door walkable.
+	var furniture := {
+		Vector2i(1, 1): Types.Item.Chest,
+		Vector2i(2, 1): Types.Item.Chest,
+		Vector2i(4, 1): Types.Item.Sawmill,
+		Vector2i(5, 1): Types.Item.Furnace,
+	}
+	for offset in furniture:
+		var type: int = furniture[offset]
+		_place(handler, corner + offset, type)
+		if type == Types.Item.Chest:
+			placed["chest"] += 1
+		else:
+			placed["station"] += 1
+
+	# Turrets on the approaches, workers out where the resources are. Both are scene
+	# tiles, so they must land on cells the house did not take.
+	var outside := [
+		{"cell": house + Vector2i(-2, -2), "type": Types.Item.BoneTurret},
+		{"cell": house + Vector2i(DEMO_HOUSE_W + 1, -2), "type": Types.Item.BoneTurret},
+		{"cell": house + Vector2i(-2, DEMO_HOUSE_H + 1), "type": Types.Item.BoneTurret},
+		{"cell": house + Vector2i(DEMO_HOUSE_W + 1, DEMO_HOUSE_H + 1), "type": Types.Item.BoneTurret},
+		{"cell": house + Vector2i(-2, 1), "type": Types.Item.BoneWorker},
+		{"cell": house + Vector2i(-2, 3), "type": Types.Item.BoneWorker},
+		{"cell": house + Vector2i(DEMO_HOUSE_W + 1, 1), "type": Types.Item.StoneWorker},
+		{"cell": house + Vector2i(DEMO_HOUSE_W + 1, 3), "type": Types.Item.StoneWorker},
+	]
+	for entry in outside:
+		var cell: Vector2i = entry["cell"]
+		if handler.is_occupied(cell, true):
+			continue
+		_place(handler, cell, entry["type"])
+		placed["turret" if entry["type"] == Types.Item.BoneTurret else "worker"] += 1
+
+	# Stand the player in the doorway so a screenshot of the fixture shows the house.
+	player.global_position = Vector2(handler.tileMap.map_to_local(door_cell + Vector2i(0, 2)))
+
+	return {
+		"success": true,
+		"message": "built the demo homestead at %s" % [house],
+		"data": {
+			"land": land_report,
+			"house_corner": {"x": house.x, "y": house.y},
+			"door": {"x": door_cell.x, "y": door_cell.y},
+			"placed": placed,
+			"land_tiles": handler.count_land_tiles(),
+		},
 	}

@@ -981,40 +981,106 @@ func saveObject() -> Dictionary:
 	
 	return dict
 			
-func loadObject(loadedDict: Dictionary) -> void:	
-	var layers = tileMap.get_layers_count()
-	var tile_grid = tileMap.get_used_cells(0)
-	wall_cells.clear()
-	var ground_tiles = []
-	
-	for layer in layers:
-		if layer == 0:
+## The saved tile entries that are structurally sound, as {"type": int, "x": int, "y": int}.
+##
+## Static and registry-free so it can be tested headless: the crash paths this guards are
+## exactly the ones a full scene tree makes expensive to reach. Each saved entry is itself a
+## JSON string inside the already-JSON payload (gather-usv tracks removing that layer), so a
+## corrupt line is a real possibility rather than a theoretical one.
+##
+## An entry that cannot be parsed, is not a dictionary, or is missing any of type/x/y is
+## dropped with a warning. Dropping one tile is the correct cost; the alternative — which is
+## what this replaced — was raising mid-replay and losing the whole world.
+static func parse_tile_payload(saved_tiles: Array) -> Array:
+	var out: Array = []
+
+	for saved_info in saved_tiles:
+		var json := JSON.new()
+		# enemy_spawner.gd:262 is the reference for this check. Discarding the result and
+		# reading get_data() anyway is what turned a corrupt line into a raise.
+		if json.parse(str(saved_info)) != OK:
+			push_warning("TileMapHandler: skipping an unparseable tile entry (%s)" % [saved_info])
 			continue
 
-		for cell in tile_grid:
-			tileMap.set_cell(layer, cell, -1)
-
-	for i in loadedDict.tiles.size():
-		var saved_info = loadedDict.tiles[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-
-		var item = resources.get_item_or_resource_by_type(node["type"])
-		if item == null:
+		var node: Variant = json.get_data()
+		if node is not Dictionary or not (node.has("type") and node.has("x") and node.has("y")):
+			push_warning("TileMapHandler: skipping a malformed tile entry (%s)" % [node])
 			continue
 
-		# Saves written before the ocean became a backdrop carry one Water entry per
-		# cell of the old painted rect, and Water is registered on layer 0 — replaying
-		# them would drop blue tiles over the island itself.
-		if item.type == Types.Item.Water:
-			continue
+		# JSON has one number type, so every one of these parses back as a float.
+		out.append({"type": int(node["type"]), "x": int(node["x"]), "y": int(node["y"])})
 
-		var location = Vector2i(node["x"], node["y"])
-		if item.type == Types.Item.Ground:
-			ground_tiles.append(location)
+	return out
 
-		set_tile(location, item.tile_source_id, item.atlas_location, item.layer,item.is_scene_tile)
+
+## Replays the saved tilemap.
+##
+## Parse first, destroy second (gather-5my). This used to clear layers 1-3 across every
+## used cell before reading a single saved tile, then index straight into the payload:
+## `loadedDict.tiles`, an unchecked `json.parse`, and `node["type"]` off what could be
+## null. Any one of those raises, and a raise in a `-> void` aborts the method silently —
+## indistinguishable from a clean return. The layers were already wiped by then, and
+## `late_load = true` at the bottom was never reached, so `_finish_load()` never ran and
+## every chest, station and turret payload waiting in `SaveLoad.loads` was dropped along
+## with them. One malformed line cost the player every building they had ever placed.
+##
+## So: nothing touches the tilemap until the whole payload has been parsed into `parsed`,
+## and every path reaches `late_load = true` — a partial replay must still let the chunk
+## payloads and the island reassert run.
+func loadObject(loadedDict: Dictionary) -> void:
+	var ground_tiles: Array = []
+	# Each entry is {"item": <registry entry>, "location": Vector2i}, already validated.
+	var parsed: Array = []
+
+	var saved_tiles: Variant = loadedDict.get("tiles", null)
+	if saved_tiles is Array:
+		for node in parse_tile_payload(saved_tiles):
+			var item = resources.get_item_or_resource_by_type(node["type"])
+			if item == null:
+				continue
+
+			# Saves written before the ocean became a backdrop carry one Water entry per
+			# cell of the old painted rect, and Water is registered on layer 0 — replaying
+			# them would drop blue tiles over the island itself.
+			if item.type == Types.Item.Water:
+				continue
+
+			var location := Vector2i(node["x"], node["y"])
+			if item.type == Types.Item.Ground:
+				ground_tiles.append(location)
+
+			parsed.append({"item": item, "location": location})
+	else:
+		# No usable tile list. Fall through rather than returning: the clear below is
+		# skipped (so the generated world survives), but late_load still has to be set or
+		# this becomes the silent-abort bug in a politer costume.
+		push_warning("TileMapHandler: save entry carries no 'tiles' array, the tilemap was not replayed")
+
+	# A payload that listed tiles but yielded none is a corrupt or truncated file, not an
+	# empty world. Clearing on that reading would hand the player exactly the outcome this
+	# rewrite exists to prevent — everything gone — just by a tidier route. An array that
+	# was *legitimately* empty has size 0 and still falls through to the clear below,
+	# because saving an empty world and then loading it has to empty the world.
+	var corrupt: bool = saved_tiles is Array and not saved_tiles.is_empty() and parsed.is_empty()
+	if corrupt:
+		push_warning("TileMapHandler: %d tile entries and none were readable, keeping the current world rather than clearing it" % [saved_tiles.size()])
+
+	# Everything above is read-only. From here on the world is being rewritten, and every
+	# remaining step is total.
+	if saved_tiles is Array and not corrupt:
+		wall_cells.clear()
+		var layers := tileMap.get_layers_count()
+		var tile_grid := tileMap.get_used_cells(0)
+		for layer in layers:
+			if layer == 0:
+				continue
+
+			for cell in tile_grid:
+				tileMap.set_cell(layer, cell, -1)
+
+		for entry in parsed:
+			var item = entry["item"]
+			set_tile(entry["location"], item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
 
 	# Solved once, on the finished set. This used to sit inside the loop, re-solving a
 	# growing array on every saved tile — O(n²), and the reason land far from origin

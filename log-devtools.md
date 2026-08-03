@@ -2776,3 +2776,148 @@ Guidelines that make an entry useful later:
   - Improvement: let `launch` forward everything after a bare `--` to the Godot command
     line (`devtools.py launch --isolated -- --write-movie out/frame.png --fixed-fps 30`),
     and make `--mute` opt-out rather than unconditional.
+
+## 2026-08-03 — Fanned out the save/load hardening (user://, atomic write, format version, player payload)
+
+- Value: **inconclusive** — no runtime evidence yet by design; three subagents are writing
+  code and tests under an explicit ban on running any Godot binary, and every gate runs
+  serially here afterwards.
+  - Expected: nothing from the harness this turn beyond confirming no game held the bus.
+  - Got: `harness-version` reported the bus owner as `pid 18512 … that process has likely
+    exited`, i.e. a clean bus, so the later serial `/verify` will not be racing anything.
+  - Cheaper: reading `systems/save_load.gd` and `player/player.gd` directly, which is what
+    actually produced the four issues (gather-2rb/pjp/8rs/vn0). The relative-path bug at
+    `save_load.gd:67` is visible in the source; no run was needed to find it.
+
+- Gap: **Nothing in the harness lets N agents validate in parallel, so the only safe
+  policy is "agents never run Godot".** The bridge is one command/result pair and `.godot/`
+  is one import cache, so three agents each running `run_tests.gd` is already a shared-writer
+  hazard before the bridge is even involved. I forbade all Godot execution in the subagent
+  prompts and took every gate myself, which serialises the slowest part of the work behind
+  one agent.
+  - [G-093] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `devtools.py scratch-clone` that stamps out a copy of the project with
+    `use_custom_user_dir=true` and a unique `custom_user_dir_name`, prints the path, and
+    cleans up on exit — the [G-057] ask, but reached for parallel *validation* rather than
+    parallel play. Headless lint/test would still need a separate `.godot/` per clone,
+    which the clone gives for free.
+
+## 2026-08-03 — Triaged the save-contract audit into beads; warned the player.gd agent off an x/y collision
+
+- Value: **inconclusive** — no harness use this turn. The audit was static reading, and the
+  two implementation agents are still running under the no-Godot ban, so there was nothing
+  to run yet.
+  - Expected: n/a, no run planned.
+  - Got: n/a. The one finding that mattered most — `save_load.gd:124` routes any entry with
+    top-level `x`+`y` into the SaveChunks bucket, so renaming the player's `px`/`py` would
+    have silently stopped `Player.loadObject` ever being called — came from reading the
+    reader, not from running it.
+  - Cheaper: nothing cheaper existed; this is the case where static reading beat runtime,
+    because the failure is a *routing* decision that produces no error and no symptom until
+    a player reloads.
+
+- Gap: **no gaps this turn** — the harness was not exercised, so it had no opportunity to
+  fall short. Recorded so this turn is distinguishable from a forgotten log.
+
+- Note for the next entry: the `x`/`y` discriminator above is exactly the class of bug
+  `/verify` cannot see. A save round-trip that writes and re-reads in one session still
+  passes, because the player entry lands in `loads` and the *previous* in-memory state is
+  never contradicted. gather-bdv (round-trip tests asserting post-load state) is the real
+  guard; note it if the upcoming verify run comes back green on this diff.
+
+## 2026-08-03 — Reviewed the save_load.gd diff; blocked on a concurrent agent before any gate
+
+- Value: **inconclusive** — still nothing run. One agent finished but the other has
+  `player/player.gd` modified mid-flight, and a headless suite run would compile a
+  half-written file and report failures belonging to neither change.
+  - Expected: n/a, no run attempted.
+  - Got: a static substitute that was actually worth it — `grep -rl` over `*.uid` showed
+    both hand-written sidecars (`uid://bqn4vxk2dh7rm`, `uid://dqk3n8vw1ptr6`) are unique in
+    the repo, and neither uses `z`, which Godot's UID alphabet (a–y plus digits) excludes.
+    That is most of what `UIDs: OK` would have told me, available while the tree is
+    unbuildable.
+  - Cheaper: nothing — this WAS the cheap path. The point is that it was available during a
+    window when the real gate was not.
+
+- Gap: **A subagent that cannot run Godot also cannot generate a `.uid`, so it hand-writes
+  one and nobody can validate it until the orchestrator imports.** The agent said so
+  explicitly: "the `.uid` I hand-wrote has not been validated by Godot." Lint's `UIDs: OK`
+  covers presence and staleness but is only reachable with a working tree that compiles,
+  which is exactly what a fan-out does not have until every agent lands.
+  - [G-094] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `devtools.py new-uid` that emits a fresh, correctly-encoded, collision-
+    checked uid string without launching the editor or importing. It is a pure function over
+    `ResourceUID::id_to_text` plus a scan of existing sidecars, it needs no game, and it
+    would let any agent write a valid sidecar for a script it just created.
+
+## 2026-08-03 — /verify on the save/load hardening (user://, atomic write, format version, player payload)
+
+- Value: **warranted** — runtime loaded a real save written by the pre-change code and
+  proved the old-to-new conversion end to end, which no unit test in this repo could have.
+  - Expected: the running game writes `user://saveFile` (not the repo-root `saveFile`), its
+    first line is the version header, and a save-mutate-load cycle restores the real Player
+    node's position, health and inventory — proving the live `saveObject()` payload routes
+    through `Player.loadObject` rather than into the SaveChunks bucket. The unit tests only
+    prove the parser agrees with hand-built dictionaries.
+  - Got: an untouched `saveFile` from Aug 2, written before any of this work, loaded with
+    `loaded_format_version: 0`; the player moved `(8.0, -14.07) -> (-3.05, -14.05)`; and the
+    live `saveObject()` then returned `{'inv_json': [{'count': 1, 'type': 22}, … , None,
+    None, …], 'pos': {'args': [-3.05…, -14.05…], 'type': 'Vector2'}}` — six items recovered
+    out of the old embedded-JSON strings, re-emitted as nested dicts with positional nulls,
+    and **no top-level `x`/`y`**. Then `{"save_format_version":1}` as line one of the new
+    file, no stray `.tmp`, reload reporting version `1`, position byte-identical, and the
+    repo-root file sha256-unchanged.
+  - Cheaper: nothing. CLAUDE.md already says it — `saveFile` is gitignored, so a broken load
+    is not something CI or a fresh clone can show you, and the only way to catch it is to
+    load a save written before the change. That file existed on this machine and nowhere
+    else.
+
+- Gap: **`reach` counts `test_dir` scripts in the worktree denominator, but a game session
+  can never load them.** This run reported `worktree … reached 2/4 changed file(s); NOT
+  reached: test/unit/test_player_save.gd, test/unit/test_save_load.gd`. Both game files were
+  reached; the two "misses" are unit tests that ran in Phase 1 and are structurally incapable
+  of appearing in a `scene-tree` snapshot. The `.uid` sidecars beside them were correctly
+  binned as "not applicable", so the classifier already has the concept — the test scripts
+  just are not in it. Effect is the unflattering mirror of the fixed [G-044]: writing a test
+  alongside a fix permanently caps your reach ratio below 100%.
+  - [G-095] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: put paths under the configured `test_dir` in the existing "not applicable"
+    bucket, or better, credit them from the Phase 1 run — `run_tests.gd` already knows
+    exactly which test scripts it selected and executed.
+
+- Note (my slip, not a harness gap): I tailed `performance` to 8 lines and cut off the FPS
+  reading, then quit the game, so the `fps_min` check could not be evaluated. Recorded as
+  `"result": "blocked"`, which correctly downgraded the ledger row `pass -> partial`. Orphan
+  growth was `+2` against a `orphan_growth_max` of 20 — and that `+2` is almost certainly the
+  known leak in gather-jjg rather than anything new here.
+
+## 2026-08-03 — gather-5my (parse before wiping the tilemap) + a demo homestead save fixture
+
+- Value: **warranted** — runtime showed a 32-cell house still standing after a load that,
+  before this change, would have cleared it and aborted.
+  - Expected: loadObject must survive a corrupt tile payload without clearing the tilemap
+    first, and a full demo homestead must survive a save/load round-trip with every scene
+    tile back at its own cell.
+  - Got: feeding `{"tiles":["{not json","[1,2]","{}","42"]}` to `/root/Main.loadObject` left
+    `32 used cell(s)` untouched; the partial case (`2 valid Chest entries + 2 corrupt`)
+    replayed `(0, 0) source=8` and `(1, 0) source=8` and nothing else, so a bad line costs
+    exactly its own tile. The fixture round-tripped as 22 lines / 2016 tiles / 12 SaveChunks
+    with all 32 object cells and the auto-tiled wall corners (`atlas=(1, 7)`, `(3, 9)`)
+    restored identically.
+  - Cheaper: nothing for the corrupt-payload claim. `test_tilemap_payload.gd` covers
+    `parse_tile_payload` in isolation and is the right place for the parse rules, but the
+    actual assertion — the house is still there — needs a house, and therefore the game.
+
+- Gap: **`cmd` and `run-method` results are printed as Python-repr-ish text, not JSON, so
+  every reply has to be re-parsed by hand.** `cmd build_demo_world` printed a dict I had to
+  slice from the first `{` and feed to `json.loads`, and `run-method` answers `Result: None`
+  for a `-> void` — indistinguishable from a call that raised, which is the exact failure
+  mode `gather-5my` is about. I asserted around it by reading the world afterwards, but a
+  verb that reports "did this call complete" would have been a one-liner.
+  - [G-096] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: give `run-method` a `--json` envelope like `scripts-seen` has, and have it
+    distinguish "returned null" from "aborted" — the bridge already knows, since a raise
+    unwinds before the reply is written.
+
+- Note: `--rect` needs `--rect="-24,-2,14,12"` (with `=`) when the value starts with `-`;
+  the space form is eaten by argparse as a flag. Not filed as a gap — standard argparse.

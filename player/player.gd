@@ -377,50 +377,191 @@ func _physics_process(_delta):
 		$AnimatedSprite2D.flip_h = velocity.x < 0
 
 
-func saveObject() -> Dictionary:
-	var inv = []
-	for i in inventory_data.inventory_slot_datas.size():
-		var item = inventory_data.inventory_slot_datas[i]
-		
-		var json 
-		if not item:
-			json = {
-				"type": 1337,
-				"count": 1337
-			}
-		else:
-			json = {
-				"type": item.item.type,
-				"count": item.count
-			}
+# ============================ Save payload ============================
+#
+# SaveLoad JSON-stringifies whatever saveObject() returns, so nested dictionaries and
+# arrays already survive the trip. Every slot used to be JSON.stringify()-ed on its own
+# first and re-parsed with a fresh JSON.new() per slot on the way back in — an entire
+# encode/decode layer inside a format that did not need one, and one more place for a
+# parse to fail without saying so.
+#
+# The four functions below are static and take plain values because Player is
+# scene-backed: half its @onready fields reach up into ../../Systems and ../../UI, so a
+# headless test cannot stand one up, and the payload shape is exactly the part worth
+# pinning. saveObject()/loadObject() are the thin wrappers SaveLoad calls.
 
-		inv.append(JSON.stringify(json))
-		
-	var dict := {
-		"filepath": get_path(),
-		"px": position.x,
-		"py": position.y,
-		"hp": health_manager.current_health,
-		"inv_json": inv
+## Sentinel an old save wrote in place of an empty slot. Both fields carried it.
+##
+## The old shape had no way to say "nothing here": every entry had to be a JSON string,
+## and a stringified null parses back to a value the loader then indexed. So emptiness
+## was encoded out of band, and what it bought was positional — slot 5 comes back as
+## slot 5 rather than the inventory closing up around the gaps. A real null keeps that
+## (JSON arrays hold nulls), so that is what the new shape writes; the sentinel is still
+## recognised on the way in, forever, because old saves still contain it.
+const EMPTY_SLOT_SENTINEL := 1337
+
+
+func saveObject() -> Dictionary:
+	return build_payload(
+		str(get_path()), position, health_manager.current_health, inventory_data.inventory_slot_datas
+	)
+
+
+## The dictionary handed to SaveLoad. `slot_datas` is the raw inventory array: a SlotData
+## or null per slot.
+static func build_payload(filepath: String, pos: Vector2, hp: int, slot_datas: Array) -> Dictionary:
+	var inv := []
+	for slot_data in slot_datas:
+		# `slot_data.item == null` is the second half and it is not defensive padding. This
+		# was `if not item:`, which is false for a live SlotData holding a null item, so the
+		# else branch dereferenced item.item.type and raised. saveObject() is typed
+		# `-> Dictionary`, and a GDScript method that raises still returns its type's default,
+		# so SaveLoad was handed a bare {} — a blank line in saveFile, and the player's
+		# position, health AND whole inventory gone without a word. Same shape as the bug at
+		# items/pick_up_manager.gd:98-102. An item-less slot is an empty slot.
+		if slot_data == null or slot_data.item == null:
+			inv.append(null)
+		else:
+			inv.append({"type": slot_data.item.type, "count": slot_data.count})
+
+	return {
+		"filepath": filepath,
+		# NEVER let this become the bare pair "x" and "y" at the top level. save_load.gd's
+		# _load() routes every entry that has both into the position-keyed SaveChunks bucket
+		# instead of calling loadObject() on the node (search it for `has("x") and has("y")`),
+		# so a flattened position would stop the player entry ever being loaded again —
+		# silently, for every save, forever. The "px"/"py" this replaces was buying exactly
+		# that separation; one nested key buys it the same way. Anything but that pair is
+		# safe: a prefix, or a sub-dictionary like this one.
+		#
+		# from_native round-trips the Vector2 as a Vector2 rather than leaving the reader to
+		# remember which two loose floats belonged together (it writes
+		# {"type": "Vector2", "args": [x, y]}). The second argument, full_objects, is left at
+		# its default of false and must stay false: with it on, a save file can name a script
+		# and have the loader instantiate it, which turns a player-editable file into
+		# arbitrary code execution. The same rule applies to to_native() below.
+		"pos": JSON.from_native(pos),
+		"hp": hp,
+		# Still keyed "inv_json" although the entries are no longer JSON text. This is a
+		# persistence key: renaming it would mean every save written before this change
+		# comes back with an empty inventory, which is the failure this codebase keeps
+		# LEGACY_PATHS around for. read_slot() tells the shapes apart by the entries
+		# themselves instead.
+		"inv_json": inv,
 	}
-	return dict
-	
+
+
 func loadObject(loadedDict: Dictionary) -> void:
-	position = Vector2(loadedDict["px"], loadedDict["py"])
-	health_manager.current_health = loadedDict["hp"]
+	position = read_position(loadedDict, position)
+	health_manager.current_health = int(loadedDict.get("hp", health_manager.max_health))
 	hp_bar.max_value = health_manager.max_health
 	hp_bar.value = health_manager.current_health
-	
+
 	inventory_data.inventory_slot_datas = []
-	for i in loadedDict.inv_json.size():
-		var saved_info = loadedDict.inv_json[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-		
-		if node["type"] == 1337 and node["count"] == 1337:
+	for slot in read_slots(loadedDict):
+		if slot == null:
 			inventory_data.inventory_slot_datas.append(null)
-		else:
-			inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(node["type"]), node["count"]))
+			continue
+
+		# items.gd:92 get_item() indexes item_list directly and raises on a type it has no
+		# entry for — a save written by a build that had one more item registered, say. The
+		# inventory has already been emptied two lines up, so a raise here would abort
+		# loadObject() and leave the player holding nothing at all. Checking first costs one
+		# lookup and turns that into a single lost slot.
+		var item_type: int = int(slot["type"])
+		if not GameItems.item_list.has(item_type):
+			push_warning("Player: save holds unregistered item type %d, that slot was left empty" % item_type)
+			inventory_data.inventory_slot_datas.append(null)
+			continue
+
+		inventory_data.inventory_slot_datas.append(
+			SlotData.new(GameItems.get_item(item_type), int(slot["count"]))
+		)
 	inventory_data.inv_updated()
-	
+
+
+## The saved position, from either shape.
+##
+## `fallback` is what an entry carrying no position at all resolves to. loadObject()
+## passes the player's current position, so a truncated save leaves them standing where
+## they are instead of at the world origin — the exact symptom this project's save
+## documentation warns about, and one nobody reads as an error when they see it.
+static func read_position(payload: Dictionary, fallback: Vector2 = Vector2.ZERO) -> Vector2:
+	if payload.has("pos"):
+		# Checked before to_native() rather than after: handed something that is not a
+		# from_native envelope it raises an engine error, and a hand-edited save is an
+		# expected input here.
+		var raw: Variant = payload["pos"]
+		if raw is Dictionary:
+			var native: Variant = JSON.to_native(raw)
+			if native is Vector2:
+				return native
+		push_warning("Player: save entry has an unreadable 'pos', falling back to px/py")
+
+	# Old shape: the position was hand-split into two loose floats.
+	if payload.has("px") and payload.has("py"):
+		return Vector2(float(payload["px"]), float(payload["py"]))
+
+	push_warning("Player: save entry carries no position, the player was left where it was")
+	return fallback
+
+
+## The saved inventory, normalised to one entry per slot: null for an empty slot, or
+## {"type": int, "count": int}.
+static func read_slots(payload: Dictionary) -> Array:
+	var out := []
+
+	if not payload.has("inv_json"):
+		push_warning("Player: save entry carries no inventory, none was restored")
+		return out
+
+	var saved: Variant = payload["inv_json"]
+	if saved is not Array:
+		push_warning("Player: save entry's inventory is not an array, none was restored")
+		return out
+
+	for entry in saved:
+		out.append(read_slot(entry))
+	return out
+
+
+## One saved slot, from either shape. Returns null for an empty slot and for anything
+## unreadable — a slot that cannot be understood is better left empty than left to
+## abort the load half-way through the inventory.
+static func read_slot(entry: Variant) -> Variant:
+	var slot: Variant = entry
+
+	# The new shape's empty slot, and the only silent way out below: everything else that
+	# fails to resolve warns, because it means a save came back holding less than it stored.
+	if slot == null:
+		return null
+
+	# THE structural test for an old save, and deliberately the only one. An old entry is
+	# a String holding the slot's JSON; a new one is the dictionary itself. A save-format
+	# version number would answer the same question, but coupling to one would mean this
+	# change and the version header could only ever land together.
+	if slot is String:
+		# JSON.new().parse() and its return code rather than the static JSON.parse_string():
+		# parse() hands the failure back, parse_string() pushes an engine error to stderr.
+		# saveFile is a plain text file a player can edit, so a malformed line is an expected
+		# input to handle, not an engine fault to shout about. Matches enemy_spawner.gd:262
+		# and island_manager.gd.
+		var reader := JSON.new()
+		if reader.parse(str(slot)) != OK:
+			push_warning("Player: unparseable inventory slot in save, restored as empty")
+			return null
+		slot = reader.get_data()
+
+	if slot is not Dictionary:
+		push_warning("Player: inventory slot in save is not a dictionary, restored as empty")
+		return null
+	if not slot.has("type") or not slot.has("count"):
+		push_warning("Player: inventory slot in save has no type/count, restored as empty")
+		return null
+	if int(slot["type"]) == EMPTY_SLOT_SENTINEL and int(slot["count"]) == EMPTY_SLOT_SENTINEL:
+		return null
+
+	# JSON has one number type, so everything comes back a float. The item type is an
+	# enum and the count is a stack size; both are ints on the way in and on the way out.
+	return {"type": int(slot["type"]), "count": int(slot["count"])}
+
