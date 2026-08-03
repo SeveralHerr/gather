@@ -3609,3 +3609,30 @@ Guidelines that make an entry useful later:
     only: when the owner pid is dead, `ping` should clear the stale owner file and proceed
     rather than reporting it as an error, because a stale owner after a crash is the normal
     case and right now it masks a perfectly healthy relaunch.
+
+## 2026-08-03 — retire the no-op AttackTimer handler (gather-1sb)
+
+- Value: **warranted** — deleting a method that two scene files connect to is exactly the
+  change where lint's "it parses" and the game's "it works" come apart.
+  - Expected: removing a no-op handler and its two authored connections leaves enemies
+    attacking exactly as before; a missed connection would show as a missing-method error on
+    every AttackTimer tick.
+  - Got: enemies still attack. Walking a spider back into range took it through
+    `EnemyFollow -> EnemyAttack` and the player went `10 -> 0` hp. No missing-method error,
+    and reach was 3/3 — both scenes and enemy.gd were loaded.
+  - Cheaper: lint proves the scenes still parse but cannot prove an enemy still attacks; the
+    damage lands through `attack_range.body_entered -> Transitioned -> EnemyAttack._on_attack`,
+    a signal chain no headless test in this project stands up.
+
+- **The run's own false alarm is the useful part.** My first attempt teleported the enemy on
+  top of the player and it sat in `EnemyFollow` at 8px for 15 game-seconds doing nothing,
+  which read exactly like "the change broke attacking". It was the test, not the code:
+  `EnemyFollow` transitions only on `attack_range.body_entered`, and a body that is ALREADY
+  overlapping when the handler connects never generates an entry event. Moving the enemy away
+  and letting it walk back in worked first time. Worth writing down because `set-state` on a
+  position is the obvious way to stage a fight and it silently produces a false negative for
+  anything driven by area entry — filed as gather-83d for the game-side edge case.
+
+- Gap: **no new gaps this turn.** `step-time` in 4-second slices with a `current_state` read
+  between them is a good shape for watching a state machine progress, and it needed nothing
+  the harness did not already have.

@@ -115,6 +115,5 @@ script = ExtResource("11_q1udg")
 enemy = NodePath("../..")
 
 [connection signal="timeout" from="PathTimer" to="." method="_on_timer_timeout"]
-[connection signal="timeout" from="AttackTimer" to="." method="_on_attack_timer_timeout"]
 
 [editable path="SoftCollision"]

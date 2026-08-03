@@ -259,15 +259,10 @@ func _death_pop() -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 
-func _on_attack_timer_timeout():
-	if attack_target == null:
-		return
-		
-	var direction = (attack_target.global_position - global_position).normalized()
-	#attack_target.receive_hit(direction * 1040, damage)
-
-	
-	print("Attack")
-	pass # Replace with function body.
+## AttackTimer has no scene-authored connection any more (gather-1sb). It was wired to a
+## handler here whose damage call was commented out and which only printed "Attack" — so
+## every enemy in the game ran a no-op and a print on every tick of a timer that
+## EnemyAttack and EnemyLunge were separately driving for real. The node itself stays:
+## both of those states start it, stop it and connect their own handlers to it.
 
 
