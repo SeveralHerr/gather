@@ -175,7 +175,29 @@ func test_find_path_adjacent_with_every_side_blocked_returns_empty() -> String:
 
 func test_a_path_to_where_you_already_stand_is_just_that_cell() -> String:
 	var path := _finder([]).find_path(Vector2i(1, 1), Vector2i(1, 1))
-	return _T.assert_eq(path.size(), 1, "a zero-length errand is one cell, not zero and not a crash")
+	var one: String = _T.assert_eq(path.size(), 1, "a zero-length errand is one cell, not zero and not a crash")
+	if one != "":
+		return one
+
+	# ...including from a solid cell, since standing somewhere is proof you can occupy it.
+	var stuck := _finder([Vector2i(1, 1)]).find_path(Vector2i(1, 1), Vector2i(1, 1))
+	return _T.assert_eq(stuck.size(), 1, "standing on a solid cell still counts as being there")
+
+
+## The case that stranded every worker placed next to its target.
+##
+## A walker whose own cell is solid — which a BoneWorker's always is, being a layer-1 scene
+## tile — was already beside the tree, but its own square got filtered out as unwalkable and
+## no other neighbour was closer, so find_path_adjacent returned nothing and it never swung.
+func test_find_path_adjacent_when_already_beside_the_target() -> String:
+	var target := Vector2i(4, 0)
+	var standing := Vector2i(3, 0)
+	# Both the target and the walker's own cell are solid, exactly as in the game.
+	var path := _finder([target, standing]).find_path_adjacent(standing, target)
+	var found: String = _T.assert_eq(path.size(), 1, "already adjacent is a one-cell path, not no path")
+	if found != "":
+		return found
+	return _T.assert_eq(path[0], standing, "and that cell is where the walker already stands")
 
 
 ## Diagonal movement is allowed, but not between two solid corners — otherwise a walker

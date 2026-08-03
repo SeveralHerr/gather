@@ -2426,3 +2426,57 @@ Guidelines that make an entry useful later:
 - Gap: **no new gaps.** Worker/player collision was settled with `input press move_right`
   plus `step-time` and two `get-state` reads: the player went from x=8 to x=43 through a
   worker sitting at x=40. No verb was missing for any of it.
+
+## 2026-08-02 — Built the itch.io store page: cover, banner, screenshots, copy and theme
+
+- Value: **warranted** — the store art does not exist anywhere in the repo, so the running
+  game was the only place it could come from, and driving it produced a scene the default
+  world never shows.
+  - Expected: `goto_resource` would drop the player somewhere photogenic and one screenshot
+    would be enough. A fresh world is sparse, so I expected to have to fake density.
+  - Got: I did not have to fake it. `island_census` reported the home island at
+    `{"Coal":3,"Copper":1,"Stone":20,"Tree":9}` — 33 nodes, which reads as an empty field in
+    a 630x500 crop. `buy_land {"count":15}` bought 7 parcels for 517 gold and answered
+    `"opened":["ore","forest"]`, `radius 10 -> 24`, `tiles 289 -> 913`; after
+    `step-time --seconds 45` the census was `home` 144 nodes and `ore`
+    `{"Coal":5,"Copper":8,"Gold":2,"Iron":4,"Stone":2}`. `goto_resource {"name":"Gold"}`
+    then put the player on the ore island, which is the frame that became the cover and the
+    banner — four ore types, a stepped shoreline and the player in one shot.
+  - Cheaper: nothing. There is no cover art, no banner and no screenshot in the repo; the
+    only image is `icon.svg`. Every pixel shipped here was rendered by the running game.
+
+- Gap: **[G-016] `set-state` still cannot write a vector-typed property.** Zooming the camera
+  out to fit more world into the cover crop:
+  ```
+  $ devtools.py set-state --node /root/Main/World/Player/Camera2D --property zoom --value '[5.5,5.5]'
+  State updated
+  $ devtools.py get-state --node /root/Main/World/Player/Camera2D --property zoom
+  zoom: {"x": 8.0, "y": 8.0}
+  ```
+  `State updated` on a write that did not happen. I spent a detour reading `world/camera.gd`
+  looking for per-frame zoom enforcement that does not exist — the scene authors zoom 8 and
+  nothing rewrites it. Second sighting; `seen:` bumped on the original entry rather than
+  re-filed.
+  - [G-016] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged from the original entry — coerce via `type_convert()` and **fail
+    loudly**. The cost here was not the failed write, it was `State updated` sending me into
+    the wrong file.
+
+- Gap: **`screenshot` cannot exclude the HUD or crop, so it cannot produce store art.** A
+  store cover is game pixels with no UI on them, at a fixed aspect. The verb only captures
+  the whole window with everything visible, so the sequence was two `set-state` calls to hide
+  `/root/Main/World/Player/Camera2D/HUD` and `/root/Main/UI` by hand, then a separate PIL
+  script to crop 1260x1000 out of 1920x1080 and box-filter it to 630x500. Hiding the UI by
+  hand is also easy to get wrong in the other direction — I re-enabled both before the
+  gallery shots, and nothing would have told me if I had not.
+  - [G-079] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: `screenshot --region X,Y,W,H` and `--hide-group GROUP` (repeatable), so a
+    crop is reproducible from the command line instead of living in a throwaway script, and
+    so "capture the world without the HUD" is one call that cannot leave the HUD hidden.
+
+- Gap: **nothing in the harness can answer "does the shipped web build still boot".** The
+  page now serves `gather-html5.zip` pushed by CI, and every check available here runs the
+  desktop build from source. The export that itch actually serves is never exercised.
+  - [G-080] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: an entry point that serves `bin/` and drives the exported HTML5 build
+    through the same bridge, so `--export-release` output is verifiable before it is public.
