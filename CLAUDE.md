@@ -332,9 +332,14 @@ Two things guard this now, and both must be maintained:
 
 `saveFile` is gitignored, so a broken load is not something CI or a fresh clone will ever
 show you — the only way to catch it is to load a save written before your change.
-`test/fixtures/demo_homestead_save` is a committed fixture for exactly that: a maxed island
-with a walled house, chests, both stations, turrets and workers. Regenerate it with the
-`build_demo_world` devtools verb rather than curating it by hand.
+`test/fixtures/` holds committed saves for exactly that — see its README.
+`demo_homestead_save` is the current-format one (a maxed island with a walled house, chests,
+both stations, turrets and workers, and a furnace left deliberately mid-smelt at 54 of 60);
+regenerate it with the `build_demo_world` devtools verb rather than curating it by hand.
+`demo_homestead_save_v1` is a **backward-compatibility fixture and must never be
+regenerated** — its whole value is that it predates the double-encoding removal, the
+metadata header and the fidelity pass, so it is the only thing that exercises those old
+branches.
 
 **Saves live in slots.** `user://saves/slot_<n>.save`, `SLOT_COUNT` of them, listed by
 `SaveLoad.list_slots()` and shown by `ui/save_slot_ui.gd` (`O`, or SAVES in the toolbar and

@@ -6,9 +6,10 @@ extends PanelContainer
 ## Selection used to be keyboard-only (`_unhandled_key_input` on KEY_1..KEY_6),
 ## the highlight was a 2px `draw_center = false` border rendered at the scene's
 ## 0.86 scale, and nothing on screen said the number keys did anything at all. A
-## phone player's only affordance was MobileControls' ITEM button, which cycles
-## forward one slot and gives no hint of where it is going. So there are now four
-## ways in, all of them through `select_slot()`:
+## phone player had no affordance at all, short of a keyboard they do not have. (The
+## touch overlay briefly carried an ITEM button that cycled forward one slot; it was
+## removed in gather-mxf and there is no HOTBAR_SLOT_COUNT there any more.) So there are
+## now four ways in, all of them through `select_slot()`:
 ##
 ##   * the number keys 1..6, unchanged;
 ##   * the Left / Right arrow keys and the mouse wheel, which step the row one slot
@@ -35,8 +36,7 @@ signal hot_bar_selected(index: int)
 
 const INVENTORY_SLOT = preload("res://inventory/inventory_slot.tscn")
 
-## The hotbar mirrors the first six inventory slots. KEY_1..KEY_6 and
-## MobileControls.HOTBAR_SLOT_COUNT both assume this number.
+## The hotbar mirrors the first six inventory slots. KEY_1..KEY_6 assume this number.
 const SLOT_COUNT := 6
 
 ## The two keys that step the selection, as constants rather than literals inside
@@ -218,7 +218,7 @@ func select_slot(index: int) -> void:
 
 
 ## Moves the selection by `delta` slots, wrapping. `posmod` rather than `%` so
-## stepping back off slot 1 lands on slot 6 instead of -1 — the direction the
+## stepping back off slot 1 lands on slot 6 instead of -1 — the direction the retired
 ## ITEM button could never go.
 func step_selection(delta: int) -> void:
 	select_slot(posmod(selected_index + delta, SLOT_COUNT))

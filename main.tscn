@@ -713,11 +713,13 @@ texture = SubResource("AtlasTexture_1k0mj")
 visible = false
 layout_mode = 1
 anchors_preset = -1
+anchor_left = 0.5
 anchor_top = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 594.0
+offset_left = 0.0
 offset_top = -236.0
-offset_right = 658.0
+offset_right = 64.0
 offset_bottom = -172.0
 
 [node name="GrabbedSlot" parent="UI/InventoryInterface" unique_id=1258187152 instance=ExtResource("31_uow64")]

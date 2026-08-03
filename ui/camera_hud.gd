@@ -76,6 +76,27 @@ func _ready() -> void:
 	_resize_to_view()
 
 
+## The zoom the rect was last computed against, so _process only re-derives when it moves.
+##
+## Camera2D has no zoom_changed signal, so tracking it means comparing. This file and
+## CLAUDE.md both promise the HUD holds "at any window size and any camera zoom", but only
+## size_changed was ever wired up — nothing writes zoom today, so it was contract drift
+## rather than a live bug, and the first screen-shake, zoom-on-death or map view would have
+## stranded the whole HUD off-screen (gather-xgi).
+##
+## A per-frame Vector2 comparison against a cached value is cheaper than the resize it
+## guards, and this node already runs its own _process for the FPS readout.
+var _last_zoom := Vector2.ZERO
+
+
+func _process(_delta: float) -> void:
+	if _camera == null:
+		return
+
+	if not _camera.zoom.is_equal_approx(_last_zoom):
+		_resize_to_view()
+
+
 func _capture_base_transforms() -> void:
 	for child_name in SCALED_CHILDREN:
 		var child := get_node_or_null(NodePath(child_name)) as Control

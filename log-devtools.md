@@ -3096,3 +3096,35 @@ Guidelines that make an entry useful later:
 - Note: `cmd spawn_resource` takes `name`, not `type`, and answered
   `"no resource named ''"` — a well-formed success-shaped failure. Worth reading messages,
   not just `success`.
+
+## 2026-08-03 — Retired the orphan-leak bead by measurement; regenerated the demo fixture at v3
+
+- Value: **warranted** — one bead was closed purely on runtime evidence, and the fixture
+  regeneration produced the first honest measurement of the de-encoding.
+  - Expected: the demo fixture predates two format bumps and the fidelity work; regenerating
+    it should exercise build -> save -> load end to end and show whether the de-encoding
+    actually shrank the payload.
+  - Got: gather-jjg (2 orphans per save/load roundtrip) **does not reproduce** — four
+    consecutive roundtrips reported `Orphan growth: +0 (baseline 0, absolute 0)` with total
+    nodes steady at 1033. And the fair size comparison finally exists: the v3 fixture is
+    59599 bytes carrying 2129 tiles against v1's 71067 bytes carrying 2016 — ~16% smaller
+    with ~6% more content. Last time I compared these I got it backwards, because the tile
+    counts differed in the other direction.
+  - Cheaper: nothing. An orphan count is only observable in a running game, and a fixture
+    cannot be produced without one.
+
+- Gap: **a stale instance from an earlier turn silently took the bus, and the failure looked
+  like a JSON parse error in my own script** — `scene-tree` returned nothing parseable, and
+  only re-running it surfaced `Foreign instance on the bus: the reply to 'scene_tree' came
+  from pid 22412, but ... devtools_owner.json says pid 11968 owns this bus`. The detection
+  is good and it is exactly what the owner file is for; the problem is that the *first*
+  call failed opaquely and the diagnosis only appeared on the retry.
+  - [G-100] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: check the owner file before writing the command rather than when reading a
+    crossed reply, so the very first call fails with the pid mismatch instead of with an
+    empty response the caller has to interpret.
+
+- Note: the ledger row is `partial` again, for `ExternalInventory`'s new centre anchor. It is
+  a `visible = false` panel, so putting it on screen needs an interaction I did not stage;
+  the anchor change is arithmetic (594/1152 = 51.6% -> anchor 0.5) and wants a human eye on
+  it regardless, which is what gather-t9x said in the first place.
