@@ -117,6 +117,13 @@ func save():
 		# loaded, half-finished station show an empty bar over a live work order.
 		"starting_count": starting_count,
 		"wait_time": timer.wait_time,
+		# The interval above is how long ONE item takes; this is how much of the current
+		# one is left. Without it, load() restarted the timer from wait_time and a furnace
+		# 95% through an ore silently went back to the start of it (gather-9x0). count and
+		# starting_count are restored either way, so the progress bar looked correct while
+		# the work order had actually slipped back by up to a full cycle — the player sees
+		# only "it didn't resume where I left off".
+		"time_left": timer.time_left,
 		"timer_status": timer.is_stopped(),
 		"type": type,
 		"filepath": "343"
@@ -124,19 +131,50 @@ func save():
 
 	return dict
 
+## Every value here comes from JSON.parse of a file on disk, so nothing about its shape is
+## guaranteed: an older build's save, or one edited by hand, can put any type in any slot.
+## Each read is therefore defaulted rather than indexed. An unguarded dict["k"] raises, and
+## `func load(dict)` is untyped, so the raise aborts the method and returns null — leaving a
+## station half-restored with no error anyone can see (gather-wfu).
 func load(dict):
-	if dict["type"] == Types.Item.Sawmill:
-		selected_recipe = Recipes.get_sawmill_recipe(dict["selected_recipe"])
-	elif dict["type"] == Types.Item.Furnace:
-		selected_recipe = Recipes.get_furnace_recipe(dict["selected_recipe"])
+	if typeof(dict) != TYPE_DICTIONARY:
+		return
 
-	count = dict["count"]
+	type = int(dict.get("type", type))
+
+	var recipe_id: int = int(dict.get("selected_recipe", -1))
+	if type == Types.Item.Sawmill:
+		selected_recipe = Recipes.get_sawmill_recipe(recipe_id)
+	elif type == Types.Item.Furnace:
+		selected_recipe = Recipes.get_furnace_recipe(recipe_id)
+
+	count = int(dict.get("count", 0))
 	# Saves written before starting_count was persisted have no key for it; falling
 	# back to count means the bar reads full rather than dividing by zero.
-	starting_count = int(dict.get("starting_count", dict["count"]))
-	timer.wait_time = dict["wait_time"]
-	if dict["timer_status"] == true:
+	starting_count = int(dict.get("starting_count", count))
+
+	# How long ONE item takes. Held in a local because start() below overwrites it.
+	var interval: float = maxf(0.01, float(dict.get("wait_time", timer.wait_time)))
+	timer.wait_time = interval
+
+	# `== true` on a JSON value raises "Invalid operands" against a String rather than
+	# evaluating false — the trap bone_worker.gd:782 documents at length. Compare the type.
+	var stopped: bool = bool(dict.get("timer_status", true))
+	if stopped:
 		timer.stop()
 	else:
-		timer.start()
-	type = dict["type"]
+		# Saves predating time_left have no key for it, and start() with a non-positive
+		# argument is an error, so fall back to a whole fresh cycle: the old behaviour,
+		# now only for the old saves that actually need it.
+		var remaining: float = float(dict.get("time_left", 0.0))
+		if remaining > 0.0:
+			# Timer.start(t) ASSIGNS wait_time = t — it is not "run for t this once". So
+			# the interval has to be put back immediately afterwards, or the station
+			# resumes correctly and then runs every *later* item at whatever was left of
+			# this one. A furnace saved with 0.3s to go would smelt the remaining 53 ore
+			# in 0.3s each. Assigning wait_time on a running Timer does not restart it, so
+			# the restored time_left survives this line.
+			timer.start(remaining)
+			timer.wait_time = interval
+		else:
+			timer.start()

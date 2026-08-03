@@ -37,8 +37,12 @@ func save():
 	for i in inventory_data.inventory_slot_datas.size():
 		var item = inventory_data.inventory_slot_datas[i]
 		
-		var json 
-		if not item:
+		var json
+		# `if not item:` is FALSE for a live SlotData whose .item is null, so the else
+		# branch dereferenced it and raised. `func save()` is untyped, so the raise
+		# returned null: a blank line in saveFile and the whole chest's contents gone,
+		# with no error the player could see. Same shape as the bug fixed in player.gd.
+		if item == null or item.item == null:
 			json = {
 				"type": 1337,
 				"count": 1337
@@ -60,16 +64,46 @@ func save():
 
 	return dict
 	
+## Every value here comes from JSON.parse of a file on disk, so nothing about its shape is
+## guaranteed. `func load(dict)` is untyped, so an unguarded index that raises returns null
+## and aborts — with inventory_slot_datas already reset to [] on the first line, which is
+## what turns "one bad slot" into "this chest is now empty" (gather-wfu).
 func load(dict):
+	if typeof(dict) != TYPE_DICTIONARY:
+		return
+
+	var saved: Variant = dict.get("data", [])
+	if saved is not Array:
+		return
+
 	inventory_data.inventory_slot_datas = []
-	for i in dict.data.size():
-		var saved_info = dict.data[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-		
-		if node["type"] == 1337 and node["count"] == 1337:
+	for saved_info in saved:
+		var json := JSON.new()
+		if json.parse(str(saved_info)) != OK:
+			push_warning("TestChest: skipping an unparseable slot")
 			inventory_data.inventory_slot_datas.append(null)
-		else:
-			inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(node["type"]), node["count"]))
+			continue
+
+		var node: Variant = json.get_data()
+		if node is not Dictionary or not (node.has("type") and node.has("count")):
+			push_warning("TestChest: skipping a malformed slot")
+			inventory_data.inventory_slot_datas.append(null)
+			continue
+
+		var type := int(node["type"])
+		var count := int(node["count"])
+		if type == 1337 and count == 1337:
+			inventory_data.inventory_slot_datas.append(null)
+			continue
+
+		# get_item() answers null for a type it does not hold rather than raising
+		# (gather-5rj). An empty slot is the right cost for one unknown item; aborting
+		# here would drop every slot after it.
+		var item: GameItem = GameItems.get_item(type)
+		if item == null:
+			push_warning("TestChest: no item registered for type %d, that slot is empty" % type)
+			inventory_data.inventory_slot_datas.append(null)
+			continue
+
+		inventory_data.inventory_slot_datas.append(SlotData.new(item, count))
 	inventory_data.inv_updated()

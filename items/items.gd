@@ -89,8 +89,19 @@ func get_item_by_data(atlas_location, source_id):
 		if item_list[key].atlas_location == atlas_location and item_list[key].tile_source_id == source_id :
 			return item_list[key]
 			
+## The registered item for a type, or null if there is none (gather-5rj).
+##
+## `item_list` is deliberately not total over `Types.Item`: the world resources —
+## StoneResource, Tree, CoalResource, IronResource, CopperResource, GoldResource and
+## StoneResourceTest — are registered in `items/resources.gd` instead. Indexing raised on
+## every one of them, and the three callers that matter are all on a load path that has
+## already cleared the container it is about to refill (player.gd's inventory,
+## pick_up_manager's drops, test_chest's slots), so the raise emptied them permanently.
+##
+## Returning null matches the sibling accessor `Resources.get_item_or_resource_by_type()`,
+## which every one of its own callers already null-checks.
 func get_item(type: Types.Item) -> GameItem:
-	return item_list[type]
+	return item_list.get(type)
 
 func get_type(_name):
 	for key in item_list.keys():

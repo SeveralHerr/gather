@@ -770,7 +770,17 @@ func save() -> Dictionary:
 	return {
 		"x": _home().x,
 		"y": _home().y,
-		"data": {"loaded": loaded},
+		# `carry` is what the worker is physically holding. It used to be left out, so a
+		# worker walking a full load back to the chest reloaded empty and those items were
+		# destroyed — material loss, not just a visual reset (gather-z3o).
+		#
+		# _state, _target_cell and _path are deliberately NOT saved. They describe a route
+		# through a world that the replay is in the middle of rebuilding: the tree the
+		# worker was walking to may not exist by the time this runs, and a restored path
+		# would point through cells that have changed. Coming back IDLE and holding the
+		# right amount lets the normal logic re-plan against the world that actually
+		# loaded, which is both simpler and correct.
+		"data": {"loaded": loaded, "carry": _carry},
 		"filepath": "343",
 	}
 
@@ -795,3 +805,11 @@ func load(dict) -> void:
 
 	if typeof(data.get("loaded")) == TYPE_BOOL and data["loaded"]:
 		set_loaded()
+
+	# Saves predating gather-z3o carry no key, which reads as 0 — the old behaviour, and
+	# correct for them. Clamped because the value came off disk: a negative carry would
+	# make _deposit_carry()'s `while _carry > 0` loop never run and strand the worker.
+	var carried: Variant = data.get("carry", 0)
+	if typeof(carried) == TYPE_FLOAT or typeof(carried) == TYPE_INT:
+		_carry = maxi(0, int(carried))
+		_update_carry_visual()

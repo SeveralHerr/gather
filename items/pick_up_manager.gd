@@ -90,9 +90,27 @@ func create_pickup(item: GameItem, position: Vector2):
 	PickUpManager.create(slot_data, position)
 
 
+## Where the drops live. SaveLoad.LEGACY_PATHS migrates the entry *key*, so it cannot help
+## with a path baked into a method body: rename or reparent PickUps and get_node() used to
+## return null, .get_children() raised, and this `-> Dictionary` handed SaveLoad an empty {}
+## — every item on the ground gone from that save on (gather-yi9).
+const PICKUPS_PATH := "/root/Main/World/PickUps"
+
+
+func _pickups_root() -> Node:
+	return get_node_or_null(PICKUPS_PATH)
+
+
 func saveObject() -> Dictionary:
 	var world_item_data = {}
-	var pickups_in_world = get_node("/root/Main/World/PickUps").get_children()
+	var root := _pickups_root()
+
+	# A missing container means no drops to record, not a failed save. Returning a
+	# well-formed empty payload keeps the rest of the file readable; raising here is what
+	# used to take the whole line out.
+	if root == null:
+		push_warning("PickUpManager: no node at '%s', saving no ground items" % PICKUPS_PATH)
+		return {"filepath": get_path(), "world_items": world_item_data}
 
 	# create() parents a shadow Sprite2D next to every drop, so half of this
 	# container has no slot_data at all. Reading it unconditionally aborted the
@@ -101,7 +119,7 @@ func saveObject() -> Dictionary:
 	# blank line in saveFile, an "invalid access to key 'filepath'" on the next
 	# load, and every item lying on the ground silently gone.
 	var saved := 0
-	for node in pickups_in_world:
+	for node in root.get_children():
 		var slot_data = node.get("slot_data")
 		if slot_data == null or slot_data.item == null:
 			continue
@@ -119,19 +137,42 @@ func saveObject() -> Dictionary:
 		"world_items": world_item_data
 	}
 	return dict
-	
-func loadObject(loadedDict: Dictionary) -> void:
 
-	
-	for child in get_node("/root/Main/World/PickUps").get_children(): 
+func loadObject(loadedDict: Dictionary) -> void:
+	var root := _pickups_root()
+	if root == null:
+		push_warning("PickUpManager: no node at '%s', ground items were not restored" % PICKUPS_PATH)
+		return
+
+	for child in root.get_children():
 		child.queue_free()
-	
-	for item in loadedDict.world_items.keys():
-		var x = loadedDict.world_items[item]
-		var json = JSON.new()
-		json.parse(x)
-		var node = json.get_data()
-		var pos = Vector2i(node["x"], node["y"])
-		var newItem = GameItems.get_item(node["itemType"])
-		
-		create_pickup( newItem, pos)
+
+	var world_items: Variant = loadedDict.get("world_items", {})
+	if world_items is not Dictionary:
+		return
+
+	for key in world_items.keys():
+		var json := JSON.new()
+		if json.parse(str(world_items[key])) != OK:
+			push_warning("PickUpManager: skipping an unparseable ground item")
+			continue
+
+		var node: Variant = json.get_data()
+		if node is not Dictionary or not (node.has("itemType") and node.has("x") and node.has("y")):
+			push_warning("PickUpManager: skipping a malformed ground item")
+			continue
+
+		var item_type := int(node["itemType"])
+		# get_item() indexes item_list and raises on a type it does not hold — and
+		# item_list is deliberately not total over Types.Item (the world resources live in
+		# resources.gd). A raise here would abort the loop with the container already
+		# emptied above, so every remaining drop would be lost (gather-5rj).
+		if not GameItems.item_list.has(item_type):
+			push_warning("PickUpManager: no item registered for type %d, skipping that drop" % item_type)
+			continue
+
+		# Vector2, not Vector2i. create_pickup takes a Vector2 and the save holds floats;
+		# the old cast truncated every drop toward the origin, so items visibly jumped on
+		# load (gather-d3m).
+		var pos := Vector2(float(node["x"]), float(node["y"]))
+		create_pickup(GameItems.get_item(item_type), pos)

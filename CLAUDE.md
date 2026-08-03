@@ -332,6 +332,57 @@ Two things guard this now, and both must be maintained:
 
 `saveFile` is gitignored, so a broken load is not something CI or a fresh clone will ever
 show you — the only way to catch it is to load a save written before your change.
+`test/fixtures/demo_homestead_save` is a committed fixture for exactly that: a maxed island
+with a walled house, chests, both stations, turrets and workers. Regenerate it with the
+`build_demo_world` devtools verb rather than curating it by hand.
+
+**Saves live in slots.** `user://saves/slot_<n>.save`, `SLOT_COUNT` of them, listed by
+`SaveLoad.list_slots()` and shown by `ui/save_slot_ui.gd` (`O`, or SAVES in the toolbar and
+the mobile cluster). `[` and `]` are quicksave/quickload against `current_slot`. The format
+header carries `save_format_version` plus the metadata a slot row needs (`saved_at`,
+`level`, `land_radius`) so the list renders without loading a save. **Bump `FORMAT_VERSION`
+and add the migration in the same commit** — a version nobody branches on is worse than
+none, because it looks like a promise.
+
+### Save fidelity is a feature requirement, not a nice-to-have
+
+**A load must return the world to exactly where it left off, including work in progress.**
+The failure mode here is never a crash. It is a load that succeeds and quietly hands the
+player back less than they had, which no gate detects and no error reports:
+
+- A furnace 95% through smelting restarted that ore, because `time_left` was not saved and
+  `Timer.start()` reloads from `wait_time` (`gather-9x0`).
+- A worker carrying wood to a chest reloaded empty — the items were destroyed, not just
+  un-animated (`gather-z3o`).
+- Ground drops were rebuilt with `Vector2i`, so every item jumped toward the origin
+  (`gather-d3m`).
+
+So, when you add or change anything that holds state over time — a timer, a queue, a
+carried amount, a partially-filled container, an in-flight projectile:
+
+1. **Persist the progress, not just the configuration.** `wait_time` is how long one item
+   takes and never moves; `time_left` is how far through this one you are. Saving only the
+   former looks correct in a diff and loses work every load.
+2. **Beware `Timer.start(t)` — it *assigns* `wait_time = t`.** Restoring a remaining time
+   with it silently reschedules every later cycle to that length. Put the interval back on
+   the next line.
+3. **Add the key with a default, never a bare index.** Every payload read is
+   `dict.get(key, default)` and every `JSON.parse` result is checked against `OK`. An
+   unguarded index raises, and a raise inside `-> void` / `-> Dictionary` / untyped `load()`
+   aborts the method and returns the type's default — indistinguishable from success. See
+   `world/tile_scenes/bone_worker.gd:778` for the fully-guarded reference implementation,
+   and note `typeof(x) == TYPE_BOOL` rather than `x == true`: comparing a String to a bool
+   *raises* instead of evaluating false.
+4. **Cover it in `test/unit/test_save_fidelity.gd`**, which exists to assert exactly this
+   class of loss, and verify a real round-trip in a running game. The `wait_time` clobber
+   above passed lint and the whole unit suite; only reading the live Timer after a load
+   caught it.
+
+Registry lookups on a load path deserve special care: `GameItems.get_item()` returns null
+for an unregistered type (`item_list` is deliberately not total over `Types.Item` — the
+world resources live in `items/resources.gd`), and every load path that calls it has
+*already cleared* the container it is about to refill. An unguarded raise there does not
+lose one slot, it empties the whole container permanently.
 
 **DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
 `player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,

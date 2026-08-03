@@ -2998,3 +2998,33 @@ Guidelines that make an entry useful later:
   mutated it and I misread a working tap as a failure. Read state with `run-method … is_open`
   instead. Not a harness gap — the verb documents the toggle — but a reminder that a status
   read and a state change must not share a verb.
+
+## 2026-08-03 — Save fidelity: in-flight work, carried loads, exact drop positions
+
+- Value: **warranted** — runtime caught a bug in the fix I had just written, after lint and
+  the full suite passed on it.
+  - Expected: the station/worker/pickup payloads are missing progress state, so a load
+    should visibly reset work in progress; runtime should show whether persisting
+    `time_left` actually resumes the item.
+  - Got: with a 600s cycle started at 300s remaining, the pre-save read was
+    `time_left: 299.0, wait_time: 600.0` — but the *setup* read back `wait_time: 300.0`
+    after I called `start(300.0)`, which is how I learned `Timer.start(t)` **assigns**
+    `wait_time = t` rather than running once for `t`. My fix called `timer.start(remaining)`,
+    so a furnace saved with 0.3s left would have smelted its remaining 53 ore at 0.3s each.
+    After putting the interval back: `count: 54, starting_count: 60, time_left: 285.0,
+    wait_time: 600.0`. Separately, the three drops in the real pre-change `saveFile`
+    reloaded fractional instead of snapping to `-9 / -50 / -49`.
+  - Cheaper: nothing. The clobber passed `lint 0/0` and `359 passed, 0 failed`, and is
+    invisible in the diff — `start(remaining)` reads exactly like the correct fix. Only
+    reading the live Timer's `wait_time` after a load could distinguish them.
+
+- Gap: **no gaps this turn** — the harness did what it exists for. `step-time`,
+  `run-method` on a Timer and `get-state --property` were enough to set up a mid-cycle
+  station and read it back across a save/load; `tilemap-cells --rect` confirmed the tile
+  survived and `scene-tree` found the re-instanced node when its name changed from
+  `Furnace` to `@StaticBody2D@309`.
+
+- Note (my error, worth not repeating): I read `tilemap-cells` through `head -8` on a
+  22-cell result, did not see `(-3, 0)`, and briefly concluded the load had dropped the
+  furnace. The cell was there, 12 lines further down. Grep for the specific cell rather
+  than eyeballing a truncated list.

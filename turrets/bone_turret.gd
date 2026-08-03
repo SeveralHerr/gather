@@ -88,22 +88,41 @@ func save():
 
 	return dict
 	
+## Every value here comes from JSON.parse of a file on disk, so nothing about its shape is
+## guaranteed. `func load(dict)` is untyped, so an unguarded index that raises returns null
+## and aborts — with the existing bullets already freed above (gather-wfu).
 func load(dict):
-	for child in get_children(): 
+	if typeof(dict) != TYPE_DICTIONARY:
+		return
+
+	for child in get_children():
 		if child is Bullet:
 			child.queue_free()
-	
-	for item in dict.data.keys():
-		var x = dict.data[item]
-		var json = JSON.new()
-		json.parse(x)
-		var node = json.get_data()
-		
-		if  node["loaded"] == true:
+
+	var saved: Variant = dict.get("data", {})
+	if saved is not Dictionary:
+		return
+
+	for item in saved.keys():
+		var json := JSON.new()
+		if json.parse(str(saved[item])) != OK:
+			push_warning("BoneTurret: skipping an unparseable bullet")
+			continue
+
+		var node: Variant = json.get_data()
+		if node is not Dictionary:
+			push_warning("BoneTurret: skipping a malformed bullet")
+			continue
+
+		# typeof, not `== true`. Comparing a String to a bool raises "Invalid operands"
+		# rather than evaluating false — bone_worker.gd:782 documents this at length, and
+		# this is the file that comment was written about. It never got the fix until now.
+		if typeof(node.get("loaded")) == TYPE_BOOL and node["loaded"]:
 			set_loaded()
+
 		var b = bullet.instantiate()
 		add_child(b)
-		b.velocity = Vector2( node["velocityx"],node["velocityy"])
+		b.velocity = Vector2(float(node.get("velocityx", 0.0)), float(node.get("velocityy", 0.0)))
 
 		var nodes = los.get_overlapping_bodies()
 		for e in nodes:
