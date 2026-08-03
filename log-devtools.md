@@ -3424,3 +3424,44 @@ Guidelines that make an entry useful later:
   `learn_skill`, `add_xp` and `craft_state` composed into an end-to-end unlock/save/load check
   without a single workaround, and copying a fixture into `user://saves/slot_2.save` and calling
   `load_from_slot` was enough to exercise a v3 file in a live world.
+
+## 2026-08-03 — GameItem super(), the turret's save bugs, source-aware resource keying
+
+- Value: **warranted** — runtime confirmed a save-fidelity fix that only a real scene tile
+  re-instanced by a load can exercise, and cleared the riskiest half of the main.gd change.
+  - Expected: source-aware resource keying leaves the gather path and census working on a
+    cross-source resource, and a turret with no bullets in flight now survives a save/load
+    assembled.
+  - Got: both. `gather_stats` reported `census: {Coal: 1, Copper: 3, Stone: 13, Tree: 11}` —
+    Copper is registered on tileset source 10, i.e. the case the old coordinate-only match
+    would have collided on — and after `goto_resource Copper` + a held gather, `target: Copper`
+    then `Copper: 2`. The turret is the better catch: `run-method save` returned
+    `{'data': {}, 'filepath': '343', 'loaded': True, ...}` — no bullets in flight and the
+    assembly flag still present, where the old payload carried `loaded` ONLY inside the
+    per-bullet dictionaries and so wrote nothing at all. After a live `_save`/`_load` the
+    re-instanced turret read `loaded: true` with `LoadedSprite.visible true` and
+    `UnloadedSprite.visible false`.
+  - Cheaper: nothing for that round trip — a turret is a TileMap scene tile, so the load path
+    destroys and re-instances the node, and the assembly flag has to survive a node that is
+    not the one that saved it. The bullet-restore and payload-shape halves did not need the
+    game and are now headless tests.
+
+- Both new test groups were mutation-checked before being trusted: removing the top-level
+  `loaded` and the position/rotation restore turned `test_save_fidelity.gd` red on exactly
+  two tests (`Total: 404 | Passed: 13 | Failed: 2`), and deleting the recipes legacy branch
+  turned the fixture test red earlier. A save-compat test that cannot fail is the most
+  expensive kind of green, and these two are cheap to make honest.
+
+- Gap: **reach still cannot see a RefCounted script**, now hit a third time — same shape as
+  [G-102], bumping rather than filing again. The run reported
+  `NOT reached: items/game_item_pickaxe.gd, items/game_item_sword.gd` while a wooden pickaxe
+  had just been held down through a complete gather, which runs `GameItemPickaxe.use()` and
+  reads its `power`. Every `GameItem` subclass is RefCounted and owned by an inventory slot,
+  so none of them will ever appear in a `scene-tree` snapshot or in `scripts-seen` — and the
+  item registry is precisely where this project's content lives, so the metric will keep
+  under-reporting exactly the files a content change touches.
+  - [G-102] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: as before — credit a script when a reached node's script inherits from it,
+    and additionally allow `devtools_config.json` to name directories whose scripts are
+    known-RefCounted (`items/`, here) so they are reported as `implicit` rather than as
+    misses. The inheritance half is free; the RefCounted half needs the project to say so.

@@ -22,14 +22,10 @@ func _init(_atlas_location: Vector2i,
 		_power: float = 0.0,
 		_bonus_yield_chance: float = 0.0
 	):
-	self.atlas_location = _atlas_location
-	self.tile_source_id = _tile_source_id
-	self.layer = _layer
-	self.is_placeable = _is_placeable
-	self.tile_atlas_location = _tile_atlas_location
-	self.type = _type
-	self.name = _name
-	self.is_scene_tile = _is_scene_tile
+	# super(), not eight copies of GameItem's own assignments. Re-assigning the base fields by
+	# hand meant a field added to GameItem was silently left unset on every pickaxe and sword,
+	# which reads at the call site as the new field being broken (gather-q6t).
+	super(_atlas_location, _tile_source_id, _type, _layer, _is_placeable, _name, _tile_atlas_location, _is_scene_tile)
 	self.power = _power
 	self.bonus_yield_chance = _bonus_yield_chance
 

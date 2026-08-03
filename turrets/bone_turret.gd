@@ -75,13 +75,23 @@ func save():
 				"rotation": bullets[i].rotation,
 				"velocityx": bullets[i].velocity.x,
 				"velocityy": bullets[i].velocity.y,
+				# Also written per bullet, purely so a build rolled back to the old loader
+				# still finds it where it used to look. The top-level copy below is the one
+				# that means anything.
 				"loaded": loaded
 			}
 			bullet_data[i] = json
-	
+
 	var dict = {
 		"x": position.x,
 		"y": position.y,
+		# Whether the turret is ASSEMBLED, which is a property of the turret and not of any
+		# bullet. It used to be written only inside the per-bullet dictionaries, so a loaded
+		# turret with nothing currently in flight saved `data: {}` and came back unassembled —
+		# permanently inert, and needing another captured skull to fix. The common case for a
+		# turret is having no bullet in the air, so this lost the assembly far more often than
+		# it kept it (gather-ze1).
+		"loaded": loaded,
 		"data": bullet_data,
 		"filepath": "343"
 	}
@@ -99,6 +109,13 @@ func load(dict):
 		if child is Bullet:
 			child.queue_free()
 
+	# The turret's own assembly flag, read before the bullets and independently of whether
+	# there are any. typeof, not `== true`: comparing a String to a bool raises "Invalid
+	# operands" rather than evaluating false — bone_worker.gd:782 documents this at length,
+	# and this is the file that comment was written about.
+	if typeof(dict.get("loaded")) == TYPE_BOOL and dict["loaded"]:
+		set_loaded()
+
 	var saved: Variant = dict.get("data", {})
 	if saved is not Dictionary:
 		return
@@ -106,18 +123,27 @@ func load(dict):
 	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
 	# written now, and drops anything unreadable rather than raising.
 	for node in SaveLoad.decode_entries(saved):
-		# typeof, not `== true`. Comparing a String to a bool raises "Invalid operands"
-		# rather than evaluating false — bone_worker.gd:782 documents this at length, and
-		# this is the file that comment was written about. It never got the fix until now.
+		# The per-bullet copy, kept only for saves written before the flag moved to the top
+		# level. Harmless to re-apply: set_loaded() is idempotent.
 		if typeof(node.get("loaded")) == TYPE_BOOL and node["loaded"]:
 			set_loaded()
 
 		var b = bullet.instantiate()
 		add_child(b)
+		# Position and rotation as well as velocity. save() has always written all three and
+		# load() assigned only the velocity, so every restored bullet reappeared at the
+		# turret's own origin pointing right — a shot in flight teleported backwards down the
+		# barrel. Set after add_child, because the bullet's own _ready has no say in where it
+		# already is (gather-ze1).
+		b.position = Vector2(float(node.get("x", 0.0)), float(node.get("y", 0.0)))
+		b.rotation = float(node.get("rotation", 0.0))
 		b.velocity = Vector2(float(node.get("velocityx", 0.0)), float(node.get("velocityy", 0.0)))
 
-		var nodes = los.get_overlapping_bodies()
-		for e in nodes:
-			if e is Enemy:
-				target = e
-				return 
+	# Outside the bullet loop, and it breaks rather than returning. This used to sit INSIDE
+	# that loop with a `return`, so a turret that had an enemy in line of sight abandoned
+	# load() after restoring its first bullet and silently dropped the rest. Retargeting is
+	# one decision about the turret, not one per bullet.
+	for e in los.get_overlapping_bodies():
+		if e is Enemy:
+			target = e
+			break

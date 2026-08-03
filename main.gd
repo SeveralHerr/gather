@@ -603,6 +603,35 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
 
+## Identity of a tile-based resource, as the pair that actually distinguishes one.
+##
+## An atlas coordinate ALONE does not. The hand-drawn sheet, the generated placeholder sheet
+## and the generated stone sheet are separate sources whose coordinate spaces all start at
+## (0, 0), so (0, 3) is a copper vein on source 10 and something else entirely on source 4.
+## items/resources.gd carries a comment telling the next author to keep coordinates unique
+## across every source precisely because these lookups ignored the source id — a rule no code
+## enforces and the next ore tier on a new sheet would have broken (gather-54s).
+static func resource_key(atlas_location: Vector2i, source_id: int) -> String:
+	return "%d:%d,%d" % [source_id, atlas_location.x, atlas_location.y]
+
+
+## The registered resource occupying layer-1 cell `cell`, or null.
+##
+## One place that answers "what resource is this cell", so the three lookups that used to
+## each open-code a coordinate comparison cannot drift apart again.
+func _resource_at(cell: Vector2i) -> GameResource:
+	var atlas := tileMap.get_cell_atlas_coords(1, cell)
+	var source := tileMap.get_cell_source_id(1, cell)
+	if source == -1:
+		return null
+
+	for key in resources.GetAllTypes():
+		var resource: GameResource = resources.Get(key)
+		if resource.atlas_location == atlas and resource.tile_source_id == source:
+			return resource
+	return null
+
+
 ## Live gatherable nodes on the island broken down by resource name, covering both
 ## tile-based resources and the scene-based ones parented to the tilemap.
 func resource_node_census() -> Dictionary:
@@ -610,13 +639,13 @@ func resource_node_census() -> Dictionary:
 	for key in resources.GetAllTypes():
 		var resource = resources.Get(key)
 		if not resource.is_scene_tile:
-			atlas_to_name[resource.atlas_location] = resource.name
+			atlas_to_name[resource_key(resource.atlas_location, resource.tile_source_id)] = resource.name
 
 	var census = {}
 	for cell in tileMap.get_used_cells(1):
-		var atlas = tileMap.get_cell_atlas_coords(1, cell)
-		if atlas_to_name.has(atlas):
-			var resource_name = atlas_to_name[atlas]
+		var cell_key := resource_key(tileMap.get_cell_atlas_coords(1, cell), tileMap.get_cell_source_id(1, cell))
+		if atlas_to_name.has(cell_key):
+			var resource_name = atlas_to_name[cell_key]
 			census[resource_name] = census.get(resource_name, 0) + 1
 
 	for node in tileMap.get_children():
@@ -751,11 +780,11 @@ func count_resource_nodes_in(region: LandRegion) -> int:
 	for key in resources.GetAllTypes():
 		var resource = resources.Get(key)
 		if not resource.is_scene_tile:
-			resource_atlases[resource.atlas_location] = true
+			resource_atlases[resource_key(resource.atlas_location, resource.tile_source_id)] = true
 
 	var count := 0
 	for cell in tileMap.get_used_cells(1):
-		if not resource_atlases.has(tileMap.get_cell_atlas_coords(1, cell)):
+		if not resource_atlases.has(resource_key(tileMap.get_cell_atlas_coords(1, cell), tileMap.get_cell_source_id(1, cell))):
 			continue
 		if region_for_cell(cell) == region:
 			count += 1
@@ -829,11 +858,9 @@ func _find_nearest_tile_and_resource(location: Vector2):
 	var activation_distance = 20
 	
 	if distance < activation_distance and distance > 0:
-		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
-		for key in resources.GetAllTypes():
-			if resources.Get(key).atlas_location == tile:
-				return resources.Get(key)
-				
+		# Source id as well as coordinate — see resource_key() (gather-54s).
+		return _resource_at(nearestPos)
+
 func find_nearest_resource_to_location(location: Vector2):
 	var nearest_resource_info = get_location_of_nearby_resource(location)
 	if nearest_resource_info:
@@ -888,36 +915,33 @@ func get_location_of_nearby_resource(location):
 	for neighbor in neighbors:
 		var tilePos = tileMap.local_to_map(location) + neighbor
 		var tile = tileMap.get_cell_atlas_coords(1, tilePos)
-		
+
 		if tile == Vector2i(-1,-1):
 			continue
-			
-		var found = false
-		for key in resources.GetAllTypes():
-			if resources.Get(key).atlas_location == tile:
-				found = true
-		
-		if found == false:
+
+		# Source id as well as coordinate — see resource_key(). Matching on the coordinate
+		# alone made every lookup on the gather path depend on no two resources on different
+		# sheets ever sharing one (gather-54s).
+		if _resource_at(tilePos) == null:
 			continue
-		
+
 		var dir = player.global_position - tileMap.map_to_local(tilePos)
 		var dist = dir.length()
 		if dist < nearestDistance:
 			nearestDistance = dist
 			nearestPos = tilePos
-			
+
 	if nearestPos == null:
 		return
-			
+
 	var direction = location - tileMap.map_to_local(nearestPos)
 	var distance = direction.length()
 	var activation_distance = 20
-	
+
 	if distance < activation_distance and distance > 0:
-		var tile = tileMap.get_cell_atlas_coords (1, nearestPos)
-		for key in resources.GetAllTypes():
-			if resources.Get(key).atlas_location == tile:
-				return { "resource": resources.Get(key),  "location": tileMap.map_to_local(nearestPos), "tile_data": tileMap.get_cell_tile_data(resources.Get(key).layer, nearestPos ) }
+		var resource = _resource_at(nearestPos)
+		if resource != null:
+			return { "resource": resource,  "location": tileMap.map_to_local(nearestPos), "tile_data": tileMap.get_cell_tile_data(resource.layer, nearestPos ) }
 
 func get_nearest_scene_tile():
 	var nearestDistance = 1000000

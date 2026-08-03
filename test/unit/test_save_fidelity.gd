@@ -218,3 +218,87 @@ func test_recipe_id_minus_one_resolves_to_no_recipe() -> String:
 		return f
 
 	return _T.assert_true(sawmill == null, "get_sawmill_recipe(-1) is null")
+
+
+# --- bone turret: the assembly flag, and every bullet ------------------------
+
+## A live turret in a hosted viewport. Its save/load touch $LoadedSprite and the
+## LineOfSight Area2D, so unlike the payload-only tests above these need a real tree.
+func _turret() -> Node:
+	return await _T.instantiate_ui(load("res://turrets/bone_turret.tscn"))
+
+
+func test_an_assembled_turret_with_no_bullets_still_saves_its_assembly() -> String:
+	# The costliest of the three turret defects, and the one that fires in the COMMON case.
+	# `loaded` used to be written only inside the per-bullet dictionaries, so a turret with
+	# nothing currently in the air saved `data: {}` and came back unassembled — permanently
+	# inert, needing another netted skull to fix. A turret is idle far more often than it is
+	# mid-shot, so this lost the assembly most of the time (gather-ze1).
+	var turret := await _turret()
+	turret.set_loaded()
+
+	var payload: Dictionary = turret.save()
+	_T.free_ui(turret)
+
+	var err: String = _T.assert_true(payload.get("data", {}).is_empty(),
+		"the turret really had no bullets, so the per-bullet copy could not carry the flag")
+	if err != "":
+		return err
+	return _T.assert_true(payload.get("loaded", false) == true,
+		"the assembly flag is on the turret's own payload")
+
+
+func test_an_assembled_turret_reloads_assembled() -> String:
+	var turret := await _turret()
+	var was_loaded: bool = turret.loaded
+
+	turret.load({"x": 0.0, "y": 0.0, "loaded": true, "data": {}, "filepath": "343"})
+	var now_loaded: bool = turret.loaded
+	_T.free_ui(turret)
+
+	var err: String = _T.assert_false(was_loaded, "a fresh turret starts unassembled")
+	if err != "":
+		return err
+	return _T.assert_true(now_loaded, "the saved assembly came back")
+
+
+func test_every_saved_bullet_comes_back_with_its_position() -> String:
+	# Two defects in one assertion. The retarget scan used to sit INSIDE the bullet loop with
+	# a `return`, so a turret with an enemy in line of sight abandoned load() after the first
+	# bullet and silently dropped the rest; and only `velocity` was ever restored, so the
+	# bullets that did come back reappeared at the turret's own origin. save() has always
+	# written x/y/rotation — the loader simply never read them (gather-ze1).
+	var turret := await _turret()
+
+	var payload := {
+		"x": 0.0, "y": 0.0, "loaded": true, "filepath": "343",
+		"data": {
+			0: {"x": 10.0, "y": 20.0, "rotation": 0.5, "velocityx": 100.0, "velocityy": 0.0},
+			1: {"x": 30.0, "y": 40.0, "rotation": 1.5, "velocityx": 0.0, "velocityy": 100.0},
+			2: {"x": 50.0, "y": 60.0, "rotation": 2.5, "velocityx": -100.0, "velocityy": 0.0},
+		},
+	}
+	turret.load(payload)
+
+	var bullets: Array = []
+	for child in turret.get_children():
+		if child is Bullet:
+			bullets.append(child)
+	bullets.sort_custom(func(a, b): return a.position.x < b.position.x)
+
+	var count: int = bullets.size()
+	var positions: Array = []
+	var rotations: Array = []
+	for b in bullets:
+		positions.append("%d,%d" % [roundi(b.position.x), roundi(b.position.y)])
+		rotations.append(snappedf(b.rotation, 0.01))
+	_T.free_ui(turret)
+
+	var err: String = _T.assert_eq(count, 3, "all three saved bullets were restored")
+	if err != "":
+		return err
+	err = _T.assert_eq(str(positions), str(["10,20", "30,40", "50,60"]),
+		"each bullet came back where it was, not at the turret's origin")
+	if err != "":
+		return err
+	return _T.assert_eq(str(rotations), str([0.5, 1.5, 2.5]), "and pointing the way it was")
