@@ -177,7 +177,10 @@ const ISTHMUS_WOBBLE := 0.9
 ## coins because they are the only currency in the game - land is what the player is
 ## saving for, and the boss island is the last thing they reach.
 const BOSS_ID := "boss"
-const BOSS_TYPE := "Elite"
+## Points at the registry rather than repeating the string, so the name of a type exists in
+## exactly one place (gather-33f). Still a constant here because the boss island's guard being
+## an elite is a fact about this island, not about the enemy.
+const BOSS_TYPE := EnemyRegistry.ELITE
 const BOSS_REWARD := [
 	{"type": Types.Item.Coin, "count": 40},
 	{"type": Types.Item.GoldOre, "count": 8},

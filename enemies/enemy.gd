@@ -96,6 +96,7 @@ func _on_died():
 	await get_tree().create_timer(0.1).timeout
 
 	PickUpManager.create_pickup( items.get_item(drop), position)
+	drop_loot()
 	drop_coins()
 
 	#item_manager.AddItemToWorld(position, items.get_item(drop))
@@ -107,6 +108,24 @@ func _on_died():
 ## so a zero-coin kill would make combat feel like it paid nothing. Luck (the
 ## Combat branch's coin_find_bonus) buys a chance at a second one.
 const BASE_COIN_DROP := 1
+
+
+## The type's loot table, on top of `drop` and the coins below.
+##
+## `drop` stays an @export and stays persisted per enemy: a saved enemy's drop has to come
+## back from the save rather than be re-derived from a table that may have changed since. The
+## loot table is the part that varies by type and wants to grow — a boss needs several items
+## with chances, which a single Types.Item cannot express (gather-33f).
+##
+## An unregistered item id yields null from get_item(), and create_pickup on null is how the
+## whole registry-lookup class of bug starts, so it is skipped with a warning instead.
+func drop_loot() -> void:
+	for item_type in EnemyRegistry.roll_loot(type):
+		var item := items.get_item(item_type)
+		if item == null:
+			push_warning("Enemy: '%s' loot table names unregistered item %s" % [type, item_type])
+			continue
+		PickUpManager.create_pickup(item, position)
 
 
 func drop_coins() -> void:

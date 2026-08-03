@@ -45,13 +45,11 @@ func _init(_atlas_location: Vector2i,
 		_gathering_atlas_location: Vector2i = Vector2i.ZERO,
 		_sound: GameSoundManager.SoundType = GameSoundManager.SoundType.STONE
 	):
-	self.atlas_location = _atlas_location
-	self.tile_source_id = _tile_source_id
-	self.layer = _layer
-	self.is_placeable = _is_placeable
-	self.tile_atlas_location = _tile_atlas_location
-	self.type = _type
-	self.name = _name
+	# super(), not another copy of GameItem's assignments — the same defect the pickaxe and
+	# sword constructors had (gather-q6t). This one matters most of the three: resources are
+	# the registry a new ore tier is added to, so a field added to GameItem going silently
+	# unset here would look like the new resource being broken.
+	super(_atlas_location, _tile_source_id, _type, _layer, _is_placeable, _name, _tile_atlas_location, _is_scene_tile)
 	self.drop = _drop
 	self.gathering_atlas_location = _gathering_atlas_location
 	self.sound = _sound

@@ -3460,8 +3460,43 @@ Guidelines that make an entry useful later:
   so none of them will ever appear in a `scene-tree` snapshot or in `scripts-seen` — and the
   item registry is precisely where this project's content lives, so the metric will keep
   under-reporting exactly the files a content change touches.
-  - [G-102] status: open | seen: 3 | harness: 0.8.0
+  - [G-102] status: open | seen: 4 | harness: 0.8.0
   - Improvement: as before — credit a script when a reached node's script inherits from it,
     and additionally allow `devtools_config.json` to name directories whose scripts are
     known-RefCounted (`items/`, here) so they are reported as `implicit` rather than as
     misses. The inheritance half is free; the RefCounted half needs the project to say so.
+
+## 2026-08-03 — one enemy registry, and loot tables (gather-33f)
+
+- Value: **warranted** — the reconstruction path can only be exercised by a real save written
+  by a live spawner, and that is where the bug this replaces used to live.
+  - Expected: routing the three hand-matched type strings through one registry leaves ambient
+    spawning and reconstruction working, and a non-empty loot table actually pays out on death.
+  - Got: all of it. Sixty game-seconds of ambient spawning produced
+    `{'res://enemies/bone_enemy.tscn': 3}` and never an elite, which is the flag doing its job
+    — the old `enemies` array happened to hold the right two, but nothing said so. A Bone kill
+    gave exactly 2 pickups (its `drop` plus the base coin, empty table — the regression check).
+    Retyping a live enemy to Elite and killing it gave 12, inside the 7-14 the elite table can
+    produce. And the one that matters: an Elite-typed enemy whose SCENE was still
+    `bone_enemy.tscn` was saved and reloaded, and came back as
+    `{'elite_enemy.tscn': 1, 'bone_enemy.tscn': 1, 'spider_enemy.tscn': 1}` — reconstructed
+    from the registry rather than silently demoted, which is the exact failure the old
+    `match`'s `_:` arm caused.
+  - Cheaper: `set-state --property type --value Elite` on a live enemy is the trick that made
+    this cheap — it drove the boss's loot table and the elite reconstruction path without
+    needing the boss island, which is 34 tiles of bought land away. The loot arithmetic itself
+    is pure and takes its samples as an argument, so all of that is covered headless.
+
+- Gap: **reach under-reports RefCounted scripts**, hit again and now the dominant reason this
+  project's reach numbers look bad. `NOT reached: enemies/enemy_registry.gd,
+  items/game_resource.gd` — while the run had just proved the registry works by watching it
+  reconstruct an elite and pay out a loot table. `EnemyRegistry` is a static RefCounted class
+  and `GameResource` is a RefCounted item, so neither will ever own a node a snapshot can see.
+  Between this, the `GameItem` subclasses and `PlayerState`, the metric now misses most of
+  what a content change touches in this codebase.
+  - [G-102] status: open | seen: 4 | harness: 0.8.0
+  - Improvement: as logged — credit a script when a reached node's script inherits from it
+    (free; the harness already has every reached node's script path and
+    `GDScript.get_base_script()` walks the chain), plus a `devtools_config.json` list of
+    directories whose scripts are known-RefCounted so they report as `implicit` rather than as
+    misses. Four sightings in one session is the argument for doing the inheritance half now.

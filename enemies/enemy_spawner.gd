@@ -9,14 +9,14 @@ class_name EnemySpawner
 ## Land is purchasable, so a flat MAX_LIVE_ENEMIES would either smother a starter
 ## island or leave a bought-out one empty.
 
-var boneEnemy = preload("res://enemies/bone_enemy.tscn")
-var spiderEnemy = preload("res://enemies/spider_enemy.tscn")
-
-## The boss island's elite. An inherited scene rather than a bone enemy with its exports
-## rewritten at spawn time, so a reload rebuilds it from the scene and every difference -
-## health, damage, chase speed, size - comes back with it. Overriding at spawn time would
-## mean persisting each of those separately and losing whichever one was forgotten.
-var eliteEnemy = preload("res://enemies/elite_enemy.tscn")
+## Which scenes back which types, which of them the trickle may roll, and what each drops,
+## all live in EnemyRegistry now. This file used to hold three preloads, an `enemies` array
+## and a `match` that had to be kept in step with them by hand (gather-33f).
+##
+## The elite is an inherited scene rather than a bone enemy with its exports rewritten at
+## spawn time, so a reload rebuilds it from the scene and every difference - health, damage,
+## chase speed, size - comes back with it. Overriding at spawn time would mean persisting
+## each of those separately and losing whichever one was forgotten.
 
 @onready var player = $"../Player"
 @onready var tilemap_handler: TileMapHandler = $"../.."
@@ -54,8 +54,6 @@ const TELEGRAPH_SECONDS := 2.0
 ## that window can overlap the next timeout — so in-flight spawns have to count
 ## against the cap too, or a burst slips past it.
 var pending_spawns := 0
-
-var enemies = [boneEnemy, spiderEnemy]
 
 
 func _ready() -> void:
@@ -107,18 +105,16 @@ static func enemy_save_entry(
 	}
 
 
-## Which scene backs a saved enemy type. Reconstruction used to be
-## `spiderEnemy if type == "Spider" else boneEnemy`, so every type that was not literally
-## "Spider" came back a bone enemy - fine while those were the only two, and a silent
-## downgrade for anything added later.
+## Which scene backs a saved enemy type.
+##
+## Reconstruction was once `spiderEnemy if type == "Spider" else boneEnemy`, so every type
+## that was not literally "Spider" came back a bone enemy - fine while those were the only
+## two, and a silent downgrade for anything added later. That became a `match` with the same
+## silent default arm, and is now one registry lookup that WARNS before falling back
+## (gather-33f). Kept as a method rather than inlined at the call sites because
+## island_manager.gd calls it too.
 func scene_for_type(type: String) -> PackedScene:
-	match type:
-		"Spider":
-			return spiderEnemy
-		"Elite":
-			return eliteEnemy
-		_:
-			return boneEnemy
+	return EnemyRegistry.scene_for(type)
 
 
 ## Fill in whatever a stored entry is missing. Saves written before this change
@@ -216,8 +212,12 @@ func _timeout() -> void:
 	await get_tree().create_timer(TELEGRAPH_SECONDS).timeout
 	tilemap_handler.tileMap.set_cell(1, tile, -1)
 
-	var enemy_to_spawn = enemies[randi() % enemies.size()]
-	var instance = enemy_to_spawn.instantiate()
+	# Only types the registry marks `ambient`. The old `enemies` array happened to hold
+	# exactly the two wanderers, but nothing said so — adding the elite to it, which is the
+	# obvious thing to do when adding a boss, would have put elites on the mainland.
+	var ambient := EnemyRegistry.ambient_types()
+	var type: String = ambient[randi() % ambient.size()]
+	var instance = EnemyRegistry.scene_for(type).instantiate()
 	instance.position = tilemap_handler.tileMap.map_to_local(tile)
 	add_child(instance)
 

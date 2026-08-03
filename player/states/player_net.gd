@@ -85,8 +85,12 @@ func _stow_net(area: Area2D) -> void:
 
 
 func on_hit(body: Node2D):
-	if body is Enemy and body.type == "Bone":
-		var enemy = SlotData.new(GameItems.get_item(Types.Item.BoneEnemy), 1)
+	# Was `body.type == "Bone"` with Types.Item.BoneEnemy hardcoded two lines down — one of
+	# the three places an enemy type string was matched by hand. Which types the net catches,
+	# and what each becomes, is the registry's business now (gather-33f).
+	if body is Enemy and EnemyRegistry.is_nettable(body.type):
+		var captured = EnemyRegistry.capture_item(body.type)
+		var enemy = SlotData.new(GameItems.get_item(captured), 1)
 		p.inventory_data.pick_up_slot_data(enemy)
 		# Stowing here — connection included — is what makes the catch cost exactly one net.
 		# The Net item is consumed two lines down, but the deferred `monitoring` write does
