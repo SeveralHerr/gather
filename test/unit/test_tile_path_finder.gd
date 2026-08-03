@@ -211,6 +211,26 @@ func test_a_diagonal_step_cannot_squeeze_between_two_solid_corners() -> String:
 	return _T.assert_gt(path.size(), 2, "must go around the corner pair, not diagonally between them")
 
 
+## The other half of the same rule, and the one a player actually sees. A walker steps in
+## straight lines between cell CENTRES, so a diagonal past a single solid cell runs its
+## segment exactly through that cell's corner — and the sprite is a whole tile wide, so half
+## of it sweeps through the wall. It reads as a worker walking through the corner of a
+## building, or as a collision box that is too small; it is neither, because these walkers
+## carry no collision at all (bone_worker.tscn is authored on collision_layer 0) and go
+## exactly where the path says.
+##
+## So the path may not cut corners either. Blocking only the sealed pair leaves the visible
+## case wide open.
+func test_a_diagonal_step_cannot_cut_the_corner_of_a_single_wall() -> String:
+	# Solid at (1,0) alone. Stepping (0,0) -> (1,1) is legal under AT_LEAST_ONE_WALKABLE,
+	# because the other shared neighbour (0,1) is open — and it clips the corner of (1,0).
+	var path := _finder([Vector2i(1, 0)]).find_path(Vector2i(0, 0), Vector2i(1, 1))
+	var reachable: String = _T.assert_gt(path.size(), 0, "the two open cells are still connected")
+	if reachable != "":
+		return reachable
+	return _T.assert_gt(path.size(), 2, "must round the corner rather than clip through it")
+
+
 func test_is_walkable_reports_the_blocked_set() -> String:
 	var f := _finder([Vector2i(2, 2)])
 	var solid: String = _T.assert_false(f.is_walkable(Vector2i(2, 2)), "a blocked cell is not walkable")

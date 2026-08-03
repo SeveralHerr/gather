@@ -205,10 +205,20 @@ func _ensure_grid(from: Vector2i, to: Vector2i) -> void:
 	_grid = AStarGrid2D.new()
 	_grid.region = wanted
 	_grid.cell_size = Vector2(16, 16)
-	# Walls are whole cells, so a diagonal step between two solid corners would let a walker
-	# slip through a sealed wall run. Requiring one open orthogonal neighbour keeps diagonal
-	# movement (paths stay short and look natural) without opening that hole.
-	_grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_AT_LEAST_ONE_WALKABLE
+	# Walls are whole cells and walkers step in straight lines between cell CENTRES, so a
+	# diagonal is only safe when BOTH cells it passes between are open. Requiring only one of
+	# them — AT_LEAST_ONE_WALKABLE, which this was — closes the sealed-wall hole and leaves
+	# the visible one open: a diagonal past a single wall cell runs its segment exactly
+	# through that cell's corner, and the walker is a whole tile wide, so half the sprite
+	# sweeps through the wall. It reads as a worker walking through the corner of a building,
+	# or as a collision box that is too small. It is neither — these walkers are authored on
+	# collision_layer 0 and carry no collision at all, so the path is the only thing deciding
+	# where they go, and the path was cutting the corner.
+	#
+	# The cost is one extra step to round a corner instead of clipping it, which is also what
+	# the player has to do: the player moves through physics against the same whole-cell wall
+	# and cannot squeeze past a corner either.
+	_grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
 	_grid.update()
 
 	for x in range(wanted.position.x, wanted.end.x):

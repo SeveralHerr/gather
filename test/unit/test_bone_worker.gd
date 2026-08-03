@@ -231,6 +231,99 @@ func test_a_work_cycle_with_nothing_to_do_changes_nothing() -> String:
 	return _T.assert_false(worker._working, "a barren work cycle leaves the worker idle")
 
 
+# --- Looking for work -----------------------------------------------------------------
+#
+# The whole class of bug here is a worker that never starts an errand while the player can
+# see trees from where it stands (gather-dvw). None of it faults, none of it logs, and the
+# only visible difference between "correctly waiting" and "stuck" is a stroll.
+
+## A tick that lands mid-stroll must re-scan, not skip.
+##
+## _start_wander()'s docstring promises exactly this — "a tree spawning mid-wander is picked
+## up on the next cycle rather than after the walk completes" — and the tick used to route
+## WANDER into _revalidate_errand(), which only handles TO_TREE, so it re-scanned nothing.
+##
+## Observable with no TileMapHandler in the tree, because the two paths land in different
+## states: _look_for_work() finds nothing, calls _start_wander(), which cannot plan without a
+## finder and settles to IDLE. _revalidate_errand() would leave WANDER untouched.
+func test_a_wandering_worker_still_looks_for_work_on_the_tick() -> String:
+	worker.set_loaded()
+	worker._state = BoneWorker.State.WANDER
+
+	worker._on_work_timeout()
+
+	return _T.assert_eq(
+		worker._state, BoneWorker.State.IDLE,
+		"a WANDER tick runs the scan (and settles to IDLE with no world to plan in)"
+	)
+
+
+## The errand must consider more than one candidate, or a single unreachable nearest tree —
+## across water, or behind a wall the player built — stalls the worker permanently, because
+## the nearest tree never stops being the nearest.
+##
+## Asserted against the source: with no TileMap the scan is empty either way, so the running
+## object cannot tell the two shapes apart. MAX_PATH_PROBES was declared and documented for
+## this from the start and simply referenced nowhere.
+func test_the_errand_probes_more_than_the_single_nearest_tree() -> String:
+	var source: String = FileAccess.get_file_as_string(WORKER_SOURCE)
+	var readable: String = _T.assert_gt(source.length(), 0, "could read %s" % WORKER_SOURCE)
+	if readable != "":
+		return readable
+
+	var uses := 0
+	for raw in source.split("\n"):
+		var text: String = raw.strip_edges()
+		if text.begins_with("#") or text.begins_with("const MAX_PATH_PROBES"):
+			continue
+		if text.contains("MAX_PATH_PROBES"):
+			uses += 1
+
+	return _T.assert_gt(uses, 0, "MAX_PATH_PROBES is actually wired to the errand")
+
+
+## The plural scan honours its cap, and asking for nothing costs nothing. The cap is what
+## keeps a worker walled off from a dense grove from running one A* query per tree forever.
+func test_the_candidate_scan_respects_its_limit() -> String:
+	var none: String = _T.assert_eq(
+		worker._find_tree_cells(0).size(), 0, "a zero limit returns no candidates"
+	)
+	if none != "":
+		return none
+
+	var barren: String = _T.assert_eq(
+		worker._find_tree_cells(BoneWorker.MAX_PATH_PROBES).size(), 0,
+		"no candidates without a TileMapHandler"
+	)
+	if barren != "":
+		return barren
+
+	# The one-target read is the same scan, so it cannot disagree with it.
+	return _T.assert_true(
+		worker._find_tree_cell().is_empty(), "_find_tree_cell agrees with the empty scan"
+	)
+
+
+## The search window has to be wider than the apron a player clears and builds on, or the
+## machine starves exactly where it is meant to be placed. Asserted as a relationship rather
+## than a literal, because both ends of it are real constraints and neither is arbitrary:
+## the window must contain the stroll it is supposed to bound, and it must not exceed the
+## detour margin TilePathFinder gives an errand to route around walls — a target further out
+## than that margin is one A* was never sized to plan a way around.
+func test_the_search_window_is_wider_than_the_worker_wanders() -> String:
+	var wider: String = _T.assert_gt(
+		BoneWorker.SEARCH_CELLS, BoneWorker.WANDER_CELLS,
+		"a worker searches further than it strolls"
+	)
+	if wider != "":
+		return wider
+
+	return _T.assert_gte(
+		TilePathFinder.HALF_EXTENT, BoneWorker.SEARCH_CELLS,
+		"the pathfinder's detour margin covers the whole search window"
+	)
+
+
 # --- Cadence --------------------------------------------------------------------------
 
 ## CHOP_SECONDS is the only number that sets the cadence. WorkTimer used to carry an

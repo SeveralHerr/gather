@@ -116,8 +116,9 @@ size = Vector2(10, 7)
 [sub_resource type="CircleShape2D" id="CircleShape2D_work"]
 radius = 40.0
 
-[node name="StoneWorker" type="StaticBody2D"]
-collision_layer = 0
+[node name="StoneWorker" type="AnimatableBody2D"]
+collision_layer = 32
+sync_to_physics = false
 z_index = 1
 y_sort_enabled = true
 script = ExtResource("1_bwrkr")

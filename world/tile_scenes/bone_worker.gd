@@ -15,13 +15,32 @@ class_name BoneWorker
 ## and save() reports the home anchor rather than wherever the legs currently are, so a
 ## reload cannot strand a worker mid-errand.
 ##
-## IT DOES NOT COLLIDE. The root body is authored on collision_layer 0, so the player walks
-## straight through a worker and workers never jostle each other — they wander, and a machine
-## that can body-block the player in a doorway is a nuisance rather than a helper. The
-## CollisionShape2D is kept rather than deleted so the body can be put back on a layer later
-## without re-authoring the scene, and nothing is lost by leaving it: build occupancy is
-## decided by main.gd:is_occupied on the tilemap cell, not by physics, and skull-loading goes
-## through WorkArea (an Area2D, whose own layer is untouched) rather than the body.
+## IT STILL DOES NOT BLOCK ANYTHING, but it is no longer invisible to physics. The root body
+## sits on collision layer bit 6 (32) — a layer nothing masks except the door's Area2D — so
+## the player walks straight through a worker and workers never jostle each other, exactly as
+## when this was authored on layer 0. A machine that can body-block the player in a doorway
+## is a nuisance rather than a helper, and that has not changed: build occupancy is decided by
+## main.gd:is_occupied on the tilemap cell rather than by physics, and nothing else in the
+## project masks bit 6.
+##
+## Layer 0 had to go because a body on no layer cannot be detected by anything, and the door
+## has to see a worker coming: TilePathFinder routes workers through door cells on purpose so
+## they can reach a chest indoors, and the door stayed shut while they walked through it.
+##
+## The root is an AnimatableBody2D rather than a StaticBody2D for the same reason, and this is
+## the part that is easy to undo by "tidying" it back. A StaticBody2D moved by assigning
+## `position` — which is exactly how this walks, see _physics_process — never re-enters an
+## Area2D's broadphase, because static bodies are assumed not to move. With the worker parked
+## dead centre on the door tile, `Area2D.get_overlapping_bodies()` returned only the player.
+## AnimatableBody2D is the same body that reports its motion, which is what this needs.
+##
+## Its `sync_to_physics` is authored FALSE, and that is not a default left alone — it is a
+## default overridden. With it on (AnimatableBody2D's own default) the node's transform is
+## driven from the physics body, so a direct `position = ...` is quietly discarded: the write
+## in _physics_process is how this thing moves at all, and save() reports `_home()`, which is
+## that same position. Turning it on cost nothing at runtime and broke the save round trip
+## instead, where the worker's x came back 0 instead of the 112 it had just been given.
+## Detection works either way; only the writes do not.
 ##
 ## Two sprites and only one visible, exactly the turret's idiom. UnloadedSprite is the
 ## headless base (tiles.png cell (20,2)); LoadedSprite is the four-frame chop animation
@@ -67,12 +86,35 @@ const WALK_SPEED := 25.0
 ## How far, in cells, the worker will look for a tree or a chest — measured from its home
 ## tile, not from wherever it is standing, so a worker cannot wander its search window
 ## across the map one errand at a time and end up arbitrarily far from where it was placed.
+## That anchor is the load-bearing half of this constant; the radius below is the tuning.
 ##
-## Ten cells is 160px. The camera runs at zoom 8 on a 1920x1080 window, so the visible world
-## is roughly 240x135px: an errand starts and ends inside about what the player sees standing
-## at the worker, which is what makes the machine legible. It also fixes the cost at 21x21
-## probes per cycle however much land has been bought.
-const SEARCH_CELLS := 10
+## Twenty-four cells is 384px, and it was ten. Ten was picked so an errand starts and ends
+## inside roughly what the player sees standing at the worker — the camera runs at zoom 8 on
+## a 1920x1080 window, so the visible world is about 240x135px, or 15x8 cells. That reads
+## well and starves the machine. A developed homestead sits in an apron the player cleared by
+## hand and then built on, so by the time there is a worker to place there is nothing within
+## ten cells of it left to harvest. In the slot-3 save the two bone workers' nearest trees
+## were 19.4 and 20.6 cells out and the loaded stone worker's nearest stone 13.5, and all
+## three wandered indefinitely while the player could see trees from where they stood
+## (gather-dvw). Legibility is worth less than the machine doing its job.
+##
+## Twenty-four rather than "just enough for that save", because a radius fitted to one
+## measurement puts the boundary somewhere arbitrary: at twenty, those two bone workers sit
+## two cells apart with one working and the other starving on a 0.6-cell margin, which reads
+## as a broken worker rather than as a range limit. TilePathFinder.HALF_EXTENT is the same
+## 24 — the padding A* gets around an errand to route past walls — so matching it means the
+## furthest target this will ever ask for still has a full detour margin behind it. Past that
+## the scan starts handing the pathfinder routes it was not sized to plan.
+##
+## The other bound is the clock, and it is why not to go further even where A* could. At
+## WALK_SPEED the round trip to the edge of the window is about 31s against a 20s chop, so
+## out there a worker already spends more of its cycle walking than working. Being a poor
+## earner is on theme — see CHOP_SECONDS on why hand-gathering is meant to beat automation —
+## but a worker that only walks is not a worker.
+##
+## The cost is the cell scan: 49x49 probes per cycle rather than 21x21, still fixed however
+## much land has been bought, and still once per CHOP_SECONDS rather than per frame.
+const SEARCH_CELLS := 24
 
 ## How many candidate targets, nearest first, get an actual A* query per cycle. The cell scan
 ## is cheap; pathing is not, and a worker walled off from a dense grove would otherwise run
@@ -200,7 +242,15 @@ func _on_work_timeout() -> void:
 		return
 
 	match _state:
-		State.IDLE:
+		State.IDLE, State.WANDER:
+			# WANDER belongs here and not below. A stroll is what the worker does INSTEAD of
+			# work, so a tick that arrives mid-stroll is exactly when to look again — and
+			# _start_wander()'s own docstring has always promised that ("a tree spawning
+			# mid-wander is picked up on the next cycle rather than after the walk
+			# completes"). It used to fall through to _revalidate_errand(), which only
+			# handles TO_TREE, so the promise was never kept: a wandering worker skipped the
+			# tick entirely and only re-scanned once it happened to arrive back in IDLE,
+			# which cost it roughly every other cycle (gather-dvw).
 			_look_for_work()
 		State.CHOPPING:
 			# The walk is over and a full CHOP_SECONDS has elapsed standing beside the tree.
@@ -288,8 +338,8 @@ func _look_for_work() -> void:
 		_start_delivery()
 		return
 
-	var target := _find_tree_cell()
-	if target.is_empty():
+	var targets := _find_tree_cells(MAX_PATH_PROBES)
+	if targets.is_empty():
 		# No tree anywhere in range. Drift rather than freeze: a worker standing perfectly
 		# still is indistinguishable from a broken one, and trees respawn on the global timer,
 		# so this is a wait, not an end state.
@@ -297,17 +347,21 @@ func _look_for_work() -> void:
 		_start_wander()
 		return
 
-	var path := _path_to_adjacent(target["cell"])
-	if path.is_empty():
-		# Seen but not reachable — walled off, or on an island across water. Not an error;
-		# just nothing to do this cycle.
+	# Nearest first, and the first one that actually plans wins. Walking past a closer tree
+	# only happens when that closer tree cannot be reached at all.
+	for cell in targets:
+		var path := _path_to_adjacent(cell)
+		if path.is_empty():
+			continue
+		_anchor_home()
+		_target_cell = cell
+		_state = State.TO_TREE
+		_path = path
 		_set_working(false)
 		return
 
-	_anchor_home()
-	_target_cell = target["cell"]
-	_state = State.TO_TREE
-	_path = path
+	# Every candidate seen but none reachable — walled off, or on an island across water.
+	# Not an error; just nothing to do this cycle.
 	_set_working(false)
 
 
@@ -338,10 +392,16 @@ func _finish_chop() -> void:
 ## stroll finished, so a tree spawning mid-wander is picked up on the next cycle rather than
 ## after the walk completes.
 func _start_wander() -> void:
+	# Both bail-outs below clear the path as well as the state, and that matters now that the
+	# think tick reaches a worker mid-stroll: this can be entered from WANDER with a stroll
+	# already in flight, and dropping to IDLE while _path still held waypoints would leave a
+	# worker walking in a state that says it is standing still. Everywhere else that settles
+	# to IDLE clears the path too (_revalidate_errand, _go_home); IDLE means not walking.
 	var finder := _path_finder()
 	var handler := _tile_map_handler()
 	if finder == null or handler == null or handler.tileMap == null:
 		_state = State.IDLE
+		_path.clear()
 		return
 
 	var tile_map: TileMap = handler.tileMap
@@ -365,6 +425,7 @@ func _start_wander() -> void:
 	# Nowhere to go — walled in, or every roll landed on something solid. Standing still for
 	# one cycle is correct; the next tick tries again.
 	_state = State.IDLE
+	_path.clear()
 
 
 ## Head for the nearest reachable chest that will take wood, else drop it where we stand.
@@ -455,22 +516,50 @@ func _go_home() -> void:
 ## The tree this worker would chop next as {"cell": Vector2i}, or {} when nothing is in
 ## reach. A Dictionary rather than a Vector2i because every Vector2i is a legal cell, so
 ## there is no value left over to mean "none".
+##
+## Kept as the one-target read for callers that only need "is there anything to do at all"
+## — set_loaded()'s sprite settle, and the tests. The errand itself goes through
+## _find_tree_cells(), because the nearest tree is not always the reachable one.
 func _find_tree_cell() -> Dictionary:
+	var nearest := _find_tree_cells(1)
+	return {} if nearest.is_empty() else {"cell": nearest[0]}
+
+
+## Up to `limit` harvestable cells in range, nearest to the HOME anchor first.
+##
+## Plural, and that is the whole point. This used to return the single best cell and
+## _look_for_work() gave up for the cycle if a path to it came back empty — so one tree
+## across a wall or a strip of water, being permanently the nearest, stalled the worker
+## forever with reachable trees standing behind it (gather-dvw). MAX_PATH_PROBES has always
+## documented this ("how many candidate targets, nearest first, get an actual A* query per
+## cycle"); it was simply never wired to anything.
+##
+## The scan is cheap and pathing is not, which is why the split lives here: collect the
+## whole window, sort it, and let the caller stop probing as soon as one route plans.
+func _find_tree_cells(limit: int) -> Array[Vector2i]:
+	var found: Array[Vector2i] = []
+	if limit <= 0:
+		return found
+
 	var handler := _tile_map_handler()
 	if handler == null or handler.tileMap == null:
-		return {}
+		return found
 
 	var tree := _tree_resource(handler)
 	if tree == null:
-		return {}
+		return found
 
 	var tile_map: TileMap = handler.tileMap
-	var best := {}
 	# Measured from HOME, not from the worker's current position. Anchoring the window to the
 	# tile means a worker cannot creep its search area across the map one errand at a time,
 	# ending up arbitrarily far from where the player put it.
 	var home := tile_map.to_global(_home())
-	var best_distance := float(SEARCH_CELLS * _tile_size(tile_map))
+	var limit_distance := float(SEARCH_CELLS * _tile_size(tile_map))
+
+	# Cells paired with their distance so the sort does not re-measure. Sorted rather than
+	# collected in scan order: the scan walks the window row by row, so its natural order is
+	# top-left-first, which has nothing to do with which tree is closest.
+	var scored := []
 
 	# Resources exist in two representations and code that knew about only one is a repeat
 	# bug in this project (see ResourceManager2 and main.gd:resource_node_census). Tree is a
@@ -481,33 +570,35 @@ func _find_tree_cell() -> Dictionary:
 			if not (child is GameSceneResource) or child.resource_type != tree.type:
 				continue
 			var node_distance := home.distance_to(tile_map.to_global(child.position))
-			if node_distance <= best_distance:
-				best_distance = node_distance
-				best = {"cell": tile_map.local_to_map(child.position)}
-		return best
+			if node_distance <= limit_distance:
+				scored.append([node_distance, tile_map.local_to_map(child.position)])
+	else:
+		var origin: Vector2i = tile_map.local_to_map(_home())
+		var span := SEARCH_CELLS
+		for dx in range(-span, span + 1):
+			for dy in range(-span, span + 1):
+				var cell := origin + Vector2i(dx, dy)
+				# Atlas AND source. main.gd treats that pair as the identity of a placed
+				# tile, and matching on the atlas alone would claim whatever any other sheet
+				# happens to draw at the same coordinates.
+				#
+				# It also means a tree the player is mid-gather on is skipped, because that
+				# cell is showing gathering_atlas_location for the duration: the worker will
+				# not steal a node out from under the swing that is already paying for it.
+				if tile_map.get_cell_atlas_coords(1, cell) != tree.atlas_location:
+					continue
+				if tile_map.get_cell_source_id(1, cell) != tree.tile_source_id:
+					continue
+				var distance := home.distance_to(tile_map.to_global(tile_map.map_to_local(cell)))
+				if distance <= limit_distance:
+					scored.append([distance, cell])
 
-	var origin: Vector2i = tile_map.local_to_map(_home())
-	var span := SEARCH_CELLS
-	for dx in range(-span, span + 1):
-		for dy in range(-span, span + 1):
-			var cell := origin + Vector2i(dx, dy)
-			# Atlas AND source. main.gd treats that pair as the identity of a placed tile,
-			# and matching on the atlas alone would claim whatever any other sheet happens
-			# to draw at the same coordinates.
-			#
-			# It also means a tree the player is mid-gather on is skipped, because that cell
-			# is showing gathering_atlas_location for the duration: the worker will not
-			# steal a node out from under the swing that is already paying for it.
-			if tile_map.get_cell_atlas_coords(1, cell) != tree.atlas_location:
-				continue
-			if tile_map.get_cell_source_id(1, cell) != tree.tile_source_id:
-				continue
-			var distance := home.distance_to(tile_map.to_global(tile_map.map_to_local(cell)))
-			if distance <= best_distance:
-				best_distance = distance
-				best = {"cell": cell}
-
-	return best
+	scored.sort_custom(func(a, b) -> bool: return a[0] < b[0])
+	for entry in scored:
+		if found.size() >= limit:
+			break
+		found.append(entry[1])
+	return found
 
 
 ## Take the tree at `cell` down and pay out its yield.

@@ -40,6 +40,7 @@ animation = &"Closed"
 script = ExtResource("2_jk7c1")
 
 [node name="Area2D" type="Area2D" parent="."]
+collision_mask = 33
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
 z_index = 1

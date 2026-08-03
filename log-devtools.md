@@ -3204,3 +3204,129 @@ Guidelines that make an entry useful later:
 - Note: ledger row is `partial` — the PlayerAttack and PlayerGather current-state guards are
   covered by reasoning and by the suite, but I did not stage a sword-swing-interrupted-by-
   gather-release in a live session, which is the case gather-kkz is actually about.
+
+## 2026-08-03 — gather-dvw: workers idling with trees in the world (slot 3)
+
+- Value: **warranted** — the report was "there are trees nearby and he should be heading for
+  them", and the whole question was whether the worker was broken or correctly seeing
+  nothing. Only the running game can answer that, and the answer inverted the fix.
+  - Expected: a logic bug in the errand — a stale `_target_cell`, or a path that never
+    plans. I went in looking for a defect in `_look_for_work`.
+  - Got: `run-method --method _find_tree_cell` on both bone workers returned **`{}`** — the
+    scan was correct and the world was empty *within the window*. `tilemap-cells --layer 1`
+    then put numbers on it: the two bone workers' nearest trees were 19.4 and 20.6 cells from
+    their home tiles, and the loaded stone worker's nearest stone 13.5, against
+    `SEARCH_CELLS = 10`. A 24-sample `step-time` trace showed the actual failure mode —
+    `IDLE tgt=(-20,-14) path=0` repeating with `_target_cell` frozen on a tree it had
+    already felled, wandering between the same six cells for four minutes of game time.
+    After the fix, on a clean load of the same save: `_find_tree_cells(6)` on the bone worker
+    returns `['(-7, -5)', '(-4, -7)', '(-7, -2)', '(-3, -5)')]` where the old call returned
+    `{}`; forcing `_state = 5` (WANDER) and firing one `_on_work_timeout` gives `_state: 1`
+    with a 17-waypoint path, where the old routing left it at 5; and both loaded workers run
+    `CHOP -> TO_CHEST c=1 -> TO_TREE -> CHOP -> TO_CHEST c=2` continuously over 60
+    game-seconds with no IDLE-holding-a-path frames.
+
+- The radius landed at 24, not 20, and runtime is the only reason. At 20 the two bone
+  workers — two cells apart — split, one working and one starving, because their nearest
+  trees measure 19.4 and 20.6 cells. A boundary that fine reads as a broken worker rather
+  than as a range limit, and no amount of reasoning about the constant would have surfaced
+  it; it took `run-method --method _find_tree_cells` on each worker in turn.
+  - Cheaper: nothing static. The diff-level reading of `_look_for_work` looks correct,
+    *because it is* — the bug was a constant being smaller than the world it was deployed
+    into, which is only visible with a real save loaded. Parsing the save file got me close
+    (it gave the 12.5-cell figure) but could not distinguish "worker is starving" from
+    "worker is stuck", and trees respawn, so the file is stale the moment it is read.
+
+- Method note worth keeping: `place_worker` defaults to `require_tree: true` and put a fresh
+  worker beside a tree, which let me watch a *working* worker clear its window and then fall
+  into the reported state. Reproducing the transition into the bug was far more informative
+  than inspecting the bug at rest — the frozen `_target_cell` is what told me the worker had
+  once had work and had run out, rather than never having found any.
+
+- Gap: **`worker_state` indices are not stable across calls, and the trace silently lies.**
+  `devtools_ext/commands.gd:1896` sorts `_bone_machines()` by live `position`, so as workers
+  walk they swap places in the array. A per-index trace across `step-time` steps therefore
+  attributes one worker's state to another: my first 24-sample run showed `W0` with
+  `tgt=(-17,-11)` and then `tgt=(0,0)` two samples later, which is impossible for one node
+  (`_target_cell` is never reset). I lost a trace to it before spotting it. The sort's own
+  docstring promises stability ("in a stable order so `--args '{\"station\": 1}'` means the
+  same thing across calls") — true for stations, which do not move, false for workers.
+  - [G-101] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: sort walkers by an identity that does not move — `_home_position` when
+    anchored, else the placed cell — or have `_worker_report` carry a stable `id` field
+    (`get_instance_id()`) so a caller can key on something other than array position. The
+    workaround was re-keying every sample on `_home_position` client-side.
+
+## 2026-08-03 — gather-dvw follow-up: workers clipping the corners of walls
+
+- Value: **warranted** — the report was "workers move through walls, or the collision box is
+  too small", and both readings are wrong in a way that matters: these walkers have no
+  collision box at all (`bone_worker.tscn` is authored on `collision_layer = 0`), so nothing
+  about collision could be the cause and tuning a shape would have fixed nothing.
+  - Expected: if the reported wall-walking is corner-cutting, a path past a SINGLE solid cell
+    will come back as a bare diagonal under `AT_LEAST_ONE_WALKABLE`, and switching to
+    `ONLY_IF_NO_OBSTACLES` will lengthen it without breaking the doorway or sealed-wall cases.
+  - Got: exactly that. `find_path((0,0) -> (1,1))` with only `(1,0)` solid returned a
+    two-cell path — a bare diagonal whose segment runs through the corner of the wall cell,
+    and the sprite is a full tile wide. `AT_LEAST_ONE_WALKABLE` permits it because the *other*
+    shared neighbour `(0,1)` is open. After the change the same query rounds the corner, the
+    pre-existing sealed-pair and doorway tests still pass, and 40 game-seconds of live worker
+    errands around the walled house produced **zero** occupancy of any wall cell.
+  - Cheaper: the unit test alone settled the mechanism in ~4s, and `TilePathFinder.for_cells`
+    is the reason — no TileMap, no autoloads, no game. The running game was still needed for
+    the louder hypothesis (that walls were not blocking at all, which would have been a far
+    worse bug) and to confirm the fix on a real house with a real door.
+
+- Method note: the runtime check flagged two apparent wall overlaps and both were false
+  positives with different causes — one was the worker standing on **its own** tile (a worker
+  *is* a layer-1 scene tile, so its own cell is in any blocking set by construction), the
+  other a cell that held a stone node when the blocking set was snapshotted and was empty by
+  the time the worker walked onto it, because the worker had mined it. A blocking set read
+  once and compared against many later samples is stale by construction in a world with
+  destructible tiles; re-read it per sample, or subtract what the walker has cleared.
+
+- Gap: **reach cannot see a `RefCounted`, so a class that plainly ran reports as unreached.**
+  `verify_ledger.py reach` returned `reached 1/4 ... NOT reached: world/tile_path_finder.gd`
+  for the very file this run was about. `TilePathFinder` is held as a plain field on the
+  worker (`_finder`) and deliberately never added to the tree — CLAUDE.md requires that of
+  `RefCounted` helpers after `HealthManager` leaked one object per enemy — so neither
+  `scene-tree` nor `scripts-seen` can observe it, and the ledger downgrades a run that
+  exercised it for 40 game-seconds and produced 17-waypoint paths out of it.
+  - [G-102] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let a project declare non-Node scripts that a reached Node owns — e.g. a
+    `reach_aliases` map in `devtools_config.json` (`world/tile_path_finder.gd` credited when
+    `world/tile_scenes/bone_worker.gd` is reached) — or credit them the way autoloads are
+    already credited as `implicit`. Without it, every `RefCounted` helper in the project is
+    permanently unreachable by the metric, which trains readers to discount the number.
+
+## 2026-08-03 — the door opens for workers too
+
+- Value: **warranted** — the first fix I tried was wrong, and only the running game said so.
+  - Expected: putting the worker on a collision layer the door masks will be enough for
+    `body_entered` to fire; if it is not, the cause is `StaticBody2D` transform writes never
+    re-entering the area broadphase.
+  - Got: the layer alone was **not** enough. With the worker parked dead centre on the door
+    tile, `run-method --method get_overlapping_bodies` on the door's Area2D returned
+    `['Player:<CharacterBody2D#...>']` and no worker — while the same call with the player
+    moved onto the tile flipped the door to `animation: Open, _occupants: 1`, so the rig was
+    provably fine and the body was the problem. Godot does not re-check the broadphase for a
+    static body moved by assigning `position`, which is exactly how this worker walks. As an
+    `AnimatableBody2D` the same call returns
+    `['TileMap:<TileMap#...>', 'BoneWorker:<AnimatableBody2D#...>']`.
+  - Cheaper: nothing. The wrong hypothesis looked completely correct in the diff — layer set,
+    mask set, shape present, `monitoring: true` — and reads as working code.
+
+- The follow-on catch belongs to the unit suite, not the harness, and is worth the credit:
+  `AnimatableBody2D` defaults `sync_to_physics = true`, which drives the node transform from
+  the physics body and silently swallows `position = ...`. Nothing in-game looked wrong —
+  workers still walked, still delivered, still opened the door — but
+  `test_save_round_trips_through_json` went red with `Expected 112.000000 but got 0.000000`,
+  because `save()` reports `_home()` and `_home()` is that position. A worker would have
+  reloaded at the origin. `sync_to_physics = false` keeps detection and restores the writes.
+  Runtime found the bug; the headless suite found the fix's own bug. Neither would have done
+  on its own, which is the argument for running both rather than picking one.
+
+- Gap: **no new gaps this turn.** `get_overlapping_bodies` via `run-method`, `wait-frames`
+  and a `get-state` on the door's `_occupants` were enough to isolate a physics-detection
+  failure to the body type in about four commands, and the `[G-101]` worker-index instability
+  logged earlier did not bite again because every read here was keyed on a node path.
