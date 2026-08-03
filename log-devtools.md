@@ -3722,3 +3722,57 @@ Guidelines that make an entry useful later:
     inherits from it, and let `devtools_config.json` name known-RefCounted directories.
     Additionally: a `reach_exclude` glob for build-time tooling, so `tools/` stops counting
     against a diff it can never be part of.
+
+## 2026-08-03 — read-only tech-debt review of the repo (no code changed)
+
+- Value: **inconclusive** — the harness was not run; this was a static read of the tree
+  (line counts, comment density, naming greps, `bd stats`), and none of it needed a
+  running game.
+  - Expected: nothing predicted at runtime — the question was about shape of the code,
+    not behaviour.
+  - Got: n/a. The measurements that mattered came from `wc -l`, `grep -c "^\s*#"` and
+    `bd stats` (11 open / 180 closed).
+  - Cheaper: this *was* the cheap path. Running `/verify` on a zero-line diff would have
+    produced a clean row that said nothing about the question asked.
+
+- Gap: **no gaps this turn** — nothing was attempted that the harness failed to cover,
+  because nothing runtime was attempted. Worth noting for later, though: there is no
+  harness verb that answers "how much of this file is comment vs code", and comment
+  density turned out to be the single largest finding of the review. Not filing an id
+  for it — a lint metric, not a devtools-bridge gap.
+
+## 2026-08-03 — gather-zxl was already fixed; measuring said so and found the real one
+
+- Value: **warranted** — the run's product was a decision NOT to change anything, which is
+  the outcome a stale bug report most needs and the one reading code alone would not have
+  settled.
+  - Expected: the bead claims the hotbar sits at a fixed `offset_left=686` and falls off a
+    ~390px phone viewport, and proposes switching `window/stretch/mode` to `canvas_items` —
+    which contradicts the documented window-size decision in CLAUDE.md. Check whether the
+    premise still holds before touching a global render setting.
+  - Got: it does not hold. `main.tscn` has no offset override on HotBarInventory at all; the
+    scene anchors bottom-centre and `_apply_layout()` re-solves on `size_changed`. Measured
+    rather than inferred: at 390x844 `node-bounds` gives the hotbar `8, 778, 375x58` — right
+    edge 383 of 390, bottom 836 of 844, fully inside. Landscape 844x390 gives
+    `214, 324, 415x58`, also inside. The camera HUD reports `49x106` in WORLD units, which at
+    the camera's zoom 8 is 392x848 — i.e. sized to the viewport, exactly as camera_hud.gd
+    claims. At 320x640 the row does overhang (`-28, 574, 375x58`), and that is the behaviour
+    hot_bar_inventory.gd:75 documents as the deliberate last resort below ~340px rather than
+    shrink slots under a thumb-sized target.
+  - Cheaper: nothing, and reading alone would have been actively misleading here — the bead
+    named a property that no longer exists, so a code-only check could have concluded "fixed"
+    without knowing whether the replacement actually holds at 390px. `set-resolution` plus
+    three `node-bounds` reads settled it in under a minute and produced numbers to close the
+    bead with.
+
+- **The screenshot earned its place**, which is unusual — this project's guidance is to prefer
+  `node-bounds` over pixels, and that was right for the hotbar. But it is what showed the
+  thing nobody had reported: the diegetic HP/XP bars run underneath the BAG/SKILLS/LAND
+  toolbar at 390px. Every element was individually "on screen" and no bounds read would ever
+  have said they collide, because one is world-space under Camera2D and the other is
+  screen-space in the UI layer — there is no common rect to compare. Filed separately rather
+  than folded into gather-zxl, which was about clipping and is genuinely fixed.
+
+- Gap: **no new gaps this turn.** `set-resolution` reporting the honest read-back
+  (`Resized (1920, 1080) -> (390, 844)`, `visible rect: 390.0x844.0`) is what made the
+  measurements trustworthy; a silent clamp would have made this whole investigation wrong.
