@@ -2304,3 +2304,37 @@ Guidelines that make an entry useful later:
     **Process note, which is the real lesson: commit each agent's work as it lands.** Three
     agents' output was held uncommitted pending a single runtime pass and a reset took all of
     it. The two commits before this entry exist because that lesson was applied.
+
+## 2026-08-03 — worker chains trees, wanders when idle, and swings the player's pickaxe
+
+- Value: **warranted** — all three behaviours are animation- and state-shaped, and the
+  headless suite cannot observe any of them; it stayed at 287/287 green throughout.
+  - Expected: that the worker moves tree-to-tree instead of trailing home between logs, that
+    it drifts rather than freezing when nothing is choppable, and that the borrowed Gather
+    sprite actually animates rather than sitting still at rotation 0.
+  - Got: chaining, `state=CHOPPING` at four different positions in a row with `wood_held`
+    climbing 0 -> 1 -> 3 -> 4 and no RETURNING between them. Wandering, `WANDER` sampled at
+    (71.8,8.2), (51.5,-3.5), (40.0,17.2) and (33.6,33.6) with TO_TREE reappearing in between
+    as trees respawned and `wood_held` reaching 16 — it goes back to work rather than
+    wandering forever. The swing, `get-state Gather` returned `visible: true` and
+    `rotation: 1.50041770935059` — mid-arc on the 0 -> 1.5708 track, so the AnimationPlayer
+    is genuinely running and not parked.
+  - Cheaper: nothing. A property read of a rotating sprite is the whole assertion, and
+    `WANDER` only exists in a world that has run out of trees.
+
+- Gap: **no gaps this turn.** `worker_state`'s `script_vars` passthrough carried `_state`,
+  `_carry` and `_path` without needing a new verb for each behaviour added, `step-time`
+  advanced far enough to exhaust the trees, and `get-state --property` settled the animation
+  question directly. The one thing not asserted visually is what the swing looks like: the
+  camera follows the player, so a screenshot taken while the worker chopped framed the player
+  instead. The property read is the stronger assertion regardless, so this is a note rather
+  than a gap.
+
+- Finding worth recording, not a harness gap: **trees cannot wiggle, and do not wiggle for
+  the player either.** `resource_manager2.gd:178-186` says it outright — a layer-1 tilemap
+  cell "has no transform, no modulate and no material, so THERE IS NOTHING TO ANIMATE", which
+  is why `_swing()` calls `hit_react()` only on a `GameSceneResource`. Trees are plain cells.
+  The worker therefore emits the same gather chips on the same `Juice.GATHER_SWING_INTERVAL`
+  cadence, through a new public `ResourceManager2.emit_gather_chips()` rather than a second
+  particle node per worker. Making a tree flinch means making Tree a scene tile, which is a
+  tileset and save-format change.

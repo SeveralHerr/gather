@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://world/tile_scenes/bone_worker.gd" id="1_bwrkr"]
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="2_tiles"]
@@ -23,6 +23,65 @@ region = Rect2(368, 32, 16, 16)
 atlas = ExtResource("2_tiles")
 region = Rect2(384, 32, 16, 16)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle"]
+atlas = ExtResource("2_tiles")
+region = Rect2(336, 48, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tool"]
+atlas = ExtResource("2_tiles")
+region = Rect2(96, 16, 16, 16)
+
+[sub_resource type="Animation" id="Animation_reset"]
+resource_name = "RESET"
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Gather:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [0.0]
+}
+
+[sub_resource type="Animation" id="Animation_gather"]
+resource_name = "Gather"
+length = 0.2
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Gather:rotation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0.0, 1.5708]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Gather:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, -1), Vector2(5, 2)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_worker"]
+_data = {
+&"Gather": SubResource("Animation_gather"),
+&"RESET": SubResource("Animation_reset")
+}
+
 [sub_resource type="SpriteFrames" id="SpriteFrames_chop"]
 animations = [{
 "frames": [{
@@ -41,6 +100,14 @@ animations = [{
 "loop": true,
 "name": &"chop",
 "speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle")
+}],
+"loop": false,
+"name": &"idle",
+"speed": 1.0
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
@@ -62,7 +129,21 @@ texture = SubResource("AtlasTexture_base")
 visible = false
 texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_chop")
-animation = &"chop"
+animation = &"idle"
+
+[node name="Gather" type="Sprite2D" parent="."]
+visible = false
+show_behind_parent = true
+z_index = -1
+y_sort_enabled = true
+texture_filter = 1
+position = Vector2(0, -1)
+texture = SubResource("AtlasTexture_tool")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_worker")
+}
 
 [node name="WorkTimer" type="Timer" parent="."]
 

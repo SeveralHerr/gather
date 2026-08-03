@@ -61,17 +61,34 @@ const SEARCH_CELLS := 10
 ## one search per tree every cycle forever.
 const MAX_PATH_PROBES := 6
 
+## How far from home an idle worker will drift, in cells. Deliberately much smaller than
+## SEARCH_CELLS: wandering is there so a worker with nothing to do reads as alive rather than
+## broken, not so it explores. Three cells keeps it visibly attached to its own tile, and
+## keeps it inside the window it searches for trees, so it never wanders somewhere it would
+## then have to walk back from to reach a tree that spawned next to home.
+const WANDER_CELLS := 3
+
+## How many random cells to try before giving up on a wander this cycle. A worker boxed in by
+## walls has no free neighbour at all, and it must not spin looking for one.
+const WANDER_TRIES := 8
+
 ## The errand, as an explicit enum-and-match in this one file. Deliberately not either of the
 ## project's node-based state machines: player/states/state_machine.gd transitions by name
 ## and enemies/states/enemy_state_machine.gd by signal, they are mutually incompatible, and
 ## CLAUDE.md warns against carrying either outward. Five states with no per-state data do not
 ## need five scripts and a node each.
-enum State { IDLE, TO_TREE, CHOPPING, TO_CHEST, RETURNING }
+##   WANDER     no tree anywhere in range; drifting near home until one spawns
+##
+## WANDER is appended rather than inserted: devtools reads _state as a raw int, so the
+## existing values have to keep meaning what they meant.
+enum State { IDLE, TO_TREE, CHOPPING, TO_CHEST, RETURNING, WANDER }
 
 @onready var unloaded_sprite: Sprite2D = $UnloadedSprite
 @onready var loaded_sprite: AnimatedSprite2D = $LoadedSprite
 @onready var work_timer: Timer = $WorkTimer
 @onready var work_area: Area2D = $WorkArea
+@onready var gather_sprite: Sprite2D = $Gather
+@onready var animation_player: AnimationPlayer = $AnimationPlayer
 
 ## How far this worker reaches for both trees and delivery chests, read off WorkArea.
 var _reach := DEFAULT_REACH
@@ -106,6 +123,9 @@ var _carry := 0
 ## for the grid up to MAX_PATH_PROBES times a cycle. Its own cache expires well inside the
 ## chop cadence, so a held instance never plans two errands off one read of the world.
 var _finder: TilePathFinder = null
+
+## Seconds accumulated toward the next visible blow while CHOPPING.
+var _swing_accum := 0.0
 
 
 func _ready() -> void:
@@ -176,6 +196,9 @@ func _on_work_timeout() -> void:
 ## the world with physics bodies, and moving it on the render frame would let it visibly
 ## stutter against them at a different cadence.
 func _physics_process(delta: float) -> void:
+	if loaded and _state == State.CHOPPING:
+		_swing(delta)
+
 	if not loaded or _path.is_empty():
 		return
 
@@ -196,6 +219,33 @@ func _physics_process(delta: float) -> void:
 		_on_arrived()
 
 
+## Chips off the tree on the same cadence the player's own swings use.
+##
+## Juice.GATHER_SWING_INTERVAL, not the 0.2s animation loop: the animation is how fast the
+## tool moves and the interval is how often a blow lands, and ResourceManager2._swing() keys
+## the player's chips off the latter. Sharing the constant is what keeps the two reading as
+## the same act rather than merely similar ones.
+##
+## The tree itself does not react, and cannot: an ordinary layer-1 tilemap cell has no
+## transform, modulate or material, which is why ResourceManager2._swing() only calls
+## hit_react() on a GameSceneResource. Trees are plain cells, so the player gets no wiggle
+## out of one either — the chips ARE the feedback. Making a tree flinch means making Tree a
+## scene tile, which is a tileset and save-format change, not a code one.
+func _swing(delta: float) -> void:
+	_swing_accum += delta
+	if _swing_accum < Juice.GATHER_SWING_INTERVAL:
+		return
+	_swing_accum = 0.0
+
+	var handler := _tile_map_handler()
+	if handler == null or handler.tileMap == null or handler.resource_manager == null:
+		return
+	if not _is_tree_at(_target_cell):
+		return
+	var tile_map: TileMap = handler.tileMap
+	handler.resource_manager.emit_gather_chips(tile_map.to_global(tile_map.map_to_local(_target_cell)))
+
+
 ## What to do on reaching the end of a path, which depends only on why we set out.
 func _on_arrived() -> void:
 	match _state:
@@ -203,11 +253,12 @@ func _on_arrived() -> void:
 			# Standing beside the tree. Start the swing; the timer tick finishes it, so a chop
 			# always costs a full CHOP_SECONDS rather than whatever was left on the clock.
 			_state = State.CHOPPING
+			_swing_accum = 0.0
 			_set_working(true)
 			work_timer.start(CHOP_SECONDS)
 		State.TO_CHEST:
 			_deposit_carry()
-		State.RETURNING:
+		State.RETURNING, State.WANDER:
 			_state = State.IDLE
 
 
@@ -219,8 +270,11 @@ func _look_for_work() -> void:
 
 	var target := _find_tree_cell()
 	if target.is_empty():
+		# No tree anywhere in range. Drift rather than freeze: a worker standing perfectly
+		# still is indistinguishable from a broken one, and trees respawn on the global timer,
+		# so this is a wait, not an end state.
 		_set_working(false)
-		_go_home()
+		_start_wander()
 		return
 
 	var path := _path_to_adjacent(target["cell"])
@@ -254,7 +308,43 @@ func _finish_chop() -> void:
 	if _carry > 0:
 		_start_delivery()
 	else:
+		# Nothing to carry means the tree was gone by the time the swing landed. Look for
+		# another rather than standing still for a cycle.
+		_look_for_work()
+
+
+## Drift to a random reachable cell near home. Not pathed to a chosen destination so much as
+## given somewhere to be: the next think tick re-checks for trees regardless of whether the
+## stroll finished, so a tree spawning mid-wander is picked up on the next cycle rather than
+## after the walk completes.
+func _start_wander() -> void:
+	var finder := _path_finder()
+	var handler := _tile_map_handler()
+	if finder == null or handler == null or handler.tileMap == null:
 		_state = State.IDLE
+		return
+
+	var tile_map: TileMap = handler.tileMap
+	var home_cell: Vector2i = tile_map.local_to_map(_home())
+	var here: Vector2i = tile_map.local_to_map(position)
+
+	for _i in WANDER_TRIES:
+		var cell := home_cell + Vector2i(
+			randi_range(-WANDER_CELLS, WANDER_CELLS),
+			randi_range(-WANDER_CELLS, WANDER_CELLS))
+		if cell == here or not finder.is_walkable(cell):
+			continue
+		var cells := finder.find_path(here, cell)
+		if cells.is_empty():
+			continue
+		_anchor_home()
+		_state = State.WANDER
+		_path = _waypoints(tile_map, cells)
+		return
+
+	# Nowhere to go — walled in, or every roll landed on something solid. Standing still for
+	# one cycle is correct; the next tick tries again.
+	_state = State.IDLE
 
 
 ## Head for the nearest reachable chest that will take wood, else drop it where we stand.
@@ -297,7 +387,9 @@ func _deposit_carry() -> void:
 		_drop_carry()
 		return
 
-	_go_home()
+	# Straight on to the next tree instead of trailing back to the tile between every log.
+	# Going home was never the job; it is only what to do when there is nothing else.
+	_look_for_work()
 
 
 func _drop_carry() -> void:
@@ -307,7 +399,7 @@ func _drop_carry() -> void:
 			PickUpManager.create_pickup(wood, position)
 			_carry -= 1
 	_carry = 0
-	_go_home()
+	_look_for_work()
 
 
 func _go_home() -> void:
@@ -521,18 +613,33 @@ func _chests_in_reach() -> Array[TestChest]:
 	return found
 
 
-## The animation is the only thing that tells a player whether a worker still has anything
-## to do, so it tracks the target rather than `loaded`. Re-evaluated once per work cycle
-## rather than per frame -- the scan above is cheap but not free, and there can be one of
-## these on every buildable tile.
+## The swing, and it is deliberately the PLAYER's swing rather than a flipbook of the
+## worker's own. main.tscn gives the player a `Gather` Sprite2D holding the pickaxe icon and
+## rotates it 0 -> 90 degrees while sliding it (0,-1) -> (5,2) on a 0.2s loop; this scene
+## carries a copy of that sprite and that animation, on the same atlas region. So a worker
+## felling a tree and a player felling a tree read as the same act, which is the point.
+##
+## LoadedSprite therefore sits on its axe-free `idle` frame and is never played — the tool in
+## the four-frame chop sheet would be a second axe on screen beside the swinging one. Those
+## frames are kept in the SpriteFrames rather than deleted: they are the sprite the feature
+## was approved on, and nothing else has to change to go back to them.
+##
+## Tracks the target rather than `loaded`, because the animation is the only thing that tells
+## a player whether a worker still has anything to do.
 func _set_working(working: bool) -> void:
 	if _working == working:
 		return
 	_working = working
+	gather_sprite.visible = working
 	if working:
-		loaded_sprite.play("chop")
+		animation_player.play("Gather")
 	else:
-		loaded_sprite.stop()
+		animation_player.stop()
+		# Park the tool back at its authored offset. stop() leaves rotation wherever the loop
+		# happened to be, so without this a worker that stops mid-swing keeps a tilted pickaxe
+		# frozen beside it for as long as it stands there.
+		gather_sprite.rotation = 0.0
+		gather_sprite.position = Vector2(0, -1)
 
 
 ## The finder, built once and kept. Dropped whenever the handler is re-resolved.

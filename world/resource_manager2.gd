@@ -139,6 +139,15 @@ func _make_emitter(emitter_name: String, amount: int, lifetime: float) -> GPUPar
 	return emitter
 
 
+## The gather chips, for anything that swings at a resource without being the player.
+##
+## Public because a BoneWorker fells trees on its own and its swings have to look like the
+## player's; the alternative was a second GPUParticles2D on every worker, drifting from this
+## one the first time GATHER_CHIP_AMOUNT changed. One emitter, one look, one place to tune.
+func emit_gather_chips(world_position: Vector2) -> void:
+	_emit_at(_chips, world_position)
+
+
 func _emit_at(emitter: GPUParticles2D, world_position: Vector2) -> void:
 	if emitter == null:
 		return
