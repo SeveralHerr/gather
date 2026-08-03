@@ -2256,3 +2256,51 @@ Guidelines that make an entry useful later:
 
 - Gap: no gaps this turn. The merge exercised no harness capability that was missing;
   `list-commands` answered the one question the conflict raised directly.
+
+## 2026-08-03 — runtime pass on the walking bone worker (gather-qju)
+
+- Value: **warranted**, and decisively — the runtime pass found two bugs that a green
+  287-test suite and a clean lint both sailed straight past, either of which made the
+  feature do nothing at all.
+  - Expected: that the worker leaves its tile, routes to a tree with TilePathFinder, fells
+    it and comes back — none of which any headless test reaches, because the harness has no
+    TileMap-backed world.
+  - Got: first, nothing whatsoever. `state=IDLE pos=(24.0,40.0) home=False path=0` for four
+    consecutive samples across 19 game-seconds while `trees_in_range` read 1. Bisecting by
+    hand: `run-method _find_tree_cell` returned `{'cell': (0, 3)}`, so the scan was fine and
+    the pathfinder was refusing. Two separate causes, both invisible to `for_cells` tests:
+    `is_walkable` tested layer 0 against `GRASS_ATLAS` (9,17), which is only what LandManager
+    writes for *bought* land — the pre-baked home island is source 0 atlas (0,0), so the
+    entire island was unwalkable; and `find_path` required a walkable *start*, but a
+    BoneWorker IS a layer-1 scene tile, so its own cell is solid and every route out of it
+    was refused. After both fixes the worker walked: caught mid-stride at
+    `state=TO_TREE pos=(93.1,29.1) path=2`, and the player collected 13 wood off its felling.
+  - Cheaper: nothing. Both bugs are "the real world does not look like the test world" —
+    `for_cells` supplies its own blocked set and therefore cannot express either one, and
+    reading the code proves nothing about which atlas coordinate the baked island uses.
+
+- Gap: **no headless fixture for "the actual world", so world-shaped assumptions go
+  unchecked until runtime.** Every routing rule was unit-tested and correct in the abstract;
+  what was wrong was the mapping from those rules onto real tile data. The unit suite cannot
+  see that a scene tile occupies its own cell, or which atlas coord the starting island uses,
+  because `for_cells` invents the world it tests against.
+  - [G-078] status: open | seen: 1 | harness: 0.7.0
+  - Improvement: a headless fixture that loads `world/tile_map.tscn` (a plain PackedScene,
+    no autoloads needed) and exposes its layer-0/1 cells, so "is the home island walkable"
+    becomes a unit test rather than a runtime discovery. The scene is already on disk and
+    already parsed by lint; nothing about it needs a running game.
+
+- Gap: **[G-077] regressed to open — the work that closed it was lost.** A generic
+  `place_tile` verb had been written and was reported working, but the working tree was
+  reset before it was committed, so `place_build` is again the only placer and it still
+  refuses everything but walls and floors. The wall-avoidance proof below had to be built out
+  of `place_build woodwall` alone: boxing the worker's home cell on all four sides, then
+  showing production frozen at `wood_held=13` across 36 game-seconds while
+  `_find_tree_cell()` still returned `{'cell': (3, -6)}` — it can see a tree and cannot reach
+  it. That is a good assertion, but it took four calls and a control check where one
+  `place_tile Chest` would have tested the delivery branch directly.
+  - [G-077] status: open | seen: 2 | harness: 0.7.0
+  - Improvement: unchanged — one generic `place_tile` taking an item name and a cell.
+    **Process note, which is the real lesson: commit each agent's work as it lands.** Three
+    agents' output was held uncommitted pending a single runtime pass and a reset took all of
+    it. The two commits before this entry exist because that lesson was applied.
