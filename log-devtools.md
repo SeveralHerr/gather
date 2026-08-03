@@ -2027,7 +2027,10 @@ Guidelines that make an entry useful later:
   `(90,197,79)` by scanning the land tiles for the modal colour, and composites the
   candidate over it. Finding those two coordinates cost four crop-and-look rounds, because
   nothing in the project states where anything sits in the 400x400 atlas.
-  - [G-074] status: open | seen: 1 | harness: 0.7.0
+  - [G-074] status: fixed | fixed-in: 0.8.0 | seen: 1 | harness: 0.7.0
+    (verified 2026-08-02: `devtools.py --json scripts-seen` now exists, and `reach` prints
+    the worktree/branch split off it — `branch … reached 2/3`, the one miss being the test
+    script itself, which no runtime session loads by design.)
   - Improvement: a `tile_at` style verb — or a headless `tools/atlas_map.gd` — that dumps
     the registry's `atlas_location` + `tile_source_id` per `Types.Item`, so "where is the
     tree tile" is one query instead of a binary search by cropping. The registry already
@@ -2623,3 +2626,53 @@ Guidelines that make an entry useful later:
 
 - Gap: **no gaps this turn** — the status flips above (fixed-in: 0.8.0) are the
   closures; G-082 and G-083 from the verb-stream session remain the open items.
+
+## 2026-08-02 — the hotbar floating to mid-screen on a landscape phone
+
+- Value: **warranted** — the fix is arithmetic a unit test can check, but the bug only
+  existed at an aspect ratio nobody sees on a desktop, and the running game is what
+  produced the two numbers that name it.
+  - Expected: at 844x390 with a touchscreen reported, the live `HotBarInventory`'s bottom
+    edge should sit within ~20px of the viewport bottom (y≈370), not ~45% up it (y≈220),
+    and its rect must not intersect the joystick or the primary button.
+  - Got: `node-bounds /root/Main/UI/HotBarInventory` → `Rect: 234, 324, 377x58` — the row
+    ends at y=382 on a 390-tall viewport, 8px of margin, exactly `scaled(10)`. Beside it,
+    `run-method get_bottom_obstruction_height --args "[]"` → **176.15** against **0.0** for
+    the same call with the row's own span. That pair is the entire bug in two numbers: 176
+    of 390 is 45% of the screen, claimed by a joystick whose rect (`14, 214, 162x162`) does
+    not come within 58px of the hotbar horizontally.
+  - Cheaper: the three new unit tests settle the arithmetic in 14ms with no boot, and had I
+    *known* the span was the problem they would have sufficed. Nothing cheaper would have
+    told me the span was the problem — `_bottom_obstruction()` reads as obviously correct
+    until you put a number on the joystick's height next to a 390px screen.
+
+- **[G-017] paid off the same day it shipped.** `set-resolution --size 390,844` flipped the
+  live session to portrait and back without a relaunch, which turned a two-boot,
+  ~90s-per-data-point check into two calls — and, more to the point, tested the thing the
+  relaunch approach structurally could not: the `size_changed` *transition*. The hotbar
+  re-solved correctly in both directions (portrait `6, 601, 377x58` above a joystick
+  starting at y=668; back to landscape, `234, 324, 377x58` again, byte-identical to before
+  the round trip). Filed 2026-07-?? at 0.4.0, fixed in 0.8.0, and this is the first run to
+  use it. Worth recording that the log→upstream→fix loop closed.
+
+- Gap: **a stale `.godot` class cache is undiagnosable from either gate's output.** After
+  rebasing this worktree onto a `main` that had added `class_name BoneWorker`, lint exited
+  1 and the runner exited 2 with `Total: 295 | Passed: 257 | Failed: 5` and **135**
+  `SCRIPT ERROR` lines, every one of them a cascade from a single missing entry in
+  `.godot/global_script_class_cache.cfg`:
+  ```
+  SCRIPT ERROR: Parse Error: Could not find type "BoneWorker" in the current scope.
+  ERROR: Failed to load script "res://items/items.gd" with error "Compilation failed".
+  ERROR: Failed to load script "res://devtools_ext/commands.gd" with error "Parse error".
+  ```
+  CLAUDE.md documents `--import` as required after *adding* a `class_name`; the case that
+  bites is *receiving* one — a rebase, a pull, a branch switch — where you did not add
+  anything and the failure presents as five broken tests in files you never touched.
+  `--import` fixed it (`0 error(s), 0 warning(s)`, 295/295), but only because the project's
+  own docs had the answer; the harness's output pointed nowhere.
+  - [G-090] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `lint_project.gd` compare the `class_name` declarations it already
+    scans against `.godot/global_script_class_cache.cfg` and, on a mismatch, fail with one
+    line — `stale class cache: BoneWorker declared in res://… but absent from the cache; run
+    --import` — ahead of the 135 parse errors rather than buried under them. It has both
+    halves of the comparison in hand already.
