@@ -2480,3 +2480,24 @@ Guidelines that make an entry useful later:
   - [G-080] status: open | seen: 1 | harness: 0.7.0
   - Improvement: an entry point that serves `bin/` and drives the exported HTML5 build
     through the same bridge, so `--export-release` output is verifiable before it is public.
+
+## 2026-08-02 — Uploaded the store images to itch.io (no Godot harness surface touched)
+
+- Value: **inconclusive** — this turn was entirely browser automation against itch.io; the
+  Godot game was never launched, so no harness capability was exercised and none can be
+  graded. Recorded so the absence is explicit rather than a forgotten entry.
+  - Expected: n/a — no runtime claim was made about the game.
+  - Got: n/a.
+  - Cheaper: n/a.
+
+- Correction to the previous entry's prose (not to a filed gap): I reported the itch.io
+  image uploaders as undrivable. That was wrong, and the earlier conclusion that a drop had
+  succeeded was also wrong — the cover that appeared had been uploaded by hand and showed a
+  "Wave 3" HUD from a build that predates the wave removal. The widget has no DOM file input
+  and no working drop handler, but it *does* build a real `<input type=file>` and call
+  `.click()` on it. Patching `HTMLInputElement.prototype.click` to swallow the call for
+  `type === 'file'` yields the input with its listeners attached and no OS dialog; assigning
+  `input.files` from a `DataTransfer` and dispatching `change` then runs itch's own upload
+  path. All five images went up that way.
+
+- Gap: no gaps this turn — the harness was not used.
