@@ -3571,3 +3571,41 @@ Guidelines that make an entry useful later:
     a bus file is being consumed, and clear the stale owner itself instead of refusing — a
     stale owner file after a crash is the normal case, not an anomaly, and right now it makes
     the recovery path look like a second failure.
+
+## 2026-08-03 — give_item batches, and that unblocks the boss (gather-639, closing gather-302's blocked check)
+
+- Value: **warranted** — it retired a `blocked` check from the previous run, which is the one
+  kind of follow-up the ledger can prove was needed.
+  - Expected: batching give_item stops it killing the game, and that unblocks the boss
+    spawn/death path left unverified in gather-302.
+  - Got: the exact call that killed the process — `give_item {"count": 9000}` — returned
+    `added 9000 of 9000 Gold Coin` instantly with the game still answering `ping`. Then the
+    whole path that had been unreachable: `buy_land {"count": 40}` bought 12 parcels, took the
+    radius `10 -> 34` and reported `opened ["boss", "ore", "forest"]`; `island_census` showed
+    the elite `alive: true, hp: 90, damage: 6, scale: 1.7` with its chest holding
+    `["Gold Coin x40", "Gold Ore x8", "Iron Ore x12"]` — filled from `BOSSES[id]["reward"]`,
+    i.e. the per-island table rather than the old constant. Killing it moved
+    `bosses_defeated` from `{}` to `{"boss": true}`, which is the `.bind(island_id)` on the
+    death signal doing its job, and a save/load left it `alive: False, defeated: True`.
+  - Cheaper: nothing. The previous run recorded these same checks as **blocked** precisely
+    because no headless test can stand up a connected arena, a live elite and a death signal.
+    Worth noting what the fix cost: the loop was walking the inventory and emitting
+    `inventory_updated` once per item, so the UI relaid itself 9000 times. One SlotData
+    carrying the count is equivalent — stacks here are unbounded — and the verb went from
+    fatal to instant.
+
+- **A note on the ledger, since it now reads oddly:** the gather-302 row stays `partial`
+  forever, and it should. This run is a separate row that covers what that one could not.
+  Rewriting history to make an old row green would defeat the point of keeping one.
+
+- Gap: **no new gaps this turn**, and one to downgrade. [G-103] was filed last turn against a
+  verb killing the game; the verb was the bug, not the harness, and the harness's behaviour
+  (a `game not running` on the next call) was correct. What remains genuinely harness-side is
+  only the second half of that entry — the stale `devtools_owner.json` making the recovery
+  relaunch look like a second failure — so the gap is narrowed to that rather than closed.
+  - [G-103] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: narrowed. Drop the "breadcrumb for which verb was running" half — `logs
+    --tail` already ended on `Executing: give_item`, which was enough to identify it. Keep
+    only: when the owner pid is dead, `ping` should clear the stale owner file and proceed
+    rather than reporting it as an error, because a stale owner after a crash is the normal
+    case and right now it masks a perfectly healthy relaunch.

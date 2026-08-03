@@ -446,15 +446,25 @@ func _cmd_give_item(args: Dictionary) -> Dictionary:
 
 	var item_name: String = str(args.get("name", ""))
 	var count: int = int(args.get("count", 1))
+	if count <= 0:
+		return {"success": false, "message": "count must be positive, got %d" % count, "data": {}}
 
 	var type = GameItems.get_type(item_name)
 	if type == null:
 		return {"success": false, "message": "no item named '%s'" % item_name, "data": {}}
 
+	# ONE slot data carrying the whole count, not `count` of them one at a time. This used to
+	# loop, and every iteration walked the inventory and emitted inventory_updated — so the
+	# UI relaid itself once per item. `give_item {"count": 9000}`, funding the land purchases
+	# that open the boss island, took the process down with it (gather-639).
+	#
+	# Equivalent, not merely faster: stacks are unbounded here (SlotData.can_fully_merge_with
+	# compares type alone and fully_merge_with just adds), so N ones merging into a stack and
+	# one N are the same stack either way. The only case that differs is a full inventory with
+	# no matching stack, and that added nothing under the loop too.
 	var added := 0
-	for _i in count:
-		if player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(type), 1)):
-			added += 1
+	if player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(type), count)):
+		added = count
 
 	return {
 		"success": added > 0,
