@@ -77,7 +77,7 @@ func save():
 				"velocityy": bullets[i].velocity.y,
 				"loaded": loaded
 			}
-			bullet_data[i] = JSON.stringify(json)
+			bullet_data[i] = json
 	
 	var dict = {
 		"x": position.x,
@@ -103,17 +103,9 @@ func load(dict):
 	if saved is not Dictionary:
 		return
 
-	for item in saved.keys():
-		var json := JSON.new()
-		if json.parse(str(saved[item])) != OK:
-			push_warning("BoneTurret: skipping an unparseable bullet")
-			continue
-
-		var node: Variant = json.get_data()
-		if node is not Dictionary:
-			push_warning("BoneTurret: skipping a malformed bullet")
-			continue
-
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and drops anything unreadable rather than raising.
+	for node in SaveLoad.decode_entries(saved):
 		# typeof, not `== true`. Comparing a String to a bool raises "Invalid operands"
 		# rather than evaluating false — bone_worker.gd:782 documents this at length, and
 		# this is the file that comment was written about. It never got the fix until now.

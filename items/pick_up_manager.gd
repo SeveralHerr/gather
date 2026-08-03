@@ -124,7 +124,10 @@ func saveObject() -> Dictionary:
 		if slot_data == null or slot_data.item == null:
 			continue
 
-		world_item_data[saved] = JSON.stringify({
+		# A nested dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
+		# payload anyway, so the inner layer was pure overhead and one more failure point.
+		# SaveLoad.decode_entries reads both shapes, so older saves still load (gather-usv).
+		world_item_data[saved] = ({
 			"itemType": slot_data.item.type,
 			"x": node.position.x,
 			"y": node.position.y,
@@ -151,14 +154,10 @@ func loadObject(loadedDict: Dictionary) -> void:
 	if world_items is not Dictionary:
 		return
 
-	for key in world_items.keys():
-		var json := JSON.new()
-		if json.parse(str(world_items[key])) != OK:
-			push_warning("PickUpManager: skipping an unparseable ground item")
-			continue
-
-		var node: Variant = json.get_data()
-		if node is not Dictionary or not (node.has("itemType") and node.has("x") and node.has("y")):
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and drops anything unreadable rather than raising.
+	for node in SaveLoad.decode_entries(world_items):
+		if not (node.has("itemType") and node.has("x") and node.has("y")):
 			push_warning("PickUpManager: skipping a malformed ground item")
 			continue
 

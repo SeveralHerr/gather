@@ -856,7 +856,10 @@ func saveObject() -> Dictionary:
 	var saved := []
 	for id in islands:
 		var island: Dictionary = islands[id]
-		saved.append(JSON.stringify({
+		# A nested dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
+		# payload anyway, so the inner layer was pure overhead and one more failure point.
+		# SaveLoad.decode_entries reads both shapes, so older saves still load (gather-usv).
+		saved.append({
 			"id": id,
 			"x": island["centre"].x,
 			"y": island["centre"].y,
@@ -866,7 +869,7 @@ func saveObject() -> Dictionary:
 			# has already walked to. Re-opening is not harmless: opening is what stocks, and
 			# an island the player has half cleared would be topped back up on every load.
 			"connected": island.get("connected", false),
-		}))
+		})
 
 	return {
 		# Guarded so the node stays constructible outside a SceneTree, which is what makes
@@ -893,13 +896,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 		return
 
 	islands.clear()
-	for entry in saved:
-		var json := JSON.new()
-		json.parse(entry)
-		var data = json.get_data()
-		if data == null:
-			continue
-
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and drops anything unreadable rather than raising.
+	for data in SaveLoad.decode_entries(saved):
 		var id: String = str(data.get("id", ""))
 		var definition := _definition_for(id)
 		if definition.is_empty():

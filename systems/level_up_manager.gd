@@ -384,8 +384,12 @@ func _built_cells_saved() -> Array:
 
 
 func loadObject(loadedDict: Dictionary) -> void:
-	xp = loadedDict["xp"]
-	next_level = loadedDict["next_level"]
+	# The only two raw indexes left in an otherwise fully-defaulted method. Both keys have
+	# existed since the beginning, but an abort here happens BEFORE sync_player_stats()
+	# below, so the player would load with the saved skill set applying none of its effects
+	# (gather-xc0).
+	xp = int(loadedDict.get("xp", 0))
+	next_level = int(loadedDict.get("next_level", next_level))
 	level = loadedDict.get("level", 1)
 
 	# "pending_levels" is what banked levels were called before they became points.

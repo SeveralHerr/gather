@@ -3028,3 +3028,31 @@ Guidelines that make an entry useful later:
   22-cell result, did not see `(-3, 0)`, and briefly concluded the load had dropped the
   furnace. The cell was there, 12 lines further down. Grep for the specific cell rather
   than eyeballing a truncated list.
+
+## 2026-08-03 — gather-usv/xc0/x93/ce1/bdv: de-encoded payloads and the last unguarded reads
+
+- Value: **warranted** — but the unit tests did most of the work here, and the honest
+  version is that runtime confirmed rather than discovered.
+  - Expected: de-encoding eight payloads is a format break; runtime should show whether a
+    real pre-version, all-old-shape save still loads and whether a v3 rewrite of it
+    round-trips.
+  - Got: the untouched 21145-byte `saveFile` loaded as `loaded_format_version: 0` with
+    `81 used cell(s)` and `radius: 10`; re-saving produced
+    `{"land_radius":10,"level":1,"save_format_version":3,"saved_at":...}` with
+    `first entry type: dict -> {'type': 27, 'x': 2, 'y': -1}`; reloading that reported
+    `loaded_format_version: 3` and the same cell count. The strongest signal was quieter:
+    all 359 pre-existing tests passed unchanged, and several of them (island_manager,
+    enemy_spawner) build **old-shape** payloads by hand — so the suite was already a
+    compatibility test for this change without being written as one.
+  - Cheaper: `test_save_decoding.gd` covers `decode_entries` over both shapes, mixed lists
+    and every drop path, and would have caught any decoder bug on its own in 4s. Runtime's
+    unique contribution was narrower than usual: that a real 21KB legacy file end-to-ends.
+
+- Gap: **no gaps this turn.** `tilemap-cells --rect`, `get-state --property` and reading the
+  slot file off disk covered everything; nothing had to be worked around.
+
+- Note on a measurement I nearly reported wrongly: the v3 file came out *larger* than the
+  v2 one (25943 vs 21145 bytes), which looks like the de-encoding backfired. It is not —
+  the tile count went 490 -> 890 because ambient resources respawned during the session.
+  Per entry the escaping really was the overhead: 50 bytes -> 42 for one tile. Comparing
+  whole-file sizes across a live session measures the world, not the format.

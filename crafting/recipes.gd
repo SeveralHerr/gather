@@ -288,14 +288,17 @@ func saveObject() -> Dictionary:
 			"type": current_furnace_recipe_list[i].product
 		}
 	
-		current_furnace_recipe_list_json.append(JSON.stringify(json))
+		# A nested dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
+		# payload anyway, so the inner layer was pure overhead and one more failure point.
+		# SaveLoad.decode_entries reads both shapes, so older saves still load (gather-usv).
+		current_furnace_recipe_list_json.append(json)
 		
 	for i in current_sawmill_recipe_list.size():
 		var json := {
 			"type": current_sawmill_recipe_list[i].product
 		}
 	
-		current_sawmill_recipe_list_json.append(JSON.stringify(json))	
+		current_sawmill_recipe_list_json.append(json)	
 	
 		
 	var dict := {
@@ -315,18 +318,12 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 	_seed_day_one()
 
-	for i in loadedDict.furnace_recipes.size():
-		var saved_info = loadedDict.furnace_recipes[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-		
-		add_recipe(node["type"], Types.Item.Furnace)
-		
-	for i in loadedDict.sawmill_recipes.size():
-		var saved_info = loadedDict.sawmill_recipes[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-		
-		add_recipe(node["type"], Types.Item.Sawmill)
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and .get keeps a payload with no such key from raising (gather-xc0).
+	for node in SaveLoad.decode_entries(loadedDict.get("furnace_recipes", [])):
+		if node.has("type"):
+			add_recipe(int(node["type"]), Types.Item.Furnace)
+
+	for node in SaveLoad.decode_entries(loadedDict.get("sawmill_recipes", [])):
+		if node.has("type"):
+			add_recipe(int(node["type"]), Types.Item.Sawmill)

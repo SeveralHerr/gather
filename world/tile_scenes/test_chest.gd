@@ -53,7 +53,7 @@ func save():
 				"count": item.count
 			}
 
-		inv.append(JSON.stringify(json))
+		inv.append(json)
 	
 	var dict = {
 		"x": position.x,
@@ -77,15 +77,11 @@ func load(dict):
 		return
 
 	inventory_data.inventory_slot_datas = []
-	for saved_info in saved:
-		var json := JSON.new()
-		if json.parse(str(saved_info)) != OK:
-			push_warning("TestChest: skipping an unparseable slot")
-			inventory_data.inventory_slot_datas.append(null)
-			continue
-
-		var node: Variant = json.get_data()
-		if node is not Dictionary or not (node.has("type") and node.has("count")):
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now. A slot it drops must still take a place in the list, or every slot after
+	# it shifts down one and the chest silently rearranges itself.
+	for node in SaveLoad.decode_entries(saved):
+		if not (node.has("type") and node.has("count")):
 			push_warning("TestChest: skipping a malformed slot")
 			inventory_data.inventory_slot_datas.append(null)
 			continue

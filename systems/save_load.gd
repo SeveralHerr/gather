@@ -20,7 +20,13 @@ var loads = []
 ## file still loads exactly as it did, and slot_info() reports zeros for metadata that is not
 ## there. The version moved anyway, because "this file has a metadata header" is a fact a
 ## reader must be able to establish from the version alone rather than by probing for keys.
-const FORMAT_VERSION := 2
+##
+## 3 (gather-usv): the sub-lists inside entries stopped being JSON strings and became plain
+## nested dictionaries — tiles, recipes, unlocked resources, islands, enemies, ground drops,
+## chest slots and turret bullets. The migration is decode_entries() below, which reads both
+## shapes structurally rather than by consulting this number, so v1 and v2 files keep loading
+## and a v2 file migrated verbatim into a slot is not misread by a v3 build.
+const FORMAT_VERSION := 3
 
 ## The version reported for a file with no header, i.e. every save written before gather-8rs.
 const PRE_VERSION := 0
@@ -166,6 +172,57 @@ static func header_version(entry: Variant) -> int:
 ## purely to satisfy it, so loosening the guard for them would change what they must emit.
 static func is_node_entry(entry: Variant) -> bool:
 	return entry is Dictionary and entry.has("filepath")
+
+
+## The dictionaries in a saved sub-list, whether they were stored as nested dictionaries or
+## as JSON strings inside the payload (gather-usv).
+##
+## Until v3 every one of these lists held `JSON.stringify(...)` of a small dictionary, inside
+## a payload that _save() then stringified again. The inner layer bought nothing: nested
+## dictionaries survive JSON perfectly well. It cost a `JSON.new()` per entry on load — for
+## main.gd's tile list that is one parser per tile, thousands per save — and it was one more
+## place for a partly-written file to fail.
+##
+## This is the single point of shape tolerance for that change, so no caller has to carry its
+## own. **Detection is structural, never by version number**: a String entry is the old shape
+## and gets parsed, a Dictionary is the new shape and is used directly. That matters because
+## the two shapes can legitimately coexist — a v2 file migrated into a slot verbatim is still
+## v2 on disk while the running build writes v3.
+##
+## An entry that is neither, or a String that will not parse into a dictionary, is dropped
+## with a warning rather than raising. Losing one recipe is the right cost; the alternative,
+## which is what every one of these call sites used to do, is a raise that aborts the loop and
+## drops everything after it too.
+static func decode_entries(raw: Variant) -> Array:
+	var out: Array = []
+	if raw is not Array:
+		# Some of these lists are saved as a Dictionary keyed by index (pick_up_manager,
+		# bone_turret) rather than as an Array. Both are ordered containers of entries here.
+		if raw is Dictionary:
+			for key in raw.keys():
+				out.append_array(decode_entries([raw[key]]))
+		return out
+
+	for entry in raw:
+		if entry is Dictionary:
+			out.append(entry)
+			continue
+
+		if entry is String:
+			var json := JSON.new()
+			if json.parse(entry) != OK:
+				push_warning("SaveLoad: dropping an unparseable sub-entry (%s)" % [entry])
+				continue
+			var parsed: Variant = json.get_data()
+			if parsed is Dictionary:
+				out.append(parsed)
+			else:
+				push_warning("SaveLoad: dropping a sub-entry that is not a dictionary (%s)" % [parsed])
+			continue
+
+		push_warning("SaveLoad: dropping a sub-entry of unexpected type (%s)" % [entry])
+
+	return out
 
 
 ## Which of the two save locations a load should read, or "" if there is no save at all.
@@ -411,7 +468,13 @@ func late_load():
 
 		for i in loads.size():
 			var dict = loads[i]
-			if dict["x"] == chunk.position.x and dict["y"] == chunk.position.y:
+			# is_equal_approx, not ==. These are floats that have been through a JSON
+			# round-trip, and a chunk that fails to match is not an error — it is a chest
+			# that comes back empty with no warning anywhere (gather-x93). Exact equality
+			# happens to hold today only because every placement is an integral multiple of
+			# the tile size; it is one non-integral position away from silently failing.
+			if is_equal_approx(float(dict.get("x", INF)), chunk.position.x) \
+					and is_equal_approx(float(dict.get("y", INF)), chunk.position.y):
 				chunk.call("load", dict)
 
 ## Quicksave. Signature unchanged on purpose: ui/debug_panel_ui.gd, the devtools verbs and
@@ -731,24 +794,3 @@ static func copy_save_into_slot(source: String, dest: String) -> bool:
 
 	print("SaveLoad: migrated the save at '%s' into '%s'" % [source, dest])
 	return true
-
-## Dead code: nothing calls this, main.gd included. It is kept in step with _load() — same
-## path resolution, same header skip, same entry guard — so that it cannot become the one
-## reader that chokes on a header line, but it should probably be deleted outright in a
-## change of its own rather than maintained forever.
-func _load_tilemap() -> void:
-	# Check if the SaveFile exists
-	var path := resolve_slot_load_path(current_slot)
-	if path == "":
-		print("Error, no Save File to load.")
-		return
-
-	var save := read_save(path)
-
-	var entries: Array = save["entries"]
-	for node_data in entries:
-		print(node_data)
-		var filepath: String = migrate_path(str(node_data["filepath"]))
-		if has_node(filepath) and filepath == "/root/Main":
-			print("loading tilemap")
-			get_node(filepath).loadObject(node_data)

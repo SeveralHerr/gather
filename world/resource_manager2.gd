@@ -537,7 +537,10 @@ func saveObject() -> Dictionary:
 			"type": curent_resources[i].type
 		}
 	
-		current_resource_json.append(JSON.stringify(json))
+		# A nested dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
+		# payload anyway, so the inner layer was pure overhead and one more failure point.
+		# SaveLoad.decode_entries reads both shapes, so older saves still load (gather-usv).
+		current_resource_json.append(json)
 
 		
 	var dict := {
@@ -557,11 +560,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 	for starting_resource in STARTING_RESOURCES:
 		add_resource(starting_resource)
 
-	for i in loadedDict.resources.size():
-		var saved_info = loadedDict.resources[i]
-		var json = JSON.new()
-		json.parse(saved_info)
-		var node = json.get_data()
-		
-		add_resource(node["type"])
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and .get keeps a payload with no such key from raising (gather-xc0).
+	for node in SaveLoad.decode_entries(loadedDict.get("resources", [])):
+		if node.has("type"):
+			add_resource(int(node["type"]))
 		

@@ -972,7 +972,11 @@ func saveObject() -> Dictionary:
 				"y": cell.y
 			}
 
-			tile_layers.append(JSON.stringify(json))
+			# A plain dictionary, not JSON.stringify of one: SaveLoad stringifies the whole
+			# payload anyway, so the inner layer only cost a JSON parser per tile on load —
+			# thousands of them per save (gather-usv). SaveLoad.decode_entries reads both
+			# shapes, so files written before this still load.
+			tile_layers.append(json)
 			
 	var dict := {
 		"filepath": get_path(),
@@ -994,16 +998,11 @@ func saveObject() -> Dictionary:
 static func parse_tile_payload(saved_tiles: Array) -> Array:
 	var out: Array = []
 
-	for saved_info in saved_tiles:
-		var json := JSON.new()
-		# enemy_spawner.gd:262 is the reference for this check. Discarding the result and
-		# reading get_data() anyway is what turned a corrupt line into a raise.
-		if json.parse(str(saved_info)) != OK:
-			push_warning("TileMapHandler: skipping an unparseable tile entry (%s)" % [saved_info])
-			continue
-
-		var node: Variant = json.get_data()
-		if node is not Dictionary or not (node.has("type") and node.has("x") and node.has("y")):
+	# decode_entries owns the shape question: entries written before gather-usv are JSON
+	# strings, entries written after are dictionaries, and it drops anything unreadable with
+	# a warning rather than raising. What is left here is the tile-specific check.
+	for node in SaveLoad.decode_entries(saved_tiles):
+		if not (node.has("type") and node.has("x") and node.has("y")):
 			push_warning("TileMapHandler: skipping a malformed tile entry (%s)" % [node])
 			continue
 

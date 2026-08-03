@@ -231,7 +231,7 @@ func saveObject() -> Dictionary:
 	for i in children.size():
 		var child = children[i]
 		if child is Enemy:
-			enemies_to_save[i] = JSON.stringify(
+			enemies_to_save[i] = (
 				enemy_save_entry(
 					child.health_manager.current_health,
 					child.target == null,
@@ -257,15 +257,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 
 	var stored: Dictionary = loadedDict.get("enemies", {})
 
-	for key in stored.keys():
-		var json = JSON.new()
-		if json.parse(str(stored[key])) != OK:
-			continue
-
-		var parsed = json.get_data()
-		if typeof(parsed) != TYPE_DICTIONARY:
-			continue
-
+	# decode_entries reads both the pre-gather-usv JSON strings and the nested dictionaries
+	# written now, and drops anything unreadable rather than raising.
+	for parsed in SaveLoad.decode_entries(stored):
 		var node := normalize_enemy_entry(parsed)
 
 		var scene := scene_for_type(node["type"])
