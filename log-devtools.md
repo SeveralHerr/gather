@@ -2676,3 +2676,34 @@ Guidelines that make an entry useful later:
     line — `stale class cache: BoneWorker declared in res://… but absent from the cache; run
     --import` — ahead of the 135 parse errors rather than buried under them. It has both
     halves of the comparison in hand already.
+
+## 2026-08-02 — hotbar arrows to the touch floor where there is room for it
+
+- Value: **warranted** — the unit tests assert the widths, but `validate-ui`'s verdict is
+  the thing the bead was filed off, and only the running game can flip it.
+  - Expected: the two `small_tap_target` warnings should disappear at 844x390 with the
+    arrows measuring 48x48 instead of 29x48, while portrait keeps ~28px arrows because six
+    48px slots plus two 48px arrows physically need ~398px of a 390px screen.
+  - Got: `validate-ui` went from `[FAIL] 2 UI issues found` to `[OK] No UI issues found`
+    in landscape, with `node-bounds …/PrevButton` → `220, 328, 48x48` (was `29x48`). The
+    row grew 377→415px wide and still ends at y=382 on a 390-tall viewport, so the
+    bottom-edge fix from the previous commit survived the resize. `set-resolution --size
+    390,844` then confirmed the other half exactly as predicted: `12, 606, 28x48`, still
+    two warnings, and a 375px row inside a 390px screen.
+  - Cheaper: the three new unit tests cover the arithmetic in 1ms with no boot — and would
+    have been enough for the *fix*. They cannot say whether `validate-ui` agrees, which is
+    the whole question the bead asked, so the boot earned its keep on the verdict alone.
+
+- Note, not a gap: **`validate-ui` is a function of the live viewport, and nothing says
+  so.** The same build is `[OK]` at 844x390 and `[FAIL] 2 UI issues found` at 390x844 —
+  correctly, since `small_tap_target` is measuring real pixels — but a run that happens to
+  boot in one orientation reports a clean sheet for a layout that violates the rule in the
+  other. This bit twice today in opposite directions: the first run *found* the arrow
+  warnings only because it was launched landscape to chase an unrelated bug, and this run
+  would have declared the fix complete had it not been rotated back. `set-resolution`
+  ([G-017], fixed in 0.8.0) is what makes checking both cheap, so the gap is not a missing
+  capability — it is that nothing prompts you to use it. Worth `/verify` suggesting a
+  second `validate-ui` at a transposed viewport whenever the diff touches UI layout.
+
+- No new gaps this turn otherwise. [G-090] (stale class cache undiagnosable) was not
+  re-triggered — the cache was rebuilt in the previous run.
