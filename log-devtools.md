@@ -294,7 +294,7 @@ Guidelines that make an entry useful later:
   `--value '[1280,720]'` produced the same `(232, 64)`. The run still proved the reflow
   (the HUD tracked 232x64 exactly: `Rect: -160, -62, 47x13` == `232/4.935 x 64/4.935`), but
   by accident — the resize I asked for is not the resize I got, and nothing said so.
-  - [G-016] status: open | seen: 1 | harness: 0.4.0
+  - [G-016] status: open | seen: 2 | harness: 0.7.0
   - Improvement: have `set-state` coerce a 2/3/4-element array or an `{x,y,...}` dict to the
     property's declared type via `type_convert()`, and **fail loudly** when the target
     property is a vector type and the value cannot be converted, instead of writing whatever
@@ -2391,3 +2391,38 @@ Guidelines that make an entry useful later:
   was enough to drive the visual directly, and computing the crop from the worker's and
   player's `global_position` against the camera's zoom 8 put the screenshot on the right
   16 pixels without any new verb.
+
+## 2026-08-03 — closed the open items: place_tile, chest delivery, and worker collision
+
+- Value: **warranted** — the new verb immediately paid for itself by exposing a third
+  pathfinding bug, and then settled a branch that had been unverified across two features.
+  - Expected: that place_tile could put a chest beside a worker, and that the worker would
+    then deposit into it rather than dropping on the ground — the branch G-077 had blocked.
+  - Got: the chest went down (`written_source 8` read back against `source 8`, so the write
+    was confirmed rather than assumed) and the worker then sat in IDLE forever anyway.
+    `run-method _find_tree_cell` returned `{'cell': (-2, -3)}` — a tree one cell north — while
+    the worker stood at (-2,-2) doing nothing. Cause: `find_path_adjacent` filters candidate
+    approach squares through `is_walkable`, and the walker's OWN cell is solid because a
+    BoneWorker is a layer-1 scene tile, so a worker placed next to its target had its one
+    legitimate approach square discarded. Placement had always been far enough away to hide
+    it. After the fix: `chest=["Wood x4", "empty", "empty"]` — chest delivery finally proven.
+  - Cheaper: nothing. This is the third distinct "the real world is not the test world" bug
+    in this class, and `for_cells` cannot express any of them because it invents its world.
+
+- Gap: **[G-077] fixed.** `place_tile` takes any placeable by registry name at an absolute
+  cell, a player offset, or the first free cell nearby, and reports `set_tile_disabled` plus
+  a read-back `written_source` so a silent no-op cannot be mistaken for success again.
+  `place_build` and `place_station` were left alone rather than rewritten as wrappers — they
+  work, they are used by existing runs, and consolidating them is a separate change.
+  - [G-077] status: fixed | fixed-in: 0.7.0 | seen: 3 | harness: 0.7.0
+  - Improvement: delivered.
+
+- Gap: **[G-062] fixed.** `tile_at` ignored `x`/`y` entirely and answered about the player's
+  own cell for every query; six different cells returned the same one. `_cell_near_player`
+  now honours absolute coordinates and is shared by every read and write verb.
+  - [G-062] status: fixed | fixed-in: 0.7.0 | seen: 1 | harness: 0.7.0
+  - Improvement: delivered.
+
+- Gap: **no new gaps.** Worker/player collision was settled with `input press move_right`
+  plus `step-time` and two `get-state` reads: the player went from x=8 to x=43 through a
+  worker sitting at x=40. No verb was missing for any of it.

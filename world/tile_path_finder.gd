@@ -119,9 +119,9 @@ func _is_door(tile_map: TileMap, cell: Vector2i) -> bool:
 ## Both endpoints must be walkable; a solid destination is what find_path_adjacent is for.
 func find_path(from: Vector2i, to: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
+	# A path to where you already stand is always valid, walkable or not: you are there.
 	if from == to:
-		if is_walkable(from):
-			out.append(from)
+		out.append(from)
 		return out
 	# Only the DESTINATION has to be walkable. A walker can always leave the cell it is
 	# standing on, and in this game it routinely is not walkable: a BoneWorker is itself a
@@ -151,6 +151,16 @@ func find_path_adjacent(from: Vector2i, target: Vector2i) -> Array[Vector2i]:
 	var best: Array[Vector2i] = []
 	for step in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 		var candidate: Vector2i = target + step
+		# Already standing beside it: nothing to walk, and no route can beat zero steps.
+		#
+		# This has to come BEFORE the walkability filter, which is what made it a bug rather
+		# than an optimisation. The walker's own cell is routinely solid — a BoneWorker is a
+		# layer-1 scene tile — so a worker placed next to a tree had its one legitimate
+		# approach square discarded as unwalkable and stood there forever with the target one
+		# cell away. Standing somewhere is proof you can occupy it.
+		if candidate == from:
+			var here: Array[Vector2i] = [from]
+			return here
 		if not is_walkable(candidate):
 			continue
 		var path := find_path(from, candidate)

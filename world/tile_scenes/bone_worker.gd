@@ -15,6 +15,14 @@ class_name BoneWorker
 ## and save() reports the home anchor rather than wherever the legs currently are, so a
 ## reload cannot strand a worker mid-errand.
 ##
+## IT DOES NOT COLLIDE. The root body is authored on collision_layer 0, so the player walks
+## straight through a worker and workers never jostle each other — they wander, and a machine
+## that can body-block the player in a doorway is a nuisance rather than a helper. The
+## CollisionShape2D is kept rather than deleted so the body can be put back on a layer later
+## without re-authoring the scene, and nothing is lost by leaving it: build occupancy is
+## decided by main.gd:is_occupied on the tilemap cell, not by physics, and skull-loading goes
+## through WorkArea (an Area2D, whose own layer is untouched) rather than the body.
+##
 ## Two sprites and only one visible, exactly the turret's idiom. UnloadedSprite is the
 ## headless base (tiles.png cell (20,2)); LoadedSprite is the four-frame chop animation
 ## drawn from the cells sitting next to it, (21,2)..(24,2). The animation runs only while
