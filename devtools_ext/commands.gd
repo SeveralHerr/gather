@@ -10,6 +10,12 @@ extends RefCounted
 
 var _dev: Node
 
+## freeze_ambient's book-keeping: exactly the timers IT paused, so unfreezing resumes
+## each one with its remaining time intact and never restarts a timer that was already
+## stopped for its own reasons (G-042).
+var _ambient_frozen := false
+var _frozen_timers: Array = []
+
 
 func register_commands(dev: Node) -> void:
 	_dev = dev
@@ -22,6 +28,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("gather_stats", _cmd_gather_stats)
 	dev.register_command("gather_state", _cmd_gather_state)
 	dev.register_command("spawn_stats", _cmd_spawn_stats)
+	dev.register_command("freeze_ambient", _cmd_freeze_ambient)
 	dev.register_command("coin_count", _cmd_coin_count)
 	dev.register_command("land_state", _cmd_land_state)
 	dev.register_command("buy_land", _cmd_buy_land)
@@ -29,6 +36,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("splash", _cmd_splash)
 	dev.register_command("spawn_resource", _cmd_spawn_resource)
 	dev.register_command("goto_resource", _cmd_goto_resource)
+	dev.register_command("goto_cell", _cmd_goto_cell)
 	dev.register_command("skill_panel", _cmd_skill_panel)
 	dev.register_command("learn_skill", _cmd_learn_skill)
 	dev.register_command("place_station", _cmd_place_station)
@@ -38,6 +46,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("advance_crafting", _cmd_advance_crafting)
 	dev.register_command("place_build", _cmd_place_build)
 	dev.register_command("tile_at", _cmd_tile_at)
+	dev.register_command("panels_state", _cmd_panels_state)
 	dev.register_command("island_census", _cmd_island_census)
 	dev.register_command("place_worker", _cmd_place_worker)
 	dev.register_command("place_tile", _cmd_place_tile)
@@ -144,6 +153,44 @@ func _tile_map_handler() -> TileMapHandler:
 	return null
 
 
+## A Vector2/Vector2i flattened for the wire. Vectors always cross as {"x":..,"y":..}
+## dicts — run-method cannot coerce them back (gather-6sp), so no verb emits one raw.
+func _xy(v) -> Dictionary:
+	return {"x": v.x, "y": v.y}
+
+
+## The map cell the game itself treats as "in front of the player", or null when there
+## is no tilemap to ask. get_tile_in_front_of_player() returns the tile's top-left
+## corner in tilemap space, so this converts it back the same way
+## GameItemPlaceable._placed_cell does — one implementation, not two that can disagree.
+func _front_cell(player: Player):
+	var handler = player.tilemap if player else null
+	if handler == null or handler.tileMap == null:
+		return null
+	return handler.tileMap.local_to_map(handler.get_tile_in_front_of_player() + Vector2(8, 8))
+
+
+## Teleports the player onto `stand` (the same +6px offset goto_resource uses) and
+## points the sprite so `face` is what get_tile_in_front_of_player() resolves. Velocity
+## is zeroed so the next _physics_process cannot re-flip the sprite from leftover input.
+func _stand_facing(player: Player, handler: TileMapHandler, stand: Vector2i, face: Vector2i) -> void:
+	player.position = handler.tileMap.map_to_local(stand) + Vector2(6, 0)
+	player.velocity = Vector2.ZERO
+	player.animated_sprite_2d.flip_h = face.x < stand.x
+
+
+## The unoccupied cell NEAREST the player within `radius` rings, or null. Shared by
+## spawn_resource and place_station: nearest-first is what keeps a placed station inside
+## the crafting panel's 24-unit keep-open radius (G-037a).
+func _free_cell_near_player(handler: TileMapHandler, origin: Vector2i, radius: int = 7):
+	var free := []
+	for offset in TileMapHandler.cells_within(radius):
+		var cell: Vector2i = origin + offset
+		if not handler.is_occupied(cell, true):
+			free.append(cell)
+	return TileMapHandler.cell_nearest_to(free, origin)
+
+
 func _status(_args: Dictionary) -> Dictionary:
 	var player := _player()
 	if player == null:
@@ -179,6 +226,10 @@ func _status(_args: Dictionary) -> Dictionary:
 	# correctly. The game plays VISIBLE now (player.gd); anything else here is a bug.
 	status["mouse_mode"] = _mouse_mode_name()
 
+	# Whether freeze_ambient is holding the world still (G-042). A frozen session that
+	# outlives the assertion it was frozen for would otherwise read as a dead spawner.
+	status["ambient_frozen"] = _ambient_frozen
+
 	var level_up = _level_up_manager()
 	if level_up:
 		status["xp"] = level_up.xp
@@ -203,6 +254,10 @@ func _status(_args: Dictionary) -> Dictionary:
 ##
 ## Both halves, and in that order, for the reason `hud_toolbar.gd` spells out: a key
 ## left logically down is a trap for whatever asks `Input.is_key_pressed` next.
+##
+## Deprecated: superseded by the generic `input_key` bridge verb landing in harness
+## 0.8.0. Kept working because this project's installed addon is 0.7.0, which has no
+## input_key yet.
 func _cmd_press_key(args: Dictionary) -> Dictionary:
 	var name_arg := str(args.get("key", ""))
 	if name_arg == "":
@@ -258,6 +313,7 @@ func _cmd_player_state(_args: Dictionary) -> Dictionary:
 		return {"success": false, "message": "no player in the scene", "data": {}}
 
 	var selected = player.hot_bar_inventory.selected_slot_data
+	var front = _front_cell(player)
 
 	return {
 		"success": true,
@@ -281,6 +337,10 @@ func _cmd_player_state(_args: Dictionary) -> Dictionary:
 			},
 			"is_dead": player.is_dead,
 			"invulnerable": player.invulnerable,
+			# Facing decides which cell every placement lands on (gather-dsk), and the
+			# sprite flip is the only place the game records it.
+			"facing_left": player.is_facing_left(),
+			"tile_in_front": _xy(front) if front != null else null,
 			"state": player.state_machine.state.name if player.state_machine.state else "",
 			"selected_slot": player.hot_bar_inventory.selected_index,
 			"selected_item": selected.item.name if selected and selected.item else "",
@@ -475,6 +535,130 @@ func _cmd_goto_resource(args: Dictionary) -> Dictionary:
 	}
 
 
+const GOTO_CELL_PREDICATES := ["grass_clear", "shore", "resource"]
+
+
+## Teleports the player so the nearest cell matching a predicate is the game's own
+## "tile in front" (G-064). Predicates: grass_clear (unoccupied land), shore (grass
+## bordering water), resource (a standable cell horizontally adjacent to a layer-1
+## resource node). Optional dx/dy bias the search centre away from the player, so a
+## test can ask for "a shore cell roughly north of here".
+## cmd goto_cell --args '{"predicate":"shore"}'
+func _cmd_goto_cell(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	var player := _player()
+	if handler == null or player == null:
+		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
+
+	var predicate: String = str(args.get("predicate", ""))
+	if not GOTO_CELL_PREDICATES.has(predicate):
+		return {
+			"success": false,
+			"message": "unknown predicate '%s'" % predicate,
+			"data": {"known": GOTO_CELL_PREDICATES},
+		}
+
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var centre: Vector2i = origin + Vector2i(int(args.get("dx", 0)), int(args.get("dy", 0)))
+
+	var grass := {}
+	for cell in handler.land_tiles():
+		grass[cell] = true
+
+	# resource stands ON the matched cell and faces the node beside it; the other two
+	# stand on a horizontal neighbour and face the matched cell itself. Either way the
+	# matched cell (or the node) ends up as get_tile_in_front_of_player()'s answer.
+	var resource_cells := _resource_cells(handler) if predicate == "resource" else {}
+
+	var candidates := []
+	for cell in grass:
+		if handler.is_occupied(cell, true):
+			continue
+		match predicate:
+			"grass_clear":
+				if _stand_cell_beside(handler, grass, cell) != null:
+					candidates.append(cell)
+			"shore":
+				if _stand_cell_beside(handler, grass, cell) == null:
+					continue
+				for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					# An unused layer-0 cell answers (-1,-1), so "not grass" covers open
+					# water and the void beyond the map in one comparison.
+					if handler.tileMap.get_cell_atlas_coords(0, cell + step) != TileMapHandler.GRASS_ATLAS:
+						candidates.append(cell)
+						break
+			"resource":
+				if resource_cells.has(cell + Vector2i(1, 0)) or resource_cells.has(cell + Vector2i(-1, 0)):
+					candidates.append(cell)
+
+	if candidates.is_empty():
+		return {
+			"success": false,
+			"message": "no cell on the map matches '%s'" % predicate,
+			"data": {"predicate": predicate, "known": GOTO_CELL_PREDICATES},
+		}
+
+	var target: Vector2i = TileMapHandler.cell_nearest_to(candidates, centre)
+
+	var stand: Vector2i
+	var face: Vector2i
+	if predicate == "resource":
+		stand = target
+		face = target + (Vector2i(1, 0) if resource_cells.has(target + Vector2i(1, 0)) else Vector2i(-1, 0))
+	else:
+		face = target
+		stand = _stand_cell_beside(handler, grass, target)
+
+	_stand_facing(player, handler, stand, face)
+	var front = _front_cell(player)
+
+	return {
+		"success": true,
+		"message": "standing at %s facing %s (%s)" % [stand, face, predicate],
+		"data": {
+			"predicate": predicate,
+			"cell": _xy(target),
+			"stand": _xy(stand),
+			"player_pos": {"x": player.position.x, "y": player.position.y},
+			"facing_left": player.is_facing_left(),
+			# The proof of alignment: the cell the game itself would act on.
+			"tile_in_front": _xy(front) if front != null else null,
+		},
+	}
+
+
+## A grass cell immediately west or east of `cell` for the player to stand on,
+## preferring an unoccupied one, or null when the cell has no horizontal land
+## neighbour — facing is horizontal-only in this game, so a cell reachable solely from
+## above or below can never be "in front".
+func _stand_cell_beside(handler: TileMapHandler, grass: Dictionary, cell: Vector2i):
+	var options := [cell + Vector2i(-1, 0), cell + Vector2i(1, 0)]
+	for side in options:
+		if grass.has(side) and not handler.is_occupied(side, true):
+			return side
+	for side in options:
+		if grass.has(side):
+			return side
+	return null
+
+
+## Every layer-1 cell currently holding a tile-based resource, keyed for membership
+## tests. Same atlas-map approach as goto_resource; scene-backed nodes are excluded
+## because they are not cells.
+func _resource_cells(handler: TileMapHandler) -> Dictionary:
+	var atlases := {}
+	for key in handler.resources.GetAllTypes():
+		var resource = handler.resources.Get(key)
+		if not resource.is_scene_tile:
+			atlases[resource.atlas_location] = true
+
+	var cells := {}
+	for cell in handler.tileMap.get_used_cells(1):
+		if atlases.has(handler.tileMap.get_cell_atlas_coords(1, cell)):
+			cells[cell] = true
+	return cells
+
+
 ## Spawn-pressure readout. Replaces the old wave_stats: there are no waves any more,
 ## and the numbers that matter now are the island-scaled cap and whether the timer is
 ## still firing at all. A spawner that has quietly stopped still answers every other
@@ -501,6 +685,57 @@ func _cmd_spawn_stats(_args: Dictionary) -> Dictionary:
 			"time_to_next_spawn": spawner.timer.time_left,
 		},
 	}
+
+
+## Freezes ambient drift — enemy spawning, resource regrowth and station production
+## ticks — so xp, gold and censuses hold still for an assertion window (G-042).
+## `{"frozen": true|false}` (default true). Pauses via Timer.paused and stores exactly
+## what it paused, so unfreezing resumes each timer with its remaining time intact:
+## the game is left in a state it can reach itself. Calling with true again is safe and
+## also catches timers that appeared (a newly placed station) since the first freeze.
+## cmd freeze_ambient --args '{"frozen":true}'
+func _cmd_freeze_ambient(args: Dictionary) -> Dictionary:
+	var want: bool = bool(args.get("frozen", true))
+
+	if want:
+		for timer in _ambient_timers():
+			if not timer.paused:
+				timer.paused = true
+				_frozen_timers.append(timer)
+	else:
+		for timer in _frozen_timers:
+			if is_instance_valid(timer):
+				timer.paused = false
+		_frozen_timers.clear()
+	_ambient_frozen = want
+
+	var paused_paths := []
+	for timer in _frozen_timers:
+		if is_instance_valid(timer):
+			paused_paths.append(str(timer.get_path()))
+
+	return {
+		"success": true,
+		"message": "ambient timers %s" % ("frozen" if want else "resumed"),
+		"data": {"frozen": _ambient_frozen, "paused": paused_paths},
+	}
+
+
+## Every timer that advances the world without player action: the enemy spawner's, the
+## resource respawn tick, and each crafting station's production tick — stations pay
+## XP_CRAFT per unit, so a queued craft drifts xp through a freeze window too.
+func _ambient_timers() -> Array:
+	var timers := []
+	var spawner := _enemy_spawner()
+	if spawner and spawner.timer:
+		timers.append(spawner.timer)
+	var respawn := _dev.get_tree().root.get_node_or_null("Main/World/ResourceTimer")
+	if respawn is Timer:
+		timers.append(respawn)
+	for station in _stations():
+		if station.timer:
+			timers.append(station.timer)
+	return timers
 
 
 ## Coin economy readout. "Enemies drop coins" is otherwise only assertable from a
@@ -692,20 +927,9 @@ func _cmd_spawn_resource(args: Dictionary) -> Dictionary:
 			"data": {"known": known},
 		}
 
-	# Search outward from the player so the node lands somewhere visible.
+	# Nearest free cell outward from the player, so the node lands somewhere visible.
 	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
-	var target = null
-	for ring in range(1, 8):
-		for dx in range(-ring, ring + 1):
-			for dy in range(-ring, ring + 1):
-				var cell := origin + Vector2i(dx, dy)
-				if not handler.is_occupied(cell, true):
-					target = cell
-					break
-			if target != null:
-				break
-		if target != null:
-			break
+	var target = _free_cell_near_player(handler, origin)
 
 	if target == null:
 		return {"success": false, "message": "no free tile near the player", "data": {}}
@@ -740,6 +964,16 @@ func _cmd_gather_stats(_args: Dictionary) -> Dictionary:
 	for resource in handler.resource_manager.curent_resources:
 		spawnable.append(resource.name)
 
+	# The gather in flight right now (G-024). A hold is only legitimate while the timer
+	# runs — same definition gather_state uses — and the target is named so a test can
+	# assert WHAT is being gathered, not just that something is.
+	var manager: ResourceManager2 = handler.resource_manager
+	var gathering: bool = manager.is_holding_e and not manager.hold_timer.is_stopped()
+	var info = manager.removing_info
+	var target_resource = null
+	if info != null and info.resource:
+		target_resource = info.resource.name
+
 	return {
 		"success": true,
 		"message": "ok",
@@ -750,6 +984,9 @@ func _cmd_gather_stats(_args: Dictionary) -> Dictionary:
 			"land_tiles": handler.count_land_tiles(),
 			"spawnable": spawnable,
 			"tuning": tuning,
+			"is_gathering": gathering,
+			"hold_time_left": manager.hold_timer.time_left if gathering else -1.0,
+			"target_resource": target_resource,
 		},
 	}
 
@@ -853,18 +1090,10 @@ func _cmd_place_station(args: Dictionary) -> Dictionary:
 
 	var item: GameItem = GameItems.get_item(station_type)
 	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
-	var target = null
-	for ring in range(1, 8):
-		for dx in range(-ring, ring + 1):
-			for dy in range(-ring, ring + 1):
-				var cell := origin + Vector2i(dx, dy)
-				if not handler.is_occupied(cell, true):
-					target = cell
-					break
-			if target != null:
-				break
-		if target != null:
-			break
+	# Nearest free cell, not first-found: the old scan started at each ring's far corner
+	# and put stations 48px away — outside the crafting panel's 24-unit keep-open radius,
+	# so the panel closed the frame after it opened (G-037a, gather-7y9).
+	var target = _free_cell_near_player(handler, origin)
 
 	if target == null:
 		return {"success": false, "message": "no free tile near the player", "data": {}}
@@ -884,6 +1113,9 @@ func _cmd_place_station(args: Dictionary) -> Dictionary:
 			"type": item.name,
 			"cell": {"x": target.x, "y": target.y},
 			"stations_before": _stations().size(),
+			# Assertable against the panel's keep-open radius: > 24 and the panel
+			# would close itself the frame after open_station.
+			"distance_px": (player.global_position - Vector2(handler.tileMap.map_to_local(target))).length(),
 		},
 	}
 
@@ -1232,39 +1464,122 @@ func _free_cell_near(handler: TileMapHandler, player: Node2D, as_wall: bool):
 	return null
 
 
-## Places one building tile at an offset from the player. Goes through set_tile, the
-## same call player_manager.place_tile makes, so the wall run and the terrain solve
-## happen exactly as they do for a real placement.
+## Places one building tile at an offset from the player, through the REAL path the
+## hotbar drives: InventoryData.use_slot_data → GameItemPlaceable.use → _place →
+## PlayerManager.place_tile/place_wall. That is what makes the occupancy check run, the
+## stack spend, and build xp pay — the old set_tile shortcut skipped all three, which is
+## exactly the xp:0 symptom this closes (G-061, gather-15o).
+##
+## `dx`/`dy` name the target cell relative to where the player stood BEFORE the verb
+## repositions them: the player is teleported one cell west of the target, facing it,
+## because the game only ever builds on get_tile_in_front_of_player(). The item is
+## granted (`granted: true`) when the player does not already hold one.
+## cmd place_build --args '{"type":"woodwall","dx":1}'
 func _cmd_place_build(args: Dictionary) -> Dictionary:
 	var handler := _tile_map_handler()
-	if handler == null or _player() == null:
+	var player := _player()
+	if handler == null or player == null:
 		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
 
 	var wanted: String = str(args.get("type", "")).to_lower()
 	if not BUILD_ITEMS.has(wanted):
-		return {"success": false, "message": "type must be one of %s" % [BUILD_ITEMS.keys()], "data": {}}
+		return {
+			"success": false,
+			"message": "type must be one of %s" % [BUILD_ITEMS.keys()],
+			"data": {"known": BUILD_ITEMS.keys()},
+		}
 
-	var item: GameItem = GameItems.get_item(BUILD_ITEMS[wanted])
-	var cell := _cell_near_player(handler, args)
-	handler.set_tile(cell, item.tile_source_id, item.atlas_location, item.layer, item.is_scene_tile)
+	var type = BUILD_ITEMS[wanted]
+	var item: GameItem = GameItems.get_item(type)
+	var target := _cell_near_player(handler, args)
+
+	# The real path spends a unit from a real stack, so the player must hold one.
+	var granted := false
+	var slot_index := _slot_index_of_type(player.inventory_data, type)
+	if slot_index == -1:
+		if not player.inventory_data.pick_up_slot_data(SlotData.new(item, 1)):
+			return {"success": false, "message": "inventory full, cannot grant %s" % item.name, "data": {}}
+		granted = true
+		slot_index = _slot_index_of_type(player.inventory_data, type)
+	if slot_index == -1:
+		return {"success": false, "message": "%s never landed in the inventory" % item.name, "data": {}}
+
+	# Stand beside the target facing it, so the game's own facing logic resolves the
+	# requested cell. Same mechanics as goto_cell.
+	_stand_facing(player, handler, target + Vector2i(-1, 0), target)
+	var front = _front_cell(player)
+
+	var level_up = _level_up_manager()
+	var xp_before: int = level_up.xp if level_up else 0
+	var cell_already_paid: bool = level_up != null and level_up.built_cells.has(target)
+	var slot: SlotData = player.inventory_data.inventory_slot_datas[slot_index]
+	var count_before: int = slot.count
+
+	# The exact call a hotbar use press makes.
+	player.inventory_data.use_slot_data(slot_index)
+
+	# The SlotData object outlives the inventory nulling an emptied slot, so the count
+	# delta is readable either way — and it is the only trace place_tile leaves when it
+	# refuses an occupied cell.
+	var placed: bool = slot.count < count_before
+	var xp_after: int = level_up.xp if level_up else 0
 
 	return {
-		"success": true,
-		"message": "placed %s at %s" % [item.name, cell],
-		"data": {"type": item.name, "cell": {"x": cell.x, "y": cell.y}},
+		"success": placed,
+		"message": "placed %s at %s" % [item.name, target] if placed
+			else "refused: %s is occupied or not buildable" % target,
+		"data": {
+			"type": item.name,
+			"cell": _xy(target),
+			"tile_in_front": _xy(front) if front != null else null,
+			"granted": granted,
+			"consumed": count_before - slot.count,
+			"xp_before": xp_before,
+			"xp_after": xp_after,
+			# False xp delta with placed=true is legitimate when the cell already paid
+			# once — building pays per cell, ever (gather-5s5).
+			"cell_already_paid": cell_already_paid,
+		},
 	}
 
 
-## Reads back what is actually on the tilemap at an offset from the player, plus how
-## main.gd classifies it. `atlas` is the cell the terrain solver chose, which is the
-## only evidence that autotiling ran at all - a wall that failed to connect sits on
-## its blob's `base` cell forever.
+## Index of the first inventory slot holding `type`, or -1. use_slot_data takes an
+## index, so the real-path verbs need the slot's position, not just its SlotData.
+func _slot_index_of_type(inventory: InventoryData, type) -> int:
+	for index in inventory.inventory_slot_datas.size():
+		var data = inventory.inventory_slot_datas[index]
+		if data and data.item and data.item.type == type:
+			return index
+	return -1
+
+
+## Reads back what is actually on the tilemap at a cell, plus how main.gd classifies
+## it. `atlas` is the cell the terrain solver chose, which is the only evidence that
+## autotiling ran at all - a wall that failed to connect sits on its blob's `base` cell
+## forever.
+##
+## With no dx/dy the cell defaults to get_tile_in_front_of_player() — the cell every
+## placement actually lands on — instead of the player's own cell, which a facing-left
+## player was never standing on top of (G-062, gather-tfb). Explicit dx/dy keeps the
+## old player-relative behavior.
+## cmd tile_at            (the cell in front)
+## cmd tile_at --args '{"dx":1,"dy":0}'
 func _cmd_tile_at(args: Dictionary) -> Dictionary:
 	var handler := _tile_map_handler()
-	if handler == null or _player() == null:
+	var player := _player()
+	if handler == null or player == null:
 		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
 
-	var cell := _cell_near_player(handler, args)
+	var mode := "offset"
+	var cell: Vector2i
+	if args.has("dx") or args.has("dy"):
+		cell = _cell_near_player(handler, args)
+	else:
+		mode = "in_front"
+		var front = _front_cell(player)
+		if front == null:
+			return {"success": false, "message": "no tilemap to resolve the facing cell", "data": {}}
+		cell = front
 	var layer: int = int(args.get("layer", 1))
 	var source: int = handler.tileMap.get_cell_source_id(layer, cell)
 	var atlas: Vector2i = handler.tileMap.get_cell_atlas_coords(layer, cell)
@@ -1281,6 +1596,8 @@ func _cmd_tile_at(args: Dictionary) -> Dictionary:
 		"message": "layer %d at %s: source %d atlas %s" % [layer, cell, source, atlas],
 		"data": {
 			"cell": {"x": cell.x, "y": cell.y},
+			"mode": mode,
+			"facing_left": player.is_facing_left(),
 			"layer": layer,
 			"source": source,
 			"atlas": {"x": atlas.x, "y": atlas.y},
@@ -1301,6 +1618,55 @@ func _wall_run_sizes(handler: TileMapHandler) -> Dictionary:
 		var name: String = GameItems.get_item(wall["item"]).name
 		sizes[name] = (handler.wall_cells[wall["item"]] as Array).size() if handler.wall_cells.has(wall["item"]) else 0
 	return sizes
+
+
+## Read-only open/closed state of every panel in one call (G-047, gather-6l7). The
+## skill_panel / land_panel / crafting_panel verbs route through set_open/toggle, so
+## using them as readers CHANGES the state being read; this touches nothing.
+##
+## `raw` carries the fields each derived bool comes from (the G-033 pattern): a wrapper
+## Control that is visible over a closed PanelFrame is a real failure mode, and it is
+## invisible in the derived value alone.
+## cmd panels_state
+func _cmd_panels_state(_args: Dictionary) -> Dictionary:
+	var skill := _skill_tree_ui()
+	var land := _land_panel()
+	var crafting := _crafting_panel()
+	var inventory := _dev.get_tree().root.get_node_or_null("Main/UI/InventoryInterface")
+
+	# The station the panel is bound to, as the index the other crafting verbs use.
+	# Bound outlives open: a closed panel keeps its last station, and that is reported
+	# honestly rather than blanked.
+	var crafting_station = null
+	if crafting and crafting.station:
+		var index := _stations().find(crafting.station)
+		if index != -1:
+			crafting_station = index
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"skill": skill != null and skill.is_open(),
+			"land": land != null and land.is_open(),
+			"crafting": {
+				"open": crafting != null and crafting.is_open(),
+				"station": crafting_station,
+			},
+			# NewInventoryManager flips this Control's `visible` directly, so the flag
+			# IS the open state — cheap enough to always include.
+			"inventory": inventory != null and inventory.visible,
+			"raw": {
+				"skill_wrapper_visible": skill.visible if skill else null,
+				"skill_frame_visible": skill._frame.visible if skill and skill._frame else null,
+				"land_wrapper_visible": land.visible if land else null,
+				"land_frame_visible": land._frame.visible if land and land._frame else null,
+				"crafting_wrapper_visible": crafting.visible if crafting else null,
+				"crafting_chrome_visible": crafting._chrome.visible if crafting and crafting._chrome else null,
+				"inventory_visible": inventory.visible if inventory else null,
+			},
+		},
+	}
 
 
 ## Every land region and whether it can actually be walked to.

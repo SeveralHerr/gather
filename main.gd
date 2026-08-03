@@ -166,6 +166,19 @@ static func cell_nearest_to(cells: Array, centre: Vector2i):
 	return best
 
 
+## Every offset within Chebyshev radius `radius` of a cell, excluding the cell itself.
+## The devtools verbs pair it with cell_nearest_to to find the free cell NEAREST the
+## player, instead of the first one a ring scan happens to visit — the old scan started
+## at the ring's far corner and put stations 48px away (gather-7y9).
+static func cells_within(radius: int) -> Array:
+	var offsets := []
+	for dx in range(-radius, radius + 1):
+		for dy in range(-radius, radius + 1):
+			if dx != 0 or dy != 0:
+				offsets.append(Vector2i(dx, dy))
+	return offsets
+
+
 ## The sea the islands sit in. It used to be a painted layer-5 rectangle, which had two
 ## problems: it spanned only x -24..26, so anything further out sat on the bare clear
 ## colour, and its ~1600 cells were in `get_used_rect()` for `loadObject` to walk and for
