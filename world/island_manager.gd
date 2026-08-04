@@ -169,20 +169,34 @@ const MIN_ANGLE_SEPARATION := 0.9
 ## collision polygons, so a one-wide strip is a wall rather than a path.
 const ISTHMUS_WIDTH := 3
 
-## How much the corridor's width wanders, in tiles. Kept under half the width so the
-## narrowest point still leaves a walkable interior column.
+## How much the corridor's width wanders, in tiles. Applied through absf, so it only ever
+## widens the causeway - see _corridor. A signed wobble pinched the neck to a single cell
+## and put a wall in the middle of a finished isthmus.
 const ISTHMUS_WOBBLE := 0.9
 
 ## What the arena is guarding. Three stacks because TestChest has exactly three slots, and
 ## coins because they are the only currency in the game - land is what the player is
 ## saving for, and the boss island is the last thing they reach.
+##
+## The coin count is sized against the land curve rather than picked, because "the boss island
+## is the last thing they reach" fixes exactly when it is spent. LandManager charges
+## BASE_COST * COST_GROWTH^n, i.e. 20 * 1.55^n: the twelve parcels cost ~6950 coins in total
+## and the last one alone costs ~2480. The arena sits at distance 36 and opens somewhere
+## around the tenth parcel, so the player collecting this has already spent something like
+## 4500 and is looking at the two most expensive purchases in the game.
+##
+## 600 is a quarter of that final parcel. It lands as a real prize at the moment it is
+## collected - the only single payout in the game on the scale of what the player is actually
+## saving for - without being the parcel itself. The 40 it replaced was ~1.6% of the next
+## thing the player wanted, which is to say a rounding error handed out for killing the boss:
+## the ore in the other two slots was worth more, and it was the ore they remembered.
 const BOSS_ID := "boss"
 ## Points at the registry rather than repeating the string, so the name of a type exists in
 ## exactly one place (gather-33f). Still a constant here because the boss island's guard being
 ## an elite is a fact about this island, not about the enemy.
 const BOSS_TYPE := EnemyRegistry.ELITE
 const BOSS_REWARD := [
-	{"type": Types.Item.Coin, "count": 40},
+	{"type": Types.Item.Coin, "count": 600},
 	{"type": Types.Item.GoldOre, "count": 8},
 	{"type": Types.Item.IronOre, "count": 12},
 ]
@@ -257,6 +271,17 @@ var resource_manager: ResourceManager2
 ## a two-line read in loadObject instead of a format problem.
 var bosses_defeated := {}
 
+## Islands whose boss is dead but whose reward chest is not on the ground yet, keyed by island
+## id. Set the instant the boss dies and cleared when the chest lands.
+##
+## Saved, because the gap between those two events is a real second of wall-clock time and
+## everything that would otherwise carry the reward is already gone: `bosses_defeated` is true
+## so _populate_boss will not place it again, and there is no chest tile yet for the tile save
+## to write down. Persisting the configuration and not the progress is what loses work over a
+## load; see the save-fidelity section of CLAUDE.md, and _settle_pending_rewards for the
+## redemption path.
+var pending_rewards := {}
+
 ## The old scalar, kept as a property so devtools and any reader that predates the dictionary
 ## still get a truthful answer. Reads through to the dictionary; there is no second copy of
 ## the fact to fall out of step.
@@ -299,10 +324,15 @@ func generate(new_seed: int = 0) -> void:
 	islands.clear()
 
 	var home_reach := _home_land_at_max_radius()
+	# The angle is chosen against the WALKABLE home island, the isthmus is cut against the
+	# raw one. Both are deliberate: "how far does land the player can stand on reach this
+	# way" is the question that picks a direction, and _already_joined has to see the
+	# coastline ring the grass set drops in order to union the island into it correctly.
+	var home_walkable := walkable_body(home_reach)
 	var taken_angles := []
 
 	for definition in placement_order():
-		var angle := _choose_angle(definition["distance"], taken_angles, home_reach)
+		var angle := _choose_angle(definition["distance"], taken_angles, home_walkable)
 		taken_angles.append(angle)
 		_build(definition, angle, home_reach)
 
@@ -500,34 +530,91 @@ static func island_cells(centre: Vector2i, island_radius: int, seed_value: int, 
 ## part of the ISLAND rather than of home: it is drawn at generation, so the player can
 ## see the two reaching for each other long before they meet, and it does not change the
 ## shape of any parcel they paid for.
-func _isthmus_cells(centre: Vector2i, _island_radius: int, angle: float, home_reach: Dictionary, cells: Array[Vector2i]) -> Array[Vector2i]:
+func _isthmus_cells(centre: Vector2i, _island_radius: int, _angle: float, home_reach: Dictionary, cells: Array[Vector2i]) -> Array[Vector2i]:
 	# The common case, and the one worth checking first: the finished home coastline
 	# already runs up against the island, so there is nothing to bridge. Carving anyway
 	# turned the sea into a set of straight three-wide causeways radiating out from the
 	# mainland - geometry that reads as scaffolding rather than as a place.
-	if _already_joined(centre, home_reach, cells):
+	if _already_joined(home_reach, cells):
 		return []
 
-	var distance := int(Vector2(centre).length())
-	var reach := _reach_along(angle, distance, home_reach)
-	if reach <= 0:
+	# Anchored on home GRASS, and this is the second half of gather-37z. The outer ring of
+	# any land set is solved into coastline, so a corridor that lands on the furthest home
+	# LAND cell along the ray stops one tile short of anywhere the player can stand: the
+	# causeway is drawn, it reads as joined, and it dead-ends against a collision polygon.
+	# Nearest-walkable-cell rather than a ray walk also removes the case the ray could not
+	# answer at all - a direction in which the finished coastline is ragged enough to have
+	# no grass on the ray itself, which returned "no isthmus" and stranded the island.
+	var home_walkable := walkable_body(home_reach)
+	# Untyped: cell_nearest_to returns null for an empty set, so it has no inferable type.
+	var anchor = TileMapHandler.cell_nearest_to(home_walkable.keys(), centre)
+	if anchor == null:
 		return []
 
 	# From the island's own centre rather than from its edge. The edge is not at
 	# island_radius - the noise bites in by up to ISLAND_EDGE_BITE, so the real coastline
 	# along this ray can sit well inside that, and a corridor starting at the nominal
 	# radius then begins a few tiles out to sea with a channel behind it.
-	return _corridor(centre, _cell_along(angle, reach), islands_seed)
+	return _corridor(centre, anchor, islands_seed)
 
 
-## Whether the island can already be walked to once every parcel is bought, judged the
-## same way the acceptance test judges it: flood from the mainland across the two landmasses
-## together and see whether the island's centre comes up.
-static func _already_joined(centre: Vector2i, home_reach: Dictionary, cells: Array[Vector2i]) -> bool:
+## Whether the island can already be WALKED to once every parcel is bought: flood from the
+## mainland across the two landmasses together and see whether any of the island's cells
+## comes up.
+##
+## Judged on walkable grass, not on raw land, and the difference is the whole bug in
+## gather-37z. Raw land is optimistic by a ring in every direction, so two coastlines a
+## single cell apart satisfy it while the player walks up and stops - and because this is
+## what decides whether an isthmus is carved AT ALL, an optimistic answer here does not
+## produce a short causeway, it produces none. That stranded 39 of 600 island-seed pairs,
+## the boss arena worst of all at 8% of seeds: the player buys all twelve parcels and the
+## arena stays scenery, with nothing logged.
+##
+## Any cell rather than the centre, because that is the question refresh_connections asks
+## at runtime (_region_is_walkable). The two predicates have to agree or an island opens in
+## one and not the other.
+static func _already_joined(home_reach: Dictionary, cells: Array[Vector2i]) -> bool:
 	var combined := home_reach.duplicate()
 	for cell in cells:
 		combined[cell] = true
-	return main_body(combined).has(centre)
+
+	var walkable := walkable_body(combined)
+	for cell in cells:
+		if walkable.has(cell):
+			return true
+	return false
+
+
+## The cells of `land` the player could actually stand on and walk between, flooded from
+## the home island outward.
+##
+## This is the generation-time model of TileMapHandler.walkable_cells_from_home, and the two
+## must stay one thing. Walkable means plain grass, and grass means a cell whose eight
+## neighbours are all land - every other cell the terrain solver produces is a coastline
+## variant, and coastline carries a collision polygon. `main_body` answers the laxer question
+## "is this one landmass", which is the right question for discarding islets and the wrong
+## one for anything the player has to walk across.
+static func walkable_body(land: Dictionary, from: Vector2i = Vector2i.ZERO) -> Dictionary:
+	var grass := {}
+	for cell in land:
+		if _is_interior(cell, land):
+			grass[cell] = true
+
+	# Untyped: cell_nearest_to returns null for an empty set, so it has no inferable type.
+	var start = TileMapHandler.cell_nearest_to(grass.keys(), from)
+	if start == null:
+		return {}
+
+	var seen := {start: true}
+	var frontier := [start]
+	while not frontier.is_empty():
+		var cell: Vector2i = frontier.pop_back()
+		for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var next: Vector2i = cell + step
+			if grass.has(next) and not seen.has(next):
+				seen[next] = true
+				frontier.append(next)
+	return seen
 
 
 ## A contiguous corridor ISTHMUS_WIDTH tiles across, between two cells.
@@ -552,7 +639,11 @@ static func _corridor(from: Vector2i, to: Vector2i, seed_value: int) -> Array[Ve
 		# along a one-cell-at-a-time walk draws a perfect staircase with hard shoulders,
 		# which reads as generator scaffolding laid across the sea; overlapping discs of
 		# a wandering radius read as a spit of land.
-		var brush := float(half_width) + 0.5 + ISTHMUS_WOBBLE * field.get_noise_2d(cursor.x, cursor.y)
+		# absf, so the wobble only ever WIDENS. Signed, it could pull the brush down to 0.6
+		# and stamp a single cell - a one-wide neck with no interior column, i.e. a wall, at
+		# a random point along an otherwise finished causeway. ISTHMUS_WIDTH is already the
+		# minimum that leaves anything walkable, so it has nothing to give back.
+		var brush := float(half_width) + 0.5 + ISTHMUS_WOBBLE * absf(field.get_noise_2d(cursor.x, cursor.y))
 		var extent := ceili(brush)
 		for dx in range(-extent, extent + 1):
 			for dy in range(-extent, extent + 1):
@@ -790,11 +881,9 @@ func _populate_boss(island_id: String) -> void:
 	if not _connected_state(island_id):
 		return
 
-	var boss: Dictionary = BOSSES[island_id]
 	var centre: Vector2i = islands[island_id]["centre"]
 	if _live_boss(island_id) == null:
 		_spawn_boss(island_id, centre)
-	_place_reward_chest(centre + boss["chest_offset"], boss["reward"])
 
 
 func _spawner() -> EnemySpawner:
@@ -839,8 +928,64 @@ func _spawn_boss(island_id: String, centre: Vector2i) -> void:
 		boss.health_manager.died.connect(_on_boss_died.bind(island_id))
 
 
+## The reward arrives when the boss does not: a chest drops out of the sky onto the arena and
+## lands hard. It is deliberately not standing there from the moment the island opens - a
+## filled chest two tiles from a living boss is a prize the player can simply walk around.
 func _on_boss_died(island_id: String) -> void:
 	bosses_defeated[island_id] = true
+	if not BOSSES.has(island_id):
+		return
+
+	# Recorded BEFORE the animation, and this is the whole reason the flag exists. The fall
+	# takes the better part of a second, during which the reward is owed but nothing in the
+	# world holds it: the boss is dead so _populate_boss will never place it again, and no
+	# chest tile exists yet for the tile save to pick up. A quicksave in that window used to
+	# be a permanently missing reward - a load that succeeds and quietly hands the player
+	# less than they earned, which is exactly the failure class CLAUDE.md's save-fidelity
+	# section is about. _settle_pending_rewards redeems it on the next load.
+	pending_rewards[island_id] = true
+
+	var cell: Vector2i = islands[island_id]["centre"] + BOSSES[island_id]["chest_offset"]
+	if not _drop_reward_chest(island_id, cell):
+		# No tilemap to animate over (a headless test, a teardown mid-frame). The reward is
+		# owed either way, so place it outright rather than dropping it on the floor.
+		_claim_pending_reward(island_id, cell)
+
+
+## Starts the falling-chest animation over `cell`. Returns false if it could not be started,
+## which is the caller's cue to place the chest directly.
+func _drop_reward_chest(island_id: String, cell: Vector2i) -> bool:
+	if tile_map_handler == null or tile_map_handler.tileMap == null:
+		return false
+
+	var chest_item := GameItems.get_item(Types.Item.Chest)
+	if chest_item == null:
+		return false
+
+	var falling := FallingChest.drop(chest_item.get_atlas())
+	falling.position = tile_map_handler.tileMap.map_to_local(cell)
+	# Parented to the tilemap, so it is freed with the world on a load or a regeneration
+	# rather than animating over terrain that no longer exists.
+	tile_map_handler.tileMap.add_child(falling)
+	falling.landed.connect(_claim_pending_reward.bind(island_id, cell))
+	return true
+
+
+## Puts the real chest down and closes out the pending flag. Idempotent through
+## _place_reward_chest, which refuses a cell that already holds a chest.
+func _claim_pending_reward(island_id: String, cell: Vector2i) -> void:
+	pending_rewards.erase(island_id)
+	_place_reward_chest(cell, BOSSES.get(island_id, {}).get("reward", []))
+
+
+## Hands over any reward whose animation never finished, without replaying it. Called after a
+## load: the crash was a moment, and a chest crashing down onto an arena the player cleared
+## three sessions ago is a bug, not a flourish. The chest itself is not optional.
+func _settle_pending_rewards() -> void:
+	for island_id in pending_rewards.keys():
+		if not BOSSES.has(island_id) or not islands.has(island_id):
+			continue
+		_claim_pending_reward(island_id, islands[island_id]["centre"] + BOSSES[island_id]["chest_offset"])
 
 
 func _place_reward_chest(cell: Vector2i, reward: Array) -> void:
@@ -922,6 +1067,11 @@ func reassert_after_load() -> void:
 	# counts what is already standing there, and the veins and the boss are both idempotent.
 	refresh_connections()
 
+	# Last of all, and only for a save taken while a chest was still in the air. Placed
+	# outright rather than re-dropped: the crash was a moment, and a chest coming down onto an
+	# arena the player cleared three sessions ago reads as a bug rather than as a flourish.
+	_settle_pending_rewards()
+
 
 func saveObject() -> Dictionary:
 	var saved := []
@@ -953,6 +1103,11 @@ func saveObject() -> Dictionary:
 		# the player has already killed.
 		"bosses_defeated": bosses_defeated.duplicate(),
 		"boss_defeated": is_boss_defeated(BOSS_ID),
+		# Rewards owed but not yet on the ground. Almost always empty - it is only non-empty
+		# for the ~1s a chest spends in the air - which is exactly why it has to be written:
+		# a save landing inside that window is the only case, and it is unrecoverable without
+		# this key.
+		"pending_rewards": pending_rewards.duplicate(),
 		"ore_veins_seeded": ore_veins_seeded,
 		"islands": saved,
 	}
@@ -974,6 +1129,16 @@ func loadObject(loadedDict: Dictionary) -> void:
 			bosses_defeated[str(island_id)] = bool(saved_bosses[island_id])
 	elif bool(loadedDict.get("boss_defeated", false)):
 		bosses_defeated[BOSS_ID] = true
+	# Absent in every save written before the chest fell from the sky, and correctly empty:
+	# back then the chest was placed the moment the island opened, so there was no window in
+	# which a reward could be owed and unplaced. Nothing to migrate.
+	pending_rewards.clear()
+	var saved_pending: Variant = loadedDict.get("pending_rewards", null)
+	if saved_pending is Dictionary:
+		for island_id in saved_pending:
+			if bool(saved_pending[island_id]):
+				pending_rewards[str(island_id)] = true
+
 	# Defaults false, so a save written before the veins existed gets its one seeding pass
 	# from reassert_after_load. A save written since carries true and never seeds again.
 	ore_veins_seeded = bool(loadedDict.get("ore_veins_seeded", false))

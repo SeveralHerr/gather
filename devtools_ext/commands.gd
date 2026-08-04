@@ -1791,7 +1791,10 @@ func _cmd_island_census(_args: Dictionary) -> Dictionary:
 	var final_home := {}
 	for cell in handler.land_cells_for_radius(LandManager.radius_for(LandManager.MAX_PARCELS)):
 		final_home[cell] = true
-	var reachable_at_max := handler.walkable_cells_from_home(final_home)
+	# walkable_cells_given_land, not walkable_cells_from_home(final_home): the raw noise set
+	# has to be re-solved into grass before it can be flooded, or this reports a connection
+	# the live flood fill refuses and the census contradicts itself (gather-37z).
+	var reachable_at_max := handler.walkable_cells_given_land(final_home)
 
 	var regions := {}
 	var all_connected := true

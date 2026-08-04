@@ -47,54 +47,62 @@ func _home_land(seed_value: int) -> Dictionary:
 	return lookup
 
 
-func _reachable_from_origin(world: Dictionary) -> Dictionary:
-	# Untyped: cell_nearest_to returns null for an empty set, so it has no inferable type.
-	var start = TileMapHandler.cell_nearest_to(world.keys(), Vector2i.ZERO)
-	if start == null:
-		return {}
+## One seed's finished world, built the way IslandManager.generate() builds it - including
+## which anchor set each step is judged against, because that distinction is the bug this
+## file exists to catch. Returns {world: Dictionary, cells: {id: Array}}.
+func _world_for_seed(seed_value: int) -> Dictionary:
+	manager.islands_seed = seed_value
 
-	var seen := {start: true}
-	var frontier := [start]
-	while not frontier.is_empty():
-		var cell: Vector2i = frontier.pop_back()
-		for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var next: Vector2i = cell + step
-			if world.has(next) and not seen.has(next):
-				seen[next] = true
-				frontier.append(next)
-	return seen
+	var home := _home_land(seed_value)
+	var anchor := IslandManager.main_body(home)
+	var walkable_anchor := IslandManager.walkable_body(anchor)
+	var world := home.duplicate()
+	var taken := []
+	var cells_by_id := {}
+
+	for definition in IslandManager.placement_order():
+		var angle: float = manager._choose_angle(definition["distance"], taken, walkable_anchor)
+		taken.append(angle)
+		var centre: Vector2i = IslandManager._cell_along(angle, definition["distance"])
+		var cells := IslandManager.island_cells(centre, definition["radius"], seed_value, definition["id"])
+		var all: Array = []
+		for cell in cells:
+			world[cell] = true
+			all.append(cell)
+		for cell in manager._isthmus_cells(centre, definition["radius"], angle, anchor, cells):
+			world[cell] = true
+			all.append(cell)
+		cells_by_id[definition["id"]] = {"centre": centre, "cells": all}
+
+	return {"world": world, "cells": cells_by_id}
 
 
 ## The one that matters. A stranded island is a dead end the player can see and never
 ## reach, with nothing logged anywhere.
+##
+## Judged with IslandManager.walkable_body - the SAME predicate refresh_connections opens an
+## island with - and that is the entire point of the test rather than an implementation
+## detail. This swept 200 seeds green for months while real playthroughs dead-ended, because
+## it flooded raw land: raw land is optimistic by a coastline ring in every direction, so it
+## agreed with the placement code's own optimistic answer instead of checking it. 39 of these
+## 600 island-seed pairs were unreachable in the running game at the time (gather-37z).
 func test_every_island_connects_to_home_across_many_seeds() -> String:
 	var stranded := []
 
 	for i in SEEDS_TO_TRY:
 		var seed_value := 1000 + i * 7919
-		manager.islands_seed = seed_value
+		var built := _world_for_seed(seed_value)
+		var reachable := IslandManager.walkable_body(built["world"])
 
-		var home := _home_land(seed_value)
-		var anchor := IslandManager.main_body(home)
-		var world := home.duplicate()
-		var taken := []
-		var centres := {}
-
-		for definition in IslandManager.placement_order():
-			var angle: float = manager._choose_angle(definition["distance"], taken, anchor)
-			taken.append(angle)
-			var centre: Vector2i = IslandManager._cell_along(angle, definition["distance"])
-			centres[definition["id"]] = centre
-			var cells := IslandManager.island_cells(centre, definition["radius"], seed_value, definition["id"])
-			for cell in cells:
-				world[cell] = true
-			for cell in manager._isthmus_cells(centre, definition["radius"], angle, anchor, cells):
-				world[cell] = true
-
-		var reachable := _reachable_from_origin(world)
-		for id in centres:
-			if not reachable.has(centres[id]):
-				stranded.append("seed %d: %s at %s" % [seed_value, id, centres[id]])
+		for id in built["cells"]:
+			# Any cell, not the centre: that is the question refresh_connections asks.
+			var joined := false
+			for cell in built["cells"][id]["cells"]:
+				if reachable.has(cell):
+					joined = true
+					break
+			if not joined:
+				stranded.append("seed %d: %s at %s" % [seed_value, id, built["cells"][id]["centre"]])
 
 	return _T.assert_eq(stranded.size(), 0, "stranded islands: %s" % [stranded.slice(0, 5)])
 
@@ -122,7 +130,7 @@ func test_islands_do_not_overlap() -> String:
 		var seed_value := 31 + i * 6151
 		manager.islands_seed = seed_value
 
-		var anchor := IslandManager.main_body(_home_land(seed_value))
+		var anchor := IslandManager.walkable_body(IslandManager.main_body(_home_land(seed_value)))
 		var taken := []
 		var claimed := {}
 
@@ -239,6 +247,75 @@ func test_seeded_veins_stay_a_handful() -> String:
 	return _T.assert_true(
 		gold * 2 < LandManager.BASE_COST,
 		"seeded gold (%d nodes) is a meaningful share of a parcel at %d coins" % [gold, LandManager.BASE_COST]
+	)
+
+
+## A reward owed but not yet on the ground has to survive a save.
+##
+## The chest spends about a second in the air, and for that second nothing else in the world
+## holds the reward: the boss is flagged dead so it is never placed again, and no chest tile
+## exists yet for the tile save to write down. A save landing in that window is the entire
+## failure case, which is exactly why it needs a test - it is a one-in-a-thousand timing that
+## costs the player the whole payout for the hardest fight in the game, and it fails the
+## quiet way, with a load that succeeds and simply hands back less.
+func test_pending_reward_survives_a_save_taken_mid_drop() -> String:
+	manager.pending_rewards[IslandManager.BOSS_ID] = true
+	manager.bosses_defeated[IslandManager.BOSS_ID] = true
+
+	var saved := manager.saveObject()
+
+	var reloaded := IslandManager.new()
+	reloaded.loadObject(saved)
+	var pending: bool = reloaded.pending_rewards.get(IslandManager.BOSS_ID, false)
+	var defeated := reloaded.is_boss_defeated(IslandManager.BOSS_ID)
+	reloaded.free()
+
+	var owed: String = _T.assert_true(pending, "a chest still in the air was not owed after a reload")
+	if owed != "":
+		return owed
+	return _T.assert_true(defeated, "the boss came back alive alongside its unpaid reward")
+
+
+## The other half: a chest that already landed must NOT come back owed, or every load hands
+## out a second one.
+func test_a_landed_reward_is_not_owed_again() -> String:
+	manager.bosses_defeated[IslandManager.BOSS_ID] = true
+
+	var reloaded := IslandManager.new()
+	reloaded.loadObject(manager.saveObject())
+	var pending: bool = reloaded.pending_rewards.get(IslandManager.BOSS_ID, false)
+	reloaded.free()
+
+	return _T.assert_false(pending, "a reward that was already collected came back owed")
+
+
+## The arena's payout is the last one in the game and is spent on the last two parcels of
+## land, so it is priced against that curve rather than picked. Guarded here because it is a
+## bare number in a table: it reads as fine at any value, and the version that shipped for
+## months was 40 coins - 1.6% of the next thing the player wanted, which is a rounding error
+## handed over for killing the boss.
+func test_boss_coins_are_worth_the_fight() -> String:
+	var coins := 0
+	for entry in IslandManager.BOSS_REWARD:
+		if entry["type"] == Types.Item.Coin:
+			coins = int(entry["count"])
+
+	# The twelfth parcel, i.e. the most expensive single thing the player ever buys.
+	var last_parcel := LandManager.cost_for_parcel(LandManager.MAX_PARCELS - 1, 1.0)
+
+	var meaningful: String = _T.assert_gte(
+		float(coins),
+		float(last_parcel) * 0.15,
+		"%d coins is noise next to the %d-coin parcel the player is saving for" % [coins, last_parcel]
+	)
+	if meaningful != "":
+		return meaningful
+
+	# And not the parcel itself. The boss is a milestone on the way to maxing the island,
+	# not a way to skip the end of the land economy.
+	return _T.assert_true(
+		float(coins) < float(last_parcel) * 0.6,
+		"%d coins buys most of the %d-coin final parcel outright" % [coins, last_parcel]
 	)
 
 

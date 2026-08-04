@@ -4191,3 +4191,70 @@ Guidelines that make an entry useful later:
   - [G-105] status: open | seen: 3 | harness: 0.8.0
   - Improvement: have `canvas-scale` also return `canvas_layer_path` and `canvas_layer` (the
     `layer` int, `0` for the root canvas).
+
+## 2026-08-03 — planned grass-tuft decoration on plain-grass tiles (plan only, no code)
+
+- Value: **overkill** — no runtime was used and none was warranted; the whole plan came
+  out of reading four files, and the user explicitly deferred `/verify`.
+  - Expected: nothing — this turn produced a design, not a diff, so there was no claim a
+    running game could have settled.
+  - Got: n/a. The three facts the plan hinges on were all settled statically:
+    `GRASS_ATLAS := Vector2i(9, 17)` at `main.gd:664` distinguishes plain grass from every
+    coastline variant; `is_occupied()` at `main.gd:576` reads only layers 0/1/2 and never
+    enumerates layers, so a new layer cannot block spawning; and
+    `Resources.get_item_or_resource` at `items/resources.gd:119` compares `tile_source_id`
+    as well as atlas coords, so a decor cell on an unregistered source 14 returns null and
+    `saveObject`'s all-layers walk skips it.
+  - Cheaper: nothing cheaper existed — this was `Read` + `Grep` over `main.gd`,
+    `world/tile_map.tscn`, `world_tile_set.tres` and `items/resources.gd`, roughly 6 tool
+    calls. The one open question the plan names (does a `z_index = -1` layer 6 draw above
+    layer 0, also `-1`, under a y-sorted TileMap?) is genuinely a runtime question and is
+    flagged as such rather than guessed at.
+
+- Gap: **no gaps this turn** — the harness was not invoked, so it had no opportunity to
+  fall short. Recording this explicitly so the absence reads as deliberate rather than
+  forgotten.
+
+## 2026-08-03 — boss island never opened (gather-37z); reward chest now falls from the sky
+
+- Value: **warranted** — runtime produced two claims the diff could not, and a headless
+  sweep produced a third that no amount of reading would have.
+  - Expected: on a max-land world the census's `connects_at_max_land` and the live `opened`
+    flag agree and a live Elite exists; killing it yields a 600-coin chest placed via
+    `falling_chest.gd`. Neither is visible in the diff, since placement is seeded per-world
+    and the reward now arrives through an animation callback.
+  - Got: `boss opened=True now=True at_max=True` with
+    `boss: {"alive": true, "hp": 90, "chest": []}` — the chest correctly absent while the
+    boss lives, which is the guard the whole feature turns on. After
+    `_on_boss_died("boss")`: `chest: ["Gold Coin x600", "Gold Ore x8", "Iron Ore x12"]`,
+    and `scripts-seen` lists `res://world/vfx/falling_chest.gd`, so the reward arrived
+    through the animation's `landed` callback rather than the direct fallback. Survived a
+    real `[`/`]` round trip unchanged. `Orphan growth: +4` over three separate drops, so
+    the self-freeing `_linger` countdown holds.
+  - Cheaper: the 200-seed headless sweep alone settled the *placement* half and was far
+    cheaper than the game — but only after its predicate was corrected, and that correction
+    is the finding. The pre-existing sweep flooded raw land and therefore agreed with the
+    placement code's own optimistic answer: `raw_stranded=0, grass_stranded=39 of 600`
+    from a throwaway diagnostic run before any fix. 200 seeds had been passing green for
+    months while real playthroughs dead-ended. The *reward* half genuinely needed the
+    running game — `FallingChest.landed` reaching the ground and the chest surviving a
+    quicksave is not a thing any unit test observed.
+
+- Gap: **no way to find a node by a property value; auto-named siblings must be probed one
+  at a time, and their names churn between calls.** The boss is an `Enemy` among the
+  EnemySpawner's children, and persisted/ambient enemies get engine names:
+  `scene-tree` returns `@CharacterBody2D@385`, `@CharacterBody2D@388`, `@CharacterBody2D@416`,
+  `@CharacterBody2D@419`, `Enemy`, `SpiderEnemy` — none of which says which one is the
+  Elite. Finding it costs one `get-state --property type` round trip per child (6 calls,
+  twice over), and by the time the loop finished the ids had rotated as the spawner
+  trickled enemies in: `Failed: Node not found:
+  /root/Main/World/EnemySpawner/@CharacterBody2D@1015 (also tried under /root)` on a path
+  that had answered 20 seconds earlier. Workaround: drove `IslandManager._on_boss_died`
+  directly instead of killing the real node, which tests the reward path but not the
+  `health_manager.died` wiring that reaches it.
+  - [G-109] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let `scene-tree` take a `--property NAME` to include that property on
+    every node it emits (`--property type` would have answered this in one call), or add a
+    `find-nodes --class Enemy --where type=Elite` verb returning matching paths. The
+    existing `clear-nodes --group/--class/--method` already does this matching internally
+    to *free* nodes; exposing the same predicate as a read would cost little.

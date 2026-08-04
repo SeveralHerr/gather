@@ -729,13 +729,11 @@ func count_land_tiles() -> int:
 ## whole reason this cannot be "is there land there" - an island and the mainland can be a
 ## single tile apart, look joined, and be separated by two coastlines.
 ##
-## `extra` is treated as walkable on top of what exists, which is how a caller asks the
-## hypothetical question: reachable once every parcel is bought, rather than reachable now.
-func walkable_cells_from_home(extra: Dictionary = {}) -> Dictionary:
+## For the hypothetical - reachable once every parcel is bought, rather than reachable now -
+## use walkable_cells_given_land(). This one reads the world as it stands.
+func walkable_cells_from_home() -> Dictionary:
 	var walkable := {}
 	for cell in land_tiles():
-		walkable[cell] = true
-	for cell in extra:
 		walkable[cell] = true
 
 	# Untyped: cell_nearest_to returns null for an empty set, so it has no inferable type.
@@ -754,6 +752,29 @@ func walkable_cells_from_home(extra: Dictionary = {}) -> Dictionary:
 				frontier.append(next)
 
 	return seen
+
+
+## The hypothetical: what the player could walk to if `extra` land also existed, on top of
+## every land cell that exists now.
+##
+## `extra` is RAW land - the noise-thresholded cell set - and the whole point of this
+## function is that raw land cannot simply be dropped into the walkable set. The terrain
+## solver turns the outer ring of any land set into a coastline variant, and coastline
+## carries a collision polygon, so a raw set is optimistic by one ring in every direction.
+## Answering the max-land question that way promised connections the running game then
+## refused, which is how a seed could strand the boss arena forever while every check said
+## it was fine (gather-37z). IslandManager.walkable_body applies the solver's own rule -
+## grass is a cell whose eight neighbours are all land - to the union before flooding it.
+##
+## Layer 0 rather than land_tiles(): this needs the coastline ring too, because a cell that
+## is coastline today is plain grass the moment there is land beyond it.
+func walkable_cells_given_land(extra: Dictionary) -> Dictionary:
+	var land := {}
+	for cell in tileMap.get_used_cells(0):
+		land[cell] = true
+	for cell in extra:
+		land[cell] = true
+	return IslandManager.walkable_body(land, HOME_CENTRE)
 
 
 ## The home island as a region, so that every stretch of land in the game is one and
