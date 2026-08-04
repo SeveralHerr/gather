@@ -1671,9 +1671,11 @@ func _free_cell_near(handler: TileMapHandler, player: Node2D, as_wall: bool):
 
 ## Places one building tile at an offset from the player, through the REAL path the
 ## hotbar drives: InventoryData.use_slot_data → GameItemPlaceable.use → _place →
-## PlayerManager.place_tile/place_wall. That is what makes the occupancy check run, the
-## stack spend, and build xp pay — the old set_tile shortcut skipped all three, which is
-## exactly the xp:0 symptom this closes (G-061, gather-15o).
+## PlayerManager.place_tile/place_wall. That is what makes the occupancy check run and the
+## stack spend — the old set_tile shortcut skipped both. It also used to be what made build xp
+## pay, which is the xp:0 symptom the verb was written for (G-061, gather-15o); that award has
+## since been deleted, so xp:0 is now the correct answer and the verb's remaining job is to
+## prove the occupancy check and the spend still happen on the real path.
 ##
 ## `dx`/`dy` name the target cell relative to where the player stood BEFORE the verb
 ## repositions them: the player is teleported one cell west of the target, facing it,
@@ -1716,7 +1718,6 @@ func _cmd_place_build(args: Dictionary) -> Dictionary:
 
 	var level_up = _level_up_manager()
 	var xp_before: int = level_up.xp if level_up else 0
-	var cell_already_paid: bool = level_up != null and level_up.built_cells.has(target)
 	var slot: SlotData = player.inventory_data.inventory_slot_datas[slot_index]
 	var count_before: int = slot.count
 
@@ -1740,10 +1741,12 @@ func _cmd_place_build(args: Dictionary) -> Dictionary:
 			"granted": granted,
 			"consumed": count_before - slot.count,
 			"xp_before": xp_before,
+			# Expected to EQUAL xp_before on every placement, including a successful one:
+			# placing a tile pays no xp at all now. Reported rather than dropped because that
+			# is precisely the claim worth checking from outside — a reintroduced award shows
+			# up here as a delta, and this pair is the only end-to-end reader of it left now
+			# that the per-cell ledger it used to be compared against is gone.
 			"xp_after": xp_after,
-			# False xp delta with placed=true is legitimate when the cell already paid
-			# once — building pays per cell, ever (gather-5s5).
-			"cell_already_paid": cell_already_paid,
 		},
 	}
 

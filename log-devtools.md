@@ -4611,3 +4611,35 @@ Guidelines that make an entry useful later:
   shape: the follow-up change needed the same lint + `--file test_build_xp` run and had the same
   three unrelated-looking failures available to it.
   - [G-113] status: open | seen: 2 | harness: 0.8.0
+
+## 2026-08-04 — deleted the build-XP award and the ledger that bounded it
+
+- Value: **inconclusive** — third change this session in a container with no Godot binary
+  (G-113, third hit). Nothing ran.
+  - Expected: lint to be the load-bearing check here rather than the tests, because this is a
+    deletion across six files — a missed reference is a parse error, which is exactly what
+    `lint_project.gd` catches and what no unit test would reach.
+  - Got: nothing from the harness. Substituted a repo-wide grep for the five removed symbols
+    (`XP_BUILD`, `award_build_xp`, `built_cells`, `awards_build_xp`, `_placed_tile_position`),
+    which came back with three hits, all of them prose in the comment that records the removal.
+    That is weaker than lint in one specific way it cannot cover: grep proves no *name*
+    survives, not that every remaining call site still type-checks — `_place()` lost a
+    parameter's worth of work and `place_tile_real` lost a local.
+  - Cheaper: nothing available. Note that lint here would have been *more* valuable than usual
+    and was the one thing unavailable, which is the opposite of the usual "tests passed,
+    confirmed what I knew" shape.
+
+- Gap: **the harness has no way to check that a deleted mechanism is actually unreachable.**
+  The award was removed in six places and the only evidence available offline was grep for the
+  names. `scripts-seen` says which scripts entered the tree, and `place_tile_real` reports an
+  xp delta, but neither answers "is this code path gone" — the first is too coarse and the
+  second needs a running game and a hand-driven placement. What was wanted was a static
+  reachability question: does any path still reach `LevelUpManager.add_xp` from a placement?
+  - [G-115] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `python tools/devtools.py callers SYMBOL [--transitive]` that walks the same
+    parsed scripts `--find-orphans` already builds a call graph over, and answers it in the
+    other direction. `--find-orphans` has the graph and only asks "who is called by nobody";
+    the inverse question is one traversal away and is what a deletion needs.
+
+- Gap: **the harness cannot report that it is absent** (G-113, third hit this session).
+  - [G-113] status: open | seen: 3 | harness: 0.8.0

@@ -9,20 +9,11 @@ class_name GameItemBerryBush
 ##
 ## The mark is written only when the placement actually landed. PlayerManager.place_tile does
 ## nothing at all on an occupied cell and reports that only by leaving the stack count alone,
-## which is the same signal the base class watches to decide whether to award build xp.
-
-
-## Planting pays nothing. Build xp is per cell and never refunded, so with the item recoverable
-## it made one bush walked across fresh ground worth 1 xp a tile: plant, uproot, plant one over.
-## Bounded by the buildable area rather than infinite, which is why it survived the pass that
-## closed the uproot loop — but it is still xp for moving a bush around, and a bush is now the
-## one placeable that pays for none of its three actions.
+## which is the only signal there is. Marking a cell no bush went onto would leave a claim for
+## whatever grows there next to pick up.
 ##
-## Nothing is written to LevelUpManager.built_cells either. A cell in that ledger has "already
-## paid", and this one never did — a wall put up there later is a genuine first build and should
-## still score.
-func awards_build_xp() -> bool:
-	return false
+## Planting is worth no xp, but that is no longer this class's business: nothing a placement
+## does pays, so there is nothing here to opt out of.
 
 
 func use(slot_data):

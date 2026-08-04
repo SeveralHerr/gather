@@ -159,8 +159,8 @@ func pick() -> void:
 ## used to pay `xp`, so replanting one minted xp out of nothing: a replanted bush comes up
 ## already picked (see _planted_cells) and is therefore immediately uprootable, which made
 ## uproot-replant-uproot a zero-material loop paying 1 xp a cycle forever. That is the same
-## faucet shape as place-destroy-repeat, which LevelUpManager.built_cells closed, and as the
-## pickup award, which was deleted.
+## faucet shape as the pickup award and the build award, both of which were deleted outright —
+## see LevelUpManager's award table.
 ##
 ## Provenance rather than a per-cell ledger, because a bush moves and a cell does not: the
 ## exploit is one bush being harvested over and over, so the flag belongs on the bush. It also
