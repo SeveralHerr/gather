@@ -5142,3 +5142,19 @@ Guidelines that make an entry useful later:
   over one frame later with nothing spawned. The harness did not miss this; the harness is how it
   was found, one `raid_state` call after the "successful" one. It is now the `strike_lightning`
   pattern: the verb moves the clock to night first and says so in its message.
+
+## 2026-08-04 — merged feature/run-shape into main, re-ran the gate on the merged tree
+
+- Value: **overkill** — everything passed and confirmed what the pre-merge runs already said.
+  A `--no-ff` merge of a branch that was never diverged from cannot change behaviour, and the
+  three features had each been driven at runtime on the branch an hour earlier.
+  - Expected: nothing new. This was a merge-commit sanity pass, not an investigation.
+  - Got: exactly that — lint 0/0, 585/585, 0 SCRIPT ERROR, and a clean boot answering
+    `7 offered`, `no raid running`, `run in progress` at 120 FPS with `+0` orphan growth.
+  - Cheaper: `git log --oneline` and the branch's own green run, ~0s. The one thing the launch
+    genuinely added over that is proof the three new `Systems` nodes still `_ready()` in a tree
+    assembled from the merged `main.tscn` — worth about 20 seconds once, and not worth
+    repeating per merge.
+
+- Gap: **no gaps this turn.** Both gaps from the previous entry ([G-123], [G-124]) were hit
+  during that session and are already filed; nothing new surfaced here.
