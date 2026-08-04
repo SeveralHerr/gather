@@ -1,6 +1,11 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="PackedScene" uid="uid://b106gs33ih13n" path="res://enemies/bone_enemy.tscn" id="1_charged"]
+[ext_resource type="Texture2D" uid="uid://bns0btag74h0k" path="res://assets/art/placeholder_tiles.png" id="2_charged"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_charged"]
+atlas = ExtResource("2_charged")
+region = Rect2(16, 0, 16, 16)
 
 [sub_resource type="Gradient" id="Gradient_sparks"]
 offsets = PackedFloat32Array(0, 1)
@@ -12,7 +17,7 @@ damage = 5
 type = "ChargedBone"
 
 [node name="Sprite2D" parent="." index="0"]
-modulate = Color(0.28, 0.58, 1.85, 1)
+texture = SubResource("AtlasTexture_charged")
 
 [node name="Sparks" type="CPUParticles2D" parent="."]
 emitting = true

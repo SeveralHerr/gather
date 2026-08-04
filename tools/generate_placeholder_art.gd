@@ -113,6 +113,27 @@ const RECOLOURS := [
 ## Where the charged skull lands, and where the arcs are drawn over it.
 const CHARGED_SKULL_CELL := Vector2i(0, 0)
 
+## The charged skeleton's own sprite, recoloured from the bone enemy's cell at tiles.png
+## (14, 0) — the same art the enemy scene points at, so the two silhouettes are identical and
+## only the colour differs.
+##
+## This is a real recoloured SPRITE rather than a `modulate` on the node, and the difference is
+## not cosmetic. A modulate multiplies the whole cell by one colour, so the dark eye sockets and
+## the bright bone move together and the result reads as a skeleton behind blue glass. Ramping
+## the luminance through three colours instead lets the shadows go deep blue while the
+## highlights go pale, which is what makes it read as a skeleton that IS blue.
+const CHARGED_SKELETON_FROM := Vector2i(14, 0)
+const CHARGED_SKELETON_CELL := Vector2i(1, 0)
+
+## The three stops of that ramp: socket shadow, mid bone, lit edge.
+##
+## The darkest stop is deliberately not black. The enemy is met at night and in rain, under a
+## world tint already multiplying everything down, and a skull whose sockets reach zero loses
+## its shape against the ground before the player can read what it is.
+const SKEL_SHADOW := Color(0.05, 0.11, 0.28)
+const SKEL_MID := Color(0.20, 0.46, 0.86)
+const SKEL_LIGHT := Color(0.78, 0.94, 1.0)
+
 ## The coin has no plausible ancestor on the sheet, so it is drawn rather than
 ## recoloured.
 const COIN_CELL := Vector2i(4, 4)
@@ -142,6 +163,9 @@ func _init() -> void:
 	# entry produced, so ordering here is what makes them visible at all.
 	_draw_arcs(sheet, CHARGED_SKULL_CELL)
 	print("  charged skull arcs  (drawn) -> %s" % CHARGED_SKULL_CELL)
+
+	_ramp_cell(source, sheet, CHARGED_SKELETON_FROM, CHARGED_SKELETON_CELL)
+	print("  charged skeleton  %s -> %s" % [CHARGED_SKELETON_FROM, CHARGED_SKELETON_CELL])
 
 	var error := sheet.save_png(ProjectSettings.globalize_path(OUTPUT_SHEET))
 	if error != OK:
@@ -189,6 +213,33 @@ func _draw_arcs(sheet: Image, cell: Vector2i) -> void:
 		for point in arc:
 			var at: Vector2i = point
 			sheet.set_pixel(cell.x * CELL + at.x, cell.y * CELL + at.y, ARC_CORE)
+
+
+## Recolours a cell by mapping its LUMINANCE through a three-stop ramp.
+##
+## Different from _recolour_cell above, which multiplies a tint into the original and therefore
+## preserves the source's own hue relationships. That is right for an ore or a tool, where the
+## art should read as the same object in a different metal. It is wrong here: the skeleton is
+## already near-white, so a multiply just darkens it uniformly and the sockets stay the same
+## relative brightness they were. Remapping instead means the ramp decides the whole palette,
+## which is how a white skull becomes a blue one rather than a tinted one.
+func _ramp_cell(source: Image, sheet: Image, from: Vector2i, to: Vector2i) -> void:
+	for y in CELL:
+		for x in CELL:
+			var pixel := source.get_pixel(from.x * CELL + x, from.y * CELL + y)
+			if pixel.a <= 0.0:
+				continue
+
+			var l := pixel.get_luminance()
+			var colour: Color
+			if l < 0.5:
+				colour = SKEL_SHADOW.lerp(SKEL_MID, l * 2.0)
+			else:
+				colour = SKEL_MID.lerp(SKEL_LIGHT, (l - 0.5) * 2.0)
+
+			# Alpha is carried straight through, so the silhouette is EXACTLY the bone enemy's.
+			# Any change here and the two stop being the same skeleton.
+			sheet.set_pixel(to.x * CELL + x, to.y * CELL + y, Color(colour.r, colour.g, colour.b, pixel.a))
 
 
 func _recolour_cell(source: Image, sheet: Image, from: Vector2i, to: Vector2i, tint: Color) -> void:
