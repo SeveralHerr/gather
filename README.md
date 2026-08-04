@@ -12,6 +12,32 @@ a bank of them hold the line. ([mp4](docs/media/turret-showcase.mp4))
 
 ![Placing a bone turret, catching a skeleton with the net, loading the skull into the turret, and a ring of loaded turrets firing on a wave](docs/media/turret-showcase.gif)
 
+### The worker loop
+
+Lay out a chest and two worker bases, drop a captured skull into each, and the skeletons
+fell a tree and break a rock while you watch — then open the chest and the haul is in it.
+([mp4](docs/media/worker-showcase.mp4))
+
+![Placing a chest and two worker bases, loading a skull into each, the workers felling a tree and breaking a rock, and the chest opened to show the wood and stone they delivered](docs/media/worker-showcase.gif)
+
+### Day, night and weather
+
+A ten-minute day runs from afternoon to dusk, the lantern comes up, a storm rolls in off the
+sea, and lightning walks in from the horizon before dawn breaks. The sea dims with the land —
+they are separate canvases, so keeping them in step is deliberate.
+([mp4](docs/media/weather-showcase.mp4))
+
+![An afternoon shoreline darkening through dusk into night with the player's lantern lit, rain starting, three lightning flashes from the horizon to overhead, and the storm clearing into sunrise](docs/media/weather-showcase.gif)
+
+### Charged skulls
+
+Rarely, a bolt lands on a skeleton and what gets up is blue. Net it — killing one is a
+loss — and its skull upgrades a machine: the charged turret on the right is clearing its
+lane while the ordinary one beside it is still working through its own.
+([mp4](docs/media/charged-showcase.mp4))
+
+![A grey skeleton in a night storm, a lightning bolt landing on it and leaving a blue charged skeleton in its place, the player netting it and loading the skull into a turret that turns blue, and the charged turret outshooting the ordinary one beside it](docs/media/charged-showcase.gif)
+
 ## Key Features
 
 - Resource gathering with tool-based timing and bonus yields

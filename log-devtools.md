@@ -5012,3 +5012,48 @@ Guidelines that make an entry useful later:
   - Improvement: unchanged — `sample-pixels --rect X,Y,W,H` returning mean/brightest/dominant
     RGB from the capture path `screenshot` already uses. Every one of the three findings above
     becomes a one-line assertion instead of a script.
+
+## 2026-08-04 — three README clips: workers, weather, charged skulls
+
+- Value: **warranted** — the dry run is the entire reason two of the three clips are usable,
+  and it produced two claims no diff could have.
+  - Expected: that the already-written `workers` clip would record as-is (it was committed and
+    lint-clean), and that two freshly authored clips would need only a framing check.
+  - Got: `workers` reported `the action press did not open the chest` on a beat whose input
+    path was correct — `ui/inventory_interface.gd:266` force-closes a container more than 15px
+    from the player, and `_walk_to` parks the player on the tile centre 16px away, so the bag
+    opened and shut inside two frames. And `charged` passed one dry run between two failures,
+    failing them *differently*: once `never got within net reach of the charged skeleton`,
+    once `the net beat finished without a charged skull in the inventory`. One run of either
+    clip would have been read as a pass.
+  - Cheaper: nothing. Both are behaviours of a running game against a moving target; neither
+    lint nor the 540 unit tests can reach a coroutine that only exists to be filmed.
+
+- Note, not a gap: **one clean dry run is not evidence for a clip that touches an enemy.** The
+  three-in-a-row rule this session adopted is what turned `charged` from 1/3 to 3/3, and the
+  fix it forced (`_chase`, re-choosing direction every frame and re-closing after a miss) is
+  better choreography as well as more reliable — a single held direction against something
+  whose whole behaviour is that it moves was the bug in both failures.
+
+- Note, not a gap: two agents authoring clips in parallel both wrote `_beat_storm`, and
+  GDScript surfaced the duplicate as `Could not parse global class "DemoDirector"`. The error
+  names the class, never the collision. Beat helpers in a multi-clip file want a clip prefix.
+
+- Gap: **[G-121] a `sample-pixels` verb** — hit a third time. The claim "the sea failed to dim
+  with the land at dusk" looked true in a scaled-down frame and was false: sea and land dimmed
+  by 0.457 vs 0.459 at dusk and 0.338 vs 0.337 in the storm. Getting that answer meant
+  extracting frames with ffmpeg and sampling them with PIL, outside the harness entirely.
+  - [G-121] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: unchanged — `sample-pixels --rect X,Y,W,H` returning mean/brightest/dominant
+    RGB from the capture path `screenshot` already uses.
+
+- Gap: **[G-122] no way to dry-run a director clip without owning the single-instance bus** —
+  both clip-authoring subagents ended their reports with the same six-to-eight item list of
+  "things only a runtime run can confirm", because the bus is one command/result file pair and
+  a recording was live on it. Their lint-and-tests pass proved the file compiled and nothing
+  else; every framing, pacing and reach claim came back to the orchestrator unverified.
+  - [G-122] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a headless `clip-preview --clip NAME --at 2,6,13,24` that runs the director
+    offscreen and writes a handful of PNGs, with no bus and no `--write-movie` pass. Framing
+    and reach are most of what a clip author cannot check, and neither needs a window, audio,
+    or the ~10 minutes a real take costs.

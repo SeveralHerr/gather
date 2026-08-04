@@ -283,12 +283,19 @@ way those two fields can contradict each other, which is why `world_clock` repor
 than deriving one from the other.
 
 `distance` — `0.0` overhead to `1.0` on the horizon — is the single number `lightning_struck`
-carries, and all three consumers derive from it instead of rolling their own: the flash
-brightness (`SkyLighting.flash_peak_for`), the delay before the thunder
-(`WorldClock.thunder_delay`, bounded by `THUNDER_DELAY_MAX`) and that thunder's volume
-(`GameSoundManager.play_thunder`). Three independent "how close was it" rolls would disagree on
-every strike, and a bolt that looks overhead while sounding four seconds away does not read as
-two randomisations — it reads as broken audio.
+carries, and every consumer derives from it instead of rolling its own: the flash brightness
+(`SkyLighting.flash_peak_for`) and the thunder's volume *and pitch*
+(`GameSoundManager.play_thunder`). Two independent "how close was it" rolls would disagree on
+every strike, and a bolt that looks overhead while sounding far off does not read as two
+randomisations — it reads as broken audio.
+
+**There is deliberately no delay between the flash and the thunder**, and the absence is the
+decision. `play_thunder` used to model light outrunning sound, so a horizon bolt cracked 4.5
+seconds after its flash; in a game whose whole day is ten minutes that read as broken audio
+rather than as distance, because the flash was long gone and the bang arrived attached to
+nothing. Distance carries in volume and pitch instead, which reads as distance without cutting
+the sound loose from what the player just saw. If you come here looking for
+`WorldClock.thunder_delay` or `THUNDER_DELAY_MAX`, this paragraph is what replaced them.
 
 **The flash is folded into the tint *before* the three canvas writes, and that placement is
 load-bearing.** `SkyLighting` multiplies the envelope into the colour it is about to hand out,

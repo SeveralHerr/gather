@@ -411,6 +411,26 @@ const WALK_EPSILON := 0.5
 ## for a path that has to route around the turret standing between the bases and the grove.
 const WORKER_WORK_TIMEOUT := 45.0
 
+## How close the player has to get to the chest before the bag will stay open, in pixels.
+##
+## `InventoryInterface._physics_process` force-closes an open container the moment its owner
+## is further than 15px from the player — load-bearing, because a bag left open across the
+## map would keep a remote chest live and writable. A tile is 16px, so a player standing on
+## the *centre* of the cell beside the chest is 16.0px out and the panel shuts itself on the
+## next physics frame. The bag opened and closed inside two frames and the beat could only
+## report that the press had not worked, which sent the first investigation into the input
+## path — `_tap_key_for` was already correct and had nothing to do with it.
+##
+## So the last step of the beat is a lean into the chest rather than a stop on the mark,
+## which is also what a person does. 13.0 rather than 14.9 because the workers deliver to
+## this same chest and the SoftCollision nudge one gives the player in passing is about a
+## pixel; a threshold set at the cliff edge would pass the check and still lose the panel.
+const REVEAL_REACH := 13.0
+
+## Ceiling on that lean, in seconds. The player walks 50px/s and has under 4px to cover, so
+## anything reached here means he is wedged on something rather than walking slowly.
+const REVEAL_CLOSE_TIMEOUT := 3.0
+
 const WORKER_BEAT := {
 	"settle": 0.8,
 	"after_select": 0.45,
@@ -574,6 +594,15 @@ func _beat_reveal(handler: TileMapHandler, player: Player, centre: Vector2i) -> 
 	_mark("reveal")
 
 	await _walk_to(handler, player, centre + WORKER_SET["stand_reveal"])
+
+	var chest = _chest_at(handler, centre + WORKER_SET["chest"])
+	if chest == null:
+		_note("no chest at %s to open" % [centre + WORKER_SET["chest"]])
+		return
+
+	# Not a stop on the mark: see REVEAL_REACH. The mark is exactly one tile out, which is
+	# one pixel further than the panel will stay open from.
+	await _close_in(player, chest)
 	await _wait(WORKER_BEAT["before_reveal"])
 
 	if player.nearest_chest == null:
@@ -586,6 +615,25 @@ func _beat_reveal(handler: TileMapHandler, player: Player, centre: Vector2i) -> 
 	if not _bag_open():
 		_note("the action press did not open the chest")
 	await _wait(WORKER_BEAT["reveal_hold"])
+
+
+## Walks the player up against `target` until he is inside REVEAL_REACH of it, and releases.
+##
+## Held until the *distance* says so rather than for a fixed time. The gap is under 4px and a
+## timed nudge that overshot would push the player through the gap and out the far side, so
+## the thing being waited on is the only thing that can be measured from here.
+func _close_in(player: Player, target: Node2D) -> void:
+	var action := "move_left" if target.global_position.x < player.global_position.x \
+		else "move_right"
+	_press(action)
+	var arrived := await _until(
+		func(): return player.global_position.distance_to(target.global_position) <= REVEAL_REACH,
+		REVEAL_CLOSE_TIMEOUT)
+	_release(action)
+	if not arrived:
+		_note("could not get within %.0fpx of the chest; the bag will close itself"
+			% REVEAL_REACH)
+	await _frames(2)
 
 
 # --- worker staging -------------------------------------------------------------------
@@ -1867,6 +1915,28 @@ func _fail(message: String) -> void:
 ## event the game cannot produce.
 const CHARGED_BOLT_DISTANCE := 0.0
 
+## How many times the net beat will close on the skeleton and swing before giving up.
+##
+## Three, matching the turret clip's swing count — but each attempt here re-walks rather than
+## re-swinging on the spot, which is what makes three enough. See `_beat_net_charged`.
+const CHARGED_NET_ATTEMPTS := 3
+
+## Ceiling on one of those approaches, in seconds. Four tiles at the player's 50px/s is 1.3s, so
+## this is generous for the first approach and is really sized for the later ones, where the
+## skeleton is circling the player rather than standing where it was hit.
+const CHARGED_CHASE_TIMEOUT := 5.0
+
+## Deadbands for the chase, in pixels: closer than this on an axis and that axis stops being
+## pushed on.
+##
+## Two numbers rather than one because the swing is not symmetric. The net sweeps roughly ten
+## pixels ahead of the player and about seven to either side of him vertically, so horizontal
+## alignment is what the catch is bought with and vertical alignment only has to be roughly
+## right. A single tight band on both axes makes the player jitter on the spot between two
+## opposing presses and never commit to the facing the swing is read from.
+const CHASE_BAND_X := 4.0
+const CHASE_BAND_Y := 5.0
+
 ## The hour the clip is shot at: the middle of night, the same value the devtools
 ## `set_time_of_day {"phase": "night"}` verb resolves to.
 ##
@@ -1993,7 +2063,7 @@ func _run_charged_clip() -> void:
 	await _wait(CHARGED_BEAT["settle"])
 	_mark("show_start")
 
-	await _beat_storm()
+	await _beat_charged_storm()
 	var charged: Enemy = await _beat_bolt()
 	await _beat_net_charged(player, charged)
 	await _beat_load_charged(handler, player, centre)
@@ -2014,7 +2084,7 @@ func _run_charged_clip() -> void:
 ## skeleton in beat B is just an enemy that happens to be blue; with it, the replacement is the
 ## event. The turrets are already in frame for the same reason — the one that will be upgraded
 ## is standing beside the one that will not, from the first kept frame.
-func _beat_storm() -> void:
+func _beat_charged_storm() -> void:
 	_beat = "storm"
 	_mark("storm")
 	await _wait(CHARGED_BEAT["storm_hold"])
@@ -2083,6 +2153,52 @@ func _beat_bolt() -> Enemy:
 ## wanders while idle and charges once inside AGGRO_RANGE, so where it is at any given second is
 ## not knowable from here. Walking LEFT means the swing plays `Net_Left`; NET_REACH was measured
 ## against the mirrored animation and holds either way.
+## Walks the player at `target` until it is inside NET_REACH, re-choosing the direction every
+## frame, and reports whether he got there.
+##
+## Every frame rather than once, because the thing being walked at is an Enemy: it wanders while
+## idle, charges once inside AGGRO_RANGE and circles the player once it is attacking, so a
+## direction chosen when the beat began is stale by the time the walk arrives — and a player
+## holding a direction the enemy is no longer in walks away from it for the whole timeout with
+## nothing reporting anything wrong.
+##
+## The horizontal press is what sets `flip_h`, and `flip_h` is what PlayerNet reads to pick
+## `Net_Left` over `Net_Right`. So the horizontal leg is deliberately the one that runs closest
+## to the end: arriving on a purely vertical approach would leave the player swinging the net
+## out of his back.
+func _chase(player: Player, target: Enemy, timeout: float) -> bool:
+	var waited := 0.0
+	var held: Array = []
+	while waited < timeout:
+		if not is_instance_valid(target):
+			break
+		var gap: Vector2 = target.global_position - player.global_position
+		if gap.length() < NET_REACH:
+			break
+
+		var want: Array = []
+		if absf(gap.x) > CHASE_BAND_X:
+			want.append("move_left" if gap.x < 0.0 else "move_right")
+		if absf(gap.y) > CHASE_BAND_Y:
+			want.append("move_up" if gap.y < 0.0 else "move_down")
+
+		for action in held:
+			if action not in want:
+				_release(action)
+		for action in want:
+			if action not in held:
+				_press(action)
+		held = want
+
+		await _dev.get_tree().process_frame
+		waited += _dev.get_process_delta_time()
+
+	for action in held:
+		_release(action)
+	return is_instance_valid(target) \
+		and player.global_position.distance_to(target.global_position) < NET_REACH
+
+
 func _beat_net_charged(player: Player, charged: Enemy) -> void:
 	_beat = "net_charged"
 	_mark("net_charged")
@@ -2094,23 +2210,18 @@ func _beat_net_charged(player: Player, charged: Enemy) -> void:
 		_note("no net in the hotbar")
 		return
 
-	_press("move_left")
-	var closed := await _until(func() -> bool:
-		return not is_instance_valid(charged) \
-			or player.global_position.distance_to(charged.global_position) < NET_REACH, 8.0)
-	_release("move_left")
-
-	if not closed or not is_instance_valid(charged):
-		_note("never got within net reach of the charged skeleton")
-		return
-
-	await _wait(CHARGED_BEAT["before_swing"])
-
-	# Three swings at most, matching the turret clip: the net's Area2D is narrow and a skeleton
-	# that stepped aside on the swing frame would otherwise end the clip with an empty hand and
-	# nothing to load. A swing that connects with nothing is animated exactly like one that does.
+	# Approach and swing are one loop, not two phases, and three dry runs are the reason. A
+	# single hold of `move_left` followed by three swings on the spot failed two takes in three,
+	# and it failed them differently: once the skeleton had wandered past the player before the
+	# walk began, so eight seconds of holding left simply carried him away from it; once the
+	# swings all met air because the thing being swung at had moved on between the arrival test
+	# and the first frame of the animation. Both are the same mistake — deciding once where the
+	# enemy is, against something whose whole behaviour is that it moves.
 	var caught := false
-	for _attempt in 3:
+	for _attempt in CHARGED_NET_ATTEMPTS:
+		if not await _chase(player, charged, CHARGED_CHASE_TIMEOUT):
+			break
+		await _wait(CHARGED_BEAT["before_swing"])
 		await _use()
 		await _wait(SWING_SETTLE)
 		caught = _has(player, Types.Item.ChargedBoneEnemy)
@@ -2118,9 +2229,11 @@ func _beat_net_charged(player: Player, charged: Enemy) -> void:
 			break
 
 	if not caught:
-		_note("the net beat finished without a charged skull in the inventory")
 		if is_instance_valid(charged):
+			_note("the net beat finished without a charged skull in the inventory")
 			charged.queue_free()
+		else:
+			_note("the charged skeleton was gone before the net reached it")
 
 	await _wait(CHARGED_BEAT["after_capture"])
 
