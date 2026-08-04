@@ -905,8 +905,23 @@ func _populate_boss(island_id: String) -> void:
 		return
 
 	var centre: Vector2i = islands[island_id]["centre"]
-	if _live_boss(island_id) == null:
+	var standing := _live_boss(island_id)
+	if standing == null:
 		_spawn_boss(island_id, centre)
+	else:
+		# A boss that is already standing when this runs came back through
+		# `EnemySpawner.loadObject`, which rebuilds enemies from the scene and connects nothing —
+		# the same property `RaidDirector`'s class comment relies on for counting raiders, and a
+		# silent loss here. `_spawn_boss` is the ONLY place `died` is wired, and the branch above
+		# correctly skips it for a boss it did not place, so before this a boss killed after a
+		# load ended nothing: no `boss_killed`, so no reward chest, no `bosses_defeated` (it
+		# resurrected on the next load) and — since gather-1zv — no run summary at all. The player
+		# fought the last fight in the game and the game did not notice.
+		#
+		# It is not visible from anything a save test asserts, because every value involved is
+		# restored correctly; what is missing is a connection, which nothing persists. It surfaced
+		# from the README boss clip, whose whole subject is the card that never appeared.
+		_watch_boss(standing, island_id)
 
 
 func _spawner() -> EnemySpawner:
@@ -946,9 +961,22 @@ func _spawn_boss(island_id: String, centre: Vector2i) -> void:
 	spawner.add_child(boss)
 
 	# After add_child - _ready is what builds the HealthManager this hangs off.
-	# bind() carries which island died, because the signal itself cannot say.
-	if boss.health_manager:
-		boss.health_manager.died.connect(_on_boss_died.bind(island_id))
+	_watch_boss(boss, island_id)
+
+
+## Wires a boss's death to `_on_boss_died`, whether this manager placed it or found it standing
+## after a load.
+##
+## `bind()` carries which island died, because the signal itself cannot say. Guarded on
+## `is_connected` rather than connected blind: `populate_boss_island` is idempotent by design and
+## runs on every `refresh_connections`, so an unguarded connect would end the run once per parcel
+## the player has ever bought.
+func _watch_boss(boss, island_id: String) -> void:
+	if boss == null or boss.health_manager == null:
+		return
+	var handler := _on_boss_died.bind(island_id)
+	if not boss.health_manager.died.is_connected(handler):
+		boss.health_manager.died.connect(handler)
 
 
 ## The reward arrives when the boss does not: a chest drops out of the sky onto the arena and

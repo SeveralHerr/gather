@@ -5158,3 +5158,59 @@ Guidelines that make an entry useful later:
 
 - Gap: **no gaps this turn.** Both gaps from the previous entry ([G-123], [G-124]) were hit
   during that session and are already filed; nothing new surfaced here.
+
+## 2026-08-04 — three README clips for raids, the quest board and the run's ending
+
+- Value: **warranted** — the dry-run loop produced four claims the diff could not, and one of
+  them was a real game bug rather than a clip bug.
+  - Expected: choreography errors — a swing mistimed, a panel opened a frame early. The clips
+    were expected to be the hard part and the game underneath them to be fine.
+  - Got: (1) `island_census` + `run_summary` after a `boss` dry run answered
+    `defeated: False, run_ended: False` while `enemies_killed: 1` — a boss restored from a save
+    is never wired to `_on_boss_died`, so killing it ended nothing: no reward chest, no
+    `bosses_defeated`, and since gather-1zv no run summary at all. `_populate_boss` skips
+    `_spawn_boss` for a boss already standing, and `_spawn_boss` is the only place `died` was
+    connected. Filed and fixed (`_watch_boss`). (2) `_chase` closing to NET_REACH (13px) asks for
+    a distance the physics refuses — enemy bodies are the hurtbox AND are solid to the player, so
+    the elite rests at ~14px and a raider at 16-22. The beat's `continue` meant the player never
+    swung once, with `damage` reading 13 the whole time. (3) The sword only swings sideways, so a
+    raider standing directly above the player is inside any distance envelope and unhittable.
+    (4) `QuestUi._refresh` frees and rebuilds cards in one frame, and `add_child` resolves the
+    resulting name collision by DISCARDING the wanted name — the live card comes in as
+    `@PanelContainer@426`, so exact, prefix and containment matches all fail identically.
+  - Cheaper: nothing. Every one of these is invisible to lint and to the unit suite, and three of
+    the four are invisible to a screenshot as well — the boss one especially, where the fight
+    looks completely normal and the only symptom is a card that does not appear.
+
+- Gap: **a dry run does not reproduce the recording's timestep, and the skill's "three clean dry
+  runs" rule is not sufficient because of it.** `capture_clip.py` passes `--fixed-fps 30`; a dry
+  run launched per the skill (`godot --path . --mute`) runs uncapped. The player therefore moves
+  in sub-pixel steps in a dry run and 1.7px steps in the recording, and a chase settles at a
+  different distance in each. Three clean dry runs of the `raid` clip were followed by a recording
+  whose fight never finished — ten minutes of wall time to learn something a one-minute run could
+  have told me.
+  - [G-125] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: launch dry runs with `--fixed-fps 30` (the workaround used here, and it
+    reproduced the failure on the first run). Worth putting in the skill directly, and worth
+    `capture_clip.py` growing a `--dry-run` that launches with the recording's flags minus
+    `--write-movie` so the two can never drift apart.
+
+- Gap: **the notes array is a pass/fail flag with no denominator, and a stochastic clip needs
+  one.** The raid clip fails roughly one run in eight, because `RaidDirector._pick_spawn_cell` is
+  random and a raider can land somewhere it cannot path out of. Deciding whether that rate was
+  acceptable meant hand-rolling a bash loop and eyeballing eight lines; `demo_state` has no notion
+  of "run this clip N times and report the failure rate", and `verify-runs.jsonl` records gate
+  runs rather than clip takes.
+  - [G-126] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `demo_clip --args '{"name":"raid","repeat":8}'` that re-runs in-process and
+    returns per-run notes, or a `capture_clip.py --dry-run --repeat N` that prints the rate. Either
+    turns "is this clip stable" from a judgement call into a number.
+
+- Non-gap worth recording: the fix that actually made both fight beats reliable was to stop
+  reasoning about hitbox geometry and read `health_manager.current_health` before and after each
+  swing. Three separate corrections to the geometry — a bigger reach, a swing envelope, a
+  vertical alignment band — were each *nearly* right and each still lost a take. Checking the
+  outcome instead is two lines and is correct regardless of which of the four attack animations
+  played. The director can do this only because it runs inside the game: over the bus a
+  RefCounted comes back as an opaque object id, which is the same limitation `charged_state` was
+  written to work around.

@@ -108,6 +108,92 @@ const SWING_SETTLE := 0.35
 ## rather than waiting for a skeleton that is never coming.
 const AGGRO_RANGE := 30.0
 
+## How close the player is walked before swinging a SWORD, as opposed to the net's NET_REACH
+## above. Both fight beats — the raid and the boss — use it, and the gap between the two numbers
+## is what both of their first takes got wrong.
+##
+## NET_REACH is 13 and is a real measurement, of `Net_Right`, against a skeleton the player can
+## walk right up to. Neither half of that transfers:
+##
+##  - **The bodies stop you.** An enemy's hurtbox IS its CharacterBody2D — collision_layer
+##    3145729 carries bit 21, which is exactly what the player's Attack area masks — and that
+##    body is solid to the player's. So the two physically cannot get closer than the sum of
+##    their half-widths. On the elite, which is `bone_enemy.tscn` at 1.7x, that floor is about
+##    14px; on an ordinary raider mid-attack it was measured at 16 to 18. `_chase` asking for 13
+##    is asking for a distance the physics refuses, so it returned false every time and the beat
+##    never swung once — with the boss standing still for a full forty-second ceiling, and with
+##    the last raider of a raid sitting 16px away and simply not dying.
+##  - **The sword reaches further anyway.** The Attack hitbox is a 9x5 rect whose centre sits
+##    about 12px ahead of the player and which the swing animation sweeps, so its far edge passes
+##    roughly 17px out — and the thing it has to touch is a hurtbox that extends 5.5px from the
+##    enemy's own centre (9.4 on the elite).
+##
+## 19 is therefore above every collision floor measured and comfortably inside the swing. Both
+## failures were silent and looked identical to a damage problem: the sword was equipped, `damage`
+## read 13, and the only symptom either clip could report was that the enemy was still standing.
+const SWORD_REACH := 19.0
+
+## How close the target has to be for a sword beat to swing at all, whatever `_chase` reported.
+##
+## 19 was not enough either, and finding that out cost a full ten-minute recording: three clean
+## dry runs in a row all ended with a cleared raid, and the take itself came back with the last
+## raider resting 22px out and the raid unfinished. The resting distance is not a constant — it is
+## wherever the hard bodies, the SoftCollision push and the enemy's current state happen to settle,
+## and under `--fixed-fps 30` the player moves in 1.7px steps rather than the sub-pixel ones an
+## uncapped dry run takes.
+##
+## So the reach stopped being a *gate*. `_chase` still aims for SWORD_REACH and gets as close as
+## the physics allows, and the beat then swings if the target is inside this envelope — which is
+## about where the hitbox stops reaching (a swing sweeping ~17px out against a hurtbox 5.5px from
+## the enemy's centre). A swing that misses costs one second and the loop takes another; an
+## approach that is never granted used to cost the entire fight, silently. The evidence that this
+## is the right way round is that the swings were always landing: every raid that cleared, cleared
+## on the same reach that left the last raider standing.
+const SWORD_SWING_ENVELOPE := 26.0
+
+## Chase stall detection: how much closer counts as progress, and how long without it before
+## `_chase` accepts that this is as close as it is going to get.
+const CHASE_PROGRESS := 0.5
+const CHASE_STALL := 0.6
+
+## How level with the target the player has to be before a sword swing can reach it.
+##
+## The sword is a horizontal weapon and the chase did not know that. `Attack` is a 9x5 rect the
+## animation sweeps out to one SIDE — which side is `flip_h`, and `flip_h` only ever answers left
+## or right — so an enemy standing directly above the player is inside SWORD_SWING_ENVELOPE and
+## cannot be hit at all. `_chase` aims at the target's centre and stops on the straight-line
+## distance, so it is perfectly happy to park the player underneath something and report success.
+##
+## That is what was left after the swing gate was fixed: a raid whose last raider sat 18px away,
+## comfortably inside the envelope, being swung at and missed. `_close_for_swing` lines up on the
+## target's row first and closes second, which is both what makes the swing land and what a person
+## does with a sword.
+##
+## The band is centred on SWING_OFFSET_Y rather than on zero, because the hitbox is not centred on
+## the player either: `Attack` rides at (3, 3) with its 9x5 rect a further (6.5, 4.5) out, and the
+## swing animation sweeps it *downward* — the right-facing one from (-1, 1) to (3, 3), the
+## left-facing one from (-4, -3) to (-1, 9). So the sweep passes through a region below the
+## player's centre, and an enemy standing level with him is nearer the top edge of it than the
+## middle. Aiming to have the target four pixels low is aiming at the middle of the actual sweep.
+const SWING_OFFSET_Y := 4.0
+const SWING_BAND_Y := 8.0
+
+## What the approach does when it cannot line up, and how many times it will try.
+##
+## The case this exists for is an enemy standing directly above or below the player and touching
+## him. The two bodies are solid to each other, so the vertical press that would put them on the
+## same row is pressing into the thing it is trying to get level with: the approach stalls, gives
+## up, is called again by the beat, and stalls again — sixty times in a forty-second fight, with
+## the target twelve pixels away and not one swing thrown.
+##
+## Backing off ALONG the row is what breaks it, and it works because of what the enemy is: a
+## raider hunts, so the moment the player steps aside it walks after him — onto his row, which is
+## exactly where he needs it. The player does not have to solve the geometry; he has to stop
+## standing under it. That is also `EnemyFollow.SIDESTEP_TIME` doing the same thing from the other
+## side of the fight, which is a fair sign it is the right move.
+const SWING_SIDESTEP_TIME := 0.5
+const SWING_SIDESTEPS := 3
+
 var _dev: Node
 var _running := false
 var _clip := ""
@@ -139,7 +225,7 @@ func state() -> Dictionary:
 
 
 func clips() -> Array:
-	return ["turrets", "workers", "weather", "charged"]
+	return ["turrets", "workers", "weather", "charged", "raid", "boss", "quests"]
 
 
 ## Starts a clip. Returns immediately — the performance continues as a coroutine, and the
@@ -163,6 +249,12 @@ func start(clip_name: String) -> Dictionary:
 			_run_weather_clip()
 		"charged":
 			_run_charged_clip()
+		"raid":
+			_run_raid_clip()
+		"boss":
+			_run_boss_clip()
+		"quests":
+			_run_quest_clip()
 		_:
 			_run_turret_clip()
 	return {"success": true, "message": "clip '%s' started" % clip_name, "data": state()}
@@ -716,8 +808,19 @@ func _pocket_clear(handler: TileMapHandler, centre: Vector2i) -> bool:
 ## walls, floors, stations, turrets, ore. A proxy for "is the base in shot", counted over the
 ## same VIEW_HALF the turret clip uses to reason about framing.
 func _built_in_frame(handler: TileMapHandler, centre: Vector2i) -> int:
+	return _built_around(handler, centre + WORKER_SET["mark"])
+
+
+## How many cells of the frame centred on `mark` already have something on them — walls, floors,
+## stations, turrets, ore. The "is the base in shot" proxy, counted over the same VIEW_HALF the
+## turret clip uses to reason about framing.
+##
+## Split out of `_built_in_frame` when the raid clip wanted the same question asked about a mark
+## of its own. The two clips are staged in the same save and want the same thing from it — the
+## house behind the action — and a second copy of this loop would be a second thing to keep in
+## step with what counts as built.
+func _built_around(handler: TileMapHandler, mark: Vector2i) -> int:
 	var built := 0
-	var mark: Vector2i = centre + WORKER_SET["mark"]
 	for y in range(mark.y - VIEW_HALF.y, mark.y + VIEW_HALF.y + 1):
 		for x in range(mark.x - VIEW_HALF.x, mark.x + VIEW_HALF.x + 1):
 			var cell := Vector2i(x, y)
@@ -2166,15 +2269,43 @@ func _beat_bolt() -> Enemy:
 ## `Net_Left` over `Net_Right`. So the horizontal leg is deliberately the one that runs closest
 ## to the end: arriving on a purely vertical approach would leave the player swinging the net
 ## out of his back.
-func _chase(player: Player, target: Enemy, timeout: float) -> bool:
+## `reach` defaults to NET_REACH and is a parameter because of the sword (see SWORD_REACH): the
+## two bodies are solid to each other and stop at the sum of their half-widths, so the distance a
+## net can be swung from is not one a sword beat can ask for.
+##
+## ## Why it also gives up when it stops closing
+##
+## `reach` is a request, and the physics does not have to grant it — how close two bodies actually
+## come to rest is decided by their hard shapes, their SoftCollision, and which state the enemy is
+## in while it happens. Measured against a raider it was 16px, then 18, then 22 on the recording
+## itself. So the loop cannot be allowed to spend its whole `timeout` pressing into a target it is
+## already touching: at eight seconds an approach and five approaches to the ceiling, that is the
+## entire fight spent walking on the spot.
+##
+## Stalling is measured as "the smallest gap seen has not improved in CHASE_STALL", which is
+## `EnemyFollow`'s own rule (measure displacement, never the velocity you wrote) applied to the
+## player. Returning early is what lets the caller swing at what it is standing on rather than
+## keep asking for a distance that is not available.
+func _chase(player: Player, target: Enemy, timeout: float, reach: float = NET_REACH) -> bool:
 	var waited := 0.0
 	var held: Array = []
+	var closest := INF
+	var stalled := 0.0
+
 	while waited < timeout:
 		if not is_instance_valid(target):
 			break
 		var gap: Vector2 = target.global_position - player.global_position
-		if gap.length() < NET_REACH:
+		if gap.length() < reach:
 			break
+
+		if gap.length() < closest - CHASE_PROGRESS:
+			closest = gap.length()
+			stalled = 0.0
+		else:
+			stalled += _dev.get_process_delta_time()
+			if stalled >= CHASE_STALL:
+				break
 
 		var want: Array = []
 		if absf(gap.x) > CHASE_BAND_X:
@@ -2196,7 +2327,150 @@ func _chase(player: Player, target: Enemy, timeout: float) -> bool:
 	for action in held:
 		_release(action)
 	return is_instance_valid(target) \
-		and player.global_position.distance_to(target.global_position) < NET_REACH
+		and player.global_position.distance_to(target.global_position) < reach
+
+
+## Walks the player onto the target's ROW and up beside it, and reports whether a swing thrown now
+## would reach. The sword's counterpart to `_chase`; see SWING_BAND_Y for why the two differ.
+##
+## Vertical is pressed on a tighter band than horizontal because vertical is the axis the hit
+## depends on: being a pixel too far along the row costs nothing, being half a tile above the
+## target costs the whole swing. The horizontal press stops at SWORD_REACH rather than at zero so
+## the player walks *beside* the enemy rather than into it — pressing into a body he cannot pass
+## through is what `_chase`'s stall detection exists to cut short, and not doing it at all is
+## better.
+##
+## Ends on alignment rather than on distance, and on the same stall rule as `_chase`: how close two
+## bodies come to rest is not something this side of the loop gets to choose.
+func _close_for_swing(player: Player, target: Enemy, timeout: float) -> bool:
+	var waited := 0.0
+	var held: Array = []
+	var closest := INF
+	var stalled := 0.0
+	var sidestep := 0.0
+	var sidesteps := 0
+
+	while waited < timeout:
+		if not is_instance_valid(target):
+			break
+		var gap: Vector2 = target.global_position - player.global_position
+		var off_row := absf(gap.y - SWING_OFFSET_Y)
+		if off_row <= SWING_BAND_Y and absf(gap.x) <= SWORD_REACH:
+			break
+
+		# Progress is measured on the thing being optimised — how far the player still is from
+		# standing beside the target — so drifting sideways along a wall does not read as progress.
+		var togo := off_row + maxf(0.0, absf(gap.x) - SWORD_REACH)
+		if togo < closest - CHASE_PROGRESS:
+			closest = togo
+			stalled = 0.0
+		elif sidestep <= 0.0:
+			stalled += _dev.get_process_delta_time()
+			if stalled >= CHASE_STALL:
+				sidesteps += 1
+				if sidesteps > SWING_SIDESTEPS:
+					break
+				# A fresh baseline, or the sidestep's own outward movement counts as failure to
+				# make progress and the next stall fires the moment it ends.
+				stalled = 0.0
+				closest = INF
+				sidestep = SWING_SIDESTEP_TIME
+
+		var want: Array = []
+		if sidestep > 0.0:
+			sidestep -= _dev.get_process_delta_time()
+			# Out from under it, and keep pressing toward its row while doing so. See
+			# SWING_SIDESTEP_TIME: the raider follows, which is what produces the alignment.
+			want.append("move_right" if gap.x < 0.0 else "move_left")
+			if off_row > SWING_BAND_Y * 0.5:
+				want.append("move_up" if gap.y < SWING_OFFSET_Y else "move_down")
+			_apply_held(want, held)
+			held = want
+			await _dev.get_tree().process_frame
+			waited += _dev.get_process_delta_time()
+			continue
+
+		if off_row > SWING_BAND_Y * 0.5:
+			want.append("move_up" if gap.y < SWING_OFFSET_Y else "move_down")
+		if absf(gap.x) > SWORD_REACH:
+			want.append("move_left" if gap.x < 0.0 else "move_right")
+
+		_apply_held(want, held)
+		held = want
+
+		await _dev.get_tree().process_frame
+		waited += _dev.get_process_delta_time()
+
+	for action in held:
+		_release(action)
+	if not is_instance_valid(target):
+		return false
+
+	var arrived: Vector2 = target.global_position - player.global_position
+	return absf(arrived.y - SWING_OFFSET_Y) <= SWING_BAND_Y 		and absf(arrived.x) <= SWORD_SWING_ENVELOPE
+
+
+## Throws one sword swing at `target` and reports whether it actually took health off it.
+##
+## This is the only honest answer to "did that swing land", and getting here took three failed
+## takes' worth of reasoning about hitbox geometry that kept being *nearly* right. The swing
+## animation plays identically whether it connects or not — it is `PlayerNet`'s problem in a new
+## place, and NET_REACH's own comment says so — and the enemy gives no signal either, so a beat
+## that swings and moves on cannot tell a fight from a mime.
+##
+## `health_manager.current_health` is readable from here because this runs inside the game rather
+## than over the devtools bus, where a RefCounted comes back as an opaque object id. It is worth
+## saying out loud that this measures the OUTCOME rather than the setup: whatever the true shape of
+## the sweep is, and whichever of the four attack animations played, a swing that took health off
+## the thing it was aimed at is a swing that landed.
+func _swing_at(player: Player, target: Enemy, pause: float) -> bool:
+	var before := _health_of(target)
+	await _wait(pause)
+	await _use()
+	await _wait(SWING_SETTLE)
+
+	# Dead is the strongest possible form of landed.
+	if not is_instance_valid(target):
+		return true
+	return _health_of(target) < before
+
+
+func _health_of(target: Enemy) -> int:
+	if not is_instance_valid(target) or target.health_manager == null:
+		return -1
+	return target.health_manager.current_health
+
+
+## Steps out from beside the target and over to its other side, so the next swing comes in at a
+## different angle instead of repeating one that just missed.
+##
+## Horizontal first, and that order is what makes it work: the reason a swing misses an adjacent
+## enemy is almost always that the enemy is directly above the player, and the vertical press that
+## would fix that is pressing into the body it is trying to get past. Stepping aside first is what
+## makes the vertical step available at all — the same insight as SWING_SIDESTEP_TIME, applied
+## after a miss rather than after a stall.
+func _reposition(player: Player, target: Enemy) -> void:
+	if not is_instance_valid(target):
+		return
+	var gap: Vector2 = target.global_position - player.global_position
+	await _hold("move_right" if gap.x < 0.0 else "move_left", SWING_SIDESTEP_TIME)
+	if not is_instance_valid(target):
+		return
+	gap = target.global_position - player.global_position
+	await _hold("move_up" if gap.y < SWING_OFFSET_Y else "move_down", SWING_SIDESTEP_TIME)
+
+
+## Presses everything in `want` that is not already held and releases everything held that is no
+## longer wanted. Split out because `_close_for_swing` drives two different sets of presses — the
+## approach and the sidestep — and doing that twice inline is how one of them ends up leaking a
+## held key into the other.
+func _apply_held(want: Array, held: Array) -> void:
+	for action in held:
+		if action not in want:
+			_release(action)
+	for action in want:
+		if action not in held:
+			_press(action)
 
 
 func _beat_net_charged(player: Player, charged: Enemy) -> void:
@@ -2440,3 +2714,1316 @@ func _sky_lighting() -> SkyLighting:
 		if node is SkyLighting:
 			return node
 	return null
+
+
+# --- the raid clip --------------------------------------------------------------------
+#
+# From night three the dark comes to you (gather-0ez): the horn and the banner, a sized wave
+# walking in out of the black, the fight at the wall, and the clear that pays for it.
+#
+# Shot on the demo homestead save, like the worker clip and unlike the other three. A raid is
+# the answer to a question only a built base asks — the whole feature exists so that walls,
+# doors and turrets have something to stand between the player and — and staged on empty
+# starting grass it would be five skeletons walking at a man in a field, which is what night
+# looked like BEFORE this shipped. The base has to be in shot or the clip argues the opposite
+# of its subject.
+#
+# ## The one number this clip changes, and the arithmetic that forces it
+#
+# See RAID_SPEED. Every other number below is the shipped one, including the two the clip is
+# actually about: the night's size curve and the per-raider clear bonus.
+
+## Which save slot the raid clip loads. Slot 3, the demo homestead — the same world and the same
+## one-word change as WORKER_SLOT, whose comment explains why the slot rather than the fixture
+## path is what is written down here.
+const RAID_SLOT := 3
+
+## The night the clip declares a raid for, chosen off `RaidDirector.size_for_day`: night 6 sends
+## five raiders at 1.24x health.
+##
+## Five rather than three. Night 3's raid is deliberately the small one a new player can lose to
+## and still learn from, and three skeletons at a walled house with turrets on it is a scuffle
+## rather than a raid — the clip would be showing the feature at its least like itself. Five is
+## the first size where the stagger reads as a *wave* (they arrive in twos rather than in
+## sequence) and is still inside what one player with one sword can clear on camera. Twelve, the
+# cap, is a different clip and a much longer one.
+const RAID_NIGHT := 6
+
+## What raiders' `EnemyFollow.move_speed` is raised to for the recording, against the 10 a bone
+## skeleton ships with.
+##
+## **This is the clip's one lie about a number**, in the WORKER_CHOP tradition, and the
+## arithmetic is what forces it. `RaidDirector._pick_spawn_cell` puts a raider at least
+## MIN_SPAWN_DISTANCE (200px) from the player — that is the whole point of it, raiders are *seen
+## arriving* rather than seen appearing — and on a maxed island the cell it finds is routinely
+## 200 to 500px out. At the shipped 10px/s that is twenty to fifty seconds of empty grass between
+## the banner and the first raider, in a clip with about thirty seconds in total. The game can
+## afford that wait because a night is three minutes long and the player spends it preparing;
+## the clip cannot, because here the wait IS the footage.
+##
+## 45 rather than something larger: it is within half a tile per second of the shipped raider
+## SPIDER speed (30) and of the elite's (32), so a hastened raider still moves like something in
+## this game rather than like a bug. It also keeps the arrival staggered — five raiders spawned
+## 1.6s apart at 45px/s still reach the player in twos, which is the shape the stagger exists to
+## produce and the thing a faster number would flatten into a single clump.
+##
+## Applied every frame rather than once, for `_compress_work`'s reason: raiders arrive over about
+## nine seconds, so a single sweep at the top of the beat would only reach the ones already out.
+const RAID_SPEED := 45
+
+## How close the nearest raider has to get before the arrival beat hands over to the fight.
+##
+## Seven tiles, which is VIEW_HALF.x — so the beat ends on the frame the first raider is actually
+## in shot, rather than after a number of seconds guessed from a walking speed and a spawn
+## distance that are both different every take.
+const RAID_ARRIVAL_REACH := 112.0
+
+## Ceiling on that walk. Five hundred pixels at RAID_SPEED is eleven seconds, and `EnemyFollow`'s
+## sidestep costs a stuck raider up to SIDESTEP_TIME per obstacle on the way — a homestead has
+## walls in it. Twenty is generous rather than tight on purpose: this timeout expiring means the
+## raid is not coming, which is a note worth trusting.
+const RAID_ARRIVAL_TIMEOUT := 20.0
+
+## Ceiling on the whole fight, and on one approach inside it.
+##
+## The fight is five one-hit kills with a walk between each, so about twelve seconds; the rest is
+## slack for a raider that goes around the house rather than through the gap, and for the turrets
+## taking one down at the far end of their own LineOfSight while the player is busy elsewhere.
+## Both are sized by the straggler rather than by the fight, and the fight is not the expensive
+## part: five raiders that all arrive are dealt with in about twelve seconds. What costs is the one
+## raider that wedges on the far side of the base — measured at 319px in one dry run and 344px in a
+## recording, both at full health, meaning it had never reached the player at all. There is no
+## baked navigation in this game (see CLAUDE.md), so neither the raider nor the player can route
+## around a house; what actually resolves it is `EnemyFollow`'s sidestep freeing the raider while
+## the player walks toward it, and that needs room to happen in. Twenty-one tiles at the player's
+## 50px/s is seven seconds of walking before a swing is even possible.
+const RAID_FIGHT_TIMEOUT := 55.0
+const RAID_CHASE_TIMEOUT := 16.0
+
+## How close a raider has to be before the player goes to meet it, and how long the field has to
+## stay quiet before he goes looking anyway.
+##
+## The first cut chased the nearest raider from wherever it was, and it failed one dry run in
+## three — twice the raid ran out its forty seconds with two raiders left, and the same forty
+## seconds produced takes of 28 and 66 wall-clock seconds. The cause is that a raider has
+## obstacle logic and the player does not: `EnemyFollow` measures actual displacement and
+## sidesteps along whatever it is pressed against, while `_chase` is a held direction, so a
+## player sent across his own homestead at something behind a wall pushes into that wall for the
+## whole approach timeout and then does it again.
+##
+## So the player holds his ground and lets them come, which is more robust for the same reason it
+## is better footage: raiders hunt from `hunt_range` 4000, so every one of them is already walking
+## at him, and standing at the wall you built while they arrive is the decision this entire
+## feature exists to create. RAID_PATIENCE is the escape hatch for the genuinely wedged one — if
+## nothing has been in reach for that long, the field really has gone quiet and it is worth
+## walking out.
+const RAID_HOLD_RANGE := 40.0
+const RAID_PATIENCE := 2.5
+
+## Half-extents of the apron the fight needs: land, unbuilt, and walkable.
+##
+## Deliberately small. Scoring a big clearing beside a house asks for something a finished base
+## does not have — its owner built on the flat ground — and BATTLE_HALF's comment records what
+## that costs: a search that refuses worlds it could have filmed. Three by two is room for the
+## player to back up and swing without the chase wedging him on his own wall, and no more.
+const RAID_FIGHT_HALF := Vector2i(3, 2)
+
+## The hour the clip is shot at: the middle of night, the same value `set_time_of_day
+## {"phase": "night"}` resolves to and the same constant the charged clip is framed on.
+##
+## Night rather than dusk, and it is not only mood. `RaidDirector._process` ends any raid it finds
+## running outside `WorldClock.is_night()`, so a clip staged in the twilight would be racing the
+## clock to finish before dawn cancelled the thing it is filming — which is the same trap the
+## `start_raid` devtools verb moves the clock for.
+const RAID_HOUR := (WorldClock.DUSK_END + 1.0) * 0.5
+
+## Beat lengths in seconds. The performance runs about thirty between the marks, most of it the
+## arrival and the fight — both of which end on a condition rather than on a clock, so those two
+## are ceilings above rather than entries here.
+const RAID_BEAT := {
+	"settle": 0.8,
+	# The quiet before. Long enough to read the base and the dark as the state of things, which
+	# is what the announcement then interrupts — an announcement over an establishing shot that
+	# has not landed yet is just the first thing that happens.
+	"dark_hold": 2.6,
+	# Covers RaidDirector.TELEGRAPH_SECONDS (3.0) and a little: the splash, the flash, the shake
+	# and the horn all land on the first frame of this and nothing is on the map until the end of
+	# it, which is exactly the beat the telegraph exists to buy the player.
+	"announce": 3.4,
+	"before_swing": 0.3,
+	# After the last raider goes down: the RAID REPELLED splash, the coin purse landing and
+	# vacuuming in, and the xp. All three are the payout, and the clip has no other reason to
+	# still be running.
+	"cleared_hold": 3.6,
+	"tail": 0.8,
+}
+
+
+func _run_raid_clip() -> void:
+	if not _load_slot(RAID_SLOT):
+		_fail("could not load save slot %d" % RAID_SLOT)
+		return
+	# A load rebuilds most of the world, and the scene tiles it re-instances are not in the tree
+	# — so not in their groups, and not findable — until the frames after it returns.
+	await _frames(4)
+
+	var handler := _handler()
+	var player := _player()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player after loading slot %d" % RAID_SLOT)
+		return
+
+	var director := _raid_director()
+	if director == null:
+		_fail("no RaidDirector in the scene, so there is no raid to film")
+		return
+
+	var centre = _stage_raid(handler, player, director)
+	if centre == null:
+		_fail("no clear %sx%s apron with a base in frame within %s tiles of where slot %d put the player" % [
+			RAID_FIGHT_HALF.x * 2 + 1, RAID_FIGHT_HALF.y * 2 + 1, ARENA_SEARCH, RAID_SLOT,
+		])
+		return
+
+	# Everything above this line is setup and is expected to be trimmed off the front of the
+	# recording; everything below it is the clip.
+	await _wait(RAID_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_raid_watch()
+	await _beat_raid_call(director)
+	await _beat_raid_arrival(player, director)
+	await _beat_raid_fight(player, director)
+	await _beat_raid_cleared(director)
+
+	_mark("show_end")
+	await _wait(RAID_BEAT["tail"])
+
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — night at the homestead, and nothing happening.
+##
+## The same job as the charged clip's grey skeleton: without the quiet first, the banner is the
+## opening title rather than an interruption. What the frame holds — the walls, the turrets, the
+## chests — is also the argument the rest of the clip makes, so it is established before anything
+## is asked of it.
+func _beat_raid_watch() -> void:
+	_beat = "raid_watch"
+	_mark("raid_watch")
+	await _wait(RAID_BEAT["dark_hold"])
+
+
+## Beat B — the horn. `NIGHT 6 — RAID` in three registers at once and a banner counting five.
+##
+## Through `RaidDirector.start_raid`, which is the game's own entry point and what the clock calls
+## at nightfall — so the splash, the screen flash, the shake, the thunder, the telegraph and the
+## banner all come from the code that would have run anyway. The clip chooses the *night*, not
+## the announcement.
+##
+## The size is asserted rather than assumed. `start_raid` returns 0 for a night that does not
+## raid, and a clip that filmed a quiet night would run to completion showing an empty base with
+## a banner that never appeared — success, and nothing on screen.
+func _beat_raid_call(director: RaidDirector) -> void:
+	_beat = "raid_call"
+	_mark("raid_call")
+
+	var size := director.start_raid(RAID_NIGHT)
+	if size <= 0:
+		_note("night %d declared no raiders" % RAID_NIGHT)
+		return
+
+	await _wait(RAID_BEAT["announce"])
+
+	var banner := _raid_banner()
+	if banner != null and not banner.is_showing():
+		_note("the raid started but the banner never came on screen")
+
+
+## Beat C — they arrive. The wave crosses the island in the dark and the first of it walks into
+## frame.
+##
+## Ends on the first raider being inside RAID_ARRIVAL_REACH rather than after a fixed wait, and
+## that is the same rule the worker clip's delivery beat follows: where a walking thing has got to
+## is not knowable from here, and the only honest thing to wait on is the arrival itself.
+##
+## `_hasten_raiders` runs every frame of it. See RAID_SPEED for what it changes and why the clip
+## cannot be shot without it.
+func _beat_raid_arrival(player: Player, director: RaidDirector) -> void:
+	_beat = "raid_arrival"
+	_mark("raid_arrival")
+
+	var arrived := await _until(func() -> bool:
+		_hasten_raiders()
+		var nearest := _nearest_raider(player)
+		return nearest != null \
+			and player.global_position.distance_to(nearest.global_position) <= RAID_ARRIVAL_REACH,
+		RAID_ARRIVAL_TIMEOUT)
+
+	if not arrived:
+		_note("no raider came within %.0fpx in %.0fs; %d were still owed" % [
+			RAID_ARRIVAL_REACH, RAID_ARRIVAL_TIMEOUT, director.remaining()])
+
+
+## Beat D — the fight. The player takes them as they come and the turrets take what he does not.
+##
+## One loop that re-chooses its target every pass rather than a list decided up front, which is
+## the `charged` clip's lesson applied to five moving things instead of one: raiders are still
+## arriving while this runs, the turrets are killing them in an order nobody chose, and a target
+## picked when the beat opened may be dead or across the base by the time the swing lands.
+##
+## The exit condition is the director's own `remaining()` — standing plus still to arrive — and
+## not "no raiders on screen". Those differ for the whole middle of the beat, and stopping on the
+## second would cut away from a raid the banner still says is running.
+func _beat_raid_fight(player: Player, director: RaidDirector) -> void:
+	_beat = "raid_fight"
+	_mark("raid_fight")
+
+	if not _select(Types.Item.GoldSword):
+		_note("no sword in the hotbar to meet the raid with")
+		return
+
+	# A SceneTreeTimer rather than an accumulator, because the loop below spends most of its time
+	# inside `_chase` and `_use`, neither of which reports how long it took — summing what this
+	# level of the loop can see would undercount the beat by most of its length. The timer counts
+	# process time, which is game time, which under the movie writer is exactly frames/fps.
+	var deadline := _dev.get_tree().create_timer(RAID_FIGHT_TIMEOUT)
+	var quiet := 0.0
+
+	while deadline.time_left > 0.0 and director.raid_active:
+		_hasten_raiders()
+
+		var target := _nearest_raider(player)
+		if target == null:
+			# Nothing standing, but the raid is still open: the stagger has more to send. Waiting a
+			# frame keeps `_hasten_raiders` running over the ones still walking in.
+			await _dev.get_tree().process_frame
+			continue
+
+		var gap := player.global_position.distance_to(target.global_position)
+		if gap > RAID_HOLD_RANGE and quiet < RAID_PATIENCE:
+			# Hold the line. See RAID_HOLD_RANGE — they are all already coming.
+			await _dev.get_tree().process_frame
+			quiet += _dev.get_process_delta_time()
+			continue
+
+		quiet = 0.0
+		# `_close_for_swing`, not `_chase`: this is a sword, and lining up on the target's row is
+		# what makes the difference between a swing and a swing at air. See SWING_BAND_Y.
+		if await _close_for_swing(player, target, RAID_CHASE_TIMEOUT):
+			# And the swing is checked rather than assumed. Two dry runs ended with the last raider
+			# nine pixels from the player, being swung at and not dying — see `_swing_at`.
+			if not await _swing_at(player, target, RAID_BEAT["before_swing"]):
+				await _reposition(player, target)
+
+	if director.raid_active:
+		# The survivor's distance, because "two left" has two causes that want opposite fixes: two
+		# raiders still walking in (the arrival was slower than the fight ceiling) and two wedged
+		# on terrain a dozen tiles away (they are never arriving). The number tells them apart.
+		var survivor := _nearest_raider(player)
+		var away := player.global_position.distance_to(survivor.global_position) \
+			if survivor != null else -1.0
+		_note("the raid was still running after %.0fs with %d left, nearest %.0fpx away on %d health" % [
+			RAID_FIGHT_TIMEOUT, director.remaining(), away, _health_of(survivor)])
+
+
+## Beat E — RAID REPELLED, and the purse.
+##
+## `raids_cleared` is what gets asserted, not `raid_active`, and the difference is the whole
+## feature: dawn also ends a raid, pays nothing and leaves the survivors alive. A clip that
+## checked only "is it over" would happily film a night the player *survived* while the README
+## line under it said cleared.
+func _beat_raid_cleared(director: RaidDirector) -> void:
+	_beat = "raid_cleared"
+	_mark("raid_cleared")
+
+	if director.raids_cleared <= 0:
+		_note("the raid ended without being cleared")
+	await _wait(RAID_BEAT["cleared_hold"])
+
+
+# --- raid staging ---------------------------------------------------------------------
+
+## Puts the loaded save into the night the clip opens on, and returns the rampart cell — or null
+## when the save has nowhere to fight that still has the base in shot.
+func _stage_raid(handler: TileMapHandler, player: Player, director: RaidDirector):
+	_beat = "staging"
+
+	var centre = _find_rampart(handler, player)
+	if centre == null:
+		return null
+
+	_freeze_ambient()
+	_clear_enemies()
+	# Every worker in the save belongs to the save, not to the clip; see `_still_existing_workers`.
+	# It matters more here than in the worker clip, because a wandering skeleton in a shot whose
+	# whole subject is *incoming skeletons* is not merely a distraction, it is a wrong answer.
+	_still_existing_workers()
+
+	player.position = handler.tileMap.map_to_local(centre)
+	player.velocity = Vector2.ZERO
+	# The turret clip's lie, for the turret clip's reason: five raiders at three damage a hit will
+	# kill this player, and a death teleports him to the respawn point with the camera attached.
+	player.invulnerable = true
+
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+	_stock_raid_kit(player)
+
+	# The raid the clip runs is the one it declares, on the night it chose. `running = false` stops
+	# the clock opening a *second* one underneath it when the hour below crosses into darkness —
+	# `_on_night_started` fires on that crossing, and the day the demo save is on is not the night
+	# this clip is about. It gates only that handler: `_process` still spawns, still counts and
+	# still pays, so everything the clip films is the real thing.
+	director.running = false
+
+	var clock := _world_clock()
+	if clock != null:
+		# Clear rather than whatever the save was under. A raid IS the weather in this clip, and a
+		# storm over it would put lightning, rain and a second set of tint writes on top of the one
+		# event the frame is meant to be about.
+		clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+		clock.set_time_of_day(RAID_HOUR)
+
+	var sky := _sky()
+	if sky != null:
+		sky.apply()
+	return centre
+
+
+## The rampart: a cell with a clear apron to fight in and as much of the player's own base in
+## frame as the search can find.
+##
+## Ranked on built cells in view, then nearness — `_find_pocket`'s scoring, and for exactly its
+## reason. Clear ground is abundant on a maxed island and the nearest clear apron is out in a
+## field, which would film a raid against grass and quietly make the opposite of this feature's
+## argument. What differs from the pocket is the requirement: this one wants ground to *fight* on
+## rather than ground to build on, so it tests a rectangle around the stand rather than a set of
+## named cells.
+func _find_rampart(handler: TileMapHandler, player: Player):
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var best = null
+	var best_key := [-1, -(1 << 30)]
+
+	for dy in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+		for dx in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+			var candidate := origin + Vector2i(dx, dy)
+			if not _apron_clear(handler, candidate):
+				continue
+			var key := [_built_around(handler, candidate), -(dx * dx + dy * dy)]
+			if key > best_key:
+				best = candidate
+				best_key = key
+	return best
+
+
+## Whether the fight apron around `centre` is land and unbuilt.
+##
+## `is_occupied(cell, true)` is the game's own build test and answers both halves at once: it is
+## false for open water (no ground tile) and false for anything already standing there. A raid
+## fought half in the sea is the `_spawn_enemy` bug in another place, and a chase through the
+## player's own wall is `EnemyFollow`'s sidestep spending the whole beat.
+func _apron_clear(handler: TileMapHandler, centre: Vector2i) -> bool:
+	for y in range(-RAID_FIGHT_HALF.y, RAID_FIGHT_HALF.y + 1):
+		for x in range(-RAID_FIGHT_HALF.x, RAID_FIGHT_HALF.x + 1):
+			if handler.is_occupied(centre + Vector2i(x, y), true):
+				return false
+	return true
+
+
+## The kit: one gold sword, into the first slot.
+##
+## A gold sword rather than the starting one, and it is a pacing decision with a number behind it.
+## A night-6 raider is 12 health; the starting Sword is 4 damage, so it is three swings and a
+## re-approach each — about forty seconds of the same animation for five raiders, in a clip with
+## thirty. Gold is 13, so each raider is one committed swing, which is also what a player who has
+## reached night 6 with a furnace in their base is actually holding.
+##
+## Only the first two slots are cleared, not all six — `_stock_worker_kit`'s reason: the save's own
+## wood and stone stay visible in the hotbar, and a defended base whose owner is carrying nothing
+## reads as a diorama.
+func _stock_raid_kit(player: Player) -> void:
+	var slots: Array = player.inventory_data.inventory_slot_datas
+	for index in mini(2, slots.size()):
+		slots[index] = null
+
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.GoldSword), 1))
+	player.inventory_data.inv_updated()
+
+
+## Raises every live raider's follow speed. See RAID_SPEED.
+##
+## Guarded on the current value rather than assigned unconditionally, which costs nothing and
+## makes the function safe to call every frame — the same shape as `_compress_work`, and for the
+## same reason: the things it acts on arrive after it first runs.
+func _hasten_raiders() -> void:
+	for node in _dev.get_tree().get_nodes_in_group("Enemy"):
+		if not (node is Enemy) or not EnemyRegistry.is_raider(node.type):
+			continue
+		var follow := node.get_node_or_null("StateMachine/EnemyFollow") as EnemyFollow
+		if follow != null and follow.move_speed < RAID_SPEED:
+			follow.move_speed = RAID_SPEED
+
+
+## The nearest live raider, or null. Raiders only — an ordinary skeleton wandering in from the
+## save is not what the fight beat is counting down.
+func _nearest_raider(player: Player) -> Enemy:
+	var closest: Enemy = null
+	var closest_distance := INF
+	for node in _dev.get_tree().get_nodes_in_group("Enemy"):
+		if not (node is Enemy) or not EnemyRegistry.is_raider(node.type):
+			continue
+		var enemy := node as Enemy
+		var distance: float = player.global_position.distance_to(enemy.global_position)
+		if distance < closest_distance:
+			closest_distance = distance
+			closest = enemy
+	return closest
+
+
+func _raid_director() -> RaidDirector:
+	for node in _dev.get_tree().get_nodes_in_group("RaidDirector"):
+		if node is RaidDirector:
+			return node
+	return null
+
+
+## By path, the way `commands.gd:_raid_banner` reaches it. The banner is authored into
+## `main.tscn`'s UI layer rather than created at runtime, so unlike the clock there is a path to
+## rely on and no group to look it up by.
+func _raid_banner() -> RaidBanner:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/RaidBanner") as RaidBanner
+
+
+# --- the boss clip --------------------------------------------------------------------
+#
+# The run has an ending now, and the ending has a number (gather-1zv): the elite guarding the
+# boss arena, the fight, and the card that totals up everything the run came to.
+#
+# Shot on the demo homestead save, and that is a requirement rather than a preference. The boss
+# is placed by `IslandManager` only once its island is `connected` — `LandRegion.connected` gates
+# enemies and the boss, so on a fresh world the arena is stocked scenery across water with
+# nothing standing in it. A save with all twelve parcels bought is the only world that has a boss
+# to kill.
+#
+# ## Why the card is most of the clip
+#
+# The fight is the part that looks like the rest of the game; the card is the part that is new.
+# `RunSummaryUi` is deliberately slow — twelve rows landing one at a time with their numbers
+# counting up — because it is the only screen in this game whose job is to be looked at rather
+# than played through. So the beat after the kill is the longest one here, and it is doing
+# nothing except letting the tally finish, which is what it is for.
+#
+# ## What this clip does NOT do
+#
+# It never presses NEW RUN. That button is `reload_current_scene()` and it asks twice before it
+# acts; filming the confirmation would be filming a dialog, and filming the reload would be
+# filming a loading world. The card, and the two ways out sitting under it, is the feature.
+
+## Which save slot the boss clip loads. Slot 3, the demo homestead — see WORKER_SLOT.
+const BOSS_SLOT := 3
+
+## How far from the boss the player is stood before the show, in tiles.
+##
+## Three. The elite is 1.7x scale on a 16px sprite and its `hunt_range` is the ordinary 30px, so
+## from three tiles it is plainly in frame, plainly bigger than anything else in the game, and
+## has not yet noticed the player — which lets the clip open on the arena rather than opening
+## mid-fight.
+const BOSS_STAND_OFFSET := 3
+
+## How far the stand search will walk from the boss, and the ground it scores around each
+## candidate.
+##
+## The scoring is the interesting part and the first cut got it wrong in a way worth recording.
+## That version demanded a clear 5x5 at exactly BOSS_STAND_OFFSET in one of the four cardinal
+## directions, and it refused the save outright: `island_census` puts the boss arena at radius 5
+## with 45 land tiles, so a rect centred three tiles out reaches the coastline on every side, and
+## that coastline is noise-thresholded and ragged. The arena is small BY DESIGN — it is the last
+## island the player reaches and it is a fighting pit, not a settlement — so a search that needs
+## a parade ground in it is asking the wrong question.
+##
+## What replaced it scores instead of demanding, in `_find_arena`'s three-key style: clear cells
+## around the candidate first, then how close it sits to BOSS_STAND_OFFSET (framing), then how
+## level it is with the boss (a horizontal approach is the one that leaves the player facing it,
+## and facing is what the swing animation is picked from). Only the stand cell itself is a hard
+## requirement, because that is the only cell the player is guaranteed to occupy.
+const BOSS_SEARCH := 5
+const BOSS_DUEL_HALF := Vector2i(2, 1)
+
+## Ceilings on the duel, and on one approach inside it.
+##
+## The elite is 90 health against a gold sword's 13, so it is seven landed swings; it moves at 32
+## px/s, which is over three times a bone skeleton's and is why the approach ceiling here is
+## shorter than the raid's — a boss that is hunting the player closes most of the gap itself.
+const BOSS_DUEL_TIMEOUT := 40.0
+const BOSS_CHASE_TIMEOUT := 6.0
+
+## Ceiling on the card appearing after the boss goes down.
+##
+## Generous for what is a signal chain and not a wait: `Enemy._on_died` records the kill, emits
+## `died`, `IslandManager._on_boss_died` re-emits `boss_killed`, `RunStats._on_boss_killed` calls
+## `end_run` and `RunSummaryUi` opens on `run_ended`. All of that is inside a couple of frames —
+## but `_on_died` also awaits 0.2s of particles, so this is not a single-frame test either.
+const BOSS_CARD_TIMEOUT := 6.0
+
+## The hour the clip is shot at: the middle of DAY, where `WorldClock.tint_for` is flat DAY_TINT.
+##
+## Flat is the point. The duel and the card together run over twenty seconds, and anywhere in
+## either twilight the light would be visibly moving underneath them — which the weather clip
+## exists to show and this one would only be leaking.
+const BOSS_HOUR := (WorldClock.DAWN_END + WorldClock.DAY_END) * 0.5
+
+## Beat lengths in seconds. The duel ends on the boss dying rather than on a clock, so the
+## performance is roughly 8 seconds of framing plus however long the fight takes — about
+## twenty-eight in total.
+const BOSS_BEAT := {
+	"settle": 0.8,
+	# The arena, the chest and the thing standing over it. Short: nothing is happening and the
+	# viewer can see that the shape of what is about to happen is obvious.
+	"arena_hold": 3.0,
+	"before_swing": 0.3,
+	# The pause on the body. The elite's death particles and its loot land here, and the card is
+	# about to take the screen — cutting straight from the last swing to a full-screen panel reads
+	# as the panel having interrupted the fight rather than as having concluded it.
+	"after_kill": 1.2,
+	# The card. Twelve rows at ROW_STAGGER (0.08) with COUNT_TIME (0.55) each finishes its tally
+	# about 1.5s in; the rest is the time it takes to actually read a scoreboard, which is the
+	# only thing this screen is for — and the measured duel is only about eight seconds, so this
+	# is also where the clip's length comes from. The first timing came out at nineteen seconds
+	# against the 25-30 the shipped four sit at.
+	"card_hold": 8.5,
+	"tail": 0.8,
+}
+
+
+func _run_boss_clip() -> void:
+	if not _load_slot(BOSS_SLOT):
+		_fail("could not load save slot %d" % BOSS_SLOT)
+		return
+	await _frames(4)
+
+	var handler := _handler()
+	var player := _player()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player after loading slot %d" % BOSS_SLOT)
+		return
+
+	var boss := _boss()
+	if boss == null:
+		_fail("slot %d has no live %s: either its boss island never opened or the run is already over"
+			% [BOSS_SLOT, EnemyRegistry.ELITE])
+		return
+
+	if not _stage_boss(handler, player, boss):
+		_fail("no land to stand on within %s tiles of the boss at %s" % [
+			BOSS_SEARCH, handler.tileMap.local_to_map(boss.global_position),
+		])
+		return
+
+	# Everything above this line is setup and is expected to be trimmed off the front of the
+	# recording; everything below it is the clip.
+	await _wait(BOSS_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_boss_arena()
+	await _beat_boss_duel(player, boss)
+	await _beat_boss_card()
+
+	_mark("show_end")
+	await _wait(BOSS_BEAT["tail"])
+
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — the arena, the guard and the chest behind it.
+##
+## The chest is in frame on purpose and is not decoration: it is what the boss is standing over,
+## and a viewer who has not seen it has no reason to believe there was anything here worth the
+## walk. `IslandManager.CHEST_OFFSET` puts it two tiles from the boss, so it comes for free from
+## framing the boss at all.
+func _beat_boss_arena() -> void:
+	_beat = "boss_arena"
+	_mark("boss_arena")
+	await _wait(BOSS_BEAT["arena_hold"])
+
+
+## Beat B — the duel.
+##
+## Seven swings with a re-approach between each, driven through the same chase-and-swing loop the
+## raid uses, for the reason that loop exists at all: the elite hunts, and a direction chosen when
+## the beat opened is stale by the time the walk arrives.
+##
+## Killed rather than netted, which is the opposite of the charged clip and is correct for the
+## same registry reason: `ELITE` is `nettable: false`, and it pays out on the body and in its
+## chest. The boss is the one enemy in the game the reward for is its death.
+func _beat_boss_duel(player: Player, boss: Enemy) -> void:
+	_beat = "boss_duel"
+	_mark("boss_duel")
+
+	if not _select(Types.Item.GoldSword):
+		_note("no sword in the hotbar to fight the boss with")
+		return
+
+	# Both halves are counted, and that is not instrumentation for its own sake: "the boss is
+	# still standing" has two entirely different causes — swings that never happened because the
+	# approach could not close, and swings that happened and did nothing — and they live in
+	# different files. The first take reported only the symptom and sent the search to the wrong
+	# one of them. See SWORD_REACH.
+	var swings := 0
+	var missed_approaches := 0
+
+	var deadline := _dev.get_tree().create_timer(BOSS_DUEL_TIMEOUT)
+	while deadline.time_left > 0.0 and is_instance_valid(boss):
+		# Lined up beside it rather than walked at it. A boss at 1.7x scale is one of the two
+		# things that made the plain chase unusable here; the other is that the sword only swings
+		# sideways. See SWING_BAND_Y and SWORD_SWING_ENVELOPE.
+		if not await _close_for_swing(player, boss, BOSS_CHASE_TIMEOUT):
+			missed_approaches += 1
+			continue
+		if await _swing_at(player, boss, BOSS_BEAT["before_swing"]):
+			swings += 1
+		else:
+			await _reposition(player, boss)
+
+	if is_instance_valid(boss):
+		_note("the boss was still standing after %.0fs on %d health: %d swing(s) landed, %d approach(es) never lined up"
+			% [BOSS_DUEL_TIMEOUT, _health_of(boss), swings, missed_approaches])
+	await _wait(BOSS_BEAT["after_kill"])
+
+
+## Beat C — the card. Every number the run came to, counting itself up.
+##
+## Waited on rather than timed, and asserted on the *view*: `RunStats.end_run` freezing the score
+## and `RunSummaryUi` drawing it are different files, and a clip that held for six seconds on the
+## strength of the model having ended would film six seconds of an ordinary game if the card never
+## opened. This is the `world_clock` verb's rule — read the thing back off the node that draws it.
+func _beat_boss_card() -> void:
+	_beat = "boss_card"
+	_mark("boss_card")
+
+	var card := _run_summary_ui()
+	if card == null:
+		_note("no RunSummaryUI in the scene to show the score")
+		return
+
+	if not await _until(func() -> bool: return card.is_open(), BOSS_CARD_TIMEOUT):
+		# Worded off what is actually knowable here. A duel that ran out of time leaves a live boss
+		# and no card, and the first take's message ("the boss died but…") asserted the half this
+		# beat cannot see — which reads as a second, independent failure rather than as a
+		# consequence of the note above it.
+		_note("no run summary card within %.0fs (boss alive: %s)"
+			% [BOSS_CARD_TIMEOUT, _boss() != null])
+		return
+
+	await _wait(BOSS_BEAT["card_hold"])
+
+
+# --- boss staging ---------------------------------------------------------------------
+
+## Puts the loaded save into the state the boss clip opens on. Returns whether it found ground to
+## fight on — the boss itself is looked up before staging, because a save with no boss is a
+## different failure and deserves a different message.
+func _stage_boss(handler: TileMapHandler, player: Player, boss: Enemy) -> bool:
+	_beat = "staging"
+
+	var boss_cell: Vector2i = handler.tileMap.local_to_map(boss.global_position)
+	var stand = _find_duel_ground(handler, boss_cell)
+	if stand == null:
+		return false
+
+	_freeze_ambient()
+	# Everything except the boss. The arena itself refuses ambient enemies, so this is really about
+	# the rest of the save — a skeleton that wandered in off the mainland during the load would be
+	# a second thing for the swing loop to find, and `_nearest` would take it first.
+	_clear_enemies_except(boss)
+	_still_existing_workers()
+
+	player.position = handler.tileMap.map_to_local(stand)
+	player.velocity = Vector2.ZERO
+	# The elite hits for 6 and the duel is seven swings long. The clip must not end on a respawn,
+	# which would also take the camera off the island the boss is on.
+	player.invulnerable = true
+
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+	_stock_raid_kit(player)
+
+	var clock := _world_clock()
+	if clock != null:
+		# Daylight, and clear. The card is a full-screen panel of small text over the world, and the
+		# night tint plus rain behind it costs contrast on the one screen in the game that exists
+		# to be read. It is also the honest framing: nothing about the boss is nocturnal.
+		clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+		clock.set_time_of_day(BOSS_HOUR)
+
+	var sky := _sky()
+	if sky != null:
+		sky.apply()
+	return true
+
+
+## Where the player stands to open the duel: land beside the boss, as much of it as the arena has
+## and as close to BOSS_STAND_OFFSET as that allows. See BOSS_SEARCH for the scoring and for the
+## take that made it a search.
+func _find_duel_ground(handler: TileMapHandler, boss_cell: Vector2i):
+	var best = null
+	var best_key := [-1, -(1 << 30), -(1 << 30)]
+
+	for dy in range(-BOSS_SEARCH, BOSS_SEARCH + 1):
+		for dx in range(-BOSS_SEARCH, BOSS_SEARCH + 1):
+			if dx == 0 and dy == 0:
+				continue
+			var candidate := boss_cell + Vector2i(dx, dy)
+			# The one hard requirement: the cell the player is put on. Everything else is scored,
+			# because the arena does not have enough flat ground to demand any of it.
+			if handler.is_occupied(candidate, true):
+				continue
+			var reach := int(round(Vector2(dx, dy).length()))
+			var key := [
+				_duel_ground_score(handler, candidate),
+				-absi(reach - BOSS_STAND_OFFSET),
+				-absi(dy),
+			]
+			if key > best_key:
+				best = candidate
+				best_key = key
+	return best
+
+
+## How many cells of the duel rectangle around `centre` are land and unbuilt.
+##
+## `is_occupied(cell, true)` answers both halves at once: it is true for open water (no ground
+## tile) as well as for anything already standing there. A duel fought half in the sea is the
+## `_spawn_enemy` bug in another place.
+func _duel_ground_score(handler: TileMapHandler, centre: Vector2i) -> int:
+	var clear := 0
+	for y in range(-BOSS_DUEL_HALF.y, BOSS_DUEL_HALF.y + 1):
+		for x in range(-BOSS_DUEL_HALF.x, BOSS_DUEL_HALF.x + 1):
+			if not handler.is_occupied(centre + Vector2i(x, y), true):
+				clear += 1
+	return clear
+
+
+## The live boss, matched on its enemy type — the only handle a reloaded boss has, for the reason
+## `IslandManager._live_boss` states: it is parented to the EnemySpawner and rebuilt by the
+## ordinary enemy load path, so nothing carries which island it came from.
+func _boss() -> Enemy:
+	for node in _dev.get_tree().get_nodes_in_group("Enemy"):
+		if node is Enemy and node.type == EnemyRegistry.ELITE:
+			return node
+	return null
+
+
+## `_clear_enemies` with one exception. A separate function rather than an argument on that one,
+## because every other clip wants the unconditional version and a defaulted parameter is how a
+## clip ends up sparing something it meant to remove.
+func _clear_enemies_except(keep: Enemy) -> void:
+	var spawner := _spawner()
+	if spawner == null:
+		return
+	for child in spawner.get_children():
+		if child is Enemy and child != keep:
+			child.queue_free()
+
+
+func _run_summary_ui() -> RunSummaryUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/RunSummaryUI") as RunSummaryUi
+
+
+# --- the quest clip -------------------------------------------------------------------
+#
+# The board asks for something and the player goes and gets it (gather-dj2): the panel with its
+# live progress, one tree short of a task, the tree, and the hand-in that pays for it.
+#
+# Shot on a fresh world, and unlike the raid and boss clips that is a decision rather than a
+# constraint. The board is what the game says to somebody who has just arrived — it is the
+# closest thing here to a tutorial — so filming it in front of a finished homestead would put
+# the answer behind the question.
+#
+# ## Why the panel is opened twice
+#
+# The obvious cut is one open, one hand-in. It shows the payout and none of the point: what the
+# board actually changed is that there is now a reason to go and do a specific thing. So the clip
+# opens on the ask (`9 of 10 wood`, a bar one notch short), closes, goes and fells the tree that
+# finishes it, and opens again on a card that has turned green with HAND IN on the button. The
+# middle beat is the feature; the two panels either side are what make it legible.
+#
+# ## What is real here and what is arranged
+#
+# The 9 wood in the bag is arranged, and it is the only thing that is. Everything after it — the
+# gather, the derived progress, the spend, the coins, the xp — is the game running. In particular
+# the quest is NOT marked complete by hand: `QuestLog` derives progress from the inventory on a
+# poll, so the card turning green is the feature working rather than the clip asserting it did.
+
+## The quest the clip hands in.
+##
+## `first_timber` is the board's opening ask and the right one to film for three reasons: it wants
+## an item, so the button says HAND IN rather than CLAIM and the spend is visible in the hotbar; it
+## is gated behind nothing, so it is offered on a world one second old; and wood is the resource a
+## viewer already understands by the time they reach this clip in the README.
+const QUEST_ID := "first_timber"
+const QUEST_ITEM := Types.Item.Wood
+
+## What the bag is stocked with, against the quest's ask of ten.
+##
+## Nine, so the bar opens one notch short. Eight would need two trees, and a second identical
+## gather is not a second thing happening; ten would open on a finished quest, which is the payout
+## without the ask.
+const QUEST_STOCK_WOOD := 9
+
+## And of the resource the *next* card asks for, so the panel is plainly a board rather than a
+## single task. Six of Stonemason's ten: enough to read as progress under way, short enough that
+## nobody expects the clip to hand that one in as well.
+const QUEST_STOCK_STONE := 6
+
+## Where the tree is planted and where the player stands to fell it, as offsets from the arena
+## centre.
+##
+## One tile apart, because `ResourceManager2.start_removing_resource` targets
+## `get_location_of_nearby_resource(player.global_position)` — the nearest resource in reach, not
+## the cell in front. The arena is cleared before this is planted, so "nearest" has exactly one
+## answer and the gather cannot pick up something the staging left standing.
+const QUEST_SET := {
+	"mark": Vector2i(0, 0),
+	"stand_tree": Vector2i(0, 0),
+	"tree": Vector2i(1, 0),
+}
+
+## The pickaxe the clip fells the tree with, and its shipped gather time is why: a Stone Pickaxe is
+## 1.8 seconds, which `Juice.swings_for` divides into enough blows to read as work. The Wooden one
+## the player starts with is 2.0 and the difference is not worth a slower beat; anything above
+## Copper finishes before the chips do and the gather reads as a click.
+const QUEST_PICKAXE := Types.Item.StonePickaxe
+
+## Ceiling on the fell, in seconds. Two gather cycles' worth: `remove_resource` rolls a yield of
+## one or two logs, so a single tree can leave the player on 10 or on 11 — but a roll of one on a
+## bag of nine is still enough, and this timeout is really sized for a gather that never started.
+const QUEST_GATHER_TIMEOUT := 8.0
+
+## Ceiling on a panel open or close, in seconds. `PanelFrame` tweens; this is generous for it.
+const QUEST_PANEL_TIMEOUT := 2.0
+
+## Beat lengths in seconds. About twenty-four between the marks.
+const QUEST_BEAT := {
+	"settle": 0.8,
+	# The ask. Long enough to read two cards and their bars, which is what this beat is for and the
+	# only thing on screen — this is the one clip in the set whose subject is words.
+	"board_hold": 5.0,
+	"after_close": 0.6,
+	# On the felled tree before walking back into the panel: the logs pop out and vacuum in, and
+	# the hotbar count ticks over. That tick is the quest's progress changing, and it happens in
+	# the hotbar rather than in the panel — so it needs a frame of its own to be seen in.
+	"after_gather": 1.6,
+	# On the completed card before the button goes. The border has turned green and the button says
+	# HAND IN; pressing it on the frame the panel opens would show the reward and never the state
+	# that earned it.
+	"before_claim": 2.2,
+	# After the press, with the panel still up: the card disappears out of the list and the one it
+	# was gating takes its place, which is the board behaving like a board.
+	"after_claim": 2.5,
+	# Panel closed, standing in the world: the coin purse and the xp are dropped at the player's
+	# feet by `QuestLog._pay` and vacuum in. The payout is deliberately watched from outside the
+	# menu, because that is where the player is when it lands.
+	"reward_hold": 3.5,
+	"tail": 0.8,
+}
+
+
+func _run_quest_clip() -> void:
+	var handler := _handler()
+	var player := _player()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player in the scene")
+		return
+
+	# `quests` rather than `log`, which is a built-in math function and shadowing it is a warning
+	# the lint gate would (correctly) hand back.
+	var quests := _quest_log()
+	var panel := _quest_ui()
+	if quests == null or panel == null:
+		_fail("no QuestLog or QuestUI in the scene, so there is no board to film")
+		return
+
+	var centre = _stage_quests(handler, player)
+	if centre == null:
+		_fail("no clear %s-tile clearing with land in frame within %s tiles of the player" % [
+			QUEST_CLEARING, ARENA_SEARCH,
+		])
+		return
+
+	# Everything above this line is setup and is expected to be trimmed off the front of the
+	# recording; everything below it is the clip.
+	await _wait(QUEST_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_quest_ask(quests, panel)
+	await _beat_quest_errand(handler, player, quests)
+	await _beat_quest_hand_in(player, quests, panel)
+
+	_mark("show_end")
+	await _wait(QUEST_BEAT["tail"])
+
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — the board, and what it wants.
+##
+## Opened with the real key rather than by calling `toggle()`, and it has to be `_tap_key_for`:
+## `InputManager._input` reads `quests` with `is_action_released`, so an `action_press` from a
+## coroutine that has already resumed inside the frame is read by nobody. That is the chest bug in
+## `_beat_reveal` in a second place, and it fails the same silent way — a panel that never opens
+## and a clip that carries on regardless.
+##
+## The progress is asserted *before* the errand, because the whole beat is the claim that the
+## board knows the player has nine wood without having been told. If it opened on ten, or on zero,
+## the two beats after this one would still run and the footage would show a different story than
+## the README line under it.
+func _beat_quest_ask(quests: QuestLog, panel: QuestUi) -> void:
+	_beat = "quest_ask"
+	_mark("quest_ask")
+
+	await _tap_key_for("quests")
+	if not await _until(func() -> bool: return panel.is_open(), QUEST_PANEL_TIMEOUT):
+		_note("the quests key did not open the board")
+		return
+
+	var progress := quests.progress_of(QUEST_ID)
+	if progress != QUEST_STOCK_WOOD:
+		_note("the board opened on %d of %d for %s, expected %d" % [
+			progress, _quest_amount(quests), QUEST_ID, QUEST_STOCK_WOOD])
+
+	await _wait(QUEST_BEAT["board_hold"])
+
+
+## Beat B — the errand. The panel closes, the player walks to the tree and takes it down.
+##
+## The gather is held rather than tapped, for `_use`'s reason twice over: releasing `gather` runs
+## `Player._gather_input_release`, which stops the hold timer outright — so a tapped gather is not
+## a short gather, it is no gather. This one is held until the wood actually lands in the bag,
+## which is also the only evidence that matters: the swing animation plays whether or not there is
+## anything in reach to swing at.
+func _beat_quest_errand(handler: TileMapHandler, player: Player, quests: QuestLog) -> void:
+	_beat = "quest_errand"
+	_mark("quest_errand")
+
+	await _tap_key_for("quests")
+	await _wait(QUEST_BEAT["after_close"])
+
+	if not _select(QUEST_PICKAXE):
+		_note("no pickaxe in the hotbar to fell the tree with")
+		return
+
+	# Facing the tree before swinging at it. The gather targets by proximity rather than by facing,
+	# so this changes nothing about what gets felled — it changes which of `Gather` / `Gather_left`
+	# plays, and a player chopping with his back to the tree is the sort of thing only the finished
+	# film shows you.
+	var cell: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	await _aim(handler, player, cell + Vector2i(1, 0))
+
+	var wanted: int = _quest_amount(quests)
+	_press("gather")
+	var felled := await _until(
+		func() -> bool: return player.inventory_data.count_of_type(QUEST_ITEM) >= wanted,
+		QUEST_GATHER_TIMEOUT)
+	_release("gather")
+
+	if not felled:
+		_note("the gather left the player on %d %s after %.0fs, short of %d" % [
+			player.inventory_data.count_of_type(QUEST_ITEM), QUEST_ID,
+			QUEST_GATHER_TIMEOUT, wanted])
+
+	await _wait(QUEST_BEAT["after_gather"])
+
+
+## Beat C — the hand-in, and what it pays.
+##
+## The button is clicked rather than `pressed.emit()`-ed. An emit would run the same handler and
+## prove the same thing about `QuestLog`, and it would prove nothing at all about the panel — a
+## disabled button, a button laid out off-screen or a button under something else all emit
+## perfectly. See `_click_button`.
+##
+## `is_claimed` is what the beat is judged on rather than the coins, because `claim()` refuses on
+## three separate grounds — already claimed, not complete, not offered — and a clip that only
+## checked for a coin drop could not tell a refusal from a payout that had not landed yet.
+func _beat_quest_hand_in(player: Player, quests: QuestLog, panel: QuestUi) -> void:
+	_beat = "quest_hand_in"
+	_mark("quest_hand_in")
+
+	await _tap_key_for("quests")
+	if not await _until(func() -> bool: return panel.is_open(), QUEST_PANEL_TIMEOUT):
+		_note("the quests key did not re-open the board")
+		return
+
+	if not quests.is_complete(QUEST_ID):
+		_note("the board still does not consider %s complete" % QUEST_ID)
+	await _wait(QUEST_BEAT["before_claim"])
+
+	# `_find_claim_button` notes for itself, with the card names it actually saw — a second note
+	# here would say less and say it twice.
+	var button := _find_claim_button(panel, quests)
+	if button == null:
+		return
+
+	await _click_button(button)
+	await _frames(2)
+
+	if not quests.is_claimed(QUEST_ID):
+		_note("the press did not hand %s in" % QUEST_ID)
+	await _wait(QUEST_BEAT["after_claim"])
+
+	# Out of the menu for the payout. `_pay` drops the purse at the player's feet, and the pickup
+	# flies to him — which is worth being outside a full-screen panel to see.
+	await _tap_key_for("quests")
+	await _wait(QUEST_BEAT["reward_hold"])
+
+	if player.inventory_data.count_of_type(Types.Item.Coin) <= 0:
+		_note("the hand-in paid no coins into the bag")
+
+
+# --- quest staging --------------------------------------------------------------------
+
+## Puts the world into the state the quest clip opens on, and returns the arena centre — or null
+## when the search found no rectangle of solid land, which `_find_arena` documents as a real
+## outcome rather than a defensive check.
+func _stage_quests(handler: TileMapHandler, player: Player):
+	_beat = "staging"
+
+	var centre = _find_clearing(handler, player)
+	if centre == null:
+		return null
+
+	_freeze_ambient()
+	_clear_enemies()
+	_clear_quest_clearing(handler, centre)
+
+	# One tree, planted after the clearing rather than found in it. Two reasons, and the first is
+	# the same one the worker clip gives: a cleared arena has nothing to gather. The second is that
+	# the gather targets the NEAREST resource, so leaving the treeline in reach would make which
+	# tree gets felled a matter of where staging happened to put the player.
+	_plant(handler, centre + QUEST_SET["tree"], Types.Item.Tree)
+
+	player.position = handler.tileMap.map_to_local(centre + QUEST_SET["mark"])
+	player.velocity = Vector2.ZERO
+
+	# No `player.invulnerable` here, unlike the raid and boss clips. Nothing in this one attacks
+	# him: the spawner is frozen and the standing enemies are cleared.
+
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+	_stock_quest_kit(player)
+
+	var clock := _world_clock()
+	if clock != null:
+		# Daylight and clear, for the boss clip's reason: this panel is small text, and it is the
+		# thing the clip is about.
+		clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+		clock.set_time_of_day(BOSS_HOUR)
+
+	var sky := _sky()
+	if sky != null:
+		sky.apply()
+	return centre
+
+
+## Where the player stands, and where nothing else may be standing.
+##
+## The clip's own search rather than `_find_arena`, and that is the same correction the boss clip
+## needed. `_find_arena` scores a 9x7 rectangle of solid land because the turret clip fights a wave
+## across one; nothing here is fought at all, and on the first take the mismatch showed up as a
+## note — `best battle rect at (5, -2) was 62/63 land` — which is `_find_arena` reporting, entirely
+## correctly, that a cell of coastline clipped a corner of a rectangle this clip has no use for. A
+## note is the recording gate, so a clip that files one it does not care about cannot be shot.
+##
+## What this clip actually needs is small: a cell to stand on, a cell beside it for the tree, and
+## no OTHER resource within the eight neighbours `get_location_of_nearby_resource` searches — plus
+## enough land across the frame that the panel is not floating over open sea.
+const QUEST_CLEARING := 2
+
+
+## The clearing: land to stand on with the tree cell free, ranked on how much of the frame is land.
+func _find_clearing(handler: TileMapHandler, player: Player):
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var best = null
+	var best_key := [-1, -(1 << 30)]
+
+	for dy in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+		for dx in range(-ARENA_SEARCH, ARENA_SEARCH + 1):
+			var candidate := origin + Vector2i(dx, dy)
+			if handler.is_occupied(candidate, true):
+				continue
+			if handler.is_occupied(candidate + QUEST_SET["tree"], true):
+				continue
+			var key := [_land_score(handler, candidate, VIEW_HALF), -(dx * dx + dy * dy)]
+			if key > best_key:
+				best = candidate
+				best_key = key
+	return best
+
+
+## Clears the cells the gather could otherwise pick instead of the planted tree.
+##
+## `main.gd:get_location_of_nearby_resource` searches the player's own cell and its eight
+## neighbours and takes the nearest match, so a tree the world already put one tile the other way
+## is a coin toss over which one gets felled — and the clip would show the player swinging in the
+## wrong direction. QUEST_CLEARING covers that neighbourhood with a tile to spare.
+##
+## Both representations, for `_clear_arena`'s reason: a resource is either a cell on layer 1 or a
+## `GameSceneResource` child of the TileMap, and code that walks only one leaves half the trees
+## standing.
+func _clear_quest_clearing(handler: TileMapHandler, centre: Vector2i) -> void:
+	for y in range(-QUEST_CLEARING, QUEST_CLEARING + 1):
+		for x in range(-QUEST_CLEARING, QUEST_CLEARING + 1):
+			var cell := centre + Vector2i(x, y)
+			handler.tileMap.set_cell(1, cell, -1)
+			handler.tileMap.set_cell(2, cell, -1)
+			handler.tileMap.set_cell(3, cell, -1)
+
+	for child in handler.tileMap.get_children():
+		if not (child is GameSceneResource):
+			continue
+		var cell: Vector2i = handler.tileMap.local_to_map(child.position)
+		if absi(cell.x - centre.x) <= QUEST_CLEARING and absi(cell.y - centre.y) <= QUEST_CLEARING:
+			child.queue_free()
+
+
+## The kit: a pickaxe, nine wood and six stone.
+##
+## The wood and the stone are what the board reads, and they are put in through
+## `pick_up_slot_data` rather than written into a slot so the stack, its count and its hotbar icon
+## are built the way a picked-up stack is. `QuestLog` derives progress from
+## `InventoryData.count_of_type`, so a hand-made slot with the wrong shape would show the right
+## number in the panel and refuse the spend at the hand-in.
+func _stock_quest_kit(player: Player) -> void:
+	var slots: Array = player.inventory_data.inventory_slot_datas
+	for index in mini(6, slots.size()):
+		slots[index] = null
+
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(QUEST_PICKAXE), 1))
+	player.inventory_data.pick_up_slot_data(
+		SlotData.new(GameItems.get_item(QUEST_ITEM), QUEST_STOCK_WOOD))
+	player.inventory_data.pick_up_slot_data(
+		SlotData.new(GameItems.get_item(Types.Item.Stone), QUEST_STOCK_STONE))
+	player.inventory_data.inv_updated()
+
+
+## The quest panel's claim button for QUEST_ID, found by walking the cards.
+##
+## The fallback for the `%Card_.../Row/ClaimButton` path, which depends on `_build_card`'s node
+## names staying what they are. Names are not an API and this file is not the place to pin them,
+## but a walk that matched only on class would take whichever button came first — so this matches
+## on the card name and reads the button out of it.
+## The quest panel's claim button for QUEST_ID, identified by the card's TITLE rather than by its
+## node name.
+##
+## The obvious lookup is `Card_first_timber`, which is the name `QuestUi._build_card` assigns, and
+## it does not survive the second open. Three takes went into finding out why, and the mechanism is
+## worth writing down because it will catch the next person who walks a rebuilt panel:
+##
+##  - `_refresh` rebuilds every card on each open, freeing the old ones and adding the new ones
+##    **in the same frame** — and a `queue_free`d node is still a child until the end of it. So on
+##    the second open the panel briefly holds two cards per quest.
+##  - `add_child` without `force_readable_name` does not disambiguate the collision by decorating
+##    the wanted name. It DISCARDS it: the new card comes in as `@PanelContainer@426`, with no
+##    trace of `Card_first_timber` anywhere in it. An exact match, a prefix match and a containment
+##    match all fail identically, and all three fail *silently* — the walk sees the node and does
+##    not recognise it.
+##
+## The first take reported only "no claim button" while the panel was open, populated and entirely
+## correct — `get_child_count` on the Cards container answered 7 at the moment the clip claimed 0.
+## Dumping the descendant names into the note is what ended it, which is why the note still carries
+## the titles it found.
+##
+## So the card is found by the one thing about it that is stable and is also the thing the player
+## reads: its title Label. `Row` and `ClaimButton` keep their names because neither ever collides —
+## each is unique inside its own card.
+func _find_claim_button(panel: QuestUi, quests: QuestLog) -> Button:
+	var quest: Quest = quests.board.get_quest(QUEST_ID)
+	if quest == null:
+		_note("%s is not a quest on the board" % QUEST_ID)
+		return null
+
+	var titles: Array = []
+	for node in _all_descendants(panel):
+		if node.is_queued_for_deletion() or str(node.name) != "Row":
+			continue
+		var title := node.get_node_or_null("Text/Title") as Label
+		if title == null:
+			continue
+		titles.append(title.text)
+		if title.text != quest.display_name:
+			continue
+		var claim := node.get_node_or_null("ClaimButton") as Button
+		if claim != null and not claim.is_queued_for_deletion():
+			return claim
+
+	_note("no live claim button titled '%s'; the panel was offering %s"
+		% [quest.display_name, titles])
+	return null
+
+
+func _all_descendants(root: Node) -> Array:
+	var found := []
+	for child in root.get_children():
+		found.append(child)
+		found.append_array(_all_descendants(child))
+	return found
+
+
+## The quest's own target amount, read off the board rather than written here twice. Zero when the
+## id is not registered, which is a state `_note` can describe and an index would raise on.
+func _quest_amount(quests: QuestLog) -> int:
+	var quest: Quest = quests.board.get_quest(QUEST_ID)
+	return quest.amount if quest != null else 0
+
+
+## Clicks `button` with real mouse events at its own centre.
+##
+## Through the viewport's gui input rather than `pressed.emit()`, and the difference is what the
+## beat is actually claiming. An emit calls the handler directly: it works on a disabled button, on
+## a button laid out past the edge of the screen, and on one sitting under another Control — all
+## three of which are ways this panel could be broken while the quest system underneath it was
+## perfectly fine. A click has to find the button where it is drawn.
+##
+## The motion event first is not ceremony. A Button only takes a press it believes is over it, and
+## `mouse_entered` is what puts it into its hover style — so without the motion the click can be
+## dropped and, when it is not, the frame shows a button being activated without ever having been
+## pointed at.
+##
+## The OS cursor is not drawn into a movie-writer recording, so what this looks like on film is the
+## button lighting up and depressing on its own. That is the correct amount of cursor for a clip
+## about a menu: the eye follows the state change rather than a pointer nobody controls.
+func _click_button(button: Button) -> void:
+	var at: Vector2 = button.get_global_rect().get_center()
+
+	var motion := InputEventMouseMotion.new()
+	motion.position = at
+	motion.global_position = at
+	Input.parse_input_event(motion)
+	await _frames(2)
+
+	for pressed in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		click.pressed = pressed
+		click.position = at
+		click.global_position = at
+		Input.parse_input_event(click)
+		await _frames(2)
+
+
+func _quest_log() -> QuestLog:
+	for node in _dev.get_tree().get_nodes_in_group("QuestLog"):
+		if node is QuestLog:
+			return node
+	return null
+
+
+func _quest_ui() -> QuestUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/QuestUI") as QuestUi

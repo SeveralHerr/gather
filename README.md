@@ -38,6 +38,33 @@ lane while the ordinary one beside it is still working through its own.
 
 ![A grey skeleton in a night storm, a lightning bolt landing on it and leaving a blue charged skeleton in its place, the player netting it and loading the skull into a turret that turns blue, and the charged turret outshooting the ordinary one beside it](docs/media/charged-showcase.gif)
 
+### Night raids
+
+From the third night, the dark comes to you. A horn, a banner counting down, and a wave
+that walks in out of the black at whatever you have built — which is the night the walls
+and the turrets stop being decoration. Clear it before dawn and it pays.
+([mp4](docs/media/raid-showcase.mp4))
+
+![Night at a walled homestead, a RAID banner announcing five raiders, ember-tinted skeletons and spiders walking in out of the dark, the player cutting them down at his own wall while the turrets thin them out, and RAID REPELLED paying out a purse of coins](docs/media/raid-showcase.gif)
+
+### The quest board
+
+Nothing else in the game asks you for anything. The board does: a handful of jobs with
+live progress, so there is always something specific worth going and doing. Finish one and
+hand it in for coins and xp.
+([mp4](docs/media/quests-showcase.mp4))
+
+![The tasks panel opening on First Timber at nine of ten wood, the player closing it and felling a tree, then reopening the panel on a card turned green with HAND IN, pressing it, and the coins and xp landing at his feet](docs/media/quests-showcase.gif)
+
+### The run has an ending
+
+Buying land far enough gets you to the boss island, and the elite standing on it is the
+last fight in the game. Kill it and the run stops and totals itself up — days survived,
+levels, land, raids cleared, everything the hours came to.
+([mp4](docs/media/boss-showcase.mp4))
+
+![The boss arena with an oversized elite skeleton guarding a chest, the player fighting and killing it, and a RUN COMPLETE card sliding in and counting up the run's day, level, gold, kills, nodes gathered and raids cleared](docs/media/boss-showcase.gif)
+
 ## Key Features
 
 - Resource gathering with tool-based timing and bonus yields
