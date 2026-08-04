@@ -4539,6 +4539,173 @@ Guidelines that make an entry useful later:
     have headless `--script` runs skip the ownership claim entirely; they are not
     interactive sessions and nothing ever addresses them over the bus.
 
+## 2026-08-03 — suggested alternative names for the game
+
+- Value: **inconclusive** — no code, scene or gameplay changed, so the harness was never
+  the right instrument; the only tool call was a `grep` of `[application]` in
+  `project.godot` to read the current `config/name="Gather"`.
+  - Expected: nothing from runtime — a naming question is answered from the design, and
+    the design is already written down in CLAUDE.md.
+  - Got: `config/name="Gather"`, confirming the name is pinned in exactly one place, which
+    is what makes a future rename cheap.
+  - Cheaper: nothing cheaper existed; one grep was the whole investigation.
+
+- Gap: no gaps this turn — the harness was not exercised and nothing about this task
+  wanted it.
+
+## 2026-08-03 — drafted the itch.io devlog for the day/night + berry-bush work
+
+- Value: **warranted** — the whole deliverable was a screenshot showing four of the six
+  bullets at once, and only the running game could stage it.
+  - Expected: `set_time_of_day --args '{"phase":"dusk"}'` plus `set_weather rain` plus a
+    player teleport next to a fruiting berry bush would put the lantern glow, the rain,
+    the scattered wildflowers and both bush states in one 1920x1080 frame.
+  - Got: exactly that, and one thing the diff could not have told me — the frame is
+    legible at dusk with rain, whereas the first capture at `phase: night` came back too
+    dark to identify the bushes at all. `world_clock` read back
+    `"phase": "night", "weather": "rain", "tint": [...]` so the retake was one call, not a
+    guess.
+  - Cheaper: nothing. A stale screenshot or a title-card grab would have been the
+    alternative, and both are the failure mode the devlog skill names outright.
+
+- Gap: **`goto_resource` cannot reach a scene-tile resource** — `cmd goto_resource --args
+  '{"name":"berry"}'` returned `"no live 'berry' node on the island"` while
+  `cmd berry_bushes` in the same session listed five, three of them in `home`.
+  `_resource_cells()` builds its atlas map with `if not resource.is_scene_tile`, so the
+  two scene-backed resources are invisible to the verb that exists to stand next to a
+  resource. Workaround: read a cell from `berry_bushes`, derive world coords by hand
+  (`cell * 16 + (8, 8)`, inferred from an earlier reply's tree position) and
+  `set-state --property position`.
+  - [G-113] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: fall back to `TileMapHandler.scene_tile_at`/the scene-tile children when
+    the atlas map misses, so `goto_resource` covers both representations the way
+    `resource_node_census` already does.
+
+- Gap: **the launched instance exited with an empty stderr log and no other signal** —
+  a `set-state` mid-session returned `Owner file devtools_owner.json says pid 19168 …
+  that process has likely exited`, and `.devtools/launch_stderr.log` was zero bytes, so
+  there is nothing to distinguish a crash from a clean exit after the fact. Workaround:
+  none needed — the capture was already taken — but the run could not be resumed.
+  - [G-114] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `launch` record the process exit code to `.devtools/` when the
+    child dies, so a later bus failure can say "exited with 0" instead of "likely exited".
+
+## 2026-08-03 — Repriced Cooked Food and Bandage onto berries (gather-as9)
+
+- Value: **warranted** — but the sharpest finding came from a mutation check, not from the
+  running game, and the running game then caught a wrong assumption about my own tooling.
+  - Expected: a two-line data change with a test around it; I expected runtime to add
+    nothing and planned to skip it.
+  - Got: three things. (1) The new test PASSED with the old recipe still in place —
+    `selected 1 of 507`, `[PASS]` — because Cooked Food heals 10 and 2 Food heal 8, so
+    "beats its ingredients" was true and toothless. Only putting the old cost back and
+    watching for red exposed that; the fix was `CRAFTED_HEAL_MULTIPLE := 2.0`, after which
+    the old cost gives `[FAIL] ... Cooked Food heals 10 but is made of 2 Food (4 each),
+    worth 8 eaten raw - a station recipe should pay at least 2.0x`. (2) The live craft
+    confirmed the cost list is actually consumed: `carrying 8 berries` → `queued 1 Cooked
+    Food` → `produced 1` → `carrying 4 berries`, and the same for the Bandage, `4` → `2`.
+    (3) I had read `_station_at` as picking the nearest station; it takes an INDEX
+    defaulting to 0, so three attempts to craft a Bandage answered `'Bandage' is not
+    unlocked at this station` while the player stood on top of the sawmill — the furnace
+    was station 0 the whole time.
+  - Cheaper: for the balance change, yes — the mutation check was ~40s and found more than
+    the 8-minute runtime session did. For "is the recipe actually wired", no: nothing short
+    of a running station spends a cost list.
+
+- Gap: **a green test says nothing about whether it can fail.** The one real defect this turn
+  was a test that passed in both directions, and the harness has no way to say so. There is
+  `--filter` to run one test, but nothing that answers "does this test still fail if I break
+  what it guards". I did it by hand: `cp recipes.gd`, edit the cost back, run filtered, `cp`
+  back — four steps, easy to leave a repo dirty halfway through.
+  - [G-113] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `mutate` mode — `run_tests.gd -- --filter NAME --expect-fail` returning 0
+    only when the named test FAILS — would make "prove the guard has teeth" a one-liner that
+    is safe to run in a dirty tree. Even documenting the cp/edit/run/restore loop in the
+    testing section would beat re-deriving it.
+
+- Gap: **`craft_state` / `queue_craft` select a station by list index, and the reply reads as
+  if it were proximity.** `_station_at` is `stations[int(args.get("station", 0))]`, but the
+  reply prints that station's `position`, so standing beside a sawmill and being told
+  `nearest: Furnace {'x': -40.0, 'y': -8.0}` looks like a targeting bug in the game. I moved
+  the player three times chasing it. `craft_state --args '{"station":N}'` over 0..3 was what
+  finally showed four stations in a stable order.
+  - [G-114] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: project-side — default `station` to the one nearest the player (which is
+    what every caller means and what the crafting panel itself does), and rename the reported
+    key from an implied "nearest" to `station_index` so the index is visible in the reply.
+
+- Note, not a gap: another session was editing this same checkout throughout (storm/thunder
+  work in `world_clock.gd`, `sky_lighting.gd`, `sound_manager.gd`). The full suite I ran was
+  therefore over a tree containing their in-flight changes, and `CLAUDE.md` and
+  `log-devtools.md` both ended up holding two sessions' edits. Committing meant staging one
+  hunk of `CLAUDE.md` via `git apply --cached` rather than the file. Worth knowing before
+  trusting a `git status` in this repo.
+
+## 2026-08-03 — Lightning: bolts, flash and thunder during storms (gather-j7n)
+
+- Value: **warranted** — runtime proved two architectural claims that neither the diff nor
+  the 529-test suite can reach, because both are properties of how three canvases compose
+  rather than of any one function's return value.
+  - Expected: that folding the flash into the tint before `SkyLighting`'s three writes would
+    carry it to the ocean for free and cancel itself over the HUD. I believed it from
+    reading `apply()`, but "the sea flashes too" and "the HP bar does not strobe" are
+    exactly the kind of claim that reads as true in a diff and is false on screen — the
+    pale-green-lantern-blob note in this same file is the precedent.
+  - Got: with `set-game-speed 0.02` stretching a 0.55s envelope into something samplable,
+    four consecutive `world_clock` reads gave
+    `flash=0.238/0.476/0.715/0.812` with `world_tint` climbing `[0.892,0.941,0.991]` ->
+    `[1.305,1.377,1.450]` and `ocean_color` climbing `[0.0,0.561,0.855]` ->
+    `[0.0,0.821,1.251]` alongside it. The sea brightens with the land, above unity, on the
+    same write. And multiplying the two reported tints per channel gave
+    `PRODUCT=[1.0,1.0,1.0]` at every flash level — the HUD reciprocal cancels the flash
+    exactly, so the bars render at authored colours through the whole bolt.
+  - Cheaper: nothing for those two. The unit tests pin the envelope's shape (two peaks,
+    zero at both ends) far more precisely than any runtime sample, and they are 4s — but no
+    test in this project can observe a CanvasModulate, a ColorRect and a Control's modulate
+    agreeing with each other. The mutation check below was cheaper than the runtime session
+    and found a different, equally real thing.
+
+- Note, not a gap: a **mutation check earned its keep again**, and this is the second
+  consecutive entry saying so. `test_the_wait_for_the_next_bolt_survives_a_real_round_trip`
+  passed on first write; replacing `elif stored_gap > 0.0:` with `elif false:` in
+  `world_clock.gd` turned the suite to `exit 1` /
+  `[FAIL] test_the_wait_for_the_next_bolt_survives_a_real_round_trip`, which is the only
+  reason I trust it. Worth noting *why* the test was needed at all: the subagent's own
+  tests in `test_world_clock.gd` feed `loadObject` hand-built dictionaries, so every one of
+  them would still pass if `saveObject` stopped writing `lightning_time_left` entirely and
+  the countdown were lost on every real save. Routing one test through `saveObject()` is
+  what closes that, and it belongs in `test_save_fidelity.gd` rather than beside the others.
+
+- Gap: **`launch --isolated` half-applies its isolation, which is worse than not applying
+  it.** `python tools/devtools.py launch --isolated` printed
+  `session: 73c99d1d` / `userdata: C:\...\Temp\devtools_userdata_lage9wvx` and told me to
+  pass both on subsequent calls. Doing exactly that gave `game not running`, as did
+  `--userdata` alone, as did the default bus. `ls` on the printed userdata dir showed it was
+  never created; the game had in fact taken the session and was writing
+  `devtools_log_73c99d1d.jsonl` into the DEFAULT `app_userdata/Gather`. So the session half
+  works and the userdata half silently does not. Workaround: drop `--userdata` and call
+  `--session 73c99d1d` against the default dir, which answered immediately.
+  This matters more than an ordinary ergonomics gap because `--isolated` is the documented
+  escape hatch for the one-instance-at-a-time rule: it tells you that you are isolated from
+  other instances while leaving you sharing their `user://`, screenshots and baselines. A
+  second Godot was in fact live in this checkout throughout this session.
+  - [G-115] status: open | seen: 1 | harness: unread (bridge was down when I asked)
+  - Improvement: have `--isolated` fail loudly if the child's userdata dir does not exist a
+    second after launch, rather than printing a path nothing will ever write to. Passing
+    `GODOT_USERDATA` through to the spawned process — or `--userdata` straight to the game —
+    would fix the underlying cause.
+
+- Gap: **`harness-version` cannot be answered without a running game, so the field it exists
+  to fill is unfillable at the moment you write the log.** `python tools/devtools.py
+  harness-version` after `quit` returned `game not running: 'harness_version' was never
+  picked up`. Every entry in this file is written after the session is over, which is
+  precisely when the bridge is down. Workaround: none — the `harness:` field above says
+  "unread" rather than carrying a number I would have had to copy from a neighbouring entry
+  and might have been stale.
+  - [G-116] status: open | seen: 1 | harness: unread
+  - Improvement: read the client-side revision from disk when the bridge is down and report
+    it alone, flagged as client-only, instead of failing the whole verb.
+
 ## 2026-08-04 — reshaped the XP curve and closed the replanted-berry-bush XP faucet
 
 - Value: **inconclusive** — this container has no Godot binary at all, so nothing in the
@@ -4643,3 +4810,4 @@ Guidelines that make an entry useful later:
 
 - Gap: **the harness cannot report that it is absent** (G-113, third hit this session).
   - [G-113] status: open | seen: 3 | harness: 0.8.0
+
