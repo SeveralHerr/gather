@@ -1027,6 +1027,10 @@ func _on_charge_skeleton() -> void:
 	if spawner == null:
 		return _fail("no EnemySpawner")
 
+	var clock := _clock()
+	if clock == null:
+		return _fail("no WorldClock")
+
 	var struck: Enemy = spawner.charge_random_skeleton()
 	if struck == null:
 		# Distinct from success on purpose. "There were no plain skeletons" and "it worked" are
@@ -1034,7 +1038,22 @@ func _on_charge_skeleton() -> void:
 		# looking for the bug in the lighting.
 		return _fail("no plain skeleton to strike - spawn one first")
 
-	_ok("charged a skeleton at (%.0f, %.0f) - net it, do not kill it" % [
+	# Fire a REAL bolt, not just the charge. This button used to call charge_random_skeleton and
+	# stop, so a skeleton turned blue with no flash, no arc and no thunder — the button did the
+	# rare thing and showed none of it, which reads as the lightning being broken rather than as
+	# the button being partial. Going through force_lightning is also what keeps this honest: it
+	# starts a storm if the sky is clear, so the state left behind is one the game can reach.
+	clock.force_lightning(0.0)
+
+	# Overhead, and aimed at the skeleton — the whole point of the button is seeing what was
+	# hit. strike_bolt_at restarts the envelope, so this replaces the bolt force_lightning just
+	# caused rather than adding a second one.
+	var sky := _sky()
+	if sky != null:
+		sky.strike_bolt_at(0.0, struck.global_position)
+	_repaint_sky()
+
+	_ok("bolt struck a skeleton at (%.0f, %.0f) - net it, do not kill it" % [
 		struck.global_position.x, struck.global_position.y
 	])
 

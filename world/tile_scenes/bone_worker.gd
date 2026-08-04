@@ -89,7 +89,7 @@ const CHARGED_CHOP_MULTIPLIER := 0.5
 ## The blue a charged machine wears. Shared in spirit with Enemy.CHARGED_TINT and kept above
 ## 1.0 on blue for the same reason: this is read at night, in rain, under a tint that is
 ## already multiplying everything down.
-const CHARGED_TINT := Color(0.55, 0.85, 1.6)
+const CHARGED_TINT := Color(0.28, 0.58, 1.85)
 
 ## Whether a charged skull has been fitted. Persisted - it is a permanent upgrade the player
 ## paid a rare drop for, and a reload that quietly returned the machine to stock would be

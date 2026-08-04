@@ -2806,7 +2806,6 @@ func _cmd_world_clock(_args: Dictionary) -> Dictionary:
 		# uninterpretable without the bounds it was rolled between.
 		"lightning_time_left": clock.lightning_time_left,
 		"lightning_gap": [WorldClock.LIGHTNING_MIN_GAP, WorldClock.LIGHTNING_MAX_GAP],
-		"thunder_delay_max": WorldClock.THUNDER_DELAY_MAX,
 	}
 
 	# What the tint actually landed on, read back off the nodes rather than recomputed —
@@ -3111,6 +3110,7 @@ func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
 	if spawner == null:
 		return {"success": false, "message": "no EnemySpawner in the scene", "data": {}}
 
+	var clock := _world_clock()
 	var struck: Enemy = spawner.charge_random_skeleton()
 	if struck == null:
 		# The honest answer, and a distinct one from success: "there were no plain skeletons"
@@ -3122,8 +3122,24 @@ func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
 			"data": _charged_census(),
 		}
 
+	# A real bolt, not just the charge. The verb used to flip the enemy and nothing else, so a
+	# caller could not tell a working strike from a working charge with broken lighting — and
+	# the two live in different files. force_lightning also starts a storm if the sky is clear,
+	# which keeps the state reachable.
+	var started_storm := false
+	if clock != null:
+		started_storm = clock.force_lightning(0.0)
+
+	var sky := _sky_lighting()
+	if sky != null:
+		# Aimed at the skeleton rather than left where the signal put it, matching what the
+		# spawner does for a natural strike.
+		sky.strike_bolt_at(0.0, struck.global_position)
+		sky.apply()
+
 	var data := _charged_census()
 	data["struck_at"] = {"x": struck.global_position.x, "y": struck.global_position.y}
+	data["started_storm"] = started_storm
 	# The replacement's own type, read back off the node rather than assumed. A registry entry
 	# pointing at the wrong scene would still return a live enemy here, and every other number in
 	# this reply would look right while the thing standing in the world was an ordinary skeleton.

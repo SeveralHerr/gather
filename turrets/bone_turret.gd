@@ -26,7 +26,7 @@ const CHARGED_BONUS_DAMAGE := 2
 ## Enemy.CHARGED_TINT: three copies of one colour is worse than one, but the alternative is a
 ## constant on one of them that the other two reach across the codebase for, and the colour is
 ## the cheapest thing here to keep in step by eye.
-const CHARGED_TINT := Color(0.55, 0.85, 1.6)
+const CHARGED_TINT := Color(0.28, 0.58, 1.85)
 
 ## Whether a charged skull has been fitted. Persisted alongside `loaded`, and for exactly the
 ## reason gather-ze1 documents about `loaded`: an upgrade the player paid a rare drop for that

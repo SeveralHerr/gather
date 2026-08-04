@@ -114,7 +114,34 @@ func _ready() -> void:
 func _on_lightning_struck(distance: float) -> void:
 	if not should_charge(distance, randf()):
 		return
-	charge_random_skeleton()
+
+	var struck := charge_random_skeleton()
+	if struck == null:
+		return
+
+	# Re-aim the bolt onto the skeleton it just charged. SkyLighting drew one the moment the
+	# signal fired, but the signal carries only a distance, so that bolt landed at a plausible
+	# offset from the player rather than on anything. A blue skeleton appearing while the
+	# lightning visibly struck somewhere else reads as two unrelated events, which is precisely
+	# the connection this whole feature is built on.
+	#
+	# Same frame as the original, so the flash has advanced by at most one delta and restarting
+	# it is invisible.
+	var sky := _sky_lighting()
+	if sky != null:
+		sky.strike_bolt_at(distance, struck.global_position)
+
+
+## SkyLighting, by group. Created at runtime by main.gd as a direct child of Main, so like the
+## clock it has no path this node can rely on.
+func _sky_lighting() -> SkyLighting:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group("SkyLighting"):
+		if node is SkyLighting:
+			return node
+	return null
 
 
 ## Replaces one live skeleton with a charged one and returns the new enemy, or null if there

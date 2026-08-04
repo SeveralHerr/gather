@@ -134,9 +134,9 @@ const RAIN_MAX_FRACTION := 0.35
 ## The range matters more than either end of it. A fixed gap turns a storm into a metronome
 ## the player stops noticing after the third flash; a range this wide (4x) means the next
 ## bolt is never something you are waiting for on a beat. The floor of five seconds is set
-## by the flash itself rather than by taste — two bolts closer together than the screen
-## takes to recover read as one long flicker, and the thunder from the first is still
-## arriving (THUNDER_DELAY_MAX is 4.5) when the second lands.
+## by the flash itself rather than by taste — two bolts closer together than the screen takes
+## to recover read as one long flicker rather than as two strikes, and the thunder of the
+## first is still rolling when the second lands.
 ##
 ## The ceiling is bounded by the shortest storm: RAIN_MIN_FRACTION of a day is 90 seconds,
 ## so even the briefest shower gets several bolts rather than passing without one and
@@ -144,14 +144,6 @@ const RAIN_MAX_FRACTION := 0.35
 const LIGHTNING_MIN_GAP := 5.0
 const LIGHTNING_MAX_GAP := 20.0
 
-## Seconds between the flash and the thunder at maximum distance.
-##
-## Real sound covers about 1.5km in this time, which is not the point — the point is that
-## the delay is long enough to be read as distance rather than as audio lag. Much beyond
-## this and the player has stopped associating the two events at all, and the thunder
-## becomes an unexplained noise; at zero distance the crack is simultaneous with the flash,
-## which is what makes an overhead strike feel like it happened to you.
-const THUNDER_DELAY_MAX := 4.5
 
 # --- state -------------------------------------------------------------------
 
@@ -492,20 +484,6 @@ func set_weather(new_weather: Weather, seconds: float) -> void:
 
 
 # --- pure helpers, continued -------------------------------------------------
-
-
-## Seconds between a bolt at `distance` and its thunder.
-##
-## A pure static because systems/sound_manager.gd calls it with nothing but the float off
-## `lightning_struck` — it has no WorldClock reference, and giving it one would make the
-## audio depend on a node's lifetime for the sake of a multiplication.
-##
-## `distance` is clamped rather than trusted: it arrives from a signal, and a save, a
-## devtools verb or a future "bolt aimed at the player" could hand over something outside
-## 0..1. An unclamped negative returns a negative delay, which becomes a `Timer.start()`
-## with a negative wait — thunder that never plays, and no error to say why.
-static func thunder_delay(distance: float) -> float:
-	return clampf(distance, 0.0, 1.0) * THUNDER_DELAY_MAX
 
 
 ## Fires a bolt right now, at `distance`, and returns whether it had to start a storm first.

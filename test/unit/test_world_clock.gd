@@ -299,51 +299,6 @@ func test_every_phase_has_a_name() -> String:
 # --- thunder ------------------------------------------------------------------
 
 
-func test_thunder_is_simultaneous_with_an_overhead_bolt() -> String:
-	# Zero distance is the whole reason a strike "on top of you" reads differently from a
-	# distant one: the crack lands on the same frame as the flash.
-	return _T.assert_float_eq(
-		WorldClock.thunder_delay(0.0), 0.0, 0.0001, "a bolt overhead cracks with the flash"
-	)
-
-
-func test_thunder_delay_grows_with_distance() -> String:
-	# The delay is the only cue the player has for how far away a bolt was, so it has to be
-	# monotone in `distance`. A farther bolt whose thunder arrives sooner does not read as
-	# weather, it reads as broken audio.
-	var previous := -1.0
-
-	for distance in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]:
-		var delay := WorldClock.thunder_delay(distance)
-		var err: String = _T.assert_gt(
-			delay, previous, "delay at %s is %s, not longer than the step before it (%s)" % [distance, delay, previous]
-		)
-		if err != "":
-			return err
-		previous = delay
-
-	return _T.assert_float_eq(
-		WorldClock.thunder_delay(1.0), WorldClock.THUNDER_DELAY_MAX, 0.0001,
-		"the far horizon is exactly THUNDER_DELAY_MAX"
-	)
-
-
-func test_thunder_delay_clamps_a_distance_outside_the_range() -> String:
-	# `distance` arrives from a signal, so a save, a devtools verb or some future bolt aimed
-	# at the player could hand over anything. An unclamped negative becomes a Timer started
-	# with a negative wait — thunder that simply never plays, and no error to say why.
-	var err: String = _T.assert_float_eq(
-		WorldClock.thunder_delay(-3.0), 0.0, 0.0001, "a negative distance is treated as overhead"
-	)
-	if err != "":
-		return err
-
-	return _T.assert_float_eq(
-		WorldClock.thunder_delay(9.0), WorldClock.THUNDER_DELAY_MAX, 0.0001,
-		"and nothing is farther away than the horizon"
-	)
-
-
 # --- lightning scheduling ------------------------------------------------------
 #
 # These build a bare WorldClock and call tick() by hand. Nothing on this path touches the

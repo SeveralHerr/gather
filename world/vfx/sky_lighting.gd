@@ -487,26 +487,46 @@ static func flash_peak_for(distance: float) -> float:
 ## second, a few times per storm, and a pooled one would have to be re-jagged on every strike
 ## anyway — the whole reason it is regenerated is that a repeated silhouette stops reading as
 ## lightning and starts reading as a sprite being toggled.
-func _spawn_bolt(distance: float) -> void:
+## Re-aims the current bolt at an exact spot, and re-runs the flash from the top.
+##
+## Exists because a bolt that CHARGES a skeleton has to be seen hitting that skeleton. The
+## signal carries only a distance, so `_spawn_bolt` can do no better than a plausible offset
+## from the player — fine for a bolt that hits nothing, and obviously wrong for one whose whole
+## point is what it landed on. EnemySpawner calls this once it knows which skeleton it picked.
+##
+## Restarting the envelope rather than leaving it mid-fade is deliberate: this runs in the same
+## frame as the original strike, so the flash has advanced by at most one delta, and beginning
+## again is what stops the re-aimed bolt appearing already half faded.
+func strike_bolt_at(distance: float, at: Vector2) -> void:
+	_flash_elapsed = 0.0
+	_flash_peak = flash_peak_for(distance)
+	_spawn_bolt(distance, at)
+
+
+## `at` is where the bolt lands. Vector2.INF means "nowhere in particular" — pick a plausible
+## spot near the player, which is what an ordinary bolt that hits nothing does.
+func _spawn_bolt(distance: float, at: Vector2 = Vector2.INF) -> void:
 	_clear_bolt()
 
 	if _world == null or not is_instance_valid(_world):
 		return
 
-	var player := main.get_node_or_null(PLAYER_PATH) as Node2D
-	if player == null:
-		return
+	var ground := at
+	if not _is_real_position(at):
+		var player := main.get_node_or_null(PLAYER_PATH) as Node2D
+		if player == null:
+			return
 
-	# Offset grows with distance, so a far bolt is genuinely somewhere else rather than being a
-	# small one drawn on top of the player. Past the cull it cannot be on screen at all, and
-	# building it would be a node created purely to be invisible.
-	var offset := lerpf(BOLT_NEAR_OFFSET, BOLT_FAR_OFFSET, clampf(distance, 0.0, 1.0))
-	if offset > BOLT_CULL_OFFSET:
-		return
+		# Offset grows with distance, so a far bolt is genuinely somewhere else rather than
+		# being a small one drawn on top of the player. Past the cull it cannot be on screen at
+		# all, and building it would be a node created purely to be invisible.
+		var offset := lerpf(BOLT_NEAR_OFFSET, BOLT_FAR_OFFSET, clampf(distance, 0.0, 1.0))
+		if offset > BOLT_CULL_OFFSET:
+			return
 
-	# Either side of the player, so strikes do not all march off in one direction.
-	var side := 1.0 if randf() < 0.5 else -1.0
-	var ground := player.global_position + Vector2(offset * side, randf_range(-24.0, 24.0))
+		# Either side of the player, so strikes do not all march off in one direction.
+		var side := 1.0 if randf() < 0.5 else -1.0
+		ground = player.global_position + Vector2(offset * side, randf_range(-24.0, 24.0))
 
 	_bolt = Node2D.new()
 	_bolt.name = "LightningBolt"
@@ -605,7 +625,21 @@ func _add_bolt_line(points: PackedVector2Array, colour: Color, width: float) -> 
 	_bolt.add_child(line)
 
 
+## Whether `at` names a real place rather than the "pick one for me" sentinel.
+##
+## `is_finite` rather than `== Vector2.INF`, because a NaN would compare false against INF and
+## then propagate silently through every point of the arc into a Line2D that draws nothing.
+static func _is_real_position(at: Vector2) -> bool:
+	return is_finite(at.x) and is_finite(at.y)
+
+
 func _clear_bolt() -> void:
 	if is_instance_valid(_bolt):
+		# Renamed before freeing, because queue_free DEFERS: the old node is still in the tree
+		# when the replacement is added on the same frame, so the name collides and Godot
+		# silently renames the NEW one to @Node2D@NNN. Nothing breaks, but the bolt stops
+		# having a findable path — which is how a strike that worked looked like a strike that
+		# had produced nothing at all while I was verifying this.
+		_bolt.name = "LightningBoltSpent"
 		_bolt.queue_free()
 	_bolt = null

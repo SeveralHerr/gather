@@ -4919,3 +4919,55 @@ Guidelines that make an entry useful later:
   something for a bolt to strike; needed three calls where the task was one wait.
   - [G-118] status: open | seen: 2 | harness: 0.8.0
   - Improvement: unchanged — document the ceiling in the cheat-sheet row.
+
+## 2026-08-04 — Visible bolt on a skull strike, instant thunder, and a shader that ate `modulate`
+
+- Value: **warranted** — a pixel sample overturned a conclusion that four separate property
+  reads had all confirmed, and found a bug older than this feature.
+  - Expected: the charged skeleton's blue to be a tuning problem. `get-state` reported
+    `Sprite2D.modulate` as exactly the authored `(0.28, 0.58, 1.85)`, `visible: true`, one
+    Sprite2D child, no code writing modulate anywhere in `enemies/`. Every reading said applied.
+  - Got: it was never rendering. Sampling the brightest pixel inside each skull's computed
+    screen rect gave **`B-R = +41` for the charged one and `B-R = +41` for a plain one** —
+    identical hue, the charged one merely brighter because it stood in the lantern. That
+    number is what turned "the tint is too subtle" into "the tint is not being drawn", which
+    no property read in this project can distinguish. The cause was
+    `assets/shaders/solid_color.gdshader` doing `COLOR = mix(texture(...), ...)` — overwriting
+    COLOR and discarding the vertex colour Godot puts `modulate` in. **It also silently broke
+    `Enemy._death_pop`**, which tweens `modulate:a` to 0 so corpses fade; they have been
+    popping out at full opacity, which is the exact thing that tween was written to fix.
+  - Cheaper: nothing, and I tried the cheaper things first — four `get-state` reads and three
+    screenshots, all of which I misread. What settled it was arithmetic on pixels, not looking.
+
+- Note, not a gap, and the reason this entry exists: **I asserted against the wrong node three
+  times in one session** and twice reported it as a finding before checking. A reload leaves the
+  restored enemy auto-named `@CharacterBody2D@NNN` while the human-readable `Enemy` is a freshly
+  spawned one; `run-method _on_died` on the first auto-named body killed a spider; and a skull
+  standing next to the player was a plain skeleton while the charged one was 130 units off
+  screen. The habit that actually works is the one used at the end: enumerate the candidates,
+  read a discriminating property off each (`type`), and compute the screen position from
+  `global_position` and the camera's zoom rather than trusting which sprite looks adjacent.
+
+- Note, not a gap: `charge_skeleton` returning `success: false / "no live plain skeleton to
+  strike"` was mistaken for a broken bolt because the message was piped to /dev/null while
+  grepping the scene tree for a node. The verb was right and the reading was wrong. Suppressing
+  a verb's `message` to grep its `data` throws away the half that explains the other half.
+
+- Gap: **`node-bounds` is Control-only, so there is no way to ask where a world sprite is on
+  screen.** `node-bounds .../Sprite2D` returns `Failed: Node is not a Control`. Every visual
+  check on a game object therefore needs the camera transform reconstructed by hand
+  (`(world - player) * zoom + viewport/2`), which is three devtools calls and an assumption
+  that the camera is centred on the player. Workaround: exactly that, scripted.
+  - [G-120] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: make `node-bounds` accept any `CanvasItem` and return its screen-space rect
+    via `get_global_transform_with_canvas()`. That one change turns "is this thing drawn, and
+    what colour is it" from a scripted reconstruction into two calls.
+
+- Gap: **no way to sample the framebuffer, so colour claims need a PNG decoder.** Confirming
+  "this sprite renders blue" meant writing a zlib/PNG reader inline to read pixels back. It
+  worked and it is what caught the shader, but it is ~30 lines of scanline defiltering that
+  every visual assertion would have to carry.
+  - [G-121] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `sample-pixels --rect X,Y,W,H` verb returning mean/brightest/dominant RGB
+    from the same capture path `screenshot` already uses. Colour regressions become assertable
+    instead of eyeballed.

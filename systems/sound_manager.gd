@@ -119,18 +119,12 @@ func play_thunder(distance: float) -> void:
 	if sound_resource == null:
 		return
 
-	var delay := WorldClock.thunder_delay(d)
-	var tree := get_tree()
-	if delay > 0.0 and tree != null:
-		await tree.create_timer(delay).timeout
-		# Up to 4.5 seconds pass here, which is long enough for the player to die, the
-		# scene to be reloaded or the game to quit. Resuming a coroutine into a node that
-		# has left the tree - or been freed - raises, and a raise inside a `-> void` is
-		# silent, so this guard is the difference between one skipped bolt and an error
-		# nobody sees.
-		if not is_instance_valid(self) or not is_inside_tree():
-			return
-
+	# Played immediately, with no delay for distance. Light outrunning sound is real, and this
+	# used to model it — a horizon bolt cracked 4.5s after its flash. In a game whose whole day
+	# is ten minutes it read as broken audio rather than as distance: the flash was long gone and
+	# the thunder arrived attached to nothing. Distance still shapes the sound through volume and
+	# pitch below, which is the part that reads as distance without costing the connection to
+	# what the player just saw.
 	var pitch := lerpf(THUNDER_NEAR_PITCH, THUNDER_FAR_PITCH, d)
 	pitch += randf_range(-THUNDER_PITCH_JITTER, THUNDER_PITCH_JITTER)
 

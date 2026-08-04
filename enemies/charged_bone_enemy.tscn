@@ -12,7 +12,7 @@ damage = 5
 type = "ChargedBone"
 
 [node name="Sprite2D" parent="." index="0"]
-modulate = Color(0.55, 0.85, 1.6, 1)
+modulate = Color(0.28, 0.58, 1.85, 1)
 
 [node name="Sparks" type="CPUParticles2D" parent="."]
 emitting = true
