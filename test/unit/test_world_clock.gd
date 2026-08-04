@@ -5,8 +5,13 @@ extends RefCounted
 ## across the wrap at 1.0, which is the one seam a screenshot of any single moment cannot
 ## show you.
 ##
-## Everything here is static, so none of it needs a SceneTree. The parts that do (the
-## signals, the save round-trip) are covered in test_save_fidelity.gd and at runtime.
+## Most of it is static, so none of that needs a SceneTree. The lightning scheduling tests
+## at the bottom need an instance, but only because the countdown is instance state — they
+## build a bare `WorldClock.new()` and drive `tick()` by hand without ever adding it to a
+## tree, which is safe precisely because the clock is a model that touches no nodes.
+##
+## The remaining parts that genuinely need a tree (the save round-trip) are covered in
+## test_save_fidelity.gd and at runtime.
 
 var _T
 
@@ -289,3 +294,235 @@ func test_every_phase_has_a_name() -> String:
 			return err
 
 	return ""
+
+
+# --- thunder ------------------------------------------------------------------
+
+
+func test_thunder_is_simultaneous_with_an_overhead_bolt() -> String:
+	# Zero distance is the whole reason a strike "on top of you" reads differently from a
+	# distant one: the crack lands on the same frame as the flash.
+	return _T.assert_float_eq(
+		WorldClock.thunder_delay(0.0), 0.0, 0.0001, "a bolt overhead cracks with the flash"
+	)
+
+
+func test_thunder_delay_grows_with_distance() -> String:
+	# The delay is the only cue the player has for how far away a bolt was, so it has to be
+	# monotone in `distance`. A farther bolt whose thunder arrives sooner does not read as
+	# weather, it reads as broken audio.
+	var previous := -1.0
+
+	for distance in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]:
+		var delay := WorldClock.thunder_delay(distance)
+		var err: String = _T.assert_gt(
+			delay, previous, "delay at %s is %s, not longer than the step before it (%s)" % [distance, delay, previous]
+		)
+		if err != "":
+			return err
+		previous = delay
+
+	return _T.assert_float_eq(
+		WorldClock.thunder_delay(1.0), WorldClock.THUNDER_DELAY_MAX, 0.0001,
+		"the far horizon is exactly THUNDER_DELAY_MAX"
+	)
+
+
+func test_thunder_delay_clamps_a_distance_outside_the_range() -> String:
+	# `distance` arrives from a signal, so a save, a devtools verb or some future bolt aimed
+	# at the player could hand over anything. An unclamped negative becomes a Timer started
+	# with a negative wait — thunder that simply never plays, and no error to say why.
+	var err: String = _T.assert_float_eq(
+		WorldClock.thunder_delay(-3.0), 0.0, 0.0001, "a negative distance is treated as overhead"
+	)
+	if err != "":
+		return err
+
+	return _T.assert_float_eq(
+		WorldClock.thunder_delay(9.0), WorldClock.THUNDER_DELAY_MAX, 0.0001,
+		"and nothing is farther away than the horizon"
+	)
+
+
+# --- lightning scheduling ------------------------------------------------------
+#
+# These build a bare WorldClock and call tick() by hand. Nothing on this path touches the
+# tree, so the node is never added to one — and `running` is irrelevant because _process is
+# never what advances it here.
+
+
+func test_a_storm_eventually_produces_a_bolt() -> String:
+	var clock := WorldClock.new()
+	var hits: Array = []
+	clock.lightning_struck.connect(func(distance: float) -> void: hits.append(distance))
+
+	clock.set_weather(WorldClock.Weather.RAIN, 10.0 * WorldClock.LIGHTNING_MAX_GAP)
+
+	# A second at a time, for longer than the widest gap, so this asserts that the countdown
+	# elapses rather than that one enormous step jumped over it.
+	for _i in int(WorldClock.LIGHTNING_MAX_GAP) + 5:
+		clock.tick(1.0)
+
+	var result: String = _T.assert_gte(
+		hits.size(), 1, "a storm outlasting LIGHTNING_MAX_GAP strikes at least once"
+	)
+
+	if result == "":
+		result = _T.assert_gt(
+			clock.lightning_time_left, 0.0, "and the countdown re-arms rather than sticking at zero"
+		)
+
+	if result == "":
+		for distance in hits:
+			result = _T.assert_true(
+				distance >= 0.0 and distance <= 1.0,
+				"every emitted distance is inside 0..1, got %s" % distance
+			)
+			if result != "":
+				break
+
+	clock.free()
+	return result
+
+
+func test_clear_skies_never_flash() -> String:
+	var clock := WorldClock.new()
+	var hits: Array = []
+	clock.lightning_struck.connect(func(distance: float) -> void: hits.append(distance))
+
+	# Deliberately kept inside one day. Crossing midnight calls _roll_weather, which can start
+	# a genuine storm, and that storm would fail this test for the one reason it is not about.
+	# time_of_day starts at DAWN_END (0.1), so 500 of a 600-second day stops short of the wrap.
+	for _i in 500:
+		clock.tick(1.0)
+
+	var result: String = _T.assert_eq(
+		clock.weather, WorldClock.Weather.CLEAR,
+		"the sky stayed clear — if it did not, the day-boundary guard above has slipped and the rest of this test means nothing"
+	)
+
+	if result == "":
+		result = _T.assert_eq(hits.size(), 0, "500 clear seconds produce no bolts")
+
+	if result == "":
+		result = _T.assert_eq(
+			clock.lightning_time_left, 0.0, "and nothing is left armed under a clear sky"
+		)
+
+	clock.free()
+	return result
+
+
+func test_going_clear_disarms_the_countdown() -> String:
+	var clock := WorldClock.new()
+	clock.set_weather(WorldClock.Weather.RAIN, 120.0)
+
+	var result: String = _T.assert_gte(
+		clock.lightning_time_left, WorldClock.LIGHTNING_MIN_GAP, "starting rain arms the countdown"
+	)
+
+	if result == "":
+		result = _T.assert_gte(
+			WorldClock.LIGHTNING_MAX_GAP, clock.lightning_time_left, "and never beyond the widest gap"
+		)
+
+	if result == "":
+		clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+		# Exactly zero rather than merely small: a remainder left here would sit out the whole
+		# dry spell and then fire on the first tick of the next storm.
+		result = _T.assert_eq(
+			clock.lightning_time_left, 0.0, "going clear disarms it to exactly 0.0"
+		)
+
+	clock.free()
+	return result
+
+
+func test_one_huge_tick_emits_at_most_one_bolt() -> String:
+	var clock := WorldClock.new()
+	var hits: Array = []
+	clock.lightning_struck.connect(func(distance: float) -> void: hits.append(distance))
+
+	# A hundred gaps' worth of delta in a single step: step-time, a load that fast-forwards,
+	# or a frame stalled behind an import. Forty flashes in one frame is nonsense the player
+	# cannot see, so the skipped bolts are eaten rather than banked into a burst.
+	clock.set_weather(WorldClock.Weather.RAIN, 100000.0)
+	clock.tick(100.0 * WorldClock.LIGHTNING_MAX_GAP)
+
+	var result: String = _T.assert_eq(
+		hits.size(), 1, "one tick is one bolt however long the tick was, got %d" % hits.size()
+	)
+
+	if result == "":
+		result = _T.assert_gte(
+			clock.lightning_time_left, WorldClock.LIGHTNING_MIN_GAP,
+			"and it re-arms with a full fresh gap rather than with the overshoot"
+		)
+
+	if result == "":
+		# Without this the count above would also pass if the storm had simply ended early,
+		# which is a different bug wearing the same result.
+		result = _T.assert_eq(
+			clock.weather, WorldClock.Weather.RAIN, "the storm itself outlived the step"
+		)
+
+	clock.free()
+	return result
+
+
+# --- lightning across a load ---------------------------------------------------
+
+
+func test_a_saved_countdown_survives_the_load_that_restarts_the_storm() -> String:
+	# The ordering hazard inside loadObject: set_weather ARMS a fresh random countdown, so a
+	# restore written before that call is silently overwritten by a random number. Nothing
+	# raises, nothing is logged, and the player is handed back a storm they did not save.
+	#
+	# 3.25 is below LIGHTNING_MIN_GAP on purpose — it is a value the arming code cannot
+	# produce, so this cannot pass by coincidence.
+	var clock := WorldClock.new()
+	clock.loadObject({
+		"time_of_day": 0.4,
+		"day": 3,
+		"weather": "rain",
+		"weather_time_left": 90.0,
+		"lightning_time_left": 3.25,
+	})
+
+	var result: String = _T.assert_float_eq(
+		clock.lightning_time_left, 3.25, 0.0001,
+		"the saved countdown survives set_weather's re-arm, so it was restored after it"
+	)
+
+	clock.free()
+	return result
+
+
+func test_a_save_from_before_lightning_loads_into_an_armed_storm() -> String:
+	# No key at all, which is every save this project has written so far. Defaulting the
+	# missing value to 0.0 would fire a bolt on the very first tick after the load; keeping
+	# the gap set_weather just armed is what such a save would have had.
+	var clock := WorldClock.new()
+	clock.loadObject({"time_of_day": 0.4, "day": 3, "weather": "rain", "weather_time_left": 90.0})
+
+	var result: String = _T.assert_gte(
+		clock.lightning_time_left, WorldClock.LIGHTNING_MIN_GAP,
+		"an old rainy save comes back armed rather than about to strike"
+	)
+
+	clock.free()
+	return result
+
+
+func test_loading_a_clear_sky_leaves_nothing_armed() -> String:
+	# A stale countdown under a clear sky is a bolt out of nowhere on the next tick — and the
+	# save it came from would look perfectly correct in a diff.
+	var clock := WorldClock.new()
+	clock.loadObject({"time_of_day": 0.4, "day": 3, "weather": "clear", "lightning_time_left": 7.5})
+
+	var result: String = _T.assert_eq(
+		clock.lightning_time_left, 0.0, "a clear save arms nothing, whatever the file claims"
+	)
+
+	clock.free()
+	return result

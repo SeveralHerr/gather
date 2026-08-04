@@ -66,6 +66,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("world_clock", _cmd_world_clock)
 	dev.register_command("set_time_of_day", _cmd_set_time_of_day)
 	dev.register_command("set_weather", _cmd_set_weather)
+	dev.register_command("strike_lightning", _cmd_strike_lightning)
 	dev.register_command("berry_bushes", _cmd_berry_bushes)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
@@ -311,6 +312,12 @@ func _status(_args: Dictionary) -> Dictionary:
 		status["phase"] = WorldClock.phase_name(clock.phase())
 		status["weather"] = WorldClock.weather_name(clock.weather)
 		status["day"] = clock.day
+		# Whether a storm is running is already `weather` above, so only the countdown is
+		# added here — one float read, no work. It rides along because it is the difference
+		# between "the storm is quiet right now" and "the storm is armed with nothing", and
+		# a caller waiting on a bolt has no other way to know it is coming. Zero under a
+		# clear sky is correct; zero under `weather: rain` means the countdown never armed.
+		status["lightning_in"] = clock.lightning_time_left
 
 	return status
 
@@ -2790,6 +2797,14 @@ func _cmd_world_clock(_args: Dictionary) -> Dictionary:
 		"running": clock.running,
 		"tint": [tint.r, tint.g, tint.b],
 		"day_length_seconds": WorldClock.DAY_LENGTH_SECONDS,
+		# The lightning model. `lightning_time_left` is progress toward the next bolt, and it
+		# is zero under a clear sky by construction — a nonzero one there is an armed
+		# countdown waiting to flash out of nothing, and that pairing is the one way these two
+		# fields can disagree. The gap range rides along because "14.2 seconds" is
+		# uninterpretable without the bounds it was rolled between.
+		"lightning_time_left": clock.lightning_time_left,
+		"lightning_gap": [WorldClock.LIGHTNING_MIN_GAP, WorldClock.LIGHTNING_MAX_GAP],
+		"thunder_delay_max": WorldClock.THUNDER_DELAY_MAX,
 	}
 
 	# What the tint actually landed on, read back off the nodes rather than recomputed —
@@ -2817,6 +2832,10 @@ func _cmd_world_clock(_args: Dictionary) -> Dictionary:
 			if drops:
 				data["rain_emitting"] = drops.emitting
 				data["rain_drops"] = drops.amount
+
+	# What SkyLighting is currently drawing of the last bolt, merged in for the same reason
+	# the three tint read-backs above are: the model and the picture are separate facts.
+	data.merge(_flash_state(_sky_lighting()))
 
 	return {"success": true, "message": "ok", "data": data}
 
@@ -2889,6 +2908,114 @@ func _cmd_set_weather(args: Dictionary) -> Dictionary:
 		sky.apply()
 
 	return _cmd_world_clock({})
+
+
+## Fires a bolt right now, whatever the countdown says. `{"distance": 0.0}` is directly
+## overhead and `1.0` is the far horizon; omit it and one is rolled, the way the clock rolls
+## its own.
+##
+## **It starts a storm first if the sky is clear, and the reply says so.** The alternative was
+## to refuse, and the reason for choosing this one is the requirement in CLAUDE.md that a
+## setter verb leave the game in a state the game itself can reach. Lightning happens only
+## while it is raining: the countdown arms on rain and is disarmed to zero on clear. So a bolt
+## emitted under a clear sky is not merely unusual, it is unreachable — the flash plays over a
+## dry world and the countdown behind it is disarmed again on the next tick, so the caller
+## sees one impossible frame and nothing after it. Refusing would have been honest but would
+## make every lightning check two calls, and the first of them would always be the same call.
+## Starting the weather the bolt belongs to gives the caller the state they were reaching for;
+## naming it in the message is what stops a reader who sees `weather: rain` come back from
+## wondering where the rain came from.
+func _cmd_strike_lightning(args: Dictionary) -> Dictionary:
+	var clock := _world_clock()
+	if clock == null:
+		return {"success": false, "message": "no WorldClock in the scene", "data": {}}
+
+	var started_storm := false
+	if clock.weather != WorldClock.Weather.RAIN:
+		# A whole storm rather than a sliver, for set_weather's reason: a storm short enough
+		# to expire on the next tick takes the bolt's own weather away underneath it.
+		clock.set_weather(
+			WorldClock.Weather.RAIN,
+			WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
+		)
+		started_storm = true
+
+	# Rolled here rather than left to the clock. A caller who names a distance has to get the
+	# one they named, and a caller who does not still has to be TOLD which one landed — a
+	# distance rolled inside the clock's own countdown is reported by nothing, and distance is
+	# the number the flash brightness, the thunder delay and the thunder volume all come from,
+	# so a reply that omits it cannot be checked against any of the three.
+	var distance: float = clampf(float(args["distance"]), 0.0, 1.0) if args.has("distance") else randf()
+
+	# The clock's own two effects in the clock's own order, rather than a call into its
+	# countdown: that path rolls its own distance and this verb has to be able to name one.
+	# Re-arming BEFORE the emit is not cosmetic — world_clock.gd does it in that order because
+	# a listener is entitled to change the weather in response, and arming afterwards would
+	# overwrite the disarm that reaction just performed and leave a countdown running under a
+	# clear sky. A full fresh gap, not a remainder, for the same reason the clock uses one.
+	clock.lightning_time_left = randf_range(WorldClock.LIGHTNING_MIN_GAP, WorldClock.LIGHTNING_MAX_GAP)
+	clock.lightning_struck.emit(distance)
+
+	# Repaint before replying, exactly as set_time_of_day and set_weather do. SkyLighting only
+	# folds the flash into the tint from _process, and a devtools call followed immediately by
+	# a `screenshot` need not have yielded a frame in between — without this the reply would
+	# describe a flash that nothing had drawn yet, which is the half-applied state a setter
+	# verb must never hand back.
+	var sky := _sky_lighting()
+	if sky:
+		sky.apply()
+
+	# The full clock payload, so one call answers "did it fire" and "what does the world look
+	# like now" together — including the flash read back off SkyLighting, which is the half
+	# that says the bolt reached the screen.
+	var reply := _cmd_world_clock({})
+	reply["message"] = "bolt at distance %.2f%s" % [
+		distance,
+		"; started a storm first, the sky was clear" if started_storm else "",
+	]
+	reply["data"]["struck_distance"] = distance
+	reply["data"]["started_storm"] = started_storm
+	return reply
+
+
+## What SkyLighting is currently drawing of the most recent bolt.
+##
+## Read back off the node rather than recomputed from the clock, for the same reason
+## `world_clock` reads the tint back off all three canvases instead of calling `tint_for`
+## again: the model and the picture are two different facts, and only the second one answers
+## "did the bolt reach the screen". Without this, `lightning_time_left` alone cannot tell
+## "the bolt never fired" apart from "the bolt fired and SkyLighting is not listening" — and
+## those two have entirely different fixes, in two different files.
+##
+## Empty when there is no SkyLighting: it is created at runtime by main.gd, so a scene that is
+## not the full game legitimately has none, and the clock facts are still worth reporting
+## there. Each instance field is guarded with `in` rather than indexed, because a lighting
+## node that tracks its flash under different names must degrade to reporting nothing rather
+## than raising and taking the whole `world_clock` verb down with it.
+func _flash_state(sky: SkyLighting) -> Dictionary:
+	if sky == null:
+		return {}
+
+	var state := {"flash_duration": SkyLighting.FLASH_DURATION}
+
+	var has_peak: bool = "_flash_peak" in sky
+	var has_elapsed: bool = "_flash_elapsed" in sky
+	if has_peak:
+		state["flash_peak"] = float(sky.get("_flash_peak"))
+	if has_elapsed:
+		state["flash_elapsed"] = float(sky.get("_flash_elapsed"))
+
+	if has_peak and has_elapsed:
+		# The gain SkyLighting adds ON TOP of unity, not the multiplier itself: `_flashed()`
+		# scales the tint by `1.0 + envelope * peak`, so `0.0` here is "no flash" and reads as
+		# such, where reporting the multiplier would make a quiet sky answer `1.0` and a caller
+		# would have to know to subtract. Its two inputs ride along because a zero is otherwise
+		# unattributable — a spent envelope and a zero peak are different failures.
+		state["flash"] = SkyLighting.flash_envelope(
+			float(state["flash_elapsed"]), SkyLighting.FLASH_DURATION
+		) * float(state["flash_peak"])
+
+	return state
 
 
 ## --- Berry bushes ------------------------------------------------------------

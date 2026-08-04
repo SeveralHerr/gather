@@ -428,3 +428,58 @@ func test_a_load_into_the_night_does_not_reannounce_nightfall() -> String:
 	clock.tick(0.016)
 
 	return _T.assert_eq(announcements.size(), 0, "already being at night is not a new nightfall")
+
+
+func test_the_wait_for_the_next_bolt_survives_a_real_round_trip() -> String:
+	# Deliberately routed through saveObject() rather than a hand-built payload, and that is
+	# the whole point of putting this here. test_world_clock.gd covers the same field by
+	# feeding loadObject a dictionary written by the test itself, so it asserts that the READ
+	# works — but it would go on passing if saveObject stopped writing the key at all, and the
+	# countdown would then be lost on every save the game actually takes. A load that quietly
+	# hands back a different storm is the failure this file exists to catch.
+	#
+	# 3.25 is chosen below LIGHTNING_MIN_GAP so _arm_lightning() cannot produce it by chance:
+	# if the restore were dropped and the arming roll won, the value would land in 5..20 and
+	# this fails. A number inside the gap range could pass by coincidence.
+	var clock := _clock()
+	clock.set_weather(WorldClock.Weather.RAIN, 40.0)
+	clock.lightning_time_left = 3.25
+
+	var payload := clock.saveObject()
+
+	var err: String = _T.assert_true(
+		payload.has("lightning_time_left"), "the wait for the next bolt is written at all"
+	)
+	if err != "":
+		return err
+
+	var restored := _clock()
+	restored.loadObject(payload)
+
+	# The ordering hazard, pinned. loadObject calls set_weather to restore the storm, and
+	# set_weather ARMS a fresh random countdown — so the restore has to happen after it.
+	# Reversing those two lines reads like a harmless tidy-up and silently replaces every
+	# loaded countdown with a random one.
+	return _T.assert_float_eq(
+		restored.lightning_time_left, 3.25, 0.0001, "the bolt is still the same distance away"
+	)
+
+
+func test_a_save_from_before_lightning_does_not_strike_the_instant_it_loads() -> String:
+	# Every save written before this feature has no lightning key, and the default it falls
+	# back to is load-bearing: 0.0 would read as "the countdown has already elapsed" and fire
+	# a bolt on the first tick after the load — a thunderclap the moment a player restores a
+	# rainy save, every single time. The absent key has to leave the storm armed instead.
+	var restored := _clock()
+	restored.loadObject({"weather": "rain", "weather_time_left": 60.0})
+
+	var err: String = _T.assert_gt(
+		restored.lightning_time_left, 0.0, "an older save loads with a bolt still pending"
+	)
+	if err != "":
+		return err
+	return _T.assert_gte(
+		restored.lightning_time_left,
+		WorldClock.LIGHTNING_MIN_GAP,
+		"and with a full gap, not a remainder someone happened to leave"
+	)

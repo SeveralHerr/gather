@@ -6,6 +6,28 @@ class_name SoundManager
 ## whose pitch jumps between restarts sounds broken, not lively.
 const PITCH_VARIATION := 0.1
 
+## Thunder loudness, in decibels rather than a 0-1 linear scale, because
+## perceived loudness is logarithmic: a linear ramp spends most of its range in
+## a band the ear barely separates and then collapses to nothing at the end, so
+## a "half distance" bolt lands nowhere near half as loud. -18 dB is roughly a
+## quarter of the apparent volume of the overhead strike, which is about right
+## for a flash on the horizon without making it inaudible.
+const THUNDER_NEAR_DB := 0.0
+const THUNDER_FAR_DB := -18.0
+
+## Air absorbs high frequencies over distance, so a far bolt is all rumble and
+## no crack. There is no filter on an AudioStreamPlayer, so the high end is
+## suggested by dropping the pitch instead. Kept shallow on purpose - past about
+## 0.85 it stops sounding like distance and starts sounding like the tape is
+## slowing down.
+const THUNDER_NEAR_PITCH := 1.0
+const THUNDER_FAR_PITCH := 0.85
+
+## Small deliberate jitter so a storm's repeated bolts are not identical takes.
+## Much smaller than PITCH_VARIATION: the distance pitch above is the message
+## here, and +/-10% on top of it would swamp it.
+const THUNDER_PITCH_JITTER := 0.03
+
 var gathering_player: AudioStreamPlayer
 
 # Define your sounds
@@ -19,7 +41,8 @@ enum SoundType {
 	POP,
 	BONE,
 	SQUISH,
-	WOOD_GATHER
+	WOOD_GATHER,
+	THUNDER
 	}
 
 # Store your sounds as AudioStreamPlayer nodes or references to AudioStream resources
@@ -33,7 +56,8 @@ var sound_library = {
 	SoundType.POP: preload("res://assets/audio/pop.wav"),
 	SoundType.BONE: preload("res://assets/audio/bone_hit.wav"),
 	SoundType.SQUISH: preload("res://assets/audio/squish.wav"),
-	SoundType.WOOD_GATHER: preload("res://assets/audio/wood_place.wav")
+	SoundType.WOOD_GATHER: preload("res://assets/audio/wood_place.wav"),
+	SoundType.THUNDER: preload("res://assets/audio/thunder.wav")
 }
 
 func _ready():
@@ -73,6 +97,46 @@ func play_sound_pitched(type: SoundType, pitch: float, volume_db: float = 0.0) -
 	var player := AudioStreamPlayer.new()
 	player.stream = sound_resource
 	player.volume_db = volume_db
+	player.pitch_scale = maxf(0.01, pitch)
+	add_child(player)
+	player.play()
+	player.finished.connect(player.queue_free)
+
+
+## Thunder for a lightning flash `distance` tiles away, 0.0 overhead to 1.0 on the horizon.
+##
+## The sound is deliberately late. Light arrives instantly and sound does not, and that gap
+## is the entire reason a distant strike reads as distant - flash and bang together always
+## look like they happened on top of the player no matter how quiet the bang is. WorldClock
+## owns the delay curve because it also owns the storm that decides when to fire.
+##
+## Goes through the exact-pitch path rather than `play_sound`, since the pitch here carries
+## the distance and `_random_pitch`'s +/-10% is wide enough to make a far bolt read as a
+## near one.
+func play_thunder(distance: float) -> void:
+	var d := clampf(distance, 0.0, 1.0)
+	var sound_resource = sound_library.get(SoundType.THUNDER)
+	if sound_resource == null:
+		return
+
+	var delay := WorldClock.thunder_delay(d)
+	var tree := get_tree()
+	if delay > 0.0 and tree != null:
+		await tree.create_timer(delay).timeout
+		# Up to 4.5 seconds pass here, which is long enough for the player to die, the
+		# scene to be reloaded or the game to quit. Resuming a coroutine into a node that
+		# has left the tree - or been freed - raises, and a raise inside a `-> void` is
+		# silent, so this guard is the difference between one skipped bolt and an error
+		# nobody sees.
+		if not is_instance_valid(self) or not is_inside_tree():
+			return
+
+	var pitch := lerpf(THUNDER_NEAR_PITCH, THUNDER_FAR_PITCH, d)
+	pitch += randf_range(-THUNDER_PITCH_JITTER, THUNDER_PITCH_JITTER)
+
+	var player := AudioStreamPlayer.new()
+	player.stream = sound_resource
+	player.volume_db = lerpf(THUNDER_NEAR_DB, THUNDER_FAR_DB, d)
 	player.pitch_scale = maxf(0.01, pitch)
 	add_child(player)
 	player.play()

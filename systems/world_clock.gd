@@ -37,6 +37,14 @@ signal night_started(day: int)
 
 signal weather_changed(weather: Weather)
 
+## Emitted the instant a bolt lands. `distance` is 0.0 (directly overhead) to 1.0 (far
+## horizon), and it is deliberately the ONE number every consumer derives from: the flash
+## brightness in SkyLighting, the delay before the thunder and that thunder's volume in
+## SoundManager. Sharing the number is what makes a bolt that looks close also sound close
+## — three systems each rolling their own "how close was it" would disagree every strike,
+## and the mismatch reads as broken audio rather than as two separate randomisations.
+signal lightning_struck(distance: float)
+
 # --- tuning ------------------------------------------------------------------
 
 ## Real seconds in one full cycle.
@@ -101,6 +109,30 @@ const RAIN_CHANCE := 0.25
 const RAIN_MIN_FRACTION := 0.15
 const RAIN_MAX_FRACTION := 0.35
 
+## Real seconds between bolts, rolled fresh after every strike.
+##
+## The range matters more than either end of it. A fixed gap turns a storm into a metronome
+## the player stops noticing after the third flash; a range this wide (4x) means the next
+## bolt is never something you are waiting for on a beat. The floor of five seconds is set
+## by the flash itself rather than by taste — two bolts closer together than the screen
+## takes to recover read as one long flicker, and the thunder from the first is still
+## arriving (THUNDER_DELAY_MAX is 4.5) when the second lands.
+##
+## The ceiling is bounded by the shortest storm: RAIN_MIN_FRACTION of a day is 90 seconds,
+## so even the briefest shower gets several bolts rather than passing without one and
+## leaving the whole system invisible.
+const LIGHTNING_MIN_GAP := 5.0
+const LIGHTNING_MAX_GAP := 20.0
+
+## Seconds between the flash and the thunder at maximum distance.
+##
+## Real sound covers about 1.5km in this time, which is not the point — the point is that
+## the delay is long enough to be read as distance rather than as audio lag. Much beyond
+## this and the player has stopped associating the two events at all, and the thunder
+## becomes an unexplained noise; at zero distance the crack is simultaneous with the flash,
+## which is what makes an overhead strike feel like it happened to you.
+const THUNDER_DELAY_MAX := 4.5
+
 # --- state -------------------------------------------------------------------
 
 ## Fraction through the current day, 0.0 (dawn) to 1.0 (exclusive).
@@ -118,6 +150,17 @@ var weather: Weather = Weather.CLEAR
 ## `time_left`-shaped field: it is progress through this storm, not the configured length
 ## of storms, and it is what has to be saved. See the class comment.
 var weather_time_left := 0.0
+
+## Real seconds until the next bolt. Zero whenever `weather` is CLEAR — a clear sky never
+## flashes, so an armed countdown under one is a bolt waiting to fire out of nothing.
+##
+## Progress, like `weather_time_left` and for the same reason, so it is saved and restored
+## rather than re-rolled: a player who saves eighteen seconds into a nineteen-second gap and
+## loads back into a storm that has forgotten about it has had a bolt taken off them. It is
+## a plain float advanced by delta rather than a Timer for the reason in the class comment
+## — `Timer.start()` assigns `wait_time`, and a restored remainder would silently become the
+## length of every later gap.
+var lightning_time_left := 0.0
 
 ## The phase the last _process saw, so phase_changed fires on transitions rather than
 ## every frame. Deliberately initialised to the phase DAWN_END sits in, matching
@@ -195,9 +238,42 @@ func _advance_weather(delta: float) -> void:
 	if weather == Weather.CLEAR:
 		return
 
+	# Before the expiry check below, so the last seconds of a storm can still carry a bolt.
+	# The other order would make the final gap of every storm the one that never pays out.
+	_advance_lightning(delta)
+
 	weather_time_left -= delta
 	if weather_time_left <= 0.0:
 		set_weather(Weather.CLEAR, 0.0)
+
+
+## Counts down to the next bolt and fires at most ONE of them, however large `delta` is.
+##
+## That cap is deliberate and is not an off-by-one. A `step-time --seconds 300`, a load that
+## fast-forwards, or a frame stalled behind a resource import can hand over a delta covering
+## a dozen gaps; looping until the countdown is positive would emit a dozen `lightning_struck`
+## in a single frame, and the player would see one flash and hear one thunder anyway because
+## every consumer is drawing into the same screen and the same audio bus. The re-arm is a
+## full fresh gap rather than the remainder, so a big step visibly *eats* the bolts it
+## skipped instead of banking them into a burst on the far side. A later reader who thinks
+## this is a missed `while` should read this paragraph rather than change the `if`.
+func _advance_lightning(delta: float) -> void:
+	lightning_time_left -= delta
+	if lightning_time_left > 0.0:
+		return
+
+	var distance := randf()
+
+	# Re-armed BEFORE the emit, because a listener is entitled to react by changing the
+	# weather (devtools does exactly this, and so would a future "storm ends on the boss
+	# dying"). Arming afterwards would overwrite the disarm that reaction just performed and
+	# leave a countdown running under a clear sky.
+	_arm_lightning()
+	lightning_struck.emit(distance)
+
+
+func _arm_lightning() -> void:
+	lightning_time_left = randf_range(LIGHTNING_MIN_GAP, LIGHTNING_MAX_GAP)
 
 
 ## Rolls for a storm. Called once per day at dawn, never mid-day: weather that can start at
@@ -365,13 +441,43 @@ func set_time_of_day(t: float) -> void:
 
 
 ## Starts or stops weather. `seconds` is ignored for CLEAR.
+##
+## Arming and disarming the lightning countdown lives HERE rather than in `_roll_weather`,
+## so every route into a storm gets it for free: the daily roll, the devtools `set_weather`
+## verb and the load path all go through this one function. A copy of the arming logic at
+## the roll site would mean a devtools-summoned storm that never flashes — a bug that only
+## shows up when someone tries to test the lightning, which is the worst time to find it.
 func set_weather(new_weather: Weather, seconds: float) -> void:
 	var changed := new_weather != weather
 	weather = new_weather
 	weather_time_left = maxf(0.0, seconds) if new_weather != Weather.CLEAR else 0.0
 
+	if new_weather == Weather.CLEAR:
+		# Exactly zero, not "small". Clear skies never flash, and a leftover remainder here
+		# would sit through the whole dry spell and fire on the first tick of the next storm.
+		lightning_time_left = 0.0
+	else:
+		_arm_lightning()
+
 	if changed:
 		weather_changed.emit(weather)
+
+
+# --- pure helpers, continued -------------------------------------------------
+
+
+## Seconds between a bolt at `distance` and its thunder.
+##
+## A pure static because systems/sound_manager.gd calls it with nothing but the float off
+## `lightning_struck` — it has no WorldClock reference, and giving it one would make the
+## audio depend on a node's lifetime for the sake of a multiplication.
+##
+## `distance` is clamped rather than trusted: it arrives from a signal, and a save, a
+## devtools verb or a future "bolt aimed at the player" could hand over something outside
+## 0..1. An unclamped negative returns a negative delay, which becomes a `Timer.start()`
+## with a negative wait — thunder that never plays, and no error to say why.
+static func thunder_delay(distance: float) -> float:
+	return clampf(distance, 0.0, 1.0) * THUNDER_DELAY_MAX
 
 
 # --- save --------------------------------------------------------------------
@@ -386,6 +492,10 @@ func saveObject() -> Dictionary:
 		# Progress, not configuration. Saving the storm's total length instead would restore
 		# a storm that had thirty seconds left as a fresh three-minute one.
 		"weather_time_left": weather_time_left,
+		# Same shape again: how far through the wait for the NEXT bolt this storm is, not how
+		# long bolts are apart. The gap is already two constants above and does not need a
+		# third copy in every save file.
+		"lightning_time_left": lightning_time_left,
 	}
 
 
@@ -401,6 +511,25 @@ func loadObject(loadedDict: Dictionary) -> void:
 		weather_from_name(str(stored_weather)),
 		float(loadedDict.get("weather_time_left", 0.0))
 	)
+
+	# AFTER set_weather, and that order is the entire point of the block below.
+	#
+	# set_weather arms a *fresh random* countdown when it starts a storm — which is right for
+	# every other caller and wrong for exactly this one. Restoring the saved value first and
+	# then calling set_weather would have the random number silently overwrite it: a load
+	# that succeeds, reports nothing, and hands the player back a different storm than the
+	# one they saved. That is the failure mode the save-fidelity section of CLAUDE.md exists
+	# for — it never raises and never looks wrong in a diff.
+	#
+	# The sentinel default is negative rather than 0.0 on purpose. A save written before
+	# lightning existed has no key at all, and defaulting it to zero would mean a bolt on the
+	# very first tick after loading into a storm. A negative reading instead keeps the fresh
+	# gap set_weather just armed, which is what such a save would have had.
+	var stored_gap := float(loadedDict.get("lightning_time_left", -1.0))
+	if weather == Weather.CLEAR:
+		lightning_time_left = 0.0
+	elif stored_gap > 0.0:
+		lightning_time_left = stored_gap
 
 	# The phase is derived, never stored — one fact in one place. Seeding _last_phase from
 	# the restored time rather than letting the next tick discover it is what stops a load

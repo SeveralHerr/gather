@@ -72,6 +72,72 @@ const LANTERN_SCALE := 0.16
 const LANTERN_DAY_BRIGHTNESS := 0.95
 const LANTERN_NIGHT_BRIGHTNESS := 0.55
 
+# --- lightning ---------------------------------------------------------------
+#
+# Why the flash is folded into the tint rather than drawn.
+#
+# The obvious implementation is a white ColorRect in the UI layer, faded in and out. It is
+# wrong here in three ways at once, and every one of them is something this file already has
+# a comment about further up:
+#
+#  - It would light the land and leave the sea flat dark. The sea is in its own CanvasLayer,
+#    which is the fact nothing outside this class ever remembers — the same
+#    daylight-blue-at-midnight failure the header describes, arriving by a new route.
+#  - It would strobe the HP and XP bars. The HUD is in the root canvas, and a flash drawn
+#    over it dims and brightens the two readouts the player most needs during a storm at
+#    night. That is the concern NIGHT_TINT's 0.42 floor exists for, in a different form.
+#  - It would put weather in the UI CanvasLayer, which is the one canvas this class
+#    deliberately never touches.
+#
+# Brightening `tint` before apply() makes the three writes it already does carry the flash
+# instead. The sea brightens because _apply_ocean multiplies the same value. The HUD holds
+# perfectly still because _apply_hud takes the reciprocal of whatever it is handed, so the
+# flash cancels itself there exactly, for free, and without a special case. And the lantern
+# dims for the duration because _apply_lantern reads brightness back off the tint — which is
+# what a lantern does when the sky lights up. None of those three is code below; they are the
+# existing code being handed a brighter number.
+
+## How long one bolt's flash lasts, in seconds.
+##
+## A flash the player has time to watch is a flash that reads as a screen effect. Half a
+## second is about two blinks: long enough for the second strike to land as its own event,
+## short enough that the world is back to its night colour before the eye settles on the new
+## one.
+const FLASH_DURATION := 0.55
+
+## How much brightness the nearest and the furthest bolt add, as a gain over 1.0.
+##
+## Tuned against a stormy night, because that is the only sky most bolts will ever be seen
+## in: night times rain is (0.30, 0.35, 0.54), and 1.85 of that is (0.56, 0.65, 1.00) — a
+## sky that is briefly bright and still blue, rather than a white frame. It is not higher for
+## the mirror of the reason NIGHT_TINT has a floor: once every channel clips, the flash and
+## the frame after it are both flat, and the return to darkness reads as a dropped frame
+## instead of as the storm passing. A bolt at noon does clip, and that is fine — an overhead
+## strike in daylight is supposed to be the brightest thing on screen.
+##
+## The far value is deliberately small. A distant bolt should be something noticed at the
+## edge of vision while gathering, not something that interrupts it: 1.18 over a stormy night
+## is roughly the difference between night and late dusk.
+const FLASH_PEAK_NEAR := 0.85
+const FLASH_PEAK_FAR := 0.18
+
+## The shape of the double strike, in fractions of FLASH_DURATION.
+##
+## Lightning is a leader stroke and then a return stroke, and the gap between them is what
+## the eye actually identifies it by. A single smooth rise and fall over the same half second
+## reads as a screen wipe or a damage flash — the brightness is right and the event is still
+## unrecognisable. So: a spike that reaches full in about two frames, a cubic fall to near
+## dark, then a second smaller spike out of that trough.
+##
+## The two strikes overlap slightly (STRIKE_TWO_START sits inside STRIKE_ONE_END) so the
+## trough between them is a deep dip rather than a hard cut to zero and back. A literal zero
+## in the middle is a black frame, which is its own artefact.
+const STRIKE_ONE_PEAK_AT := 0.04
+const STRIKE_ONE_END := 0.36
+const STRIKE_TWO_START := 0.30
+const STRIKE_TWO_PEAK_AT := 0.36
+const STRIKE_TWO_HEIGHT := 0.55
+
 var clock: WorldClock
 
 ## The Main node everything above is resolved against.
@@ -89,12 +155,31 @@ var _lantern: PointLight2D
 var _base_water_color := Color.WHITE
 var _has_base_water := false
 
+## Seconds since the current bolt struck, and the gain that bolt is worth at its peak.
+##
+## `_flash_peak` doubles as the "is a flash running" flag, and it is what keeps an idle sky
+## bit-identical to what it was before lightning existed: at zero, apply() skips the multiply
+## rather than multiplying by 1.0. A day/night curve that drifts while nothing is happening
+## is the kind of regression the continuity tests in test_world_clock.gd would not
+## necessarily catch, because every sample would drift the same way.
+var _flash_elapsed := FLASH_DURATION
+var _flash_peak := 0.0
+
 
 func _ready() -> void:
 	add_to_group("SkyLighting")
 
 	if main == null:
 		main = get_parent()
+
+	# Connected before the World lookup below, which can return early. A scene without a
+	# World still has a clock worth listening to, and the connection is cheap.
+	#
+	# main.gd assigns `clock` before add_child(), so it is already here — but a SkyLighting
+	# built by hand in a test or a devtools verb may have none, and apply() already tolerates
+	# that, so this has to as well.
+	if clock != null and not clock.lightning_struck.is_connected(_on_lightning_struck):
+		clock.lightning_struck.connect(_on_lightning_struck)
 
 	_modulate = CanvasModulate.new()
 	_modulate.name = "SkyModulate"
@@ -117,8 +202,27 @@ func _ready() -> void:
 ## whatever colour the last boundary set. The signals exist for systems that react to a
 ## *change* of phase (the spawner); a system that draws the current value has to read the
 ## current value.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_advance_flash(delta)
 	apply()
+
+
+## Moves the current bolt's flash along, and retires it when it is spent.
+##
+## Kept out of apply() on purpose. apply() is called by devtools and by the load path to
+## force a repaint, and if a repaint also advanced the flash then how long a bolt lasted
+## would depend on how many things had asked for a redraw during it.
+func _advance_flash(delta: float) -> void:
+	if _flash_peak <= 0.0:
+		return
+
+	_flash_elapsed += delta
+	if _flash_elapsed >= FLASH_DURATION:
+		# Clamped rather than left to grow, and the peak zeroed with it, so an idle sky is
+		# back to skipping the multiply entirely rather than evaluating an envelope that will
+		# answer zero forever.
+		_flash_elapsed = FLASH_DURATION
+		_flash_peak = 0.0
 
 
 ## Pushes the clock's current tint into all three places. Public and idempotent so devtools
@@ -129,7 +233,7 @@ func apply() -> void:
 	if clock == null:
 		return
 
-	var tint := clock.tint()
+	var tint := _flashed(clock.tint())
 
 	if _modulate != null:
 		_modulate.color = tint
@@ -137,6 +241,40 @@ func apply() -> void:
 	_apply_ocean(tint)
 	_apply_hud(tint)
 	_apply_lantern(tint)
+
+
+## The sky's colour with whatever lightning is currently doing to it multiplied in.
+##
+## The early return is the contract, not an optimisation: with no bolt running this hands
+## back the argument untouched, not the argument multiplied by one. A day/night curve that
+## rounds a little differently once lightning exists is a regression no test of the curve
+## itself would report, because every sample would move together. See the lightning section
+## above for why the flash lands here rather than in a layer of its own.
+func _flashed(tint: Color) -> Color:
+	if _flash_peak <= 0.0:
+		return tint
+
+	var gain := 1.0 + flash_envelope(_flash_elapsed, FLASH_DURATION) * _flash_peak
+	# Channel-wise rather than `tint * gain`, which would scale alpha too. The CanvasModulate
+	# reads that alpha, and a sky that goes translucent for half a second shows the clear
+	# colour behind the world.
+	return Color(tint.r * gain, tint.g * gain, tint.b * gain, tint.a)
+
+
+## Starts a flash for a bolt at `distance` (0.0 overhead, 1.0 on the horizon) and hands the
+## thunder to the sound manager, which owns its own delay — the light arrives now and the
+## sound arrives later, and splitting that across two systems is how it stays that way.
+func _on_lightning_struck(distance: float) -> void:
+	_flash_elapsed = 0.0
+	_flash_peak = flash_peak_for(distance)
+
+	# Guarded rather than assumed. The autoload is always there in the running game, but this
+	# node can be built by hand into a tree that has no autoloads at all — the headless test
+	# runner is its own SceneTree and instantiates none of them (ui/splash_text.gd carries the
+	# same guard for the same reason). Losing the thunder is the right failure there; taking
+	# the flash down with it is not.
+	if GameSoundManager != null:
+		GameSoundManager.play_thunder(distance)
 
 
 func _apply_ocean(tint: Color) -> void:
@@ -220,3 +358,61 @@ func _apply_lantern(tint: Color) -> void:
 	# Free the renderer from a light that contributes nothing, rather than drawing a
 	# zero-energy one every frame all day.
 	_lantern.visible = darkness > 0.0
+
+
+# --- pure helpers (unit-tested; keep them free of node access) ----------------
+
+
+## The brightness curve of one bolt, 0..1, `elapsed` seconds into a flash of `duration`.
+##
+## Exactly zero at both ends and never negative in between, so the caller can multiply by it
+## unconditionally and a flash always leaves the sky exactly where it found it. Two strikes
+## rather than one — see the STRIKE_* constants for why the gap is the load-bearing part.
+##
+## Static, and takes its duration as an argument rather than reading FLASH_DURATION, so the
+## shape can be swept in a test with no SceneTree and no node — which is the only way the
+## double strike gets asserted at all. A shape is not something a screenshot can pin down:
+## one frame of it looks the same whichever curve produced it.
+static func flash_envelope(elapsed: float, duration: float) -> float:
+	if duration <= 0.0:
+		# Reachable only by misconfiguration, but the alternative is a division by zero that
+		# produces INF or NAN and then paints it into three canvases at once.
+		return 0.0
+	if elapsed <= 0.0 or elapsed >= duration:
+		return 0.0
+
+	var f := elapsed / duration
+	return maxf(
+		_strike(f, 0.0, STRIKE_ONE_PEAK_AT, STRIKE_ONE_END, 1.0),
+		_strike(f, STRIKE_TWO_START, STRIKE_TWO_PEAK_AT, 1.0, STRIKE_TWO_HEIGHT)
+	)
+
+
+## One stroke: a linear rise to `height` at `peak_at`, then a cubic fall back to zero at
+## `end`. Zero outside (start, end), so the two strokes can simply be max()'d together.
+##
+## The rise is linear and its window is deliberately about two frames wide, because a stroke
+## that eases in is a stroke you can watch arrive. The fall is cubed instead, so the bright
+## part is brief and the afterglow is long — that asymmetry is most of what separates a
+## flash from a pulse.
+static func _strike(f: float, start: float, peak_at: float, end: float, height: float) -> float:
+	if f <= start or f >= end:
+		return 0.0
+
+	if f < peak_at:
+		return height * (f - start) / maxf(peak_at - start, 0.0001)
+
+	var fall := (f - peak_at) / maxf(end - peak_at, 0.0001)
+	var remaining := 1.0 - fall
+	return height * remaining * remaining * remaining
+
+
+## How bright a bolt at `distance` flashes, 0.0 overhead to 1.0 on the horizon.
+##
+## Linear, not inverse-square. The physically correct falloff puts everything past about a
+## third of the range at the same imperceptible brightness, so most of the values the clock
+## can roll would be indistinguishable from each other — a range that exists in the model and
+## not on the screen. Out-of-range input clamps rather than extrapolating: a negative
+## distance must not produce a gain the tint cannot survive.
+static func flash_peak_for(distance: float) -> float:
+	return lerpf(FLASH_PEAK_NEAR, FLASH_PEAK_FAR, clampf(distance, 0.0, 1.0))

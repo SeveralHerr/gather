@@ -274,6 +274,45 @@ Two of those three rows are wrong by default, so `SkyLighting` makes three write
 every phase boundary *and across the wrap at midnight* — a seam no single screenshot can
 show you.
 
+**Lightning is those same three writes with a brighter number going into them.** A storm
+fires bolts on a countdown — `WorldClock.lightning_time_left`, re-rolled between
+`LIGHTNING_MIN_GAP` and `LIGHTNING_MAX_GAP` after every strike — and fires them *only* while
+`weather` is `RAIN`. Starting rain arms the countdown, going clear disarms it to `0.0`. An
+armed countdown under a clear sky is a bolt waiting to flash out of nothing, and it is the one
+way those two fields can contradict each other, which is why `world_clock` reports both rather
+than deriving one from the other.
+
+`distance` — `0.0` overhead to `1.0` on the horizon — is the single number `lightning_struck`
+carries, and all three consumers derive from it instead of rolling their own: the flash
+brightness (`SkyLighting.flash_peak_for`), the delay before the thunder
+(`WorldClock.thunder_delay`, bounded by `THUNDER_DELAY_MAX`) and that thunder's volume
+(`GameSoundManager.play_thunder`). Three independent "how close was it" rolls would disagree on
+every strike, and a bolt that looks overhead while sounding four seconds away does not read as
+two randomisations — it reads as broken audio.
+
+**The flash is folded into the tint *before* the three canvas writes, and that placement is
+load-bearing.** `SkyLighting` multiplies the envelope into the colour it is about to hand out,
+so the sea brightens with the land on the write that already keeps those two agreeing, and the
+HUD's reciprocal cancels the flash for free — the health bar does not strobe, and nobody had to
+add a second rule saying it must not. Both are consequences of the ordering rather than
+features anyone wrote. Tidying this into a separate white overlay on the `UI` layer
+reintroduces both problems at once and neither of them looks like the edit that caused it: a
+flat dark sea sitting under land that goes white, and an HP bar blowing out every few seconds
+during a storm — which is precisely when the player is fighting in the dark and reading it.
+
+At most one bolt fires per tick, however large the delta. A `step-time --seconds 300`, a frame
+stalled behind an import, or a load that fast-forwards can cover a dozen gaps; looping until
+the countdown went positive would emit a dozen `lightning_struck` into a single frame, and the
+player would still see one flash and hear one thunder because every consumer draws into the
+same screen and the same audio bus. The re-arm is a full fresh gap and not the remainder, so a
+long step visibly *eats* the bolts it skipped instead of banking them into a burst on the far
+side. A later reader who reads the `if` as a missed `while` should read this paragraph instead.
+
+`lightning_time_left` is progress, not configuration, so it is saved — the `time_left` versus
+`wait_time` distinction the save-fidelity section below already spells out. Re-rolling it on
+load takes a bolt off the player who saved eighteen seconds into a nineteen-second gap, and
+nothing reports that.
+
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
 campfire) has to be distance-culled against the same budget.
@@ -500,7 +539,7 @@ lose one slot, it empties the whole container permanently.
 **DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
 `player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
 `gather_stats`, `spawn_stats`, `goto_resource`, `island_census`, `world_clock`,
-`set_time_of_day`, `set_weather` — plus a status provider merged into every response. Use `goto_resource` before any gather test: gathering only
+`set_time_of_day`, `set_weather`, `strike_lightning` — plus a status provider merged into every response. Use `goto_resource` before any gather test: gathering only
 engages with a node in reach, so otherwise the test stands in empty grass and proves
 nothing.
 
@@ -508,10 +547,20 @@ nothing.
 the hour *and* reads the tint back off all three canvases (`world_tint`, `ocean_color`,
 `hud_modulate`), which is the only way to tell "the clock never advanced" apart from "the
 clock advanced and SkyLighting did not follow" — a `get-state` on the CanvasModulate alone
-cannot. `set_time_of_day` takes `{"phase": "night"}` as well as a raw `t`, and both setters
-repaint before replying so the answer describes a world you could screenshot. The status
-provider carries `phase`, `weather` and `day` on every reply, because `live_enemies` above
-the daytime cap is correct at 3am and a bug at noon.
+cannot. `set_time_of_day` takes `{"phase": "night"}` as well as a raw `t`, and every setter
+here repaints before replying so the answer describes a world you could screenshot. The same
+reply carries the lightning model — `lightning_time_left` and the `lightning_gap` range it is
+rolled from — next to `flash`, the strength `SkyLighting` is drawing *right now*, read back off
+the node for exactly the reason the tints are: a verb that echoed only the countdown cannot
+tell "the bolt never fired" apart from "the bolt fired and the lighting never heard it", and
+those two live in different files. `strike_lightning` forces a bolt immediately, at an optional
+`{"distance": 0.0..1.0}` and otherwise at a rolled one, and **it starts a storm first if the
+sky is clear** — lightning under clear weather is a state the game itself cannot reach, so the
+verb reaches the state rather than faking one frame of it, and its message names which of the
+two happened so nothing about the returned `weather` is a surprise. The status provider carries
+`phase`, `weather`, `day` and `lightning_in` on every reply, because `live_enemies` above the
+daytime cap is correct at 3am and a bug at noon, and a storm that is quiet reads identically to
+a storm whose countdown never armed.
 
 `island_census` is the one to reach for on anything touching land, resources or spawning.
 It reports every region's tile and node counts, the per-region resource census, the boss
