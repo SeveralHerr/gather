@@ -139,7 +139,7 @@ func state() -> Dictionary:
 
 
 func clips() -> Array:
-	return ["turrets", "workers", "weather"]
+	return ["turrets", "workers", "weather", "charged"]
 
 
 ## Starts a clip. Returns immediately — the performance continues as a coroutine, and the
@@ -161,6 +161,8 @@ func start(clip_name: String) -> Dictionary:
 			_run_worker_clip()
 		"weather":
 			_run_weather_clip()
+		"charged":
+			_run_charged_clip()
 		_:
 			_run_turret_clip()
 	return {"success": true, "message": "clip '%s' started" % clip_name, "data": state()}
@@ -1814,3 +1816,514 @@ func _fail(message: String) -> void:
 	_beat = "failed"
 	_running = false
 	_release_all()
+
+
+# --- the charged clip -----------------------------------------------------------------
+#
+# The one thing the weather does to the combat loop (gather-8ft), end to end: a grey skeleton
+# wandering in a night storm, a bolt that lands ON it, the blue thing that gets up, the net,
+# and the skull dropped into a turret which then visibly outshoots the ordinary one standing
+# beside it.
+#
+# Shot on a fresh world like the turret clip and unlike the worker one. Nothing here needs a
+# base — the whole subject is a storm and two skeletons — and a homestead save would only put
+# somebody's walls behind it.
+#
+# ## Why the last beat is one shot and not two
+#
+# A fire rate is a rate, and a rate cannot be read off a single stream of bullets: "0.55s" only
+# means anything against the 1.0s it replaced. So the clip never cuts from a slow turret to a
+# fast one and asks the viewer to remember what the first one looked like. It ends on ONE frame
+# holding both, each with its own lane of skeletons, and lets them be counted against each
+# other. That requirement is what sets every offset in CHARGED_SET below — the two turrets have
+# to be far enough apart to have separate lanes and close enough to share a frame, and the
+# player has to end up standing somewhere that keeps both turrets and both lanes in it.
+#
+# ## The three things this clip fakes, all of them flagged again at their call sites
+#
+#  - `player.invulnerable`, exactly as the turret clip does it. A charged skeleton hits for 5
+#    rather than 3, and the last beat then walks eight more skeletons in across two volleys
+#    while the player stands still watching; the clip must not end on a respawn that teleports
+#    the camera out of the shot.
+#  - The charge itself is FORCED rather than rolled. EnemySpawner.CHARGE_CHANCE is 0.08 on near
+#    bolts only, which is what makes the blue skeleton worth hunting and what makes it
+#    unfilmable — a take would have to stand in a storm for minutes and might still come back
+#    with nothing. See _beat_bolt for what is skipped and what is emphatically not.
+#  - `WorldClock.running` is switched off for the length of the take. The clock's own countdown
+#    would otherwise land a second, unaimed bolt somewhere in the middle of the performance —
+#    LIGHTNING_MIN_GAP is 5 seconds against a ~26 second clip, so that is not a risk but a
+#    near-certainty — and an 8% roll on THAT bolt could quietly turn one of the wave skeletons
+#    blue in the final shot, which is the one frame where a second blue thing would read as the
+#    upgrade having spread. `running` is the clock's own documented hook for being driven by
+#    hand, so this is not a lie about the model so much as a pause on it.
+
+## Where the bolt lands, 0.0 overhead to 1.0 on the horizon.
+##
+## Zero, and for three separate reasons that happen to agree. It is the brightest flash
+## (SkyLighting.FLASH_PEAK_NEAR), it is the shortest delay before the thunder — so the crack
+## arrives while the blue skeleton is still the newest thing on screen rather than a beat after
+## it — and it is inside EnemySpawner.CHARGE_MAX_DISTANCE, which is the gate a real charging
+## bolt has to pass. A clip that forced the charge from a horizon bolt would be showing an
+## event the game cannot produce.
+const CHARGED_BOLT_DISTANCE := 0.0
+
+## The hour the clip is shot at: the middle of night, the same value the devtools
+## `set_time_of_day {"phase": "night"}` verb resolves to.
+##
+## Night rather than an overcast afternoon, and that is a lighting decision rather than a mood
+## one. FLASH_PEAK_NEAR is tuned against a stormy night on purpose (see its comment) — 1.85 over
+## that sky is bright and still blue, where the same gain at noon clips every channel and the
+## flash reads as a dropped frame. It is also the only sky in which the charged skeleton's
+## over-bright blue and the sparks off the charged turret are the brightest things in shot.
+## Readability is not the risk it looks like: WorldClock.STORM_FLOOR exists precisely to stop a
+## night storm going under the point where 16px art stops being identifiable.
+const CHARGED_HOUR := (WorldClock.DUSK_END + 1.0) * 0.5
+
+## The set, as offsets in tiles from the arena centre.
+##
+## The bounding box is x -4..4 and y -3..3, which is exactly BATTLE_HALF — so this clip can use
+## the turret clip's `_find_arena` unchanged and gets its "all of this is dry land" guarantee
+## for free. Growing the set past that box means the search starts refusing worlds it could
+## have filmed, for the reason BATTLE_HALF's own comment gives.
+##
+## The two turrets sit four tiles apart vertically so each owns a lane the other cannot see:
+## LineOfSight is a 40px circle (2.5 tiles) and the shortest cross distance from either turret
+## to the other's lane is 4.1 tiles, so a skeleton in the charged lane is not also a target the
+## ordinary turret is failing to shoot. Everything still fits the ±7 by ±4 tiles the camera
+## shows at zoom 8 from `stand_watch`.
+const CHARGED_SET := {
+	# Centre of frame for the opening: the grey skeleton is four tiles to the player's left and
+	# both turrets are two to his right, so the baseline and the payoff are in the first frame.
+	"mark": Vector2i(0, 0),
+	# Four tiles out, matching the turret clip's net beat and for its reason: outside the 30px
+	# AGGRO_RANGE, so it wanders rather than charging before the bolt has landed, and close
+	# enough that the walk which follows crosses into aggro on its last stretch.
+	"skeleton": Vector2i(-4, 0),
+	# Loaded before the clip starts and never touched again. This is the control, and it is
+	# deliberately not placed on camera: the place-and-load beat is what the turret clip is
+	# about, and doing it twice here would spend eight seconds establishing something this clip
+	# only needs as a yardstick.
+	"control_turret": Vector2i(2, -2),
+	"charged_turret": Vector2i(2, 2),
+	# One tile from the charged turret, which is well inside the 40px area
+	# `GameItemChargedBoneEnemy.find_closest_loadable()` searches, and 4.1 tiles from the
+	# control turret, which is well outside it. The skull could not go into the wrong machine
+	# from here even if the control turret were empty — and it is not, which is the other half:
+	# find_closest_loadable skips anything already `loaded`.
+	"stand_load": Vector2i(1, 2),
+	# The vantage for the last beat, and it is x=1 rather than x=2 for a mechanical reason. A
+	# walk from `stand_load` runs its horizontal leg first, so ending at x=2 would send the
+	# player straight into the charged turret's StaticBody2D and stall the walk against it.
+	# Sharing stand_load's column makes that leg zero-length.
+	"stand_watch": Vector2i(1, 0),
+}
+
+## The two volleys of the contrast beat, two skeletons per turret each time.
+##
+## Two per turret rather than one, because a turret holds a single target and re-acquires only
+## when that one dies: with one each, the charged turret kills its skeleton in about two seconds
+## and then stands idle through the rest of the shot, which is the opposite of the point. A
+## spare in the lane keeps both turrets firing continuously, and a continuous stream is the only
+## form in which a fire rate can actually be counted.
+##
+## Every cell is within 2.3 tiles of its own turret and at least 4.1 from the other. The second
+## volley lands a tile closer in rather than on the first volley's marks, so reinforcements
+## arrive on ground the survivors have already left instead of inside them.
+const CHARGED_VOLLEY_ONE := [Vector2i(4, -2), Vector2i(4, -3), Vector2i(4, 2), Vector2i(4, 3)]
+const CHARGED_VOLLEY_TWO := [Vector2i(3, -2), Vector2i(3, -3), Vector2i(3, 2), Vector2i(3, 3)]
+
+## Beat lengths in seconds. The whole performance is about 26 seconds between the marks.
+##
+## Nothing here shortens a gameplay duration, which is worth stating because the worker clip's
+## WORKER_CHOP does and the reader may be looking for its counterpart. The two numbers this clip
+## exists to show — a 1.0s ordinary fire interval against a charged 0.55s — are the shipped ones,
+## and they are legible unaltered: a bullet crosses the 40px LineOfSight in about a second, so
+## the charged turret simply has two in the air whenever the ordinary one has one.
+const CHARGED_BEAT := {
+	# Longer than the other clips' settle because the rain has to be established before the
+	# first kept frame. RainVfx starts emitting the instant the weather changes, but its
+	# ambience tweens up over AUDIO_FADE, and a clip that opens on visible rain and silence
+	# reads as the sound being broken rather than as a storm arriving.
+	"settle": 1.5,
+	# The grey baseline. Long enough to register the skeleton as an ordinary one, and no longer:
+	# nothing is happening yet and the viewer knows it.
+	"storm_hold": 3.0,
+	# The money shot. The flash itself is over in SkyLighting.FLASH_DURATION (0.55s), so almost
+	# all of this is the blue skeleton standing in the spot the grey one was, throwing sparks —
+	# which is the comparison the beat exists to make and needs a still moment to be made in.
+	"after_bolt": 2.8,
+	"before_swing": 0.35,
+	"after_capture": 1.2,
+	"after_select": 0.45,
+	# The charged turret goes blue and starts sparking on this frame and does nothing else until
+	# the wave arrives, so this is the only chance to see the machine change.
+	"after_load": 1.8,
+	"before_wave": 0.6,
+	# Set by how long one ORDINARY kill takes: four 3-damage bullets against 10 health, fired a
+	# second apart and each about a second in flight, so ~4.1s. With the second volley's own
+	# 1.0s telegraph on top of this, reinforcements land at ~4.5s — just after the ordinary lane
+	# has finally dropped its first skeleton and well after the charged lane has cleared both of
+	# its own, which is the moment the gap between the two is widest and most readable.
+	"between_volleys": 3.5,
+	"wave_hold": 5.0,
+	"tail": 0.8,
+}
+
+
+func _run_charged_clip() -> void:
+	var handler := _handler()
+	var player := _player()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player in the scene")
+		return
+
+	var centre = _stage_storm(handler, player)
+	if centre == null:
+		_fail("found no all-land %sx%s battle rect within %s tiles of the player" % [
+			BATTLE_HALF.x * 2 + 1, BATTLE_HALF.y * 2 + 1, ARENA_SEARCH,
+		])
+		return
+
+	# A scene tile is instanced by the TileMap, not by the code that wrote the cell, so neither
+	# turret exists as a node until the frames after `_place_turret` returns. Everything below
+	# looks them up by cell rather than holding anything from staging.
+	await _frames(2)
+	_light_control_turret(handler, centre)
+
+	await _wait(CHARGED_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_storm()
+	var charged: Enemy = await _beat_bolt()
+	await _beat_net_charged(player, charged)
+	await _beat_load_charged(handler, player, centre)
+	await _beat_contrast(handler, player, centre)
+
+	_mark("show_end")
+	await _wait(CHARGED_BEAT["tail"])
+
+	_restore_storm(player)
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — a night storm, and one ordinary grey skeleton in it.
+##
+## Nothing happens here and that is the beat. Without the grey baseline in shot first, the blue
+## skeleton in beat B is just an enemy that happens to be blue; with it, the replacement is the
+## event. The turrets are already in frame for the same reason — the one that will be upgraded
+## is standing beside the one that will not, from the first kept frame.
+func _beat_storm() -> void:
+	_beat = "storm"
+	_mark("storm")
+	await _wait(CHARGED_BEAT["storm_hold"])
+
+
+## Beat B — the bolt lands on the skeleton and what gets up is a different enemy.
+##
+## Three calls, and every one of them is the game's own: `charge_random_skeleton` is what
+## EnemySpawner._on_lightning_struck calls, `force_lightning` is what the storm's countdown
+## calls, and `strike_bolt_at` is the line the spawner runs immediately afterwards to re-aim the
+## arc onto the skeleton it picked. The only things skipped are the 0.08 roll and the distance
+## gate — the same two `_cmd_charge_skeleton` skips, and for the same reason: they are what make
+## this rare in play, which is exactly what makes it unfilmable by waiting.
+##
+## The order is load-bearing. Charging FIRST and firing second looks backwards and is not: the
+## spawner's own handler runs on the `force_lightning` emit and would, 8% of the time, charge the
+## skeleton itself — leaving the explicit call below with no plain skeleton to find and the beat
+## reporting a failure on the one take in twelve where the game did the work. There is no `await`
+## between the three, so all of it lands in a single frame and the screen shows one event.
+##
+## `strike_bolt_at` after `force_lightning` rather than instead of it. The first is what makes
+## the bolt land on the skeleton; the second is what makes it a real strike — the flash, the
+## thunder at the right volume and delay, and a storm that is genuinely mid-countdown rather than
+## one frame of weather painted over a clear sky.
+func _beat_bolt() -> Enemy:
+	_beat = "bolt"
+	_mark("bolt")
+
+	var spawner := _spawner()
+	if spawner == null:
+		_note("no EnemySpawner to strike")
+		return null
+
+	# Deterministic despite the name: staging cleared every other enemy and spawned exactly one
+	# skeleton, so the random pick has one candidate. Using the real function rather than
+	# reaching for the node the director already holds is what keeps this clip honest about
+	# which code path a charged skeleton comes out of.
+	var struck: Enemy = spawner.charge_random_skeleton()
+	if struck == null:
+		_note("no plain skeleton alive to strike")
+		return null
+
+	var clock := _world_clock()
+	if clock != null:
+		clock.force_lightning(CHARGED_BOLT_DISTANCE)
+
+	var sky := _sky_lighting()
+	if sky != null:
+		sky.strike_bolt_at(CHARGED_BOLT_DISTANCE, struck.global_position)
+		# Repaint before the wait, for the reason every devtools setter here repaints before
+		# replying: SkyLighting folds the flash into the tint from _process, and the frame this
+		# runs in has already been through its own.
+		sky.apply()
+
+	await _wait(CHARGED_BEAT["after_bolt"])
+	return struck
+
+
+## Beat C — the player walks into it and takes it with the net.
+##
+## Netted, never killed, and the clip would be wrong if it were: EnemyRegistry gives the charged
+## type a loot table barely better than a plain skeleton's precisely so that killing one is a
+## loss. The capture IS the reward, so the capture is what gets filmed.
+##
+## Closing on the enemy rather than swinging on a timer, exactly as the turret clip does — it
+## wanders while idle and charges once inside AGGRO_RANGE, so where it is at any given second is
+## not knowable from here. Walking LEFT means the swing plays `Net_Left`; NET_REACH was measured
+## against the mirrored animation and holds either way.
+func _beat_net_charged(player: Player, charged: Enemy) -> void:
+	_beat = "net_charged"
+	_mark("net_charged")
+
+	if not is_instance_valid(charged):
+		_note("nothing charged to net")
+		return
+	if not _select(Types.Item.Net):
+		_note("no net in the hotbar")
+		return
+
+	_press("move_left")
+	var closed := await _until(func() -> bool:
+		return not is_instance_valid(charged) \
+			or player.global_position.distance_to(charged.global_position) < NET_REACH, 8.0)
+	_release("move_left")
+
+	if not closed or not is_instance_valid(charged):
+		_note("never got within net reach of the charged skeleton")
+		return
+
+	await _wait(CHARGED_BEAT["before_swing"])
+
+	# Three swings at most, matching the turret clip: the net's Area2D is narrow and a skeleton
+	# that stepped aside on the swing frame would otherwise end the clip with an empty hand and
+	# nothing to load. A swing that connects with nothing is animated exactly like one that does.
+	var caught := false
+	for _attempt in 3:
+		await _use()
+		await _wait(SWING_SETTLE)
+		caught = _has(player, Types.Item.ChargedBoneEnemy)
+		if caught:
+			break
+
+	if not caught:
+		_note("the net beat finished without a charged skull in the inventory")
+		if is_instance_valid(charged):
+			charged.queue_free()
+
+	await _wait(CHARGED_BEAT["after_capture"])
+
+
+## Beat D — the skull goes into the empty turret, which turns blue.
+##
+## The walk is not decoration. `GameItemChargedBoneEnemy.use()` searches the areas the player's
+## own Area2D overlaps, so from anywhere else the press finds nothing, `can_use()` refuses it and
+## the stack is (correctly) not spent — which on film is a player fumbling at the air.
+##
+## Asserted on `charged` rather than on `loaded`, and the distinction is the whole beat: a skull
+## that loaded the turret without charging it would leave an ordinary turret standing where the
+## payoff should be, and the last beat would then be two identical turrets firing at the same
+## rate with nothing to say about it.
+func _beat_load_charged(handler: TileMapHandler, player: Player, centre: Vector2i) -> void:
+	_beat = "load_charged"
+	_mark("load_charged")
+
+	var cell: Vector2i = centre + CHARGED_SET["charged_turret"]
+	var turret = _turret_at(handler, cell)
+	if turret == null:
+		_note("no turret at %s to load" % [cell])
+		return
+
+	await _walk_to(handler, player, centre + CHARGED_SET["stand_load"])
+
+	if not _select(Types.Item.ChargedBoneEnemy):
+		_note("no charged skull in the hotbar to load")
+		return
+	await _wait(CHARGED_BEAT["after_select"])
+
+	await _use()
+	await _frames(4)
+
+	if not turret.charged:
+		_note("the load press did not charge the turret at %s" % [cell])
+	await _wait(CHARGED_BEAT["after_load"])
+
+
+## Beat E — the payoff, and the only shot in the clip that holds two things at once.
+##
+## The player steps into the gap between the two turrets and two volleys of skeletons arrive,
+## split between their lanes. From there the difference is arithmetic anyone can do by eye: over
+## the nine or so seconds there is anything to shoot at, the ordinary turret fires about nine
+## times and the charged one about seventeen — and each of the charged bullets takes five off a
+## skeleton where the ordinary ones take three.
+##
+## Through `_telegraph_wave` rather than by spawning directly, so the reinforcements arrive
+## behind the spawner's own `X` tile — the way the game announces a spawn, instead of popping
+## into the middle of the shot.
+func _beat_contrast(handler: TileMapHandler, player: Player, centre: Vector2i) -> void:
+	_beat = "contrast"
+	_mark("contrast")
+
+	await _walk_to(handler, player, centre + CHARGED_SET["stand_watch"])
+	await _wait(CHARGED_BEAT["before_wave"])
+
+	await _telegraph_wave(handler, _offset_cells(centre, CHARGED_VOLLEY_ONE))
+	await _wait(CHARGED_BEAT["between_volleys"])
+	await _telegraph_wave(handler, _offset_cells(centre, CHARGED_VOLLEY_TWO))
+	await _wait(CHARGED_BEAT["wave_hold"])
+
+
+# --- charged staging ------------------------------------------------------------------
+
+## Puts the world into the state the clip opens on, and returns the arena centre — or null when
+## the world has no rectangle of solid land big enough, which `_find_arena` documents as a real
+## outcome rather than a defensive check.
+func _stage_storm(handler: TileMapHandler, player: Player):
+	_beat = "staging"
+
+	var centre = _find_arena(handler, player)
+	if centre == null:
+		return null
+
+	_freeze_ambient()
+	_clear_enemies()
+	_clear_arena(handler, centre)
+
+	player.position = handler.tileMap.map_to_local(centre + CHARGED_SET["mark"])
+	player.velocity = Vector2.ZERO
+
+	# The turret clip's lie, told again and for a stronger reason: a charged skeleton hits for 5
+	# rather than 3, and beat E walks four more skeletons into the player's lap while he stands
+	# still watching the turrets. A death would teleport him out of frame and take the camera
+	# with him. Undone in `_restore_storm` once the recording is over.
+	player.invulnerable = true
+
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+	_stock_net(player)
+
+	# Straight onto the tilemap, which is the same end state a hotbar press reaches. The placing
+	# beat belongs to the turret clip; here the turrets are the set, not the subject.
+	_place_turret(handler, centre + CHARGED_SET["control_turret"])
+	_place_turret(handler, centre + CHARGED_SET["charged_turret"])
+
+	_open_storm()
+	_spawn_enemy(handler, centre + CHARGED_SET["skeleton"])
+	return centre
+
+
+## Night, rain, and a clock that has stopped ticking.
+##
+## `set_weather` rather than a raw write to `weather`, so every consumer that reacts to the
+## signal reacts: RainVfx starts its drops and its ambience, SkyLighting takes the storm tint,
+## and the lightning countdown is armed. A whole storm's worth of seconds rather than a sliver,
+## so that when `running` goes back on at the end the sky is still one the game could be in.
+##
+## `running = false` is the clock's own documented hook for being driven by hand, and it is set
+## AFTER the weather so the storm is fully established first. Without it the countdown keeps
+## running underneath the performance — LIGHTNING_MIN_GAP is 5 seconds against a 26 second clip
+## — and every bolt it fired would land somewhere the camera is not looking, with an 8% chance
+## of turning one of the wave skeletons blue in the final shot. Two blue things in that frame
+## would read as the upgrade spreading, which is not a thing the game does.
+func _open_storm() -> void:
+	var clock := _world_clock()
+	if clock == null:
+		_note("no WorldClock: the clip would be shot in whatever weather the world was already in")
+		return
+
+	clock.set_time_of_day(CHARGED_HOUR)
+	clock.set_weather(
+		WorldClock.Weather.RAIN,
+		WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
+	)
+	clock.running = false
+
+	# Repaint immediately rather than waiting for SkyLighting's next _process, so the settle
+	# beat is spent on a sky that has already gone dark instead of one that darkens during it.
+	var sky := _sky_lighting()
+	if sky != null:
+		sky.apply()
+
+
+## Hands the world back in a state it could have reached on its own.
+##
+## Both halves matter and neither is tidiness. An invulnerable player is not a state the game
+## has, and a clock that never ticks is a world where the storm never ends and the sun never
+## comes up — either one left behind would make the next thing to use this instance (a second
+## clip, a devtools session, someone poking at the game after a take) quietly wrong in a way
+## nothing reports. The storm itself is deliberately NOT cleared: rain is perfectly reachable,
+## and `force_lightning` left a full fresh gap on the countdown, so restarting the clock simply
+## resumes a storm that will expire when it was always going to.
+func _restore_storm(player: Player) -> void:
+	player.invulnerable = false
+
+	var clock := _world_clock()
+	if clock != null:
+		clock.running = true
+
+
+## The net, and nothing else, in the first hotbar slot.
+##
+## Deliberately a bag with one thing in it. The catch drops a Charged Skull into the slot beside
+## it and spends the net out of the first, so the hotbar itself shows the trade happening — which
+## is the clearest statement anywhere in the clip that this is caught rather than killed. A full
+## starting kit would bury both changes among five other icons.
+func _stock_net(player: Player) -> void:
+	var slots: Array = player.inventory_data.inventory_slot_datas
+	for index in mini(6, slots.size()):
+		slots[index] = null
+
+	player.inventory_data.pick_up_slot_data(SlotData.new(GameItems.get_item(Types.Item.Net), 1))
+	player.inventory_data.inv_updated()
+
+
+## Assembles the control turret, so the last beat compares two working turrets rather than a
+## working one and a prop.
+func _light_control_turret(handler: TileMapHandler, centre: Vector2i) -> void:
+	var cell: Vector2i = centre + CHARGED_SET["control_turret"]
+	var control = _turret_at(handler, cell)
+	if control == null:
+		_note("no control turret at %s to assemble" % [cell])
+		return
+	control.set_loaded()
+
+
+## The turret standing on `cell`, or null. Matched on the cell rather than held from the
+## placement call, because a scene tile is instanced by the TileMap and the placing code never
+## sees the node it created — the same reason `_worker_at` exists.
+func _turret_at(handler: TileMapHandler, cell: Vector2i):
+	for turret in _turrets():
+		if handler.tileMap.local_to_map(turret.position) == cell:
+			return turret
+	return null
+
+
+## The clock and the lighting, both by group.
+##
+## Neither has a path this file can rely on: main.gd creates SkyLighting at runtime as a direct
+## child of Main, and WorldClock lives under `Systems`, which is declared last. The clock
+## registers its group in `_enter_tree` precisely so a lookup like this one works regardless of
+## tree order.
+func _world_clock() -> WorldClock:
+	for node in _dev.get_tree().get_nodes_in_group("WorldClock"):
+		if node is WorldClock:
+			return node
+	return null
+
+
+func _sky_lighting() -> SkyLighting:
+	for node in _dev.get_tree().get_nodes_in_group("SkyLighting"):
+		if node is SkyLighting:
+			return node
+	return null
