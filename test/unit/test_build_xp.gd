@@ -114,3 +114,42 @@ func test_a_save_written_before_the_ledger_loads_clean() -> String:
 	manager.loadObject(legacy)
 
 	return _T.assert_eq(manager.built_cells.size(), 0, "an absent key loads as an empty ledger, not an error")
+
+
+# --- what pays to be placed at all -------------------------------------------------------
+
+func test_most_placeables_pay_to_go_down() -> String:
+	# The base answer, asserted through a real registered item rather than the base class, so
+	# a subclass that overrides awards_build_xp() by accident shows up here.
+	#
+	# The autoload is checked first rather than assumed: reaching through a null GameItems would
+	# RAISE, and a raise inside a `-> String` test aborts the method while the typed signature
+	# still yields "" — an unreachable test that reports as a pass (gather-1t9).
+	var err: String = _T.assert_true(GameItems != null, "the GameItems autoload is up")
+	if err != "":
+		return err
+
+	var wall = GameItems.get_item(Types.Item.WoodWall)
+
+	err = _T.assert_true(wall is GameItemPlaceable, "a wall is a placeable")
+	if err != "":
+		return err
+
+	return _T.assert_true(wall.awards_build_xp(), "putting up a wall is worth build xp")
+
+
+func test_planting_a_bush_pays_nothing() -> String:
+	# The premise XP_BUILD rests on is that a placed tile stays where it is put. A bush can be
+	# dug back up and carried, so one bush walked across fresh ground was worth 1 xp a tile —
+	# bounded by the buildable area rather than infinite, but still xp for moving a bush around.
+	var err: String = _T.assert_true(GameItems != null, "the GameItems autoload is up")
+	if err != "":
+		return err
+
+	var bush = GameItems.get_item(Types.Item.BerryBush)
+
+	err = _T.assert_true(bush is GameItemBerryBush, "the bush item is registered")
+	if err != "":
+		return err
+
+	return _T.assert_false(bush.awards_build_xp(), "planting a bush is not a build")

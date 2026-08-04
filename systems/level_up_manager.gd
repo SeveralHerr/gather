@@ -111,7 +111,9 @@ const XP_STEP_CAP := 150
 ##                 farmed independently of gathering. 2 makes running a sawmill feel
 ##                 worth watching without out-earning the pickaxe.
 ##   XP_BUILD 1  - placing a tile consumes an item that was itself gathered or crafted,
-##                 so this is the tail end of a chain that has already paid out.
+##                 so this is the tail end of a chain that has already paid out. A berry bush
+##                 is the exception and pays nothing to plant: the item is recoverable, so the
+##                 premise does not hold — see GameItemBerryBush.awards_build_xp.
 ##   A PICKUP pays NOTHING. It used to pay 1 xp every third drop, on the reasoning that
 ##   loot is part of a gather's income. That was wrong twice over. The drop was already
 ##   paid for when the node was broken, so collecting it paid a second time for one act;

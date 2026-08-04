@@ -23,8 +23,20 @@ func _place(slot_data, as_wall: bool) -> void:
 	else:
 		PlayerManager.place_tile(slot_data)
 
-	if slot_data.count < before:
+	if slot_data.count < before and awards_build_xp():
 		_award_build_xp()
+
+
+## Whether putting this item down is worth build xp. True for everything that stays where it
+## is put, which is the premise the award rests on: a placed tile is the tail end of a chain
+## that was already gathered or crafted, and the cell is a place the player has expanded into.
+##
+## A berry bush breaks that premise — it can be dug back up and carried to the next cell — so
+## it overrides this. Gating it here rather than in the subclass's use() keeps the one rule
+## ("did a tile actually go down, and does this tile pay") in the one place that knows the
+## answer to the first half.
+func awards_build_xp() -> bool:
+	return true
 
 
 func _award_build_xp() -> void:

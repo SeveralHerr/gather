@@ -4576,3 +4576,38 @@ Guidelines that make an entry useful later:
     "engine present, game not running" from "wrong `user://`". It would also give `/verify` a
     single honest early exit on a CI or cloud checkout, instead of three commands that each
     fail for a different-looking reason.
+
+## 2026-08-04 — planting a berry bush no longer pays build XP
+
+- Value: **inconclusive** — same container, still no Godot binary, so nothing ran. The change
+  is one overridable predicate and two predicate tests.
+  - Expected: `--file test_build_xp` to pass, and a runtime `berry_bushes` + `player_state`
+    pair before and after planting on virgin ground to show `xp` unchanged where it used to
+    tick by 1.
+  - Got: nothing from the harness — see G-113 in the previous entry, hit again below. The one
+    thing reading the code did settle is that skipping `_award_build_xp()` also skips the
+    `built_cells` write, so a cell a bush was planted on still scores for a wall put up there
+    later; that is a claim about a ledger nobody writes to rather than about behaviour, so a
+    test for it would have asserted only that a fresh cell pays. Wrote it, saw it could not
+    fail, deleted it.
+  - Cheaper: reading `game_item_placeable.gd:18-28` was the whole verification available here,
+    and for the predicate half it is genuinely sufficient. The runtime run is still owed for
+    the placement path, which is where the `slot_data.count` check that gates the award lives.
+
+- Gap: **`--find-orphans` would have flagged the honest version of this change.** The new
+  `awards_build_xp()` has exactly one non-test caller (`_place`) and its override has none at
+  all — an override is called through the base, which a call-graph walk over `awards_build_xp()`
+  cannot see. Nothing was run, so this is a prediction rather than an observation, but it is the
+  second time this session a legitimate seam looked orphan-shaped: `cost_of_level()` was given
+  callers in the debug panel and the devtools status partly for that reason, which is a design
+  decision made to please an advisory linter.
+  - [G-114] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `--find-orphans` resolve virtual dispatch — a method that overrides or is
+    overridden by another in the project is reachable if any of its siblings is called. Failing
+    that, let a `## @orphan-ok` doc tag suppress one finding, so the advisory can be answered in
+    the code instead of by adding callers.
+
+- Gap: **the harness cannot report that it is absent** (G-113, second hit this session). Same
+  shape: the follow-up change needed the same lint + `--file test_build_xp` run and had the same
+  three unrelated-looking failures available to it.
+  - [G-113] status: open | seen: 2 | harness: 0.8.0
