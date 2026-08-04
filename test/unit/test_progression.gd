@@ -124,11 +124,61 @@ func test_food_actually_heals() -> String:
 	return _T.assert_gt(food.heal_value, 0, "food has a real heal value")
 
 
-func test_trees_are_a_food_source() -> String:
+## The inverse of the test this replaces, and the reason it is stated as a test rather than
+## just deleted: "trees drop food" was true for the whole life of the project, so the thing
+## worth pinning is that it is deliberately no longer true. Food is a 4% enemy drop now
+## (EnemyRegistry.FOOD_DROP) and the berry bush is the forager's heal.
+func test_trees_no_longer_hand_out_food() -> String:
 	var tree := resources.Get(Types.Item.Tree)
 
-	var err: String = _T.assert_eq(tree.secondary_drop, Types.Item.Food, "trees drop food as a secondary")
+	return _T.assert_true(
+		tree.secondary_drop_chance <= 0.0 or tree.secondary_drop != Types.Item.Food,
+		"trees no longer drop Food; it is an enemy drop"
+	)
+
+
+func test_food_is_a_rare_drop_off_every_enemy() -> String:
+	for type in [EnemyRegistry.BONE, EnemyRegistry.SPIDER, EnemyRegistry.ELITE]:
+		var chance := 0.0
+		for entry in EnemyRegistry.loot_table(type):
+			if entry.get("item") == Types.Item.Food:
+				chance = float(entry.get("chance", 0.0))
+
+		var err: String = _T.assert_gt(chance, 0.0, "%s can drop Food" % type)
+		if err != "":
+			return err
+
+		# Rare, and stated as an upper bound: the point of the change is that a full heal is
+		# not something the player trips over, so a later edit that quietly walks this back
+		# towards the tree's old 0.2 should fail here.
+		err = _T.assert_true(chance <= 0.1, "%s drops Food rarely (%.2f)" % [type, chance])
+		if err != "":
+			return err
+
+	return ""
+
+
+func test_a_berry_is_the_smallest_heal_in_the_game() -> String:
+	var berry = items.get_item(Types.Item.Berry)
+
+	var err: String = _T.assert_true(berry is GameItemConsumable, "a berry is a consumable")
 	if err != "":
 		return err
 
-	return _T.assert_gt(tree.secondary_drop_chance, 0.0, "the food drop chance is nonzero")
+	err = _T.assert_gt(berry.heal_value, 0, "a berry actually heals")
+	if err != "":
+		return err
+
+	# Against Food rather than against a literal: the relationship is what matters. A berry
+	# is the nibble you pick constantly; Food is the emergency you fought something for.
+	var food = items.get_item(Types.Item.Food)
+	return _T.assert_gt(food.heal_value, berry.heal_value, "Food heals more than a berry")
+
+
+func test_the_berry_bush_is_available_from_the_first_frame() -> String:
+	# Food no longer falls off trees, so a player who has not fought anything has no other
+	# way to heal. A bush behind a skill would mean a starting island with no heal at all.
+	return _T.assert_true(
+		ResourceManager2.STARTING_RESOURCES.has(Types.Item.BerryBush),
+		"the berry bush is unlocked from the start"
+	)

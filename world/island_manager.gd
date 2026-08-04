@@ -43,6 +43,11 @@ const ISLANDS := [
 			Types.Item.Tree: 24.0,
 			Types.Item.StoneResource: 0.75,
 			Types.Item.StoneResourceTest: 0.75,
+			# Berries grow in the woods, so the grove is the best place to find them — 2.0
+			# against the mainland's 1.5. It cannot go much higher: the forest island owes
+			# ISLAND_THEME_SHARE of its rolls to trees, and 2.75 is where 24/(25.5+w) crosses
+			# 0.85 and the grove stops reading as a grove.
+			Types.Item.BerryBush: 2.0,
 			Types.Item.CoalResource: 0.0,
 			Types.Item.IronResource: 0.0,
 			Types.Item.CopperResource: 0.0,
@@ -59,6 +64,11 @@ const ISLANDS := [
 			Types.Item.Tree: 0.0,
 			Types.Item.StoneResource: 0.75,
 			Types.Item.StoneResourceTest: 0.75,
+			# Nothing fruits on bare rock. Zeroed for the same reason trees are: a berry bush
+			# here would be a free heal on the island you cross the water to mine, and the
+			# ore island's whole job is to be worth the trip AND to be somewhere you arrive
+			# stocked for.
+			Types.Item.BerryBush: 0.0,
 			Types.Item.CoalResource: 6.0,
 			# Copper carries the island's theming alongside coal because those two are the
 			# ores that exist before any Industry skill - the island has to read as an ore

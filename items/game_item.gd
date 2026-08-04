@@ -48,6 +48,10 @@ const PLACEHOLDER_SOURCE_ID := 10
 ## Atlas source id of the generated stone building set (walls + floor), same file.
 const STONE_BUILD_SOURCE_ID := 11
 
+## Scenes-collection source id of the berry bush. A scene tile is keyed by its source, so the
+## bush needs one of its own even though its art is on the shared sheet — see the tileset.
+const BERRY_BUSH_SOURCE_ID := 14
+
 ## Icon sheet per tileset source. Everything hand-drawn lives on one sheet; the
 ## generated placeholder ores are on a second one (tools/generate_placeholder_art.gd)
 ## and the generated stone building set on a third (generate_stone_build_art.gd), so

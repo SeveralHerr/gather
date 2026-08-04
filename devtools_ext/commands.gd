@@ -65,6 +65,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("world_clock", _cmd_world_clock)
 	dev.register_command("set_time_of_day", _cmd_set_time_of_day)
 	dev.register_command("set_weather", _cmd_set_weather)
+	dev.register_command("berry_bushes", _cmd_berry_bushes)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -599,6 +600,23 @@ func _cmd_goto_resource(args: Dictionary) -> Dictionary:
 		target = handler.tileMap.map_to_local(cell)
 		target_name = resource_atlases[atlas]
 		break
+
+	# The scene-backed half. The atlas walk above cannot see these at all: a scenes-collection
+	# cell has no meaningful atlas coordinate, which is why the loop that builds
+	# resource_atlases skips them — so asking for a named scene resource ("Stone" as the
+	# scene node, "Berry Bush") reported "no live node on the island" while the census
+	# standing beside it counted five. Since CLAUDE.md tells you to run this verb BEFORE any
+	# gather test, that made the scene-backed resources the two you could not test.
+	if target == null and wanted != "":
+		for node in handler.tileMap.get_children():
+			if not (node is GameSceneResource):
+				continue
+			var resource = handler.resources.get_item_or_resource_by_type(node.resource_type)
+			if resource == null or resource.name.to_lower() != wanted:
+				continue
+			target = node.position
+			target_name = resource.name
+			break
 
 	if target == null and wanted != "":
 		return {
@@ -2777,3 +2795,77 @@ func _cmd_set_weather(args: Dictionary) -> Dictionary:
 		sky.apply()
 
 	return _cmd_world_clock({})
+
+
+## --- Berry bushes ------------------------------------------------------------
+##
+## Every bush on the map with its state and its clock, and — with `{"regrow": true}` — a way
+## to skip to the end of that clock.
+##
+## Both halves are here for the same reason `world_clock` reads the tint back off all three
+## canvases: without them there is no way to tell "the bush was picked and is refruiting"
+## apart from "the bush was picked and the timer never started", and the honest way to find
+## out is otherwise to wait fifteen real minutes. A `get-state` on the node cannot answer it
+## either — `is_fruiting` is readable, but the Timer is a CHILD, so its `time_left` needs a
+## second call and a node path nobody can guess.
+##
+## `{"regrow": true}` fires the regrow on every picked bush rather than restoring a value:
+## a setter that wrote `is_fruiting = true` and left the timer running would leave the world
+## in a state the game itself can never reach, which is the trap CLAUDE.md warns about for
+## exactly this kind of verb.
+func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
+	var handler := _tile_map_handler()
+	if handler == null:
+		return {"success": false, "message": "no TileMapHandler in the scene", "data": {}}
+
+	var force_regrow: bool = bool(args.get("regrow", false))
+	var bushes := []
+	var fruiting := 0
+	var picked := 0
+	var regrown := 0
+
+	for child in handler.tileMap.get_children():
+		if not (child is BerryBush):
+			continue
+
+		if force_regrow and not child.is_fruiting:
+			child.refruit()
+			regrown += 1
+
+		var cell: Vector2i = handler.tileMap.local_to_map(child.position)
+		bushes.append({
+			"cell": {"x": cell.x, "y": cell.y},
+			"fruiting": child.is_fruiting,
+			"regrow_left": child.regrow_remaining(),
+			"region": handler.region_for_cell(cell).id,
+		})
+
+		if child.is_fruiting:
+			fruiting += 1
+		else:
+			picked += 1
+
+	# What the player is holding, on the same read. "The bush is picked" and "the bush paid
+	# out" are two different claims, and a census of the world can only make the first: a pick
+	# that switched the sprite and dropped nothing looks identical from the bushes' side.
+	var carried := {"berries": 0, "bushes": 0}
+	var player := _player()
+	if player != null and player.inventory_data != null:
+		carried["berries"] = player.inventory_data.count_of_type(Types.Item.Berry)
+		carried["bushes"] = player.inventory_data.count_of_type(Types.Item.BerryBush)
+
+	return {
+		"success": true,
+		"message": "%d bush(es): %d fruiting, %d picked; carrying %d berries, %d bushes%s" % [
+			bushes.size(), fruiting, picked, carried["berries"], carried["bushes"],
+			", %d forced to regrow" % regrown if force_regrow else "",
+		],
+		"data": {
+			"total": bushes.size(),
+			"fruiting": fruiting,
+			"picked": picked,
+			"regrow_seconds": BerryBush.REGROW_SECONDS,
+			"carried": carried,
+			"bushes": bushes,
+		},
+	}

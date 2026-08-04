@@ -34,13 +34,22 @@ const ELITE := "Elite"
 ## says so out loud instead of quietly demoting an elite to a skeleton.
 const DEFAULT_TYPE := BONE
 
+## Food's only source in the world (gather-j2n). It used to fall off trees at 0.2, which put
+## the biggest early heal on the safest, most common node in the game; it is now something a
+## body might be carrying, so a full health bar is bought with a fight rather than with an
+## afternoon of chopping. The berry bush is what the forager gets instead, and it heals 1.
+##
+## Stated once and shared by every type below so the number cannot drift apart per enemy: the
+## point of 0.04 is that it is the same long shot whatever killed you last.
+const FOOD_DROP := {"item": Types.Item.Food, "chance": 0.04, "min": 1, "max": 1}
+
 const TYPES := {
 	BONE: {
 		"scene": "res://enemies/bone_enemy.tscn",
 		"ambient": true,
 		"nettable": true,
 		"capture_item": Types.Item.BoneEnemy,
-		"loot": [],
+		"loot": [FOOD_DROP],
 	},
 	SPIDER: {
 		"scene": "res://enemies/spider_enemy.tscn",
@@ -49,7 +58,7 @@ const TYPES := {
 		# String's only world source. It is craftable from wood as well (Foraging tier 1),
 		# which exists precisely so the Net and the Bone Turret are not hostage to this roll —
 		# stating it here is what makes that relationship visible from the enemy's side.
-		"loot": [{"item": Types.Item.String, "chance": 0.5, "min": 1, "max": 1}],
+		"loot": [{"item": Types.Item.String, "chance": 0.5, "min": 1, "max": 1}, FOOD_DROP],
 	},
 	ELITE: {
 		"scene": "res://enemies/elite_enemy.tscn",
@@ -64,6 +73,7 @@ const TYPES := {
 			{"item": Types.Item.Bone, "chance": 1.0, "min": 2, "max": 4},
 			{"item": Types.Item.Coin, "chance": 1.0, "min": 3, "max": 6},
 			{"item": Types.Item.IronBar, "chance": 0.5, "min": 1, "max": 2},
+			FOOD_DROP,
 		],
 	},
 }

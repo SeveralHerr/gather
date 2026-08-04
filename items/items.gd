@@ -109,6 +109,20 @@ func _ready():
 	# later tier — so it is deliberately the one item here with no downstream recipe.
 	item_list[Types.Item.StoneBrick] = GameItem.new(Vector2i(5, 1), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.StoneBrick, 1, false, "Stone Brick", Vector2i.ZERO, false)
 
+	# --- The berry bush and its fruit (gather-j2n).
+	#
+	# One berry heals 1 of the player's 10, which is deliberately the smallest heal in the
+	# game: a bush is picked over and over and pays a nibble each time, where Food — now a 4%
+	# enemy drop rather than something trees hand out — is the four-point emergency. The two
+	# are not competing, they are the two ends of the same ladder.
+	#
+	# The bush itself is BOTH a world resource (items/resources.gd) and an item, because an
+	# uprooted one goes in the pack and can be replanted. Only the item half lives here; the
+	# resource half is what stands in the world. They share the type id on purpose — that is
+	# what makes "the thing I dug up" and "the thing I put down" the same thing.
+	item_list[Types.Item.Berry] = GameItemConsumable.new(Vector2i(2, 23), 4, Types.Item.Berry, 1, false, "Berries", Vector2i.ZERO, false, 1)
+	item_list[Types.Item.BerryBush] = GameItemBerryBush.new(Vector2i(0, 0), GameItem.BERRY_BUSH_SOURCE_ID, Types.Item.BerryBush, 1, true, "Berry Bush", Vector2i(0, 23), true)
+
 	
 	
 	

@@ -4258,3 +4258,69 @@ Guidelines that make an entry useful later:
     `find-nodes --class Enemy --where type=Elite` verb returning matching paths. The
     existing `clear-nodes --group/--class/--method` already does this matching internally
     to *free* nodes; exposing the same predicate as a read would cost little.
+
+## 2026-08-03 — Berry bush: a resource that survives being harvested (gather-j2n)
+
+- Value: **warranted** — runtime produced three claims the diff and the unit suite could not,
+  and one of them was a bug in my own code.
+  - Expected: the unit tests already pinned the state machine, the 900s clock and the
+    save/load round trip, so I expected the running game to confirm generation and nothing
+    more.
+  - Got: three things the headless side could not reach. (1) `island_census` on the first
+    world reported `home: {Coal 2, Copper 1, Stone 19, Tree 7}` with **no bushes at all** —
+    which sent me looking for a placement bug for twenty minutes before a second world came
+    back `forest: {Berry Bush: 3, ...}, home: {Berry Bush: 2, ...}`; the first seed was
+    genuinely a ~1% draw, and only a second run could say so. (2) The full loop, which no
+    unit test spans: `3 bush(es): 3 fruiting` → hold gather → `2 fruiting, 1 picked;
+    carrying 1 berries` with `regrow_left: 897.68` — the bush is still standing and paying
+    out, which is the entire feature. (3) The real `SaveLoad` path, not `save()`/`load()`
+    called directly: quicksave, force every bush to refruit, quickload, and the bush at
+    (2,7) came back `fruiting: False, regrow_left: 880.4` — a part-finished regrow that had
+    survived position-matching and `CHUNK_KIND` filtering.
+  - Cheaper: nothing. The unit tests cover the node in isolation and were written first;
+    what runtime added was the wiring between eight files — hotbar → gather state →
+    ResourceManager2's new branch → PickUpManager → inventory → consumable — plus the
+    engine's one-frame delay on instancing a scene tile, which is exactly where the
+    equivalent chest bug (gather-74z) lived.
+
+- Gap: **`goto_resource` cannot reach a scene-backed resource by name** — the verb CLAUDE.md
+  tells you to run before any gather test. `cmd goto_resource --args '{"name":"Berry Bush"}'`
+  answered `no live 'berry bush' node on the island` while the census in the same reply said
+  `"Berry Bush": 5`. Cause: `_cmd_goto_resource` builds its lookup from
+  `if not resource.is_scene_tile`, so scene-backed types are excluded from the named search
+  and only reachable through the unnamed `for node in ... if node is GameSceneResource`
+  fallback — i.e. "any scene resource, whichever comes first". This was already true for
+  StoneResourceTest; adding a second scene resource is what made it matter. Fixed in
+  `devtools_ext/commands.gd` by walking the TileMap's `GameSceneResource` children and
+  matching `resources.get_item_or_resource_by_type(node.resource_type).name` when the atlas
+  walk finds nothing.
+  - [G-110] status: fixed | seen: 1 | harness: 0.8.0
+  - Improvement: project-side fix, already applied. The generic lesson for the harness is
+    that a "find me one of these to test against" verb should never silently exclude a whole
+    representation — it reported a confident negative next to its own contradicting census.
+
+- Gap: **`launch --isolated` prints a session id it does not pass to the game.** With another
+  Godot instance contending for the shared bus, `python tools/devtools.py launch --isolated`
+  reported `session: abc1afa3` / `userdata: ...devtools_userdata_vovu1e7k` and printed the
+  command it ran — `Godot.exe --path <project> --mute`, with no `-- --devtools-session`
+  and no userdata override. Every subsequent call with those flags failed with
+  `game not running: 'ping' was never picked up`, pointing at the temp userdata nothing was
+  polling. Workaround: launched by hand with
+  `Godot.exe --path . --mute -- --devtools-session bb1` and called with `--session bb1`,
+  which worked first try.
+  - [G-111] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `--isolated` actually append `-- --devtools-session <id>` (and the
+    userdata override) to the launched command line, or fail loudly if it cannot.
+
+- Gap: **a dead instance's `devtools_owner.json` blocks the live one, and the error blames
+  concurrency.** Twice mid-session, every verb started returning
+  `Foreign instance on the bus: the reply to 'island_census' came from pid 22232, but ...
+  devtools_owner.json says pid 8620 owns this bus` — while `Get-Process Godot*` listed pid
+  22232 as the only Godot running. The named owner had already exited (headless lint/test
+  runs load the autoload, claim the bus and quit). The reply that arrived was correct and
+  from the right game; the client discarded it. Workaround: `rm devtools_owner.json`.
+  - [G-112] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: check whether the recorded owner pid is still alive before refusing —
+    a dead owner should be reclaimed with a note, not reported as contention. Failing that,
+    have headless `--script` runs skip the ownership claim entirely; they are not
+    interactive sessions and nothing ever addresses them over the bus.

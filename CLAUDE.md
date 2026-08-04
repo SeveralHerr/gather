@@ -286,6 +286,46 @@ compatibility. Resources flagged `is_scene_tile` are instead instanced as
 `GameSceneResource` children of the TileMap, so any code that enumerates resources must
 handle both representations (`main.gd:resource_node_census` does).
 
+**The berry bush is the one resource a gather does not destroy** (`gather-j2n`,
+`world/resource_nodes/berry_bush.gd`). Every other node is a single event — hold the
+pickaxe, it pays out, the cell is cleared. A bush has two states and two gathers:
+
+| State | Gathering it | Result |
+|---|---|---|
+| fruiting | *picks* it | Berries drop (heal 1 each), **the bush stays**, a 900s regrow starts |
+| picked | *uproots* it | Exactly one placeable `BerryBush` item, cell cleared |
+
+Four things about this are load-bearing:
+
+- **The order is the anti-duplication rule.** A bush can only be uprooted once it is
+  already picked, and a *replanted* bush comes up picked with a full regrow — otherwise
+  pick / uproot / replant / pick is an infinite berry faucet. A planted bush knows it was
+  planted through `BerryBush._planted_cells`: `GameItemBerryBush.use()` marks the cell, the
+  node claims the mark in `_ready()` a frame later. They have no reference to each other —
+  the item is a RefCounted outside the tree and the node does not exist yet — which is why
+  that hand-off is a static with a TTL rather than a signal.
+- **The uproot deliberately bypasses `remove_resource`.** That function rolls yield against
+  the pickaxe's bonus chance, and a bonus roll on a bush hands back two bushes for one: an
+  item duplicator built out of the code that makes a gold pickaxe worth buying.
+- **Picking emits `resource_removing_stop`, never `resource_removed`.** The second is what
+  makes `main.gd` clear the cell; the first only takes the layer-3 selector back off. Emit
+  the wrong one and the bush vanishes on its first harvest.
+- **It is a scene tile because a cell has nowhere to keep a clock.** `regrow_left` is
+  persisted as `time_left`, not `wait_time`, and `_restart_regrow` puts the interval back
+  after `Timer.start()` assigns over it — the `gather-9x0` furnace bug in a new place.
+
+The reason `ResourceManager2` now branches on `resource.is_scene_tile` rather than naming
+`StoneResourceTest`, and the reason `main.gd` grew `scene_tile_at(cell)` next to
+`get_nearest_scene_tile()`, are both this: with two scene-backed resources, "the node on the
+cell the player is working" and "the nearest scene node" are no longer the same node, and the
+old code answered the second while meaning the first.
+
+Food no longer drops from trees. It is a 4% drop off every enemy type
+(`EnemyRegistry.FOOD_DROP`), so the biggest early heal is bought with a fight, and berries are
+what the forager gets instead. `Bandage` and `CookedFood` still cost `Food` and are therefore
+much harder to reach than before — see `gather-as9`, which is the open question about whether
+they should switch to berries.
+
 **Gather loop**, the most-touched path and the one that spans the most files:
 
 ```

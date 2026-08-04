@@ -12,9 +12,19 @@ var resources: Dictionary = {}
 # same. Weights are relative, so adding a resource does not dilute the rest evenly -
 # gold stays rare no matter how many other nodes exist.
 const TUNING = {
+	# No secondary drop any more. Trees used to hand out Food at 0.2, which made the
+	# potion-bottle icon at tiles.png (15,0) something a new player tripped over while
+	# chopping — the strongest single heal in the early game, from the most common node in
+	# the world. Food is now a 4% ENEMY drop (EnemyRegistry.TYPES), so healing is bought with
+	# risk, and the berry bush below is what pays out for walking around picking things.
 	Types.Item.Tree: {
 		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 5.0,
-		"secondary_drop": Types.Item.Food, "secondary_drop_chance": 0.2,
+	},
+	# Weighted just above coal: a bush should be a familiar sight on the walk between trees
+	# without competing with the two building materials. This is the entry that moved
+	# MAINLAND_ORE_SHARE — see the note on that constant.
+	Types.Item.BerryBush: {
+		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 1.5,
 	},
 	Types.Item.StoneResourceTest: {
 		"xp": 1, "yield_min": 1, "yield_max": 2, "spawn_weight": 4.0,
@@ -76,7 +86,15 @@ const ORE_TYPES := [
 ## reader can get it from them: weight is relative and stone is two entries, so "coal 1.05"
 ## says nothing on its own about how often the player finds coal. A test samples the real
 ## roll against this, so anyone who nudges a weight finds out what they did to the mainland.
-const MAINLAND_ORE_SHARE := 0.119
+##
+## It was 0.119 before the berry bush existed. Adding a sixth starting resource at weight 1.5
+## diluted every other share by the same proportion — ore included — and this number is
+## restated rather than defended: the ore weights themselves are untouched, so the mining
+## ladder still reads exactly as it did relative to stone and trees, and what actually changed
+## is that there is now one more thing on the ground. Scaling the four ore weights up to hold
+## 0.119 would have been the alternative and was not taken, because it would mean every future
+## resource added to the world has to pay ore a tax to exist.
+const MAINLAND_ORE_SHARE := 0.108
 const MAINLAND_ORE_SHARE_TOLERANCE := 0.02
 
 
@@ -88,6 +106,18 @@ func _ready():
 	resources[Types.Item.StoneResourceTest] = GameResource.new(Vector2i(0, 0), 9, Types.Item.StoneResourceTest, 1, true, "Stone", Vector2i.ZERO, true, Types.Item.Stone, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
 	resources[Types.Item.StoneResourceTest].is_scene_tile = true
 	resources[Types.Item.CoalResource] = GameResource.new(Vector2i(3, 1), 4,Types.Item.CoalResource, 1, false, "Coal", Vector2i.ZERO, false, Types.Item.CoalOre, Vector2i.ZERO, GameSoundManager.SoundType.MINING)
+
+	# A scene tile, like StoneResourceTest, because it is the only resource that carries state
+	# between gathers: which of its two states it is in, and how far through refruiting. The
+	# atlas coordinate is (0,0) because source 14 is a scenes collection and the cell only ever
+	# names the scene — the art the player sees is chosen by the node (world/resource_nodes/
+	# berry_bush.gd), not by the cell.
+	#
+	# `drop` is Berry, which is what PICKING a fruiting bush pays. Uprooting a picked one pays
+	# the bush itself instead, and that is ResourceManager2's branch to make, not a second
+	# field here: one resource, two gathers.
+	resources[Types.Item.BerryBush] = GameResource.new(Vector2i(0, 0), GameItem.BERRY_BUSH_SOURCE_ID, Types.Item.BerryBush, 1, true, "Berry Bush", Vector2i.ZERO, true, Types.Item.Berry, Vector2i.ZERO, GameSoundManager.SoundType.WOOD_GATHER)
+	resources[Types.Item.BerryBush].is_scene_tile = true
 
 	# Placeholder-art tiers on tileset source 10. Several lookups in main.gd match a
 	# resource by atlas coordinate alone, so these coordinates must stay unique

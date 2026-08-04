@@ -59,5 +59,11 @@ enum Item {
 	GoldSword,
 	Bandage,
 	CookedFood,
-	StoneBrick
+	StoneBrick,
+
+	# The berry bush and its fruit (gather-j2n). Two ids for one thing on purpose: BerryBush
+	# is the node standing in the world AND the item an uprooted one becomes, so a bush can be
+	# carried and replanted; Berry is what picking it yields. Appended, like everything above.
+	BerryBush,
+	Berry
 }

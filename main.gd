@@ -392,6 +392,12 @@ func _process(_delta):
 ## nothing, and every chest in the world comes back empty. Restoring the boss island's
 ## reward chest is what finally made that visible.
 func _finish_load() -> void:
+	# Before the frame of waiting, so no bush the replay is about to instantiate can claim a
+	# mark left over from a planting the player did seconds before quickloading. The marks
+	# time out on their own, so this is belt and braces — but "belt and braces" is cheap and
+	# the failure it guards against is a loaded bush silently coming back bare.
+	BerryBush.clear_planted_marks()
+
 	await get_tree().process_frame
 	save_load.late_load()
 
@@ -1007,6 +1013,20 @@ func get_location_of_nearby_resource(location):
 		var resource = resource_at(nearestPos)
 		if resource != null:
 			return { "resource": resource,  "location": tileMap.map_to_local(nearestPos), "tile_data": tileMap.get_cell_tile_data(resource.layer, nearestPos ) }
+
+## The scene-backed resource standing on `cell`, or null.
+##
+## get_nearest_scene_tile() below answers a different question — "which scene node is closest
+## to the player" — and that was the only question available while StoneResourceTest was the
+## one scene resource in the game. With a second one (BerryBush) the two answers come apart:
+## a player stood between a stone node and a bush can have the CELL lookup resolve to the bush
+## and the NEAREST lookup return the stone, at which point the gather retargets onto the wrong
+## node and pays out the wrong drop. Asking for the node on a known cell cannot do that.
+func scene_tile_at(cell: Vector2i):
+	for child in tileMap.get_children():
+		if child is GameSceneResource and tileMap.local_to_map(child.position) == cell:
+			return child
+	return null
 
 func get_nearest_scene_tile():
 	var nearestDistance = 1000000

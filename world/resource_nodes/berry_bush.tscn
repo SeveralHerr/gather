@@ -1,0 +1,73 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://world/resource_nodes/berry_bush.gd" id="1_berry"]
+[ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="2_sheet"]
+[ext_resource type="PackedScene" uid="uid://b4lrjtkmp38me" path="res://world/vfx/hit_particles.tscn" id="3_hitp"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_berry"]
+size = Vector2(12, 5)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fruiting"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 368, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_picked"]
+atlas = ExtResource("2_sheet")
+region = Rect2(16, 368, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_break1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(48, 368, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_break2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(64, 368, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_berry"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fruiting")
+}],
+"loop": true,
+"name": &"Default",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_picked")
+}],
+"loop": true,
+"name": &"Picked",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 0.3,
+"texture": SubResource("AtlasTexture_break1")
+}, {
+"duration": 0.3,
+"texture": SubResource("AtlasTexture_break2")
+}],
+"loop": false,
+"name": &"Destroy",
+"speed": 5.0
+}]
+
+[node name="StaticBody2D" type="StaticBody2D"]
+z_index = 1
+y_sort_enabled = true
+texture_filter = 1
+script = ExtResource("1_berry")
+resource_type = 51
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 3)
+shape = SubResource("RectangleShape2D_berry")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_berry")
+animation = &"Picked"
+autoplay = "Default"
+
+[node name="HitParticles" parent="." instance=ExtResource("3_hitp")]
+emitting = false

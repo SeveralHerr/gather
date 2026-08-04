@@ -61,6 +61,10 @@ const STARTING_RESOURCES := [
 	Types.Item.StoneResource,
 	Types.Item.CoalResource,
 	Types.Item.CopperResource,
+	# Unlocked from the first frame and never gated. Food no longer falls off trees, so the
+	# bush is the only heal a player who has not fought anything can reach — putting it behind
+	# a skill would mean a fresh island with no way to top the bar up at all.
+	Types.Item.BerryBush,
 ]
 
 var hold_timer = Timer.new()
@@ -378,10 +382,8 @@ func world_position_of(location) -> Vector2:
 
 
 func remove_resource(location, resource: GameResource):
-	var bonus_chance := removing_tool.bonus_yield_chance if removing_tool else 0.0
 	# Bountiful Harvest stacks on top of whatever the pickaxe tier already gives.
-	if player:
-		bonus_chance += player.stats.bonus_yield_chance
+	var bonus_chance := _bonus_yield_chance()
 
 	for _i in resource.roll_yield(bonus_chance):
 		PickUpManager.create_pickup(GameItems.get_item(resource.drop), location)
@@ -439,13 +441,17 @@ func start_removing_resource(pickaxe: GameItemPickaxe):
 
 	removing_info = tile_map_handler.get_location_of_nearby_resource(player.global_position)
 	if removing_info != null:
-		if removing_info.resource.type == Types.Item.StoneResourceTest:
-			var node = tile_map_handler.get_nearest_scene_tile()
-			# get_nearest_scene_tile() searches the whole island, so it needs the same
-			# reach check the else branch below already applies. Without it a cell that
-			# merely resolves to StoneResourceTest by atlas coords retargets the gather
-			# onto a scene stone the player may be nowhere near, and draws the selector
-			# there.
+		# `is_scene_tile`, not a type check. This used to name StoneResourceTest outright,
+		# which was accurate while it was the only scene-backed resource and silently wrong
+		# the moment BerryBush became the second: a bush cell resolved by atlas coords would
+		# have skipped this branch, so removing_node stayed null and the gather ran the plain
+		# tilemap path — no squash, no break pop, and no way to tell a fruiting bush from a
+		# picked one at the timeout.
+		if removing_info.resource.is_scene_tile:
+			var node = tile_map_handler.scene_tile_at(tile_map_handler.tileMap.local_to_map(removing_info.location))
+			# The reach check the else branch below already applies. Without it a cell that
+			# merely resolves to a scene resource by atlas coords retargets the gather
+			# onto a node the player may be nowhere near, and draws the selector there.
 			if node is GameSceneResource and (player.global_position - node.position).length() < SCENE_TILE_REACH:
 				removing_info.location = node.position
 				removing_info.resource = resources.get_item_or_resource_by_type(node.resource_type)
@@ -508,6 +514,17 @@ func _on_hold_timer_timeout():
 	# disappeared with no event at all.
 	_emit_at(_burst, world_position_of(info.location))
 
+	# The one gather in the game that does not end in a cleared cell. A bush in fruit is
+	# PICKED: it pays berries, keeps standing, and starts refruiting. Only a bush that has
+	# already been picked can be pulled out of the ground, which is what stops
+	# uproot-and-replant being a berry duplicator — see BerryBush.
+	#
+	# Checked before the break animation rather than after, because a picked bush must not
+	# play the uprooting frames it is not about to perform.
+	if node is BerryBush and node.is_fruiting:
+		_pick_berries(node, info)
+		return
+
 	if node and node is GameSceneResource:
 		Juice.shake(self, Juice.Shake.MEDIUM)
 		node.break_react()
@@ -520,12 +537,67 @@ func _on_hold_timer_timeout():
 		# A tile cell breaks a shade more gently than a boulder does.
 		Juice.shake(self, Juice.Shake.LIGHT)
 
+	# A picked bush comes out of the ground whole rather than paying its `drop`, so it takes
+	# its own exit from here. Deliberately NOT routed through remove_resource: that rolls
+	# yield against the pickaxe's bonus, and a bonus roll on a bush would hand back two
+	# bushes for one — an item duplicator built out of the same code that makes a gold
+	# pickaxe worth buying.
+	if node is BerryBush:
+		_uproot_bush(info)
+		return
+
 	# remove_resource emits resource_removed, which main.gd answers with
 	# clear_tile(local_to_map(location)) - that clears both the layer-1 tile and the
 	# layer-3 selector at the right cell. The scene branch used to *also* call set_cell
 	# with the raw local position, i.e. pixels where map coords were wanted, clearing a
 	# cell tens of tiles away. Redundant as well as wrong, so it is gone.
 	remove_resource(info.location, info.resource)
+
+
+## Picking a bush that is in fruit: berries drop, the bush stays, the clock starts.
+##
+## No `resource_removed` is emitted, which is the whole point — that signal is what makes
+## main.gd clear the cell. The stop IS emitted, because something still has to take the
+## layer-3 selector back off the tile the player was working.
+func _pick_berries(bush: BerryBush, info) -> void:
+	Juice.shake(self, Juice.Shake.LIGHT)
+	bush.hit_react()
+	bush.pick()
+
+	var berry := GameItems.get_item(Types.Item.Berry)
+	if berry != null:
+		for _i in info.resource.roll_yield(_bonus_yield_chance()):
+			PickUpManager.create_pickup(berry, info.location)
+	else:
+		# get_item() is null for anything unregistered, and create_pickup(null) is where that
+		# whole class of bug starts. A bush that pays nothing is a balance question; a bush
+		# that raises here would abort this method silently — see CLAUDE.md on `-> void`.
+		push_warning("ResourceManager2: Types.Item.Berry is not registered, the bush paid nothing")
+
+	level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
+	GameSoundManager.stop_gathering_sound()
+	emit_signal("resource_removing_stop", info.location, info.resource)
+
+
+## Pulling an already-picked bush out of the ground. Exactly one bush, whatever the tool.
+func _uproot_bush(info) -> void:
+	var bush_item := GameItems.get_item(Types.Item.BerryBush)
+	if bush_item != null:
+		PickUpManager.create_pickup(bush_item, info.location)
+	else:
+		push_warning("ResourceManager2: Types.Item.BerryBush is not registered, the uprooted bush was lost")
+
+	level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
+	GameSoundManager.stop_gathering_sound()
+	emit_signal("resource_removed", info.location, info.resource)
+
+
+## The extra-drop chance in force right now: the pickaxe tier's, plus Bountiful Harvest.
+func _bonus_yield_chance() -> float:
+	var chance := removing_tool.bonus_yield_chance if removing_tool else 0.0
+	if player:
+		chance += player.stats.bonus_yield_chance
+	return chance
 
 
 func _resource_found( resource: GameResource, location: Vector2i):
