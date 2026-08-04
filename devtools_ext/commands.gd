@@ -1935,6 +1935,8 @@ func _cmd_island_census(_args: Dictionary) -> Dictionary:
 			},
 		}
 
+	var census_by_region := _census_by_region(handler)
+
 	return {
 		"success": true,
 		"message": "every island connects at max land" if all_connected else "AN ISLAND IS STRANDED",
@@ -1945,7 +1947,8 @@ func _cmd_island_census(_args: Dictionary) -> Dictionary:
 			"all_connected_at_max_land": all_connected,
 			"boss": _boss_report(handler),
 			"regions": regions,
-			"census_by_region": _census_by_region(handler),
+			"census_by_region": census_by_region,
+			"seeded_veins": _seeded_veins_report(handler, census_by_region),
 		},
 	}
 
@@ -2011,6 +2014,37 @@ func _census_by_region(handler: TileMapHandler) -> Dictionary:
 			by_region[id][resource_name] = by_region[id].get(resource_name, 0) + 1
 
 	return by_region
+
+
+## Whether IslandManager.seed_ore_veins() (gather-frv) actually put its six nodes down.
+## `census_by_region` already counts every resource standing on the ore island by name -
+## this reads that same count against IslandManager.SEEDED_VEINS rather than re-deriving a
+## second way to walk the tilemap, so a live "iron vein is missing" is a data mismatch here,
+## not a screenshot someone has to eyeball.
+func _seeded_veins_report(handler: TileMapHandler, census_by_region: Dictionary) -> Dictionary:
+	var manager = handler.island_manager
+	var ore_census: Dictionary = census_by_region.get(IslandManager.SEEDED_VEIN_ISLAND, {})
+
+	var by_type := {}
+	var placed := 0
+	var expected := 0
+	for entry in IslandManager.SEEDED_VEINS:
+		var resource: GameResource = handler.resources.Get(entry["type"])
+		var res_name: String = resource.name if resource else "Unknown"
+		var count: int = int(ore_census.get(res_name, 0))
+		by_type[res_name] = {"placed": count, "expected": int(entry["count"])}
+		placed += count
+		expected += int(entry["count"])
+
+	return {
+		"placed": placed,
+		"expected": expected,
+		# The generation-vs-mined-out distinction census counts alone cannot make: a fresh
+		# world that has not seeded yet and a world where the player mined every vein both
+		# read placed=0, and only this flag tells them apart.
+		"seeded": manager.ore_veins_seeded if manager else false,
+		"by_type": by_type,
+	}
 
 
 ## The flood fill this census reads lives on TileMapHandler rather than here, because the
