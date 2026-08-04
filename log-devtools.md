@@ -4396,3 +4396,79 @@ Guidelines that make an entry useful later:
   - Improvement: have `run_tests.gd` and `lint_project.gd` opt out of the bus entirely — they
     are not interactive sessions and have no reason to register as its owner. Failing that,
     give them an automatic private session id so they cannot collide with a running game.
+
+## 2026-08-03 — Held pickaxe sprite did not match the selected hotbar slot (gather-g92)
+
+- Value: **warranted** — the running game produced the mismatch as two numbers I could put
+  side by side, which is precisely what the diff could not do: the two halves that disagree
+  live in different files and neither is wrong on its own.
+  - Expected: that at boot, with zero input, `World/Player/Gather` would still carry
+    main.tscn's authored texture rather than the equipped item's — because
+    `PlayerManager.show_slot_data()` is reachable only through
+    `HotBarInventory.hot_bar_selected`, and that signal is emitted only from `select_slot()`,
+    which only real player input calls. Read statically, the authored region `(96, 16)` is
+    tile `(6, 1)` = the **iron** pickaxe while `items.gd:54` starts the player on the wooden
+    one at `(12, 0)`.
+  - Got: exactly that, and then the fix confirmed against the same read. With the fix stashed:
+    `gather_region {x: 96, y: 16}`, `item_region {x: 192, y: 0}`, `matches: false`,
+    `selected_item: "Wooden Pickaxe"` — the player swinging a tier-5 tool they could not have
+    crafted. With it restored, `matches: true` on a clean boot. The second half was worth more
+    than the first: selecting the *empty* slot 4 and then `give_item Gold Pickaxe` — an item
+    appearing **under** a selection that never moved — took the gather sprite onto
+    `placeholder_tiles.png (80, 64)`, a different sheet entirely. Same for a real save/load
+    round trip: `use_slot {"slot": 3, "action": "load"}` with no input after it came back
+    `selected_item: "Gold Pickaxe"`, `matches: true`. That is the `Player.loadObject()` →
+    `inv_updated()` path, and it is a save-fidelity bug of the shape CLAUDE.md already warns
+    about — a load that succeeds and quietly hands the player back the wrong thing.
+  - Cheaper: reading `player_manager.gd:16-23` and `hot_bar_inventory.gd:208-215` together
+    found the bug — that part cost two file reads. What needed the running game was the
+    *confirmation*, because the fix's whole claim is "a push now happens that did not before",
+    and an added call site is exactly the kind of change that looks obviously correct in a
+    diff and still fires at the wrong time or not at all.
+
+- Gap: **`get-state` cannot see inside a Resource, so the one field that identifies a sprite
+  never crosses the bus.** `get-state --node /root/Main/World/Player/Gather --property texture`
+  answered `texture: ():<AtlasTexture#-9223371914985075739>` — an object id. Which *picture* a
+  Sprite2D is showing lives in `texture.region`, one hop down, and there is no node path for a
+  sub-resource, so no generic verb can reach it. Worked around by registering an
+  `equipped_sprite` project verb that flattens the AtlasTexture to its base image plus an
+  absolute rect. Flattening was not optional: main.tscn authors textures straight over
+  `tiles.png` while `GameItem.get_atlas()` wraps `game_items_atlas.tres` (an AtlasTexture whose
+  own atlas is that same png), so comparing the wrapper reports a mismatch between identical
+  pictures, and comparing the rect alone can match two different ones across the three sheets.
+  - [G-110] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let `--property` walk one level into a Resource — `--property texture.region`,
+    `--property texture.atlas.resource_path` — falling back to the object id when the path does
+    not resolve. Sprite regions, StyleBox colors, Shape2D extents and Timer sub-resources all
+    sit exactly one hop past what `get-state` can currently say.
+
+- Gap: **`launch --isolated` prints a `--userdata` the game does not poll.** The gap it was
+  built for is [G-057], now shipped in 0.8.0 — but it does not work. `launch --isolated`
+  reported `session: cda33b18`, `userdata: …\Temp\devtools_userdata_5_4b1mjg` and the exact
+  follow-up command to use; the process started and reached `Entering state: PlayerIdle` in
+  `launch_stdout.log`, yet `--session cda33b18 --userdata …` answered `game not running:
+  'ping' was never picked up … polling: …\Temp\devtools_userdata_5_4b1mjg`. So the client
+  watches the isolated dir and the game does not write to it — the session id reaches the game
+  but the userdata override does not. Fell back to serialising on the default bus, which cost
+  a run: two instances ended up live and the client caught it with `Foreign instance on the
+  bus: the reply to 'use_slot' came from pid 19256, but devtools_owner.json says pid 19472
+  owns this bus`.
+  - [G-111] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `--isolated` pass the userdata dir to the game the way it passes the
+    session id (`--userdata`/`GODOT_USERDATA` on the child process), and have `launch` verify
+    the new instance answers a `ping` on its own bus before printing the follow-up command —
+    printing a command that cannot work is worse than failing, because it reads as success.
+
+- Gap: **`quit` is not reliably fatal, and nothing notices the survivor until it corrupts a
+  read.** Three separate times a `quit` followed by a relaunch left the old process alive
+  (`tasklist` showed two Godot PIDs, once at 1.4 GB), and the only symptom was verbs returning
+  empty output. `python tools/devtools.py ping` then said `No response`, which reads as *no*
+  game rather than *two*. Had to `taskkill //IM` and start over.
+  - [G-112] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `quit` wait for the process to actually exit and report if it did not,
+    and have `launch` refuse to start when another instance already owns the bus — the owner
+    file it already writes has everything needed to detect it.
+
+- Note, not a gap: running the game rewrites `assets/art/ground_decor.png` on boot, so any
+  runtime verification leaves a modified tracked binary behind. Caught it twice with
+  `git status` and reverted; worth knowing before a commit picks it up as an intended change.

@@ -322,7 +322,7 @@ size = Vector2(9, 5)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_03pye"]
 atlas = ExtResource("5_ba3bd")
-region = Rect2(96, 16, 16, 16)
+region = Rect2(192, 0, 16, 16)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_106sc"]
 shader = ExtResource("6_t1wx5")

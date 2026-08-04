@@ -280,6 +280,36 @@ func populate_hot_bar(inventory_data: InventoryData) -> void:
 	# of them there are.
 	_apply_selection()
 	_apply_layout()
+	_refresh_equipped()
+
+
+## Pushes the selected slot's item back onto the player — the held pickaxe and sword
+## sprites, and the sword's damage — without claiming the selection moved.
+##
+## `select_slot()` was the only thing that ever reached PlayerManager.show_slot_data,
+## via hot_bar_selected, and it only ever runs off real player input. So the two cases
+## where the *contents* of the selected slot change underneath a selection that has not
+## moved both left the player holding the wrong thing (gather-g92):
+##
+##   - At boot nothing emits for the initial selected_index of 0, so the Gather sprite
+##     kept main.tscn's authored texture — the iron pickaxe — while slot 1 held the
+##     wooden one the player actually starts with. It corrected itself the first time
+##     they touched a hotbar key, which is what made it read as a hotbar bug rather
+##     than a missing initial push.
+##   - Player.loadObject() rebuilds inventory_slot_datas wholesale and calls
+##     inv_updated(). That repainted the slot icons and stopped there, so loading a save
+##     showed the new tool in the hotbar and swung the old one.
+##
+## Called from populate_hot_bar rather than from set_inventory_data so it covers both,
+## plus every later inventory_updated: a tool crafted straight into the live slot, or a
+## drag that swaps one in, now reaches the player the same way.
+func _refresh_equipped() -> void:
+	if inv:
+		# Early-returns on an empty slot, leaving the last texture in place. That is
+		# unreachable on screen: both sprites are hidden outside their own action, and
+		# neither action starts without the matching item equipped (player_gather.gd).
+		inv.show_slot_data(selected_index)
+	update_placed_slot()
 
 
 ## The 1..6 label that makes the number-key binding discoverable. Size flags put
