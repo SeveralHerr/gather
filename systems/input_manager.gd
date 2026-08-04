@@ -17,6 +17,7 @@ signal toggle_inventory
 signal toggle_skills
 signal toggle_land
 signal toggle_saves
+signal toggle_quests
 signal toggle_debug
 
 @export var isUiOpen = false
@@ -107,6 +108,16 @@ func _input(event):
 	# the binding landed is exactly that case.
 	if InputMap.has_action("saves") and event.is_action_released("saves"):
 		toggle_saves.emit()
+	# The same `has_action` guard, and it is load-bearing for the same reason: `quests` is newer
+	# still, and `is_action_released` on an action the InputMap does not know pushes an error
+	# rather than returning false — from `_input()`, several times a frame, which floods the log
+	# and makes the game unplayable rather than merely noisy. A clone that has not re-imported
+	# since this binding landed is exactly that case.
+	#
+	# Ungated on disable_input like the other panels: the board is a menu, and being locked out
+	# of it while dead or mid-respawn is worse than opening it there.
+	if InputMap.has_action("quests") and event.is_action_released("quests"):
+		toggle_quests.emit()
 	# Same again, and more so: the debug panel is the thing you want when the run is
 	# already wedged, so gating it on disable_input would lock it away exactly when it
 	# is useful. The panel only exists in a debug build (main.gd builds it behind

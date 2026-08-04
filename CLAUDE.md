@@ -626,6 +626,43 @@ reason `world_clock` reads its tints back), `end_run`, and `kill_enemy` — whic
 drops, no xp is paid and the boss chain never fires. `kill_enemy --args '{"type":"Elite"}'` drives
 `take_damage` instead, so a test of the ending exercises the ending.
 
+**The quest board asks the player for things** (`gather-dj2`). `systems/quest_board.gd` is the
+registry (built imperatively like `SkillTree`), `Systems/QuestLog` owns claiming and persistence,
+`ui/quest_ui.gd` is the panel on `J` / the TASKS button. Nothing in the game had ever asked the
+player for anything, so a new player had no idea what it wanted from them and an experienced one
+had no short-term goal between the long ones.
+
+**Every quest is a question about state something else already owns, and that is what keeps the
+whole feature small.** A quest is not accepted, subscribes to nothing, and accumulates no counter
+— its progress is derived on every read from the inventory, `RunStats.enemies_killed`,
+`RaidDirector.raids_cleared`, `WorldClock.day`, `LevelUpManager.level` or
+`LandManager.parcels_bought`. So `QuestLog` persists exactly one thing, the set of claimed ids,
+and there is no per-quest progress to save, migrate or lose. A per-quest counter fed by a signal
+is the same shape as the raid's "how many raiders are left" problem: right until the first
+quicksave, silently wrong after. It also means a quest added later works retroactively, which
+would otherwise take a migration.
+
+Two smaller rules: **rewards are coins and xp only**, never recipe or resource unlocks — an
+unlock must be applied exactly once and never on load (`Recipes` and `ResourceManager2` persist
+their own lists), and coins carry no such rule. And **a `HAVE` quest spends the items, so its
+button says HAND IN rather than CLAIM** before it is pressed; the spend happens *before* the
+quest is marked claimed, or a failed spend leaves it done and the items still in the bag.
+
+**The toolbar row is an `HFlowContainer` now**, because the quest button was the fifth. It used
+to be an `HBoxContainer` anchored top-right growing leftwards, so an over-wide row neither
+clipped nor wrapped — the leftmost button ended up off the edge, reachable by nothing and
+announced by nothing. Four buttons cleared a 390px portrait phone by about two pixels, which was
+a coincidence rather than a budget. It cannot be fixed by narrowing the buttons either: what
+sets a Button's minimum width is its *text* plus `style_button`'s margins, and the widest face in
+the game is `"SKILLS +99  [K]"`. `occupied_top_height()` measures the buttons as well as the
+container, because `HFlowContainer.get_combined_minimum_size()` is width-dependent and answers
+for whatever width it had when asked — the one-line height, for a strip about to wrap.
+
+Devtools: `quest_state` (every offered quest with live progress, plus whether the panel is open)
+and `claim_quest`, which goes through the real `claim()` so the spend, the payout and the signals
+all happen — and reports *why* a refusal happened, since "already claimed", "not complete" and
+"not offered yet" are three different answers.
+
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
 individually. Bound to `[` (save) and `]` (load).

@@ -72,12 +72,19 @@ signal layout_changed
 ## quick-save and quick-load keys stay as they are; this button opens the slot panel,
 ## which is the same state by a route a mouse can take.
 ##
-## Width: four buttons is not free. See `test_a_fourth_button_still_fits_a_portrait_phone`
-## in `test/unit/test_hud_toolbar.gd` for the budget — the row grows leftwards from the
-## top-right corner, so one too many walks the first button off the LEFT edge rather than
-## wrapping or clipping, and nothing on screen would say so.
+## Width: buttons are not free. The row grows leftwards from the top-right corner, so one too
+## many used to walk the first button off the LEFT edge rather than wrapping or clipping, with
+## nothing on screen to say a button was missing. `_apply_scale()` now divides the space it
+## actually has, and drops the key hint from the faces when that space runs short — so the
+## budget is enforced rather than merely documented, and adding a sixth entry here is a layout
+## question rather than a silent regression. `test_hud_toolbar.gd` holds the line at 390x844.
+##
+## `quests` is the fifth (`gather-dj2`): the board is the only thing in the game that tells the
+## player what to do next, and — like the skill tree — it banks something silently, so a button
+## that carries the ready count is what turns a finished quest into something they act on.
 const BUTTON_SPECS := [
 	{"name": "BagButton", "action": "inventory", "label": "BAG", "key": "I"},
+	{"name": "QuestsButton", "action": "quests", "label": "TASKS", "key": "J"},
 	{"name": "SkillsButton", "action": "skills", "label": "SKILLS", "key": "K"},
 	{"name": "LandButton", "action": "land", "label": "LAND", "key": "B"},
 	{"name": "SavesButton", "action": "saves", "label": "SAVES", "key": "O"},
@@ -89,9 +96,21 @@ const BUTTON_SPECS := [
 ## never computed from a viewport dimension (the gather-6fx trap).
 const BUTTON_HEIGHT := 30.0
 const BUTTON_MIN_WIDTH := 78.0
+
+## The narrowest a button may be squeezed to before the row is allowed to overflow again.
+##
+## A floor rather than unbounded division, because a button narrower than its own label is not a
+## smaller button, it is an unreadable one — and at that point running off the edge is at least
+## an honest failure. 46px at SCALE_MIN still fits "TASKS" at FONT_SMALL; it is reached only by
+## a viewport far narrower than any phone reports.
+const BUTTON_FLOOR_WIDTH := 46.0
+
 const MARGIN := 12.0
 
-var _row: HBoxContainer
+var _row: HFlowContainer
+
+## Whether the faces are currently drawn without their key hints. See `_apply_scale`.
+var _compact := false
 
 ## action -> its Button, so `press()` and the point-count accent can find one by name
 ## rather than by index.
@@ -126,12 +145,19 @@ func _ready() -> void:
 	if _level_up_manager != null:
 		_level_up_manager.points_changed.connect(_on_points_changed)
 
+	# The log polls rather than being driven by six signals (see QuestLog.POLL_SECONDS), so this
+	# is a connection to that poll's "something moved" rather than to any one source.
+	var quest_log := QuestLog.find(self)
+	if quest_log != null:
+		quest_log.progress_changed.connect(_refresh_quests)
+		quest_log.quest_claimed.connect(_on_quest_claimed)
+
 	watch_panels()
 
 	UiTheme.connect_resize(self, _apply_scale)
 
+	# _apply_scale() refreshes both badges itself, so they are not repeated here.
 	_apply_scale()
-	_refresh_points()
 	_apply_visibility()
 
 	# Again once the whole tree is up. MobileControls decides whether it is visible in
@@ -143,13 +169,30 @@ func _ready() -> void:
 
 # --- construction ------------------------------------------------------------
 
+## Builds the strip.
+##
+## An `HFlowContainer`, not an `HBoxContainer`, and that is the fix for a hazard the old comment
+## only described: the row used to be anchored top-right and grown leftwards, so a row wider than
+## the screen did not wrap or clip — the leftmost button simply ended up off the edge, reachable
+## by nothing and announced by nothing.
+##
+## Four buttons fitted a 390px portrait phone with 2px to spare, which was never a budget so much
+## as a coincidence; the fifth blew it. And it cannot be fixed by making the buttons narrower,
+## because what sets a Button's minimum width is its *text* plus `style_button`'s content
+## margins — the widest face in the game is "SKILLS +99  [K]", which no `custom_minimum_size`
+## can shrink below.
+##
+## A flow container wraps to a second line instead. The strip is a little taller on a narrow
+## screen and every button is still on it, which is the correct trade and the one the previous
+## layout could not make. `occupied_top_height()` reports the wrapped height, so the skill tree's
+## points badge still parks clear of it.
 func _build_row() -> void:
-	_row = HBoxContainer.new()
+	_row = HFlowContainer.new()
 	_row.name = "Row"
-	# Anchored to the top-right corner and grown leftwards from it, so the strip's
-	# width comes from the buttons rather than from a measurement of the viewport.
-	_row.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	# Spans the width so the container knows where to wrap, and right-aligned within it so the
+	# strip still reads as a top-right cluster rather than drifting to the left edge.
+	_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_row.alignment = FlowContainer.ALIGNMENT_END
 	_row.grow_vertical = Control.GROW_DIRECTION_END
 	add_child(_row)
 
@@ -168,10 +211,22 @@ func _build_row() -> void:
 		_buttons[str(spec["action"])] = button
 
 
-## The text on a button. Split out because the skills button rewrites its own face
-## when a point is banked and has to rebuild the rest of it identically.
+## The text on a button. Split out because the skills and quests buttons rewrite their own faces
+## when something is banked and have to rebuild the rest of it identically.
+##
+## Drops the key hint when the row has been squeezed — see `_apply_scale`. The binding is
+## untouched; this is only what is printed on the face.
 func _face(label: String, key: String) -> String:
-	return "%s  [%s]" % [label, key]
+	return label if _compact else "%s  [%s]" % [label, key]
+
+
+## The horizontal space the row may occupy: the viewport, less the margin at each end. Zero
+## outside a tree, where the caller keeps the unclamped width — the same fallback
+## `PanelFrame._clamp_to_viewport` makes for a headless build.
+func _row_space(margin: float) -> float:
+	if not is_inside_tree() or get_viewport() == null:
+		return 0.0
+	return maxf(0.0, get_viewport().get_visible_rect().size.x - margin * 2.0)
 
 
 # --- sizing ------------------------------------------------------------------
@@ -192,18 +247,52 @@ func _apply_scale() -> void:
 	_row.add_theme_constant_override("separation", gap)
 
 	var height := UiTheme.scaled_touch(BUTTON_HEIGHT, factor)
-	var width := UiTheme.scaled(BUTTON_MIN_WIDTH, factor)
-	for action in _buttons:
-		var button: Button = _buttons[action]
-		button.custom_minimum_size = Vector2(width, height)
-
 	var margin := UiTheme.scaled(MARGIN, factor)
-	_row.offset_top = margin
-	_row.offset_bottom = margin + height
+
+	# `UiTheme.scale_for()` clamps at SCALE_MIN, so a 390px portrait phone and a 720px window
+	# produce the same factor and therefore the same buttons — but one of them has 390px to put
+	# them in. The flow container wraps rather than overflowing (see `_build_row`), so the width
+	# below decides how many lines the strip takes rather than whether a button is reachable.
+	#
+	# Squeezing the buttons is still worth doing, because one line is better than two: at the
+	# full width five buttons want ~530px, and dropping the key hints and the padding gets a
+	# 720px window down to one line where it would otherwise wrap for no reason.
+	var available := _row_space(margin)
+	var count := maxi(1, _buttons.size())
+	var wanted := UiTheme.scaled(BUTTON_MIN_WIDTH, factor)
+	var width := wanted
+	if available > 0.0:
+		width = minf(wanted, (available - gap * (count - 1)) / float(count))
+		width = maxf(width, UiTheme.scaled(BUTTON_FLOOR_WIDTH, factor))
+
+	# Below the full width the key hint is the first thing to go: "SKILLS" alone still says what
+	# the button does, and "[K]" without a legible "SKILLS" says nothing at all. The keys keep
+	# working either way — this is the face, not the binding.
+	_compact = width < wanted - 0.5
+	for spec in BUTTON_SPECS:
+		var button: Button = _buttons.get(str(spec["action"]))
+		if button == null:
+			continue
+		button.custom_minimum_size = Vector2(width, height)
+		button.text = _face(str(spec["label"]), str(spec["key"]))
+
+	# The two buttons that carry a count have just had their faces reset to the plain form by the
+	# loop above, so they are rebuilt here. Doing it in this order rather than teaching the loop
+	# about badges keeps one place that knows what a face looks like.
+	_refresh_points()
+	_refresh_quests()
+
+	# The row spans the width between the margins; the flow container right-aligns its buttons
+	# inside that and wraps when they do not fit. Both offsets are insets from an anchor, never a
+	# position computed from a viewport dimension — the `gather-6fx` trap.
+	_row.offset_left = margin
 	_row.offset_right = -margin
-	# With `grow_horizontal = GROW_DIRECTION_BEGIN` the row expands leftwards to its
-	# own minimum size, so this is a starting point rather than the final left edge.
-	_row.offset_left = -margin
+	_row.offset_top = margin
+
+	# Tall enough for however many lines the buttons wrapped onto. `get_combined_minimum_size()`
+	# on a flow container is width-dependent, so this has to be asked AFTER the offsets above set
+	# that width — reading it first gives the single-line answer for every layout.
+	_row.offset_bottom = margin + maxf(height, _row.get_combined_minimum_size().y)
 
 	layout_changed.emit()
 
@@ -214,10 +303,26 @@ func _apply_scale() -> void:
 ##
 ## `skill_tree_ui.gd`'s banked-points badge is the reason this is public: it is
 ## anchored top-right too, and the two drew on top of each other.
+## Measured from the BUTTONS, not only from the container.
+##
+## `HFlowContainer.get_combined_minimum_size()` is width-dependent, so it answers for whatever
+## width the row had when it was asked — and a `_apply_scale()` that has just changed the row's
+## offsets is asking before the layout pass has applied them. Reading the container alone
+## therefore returns the one-line height for a strip that will wrap on the next frame, and the
+## skill tree's points badge parks itself straight through the second row of buttons.
+##
+## The buttons' own rects have no such lag once they are laid out, and taking the max of both
+## readings is right whichever of them is currently stale.
 func occupied_top_height() -> float:
 	if not visible or _row == null:
 		return 0.0
-	return _row.offset_top + maxf(_row.size.y, _row.get_combined_minimum_size().y)
+
+	var bottom := _row.offset_top + maxf(_row.size.y, _row.get_combined_minimum_size().y)
+	for action in _buttons:
+		var button: Button = _buttons[action]
+		if is_instance_valid(button):
+			bottom = maxf(bottom, button.get_global_rect().end.y)
+	return bottom
 
 
 # --- visibility --------------------------------------------------------------
@@ -288,21 +393,45 @@ func _on_points_changed(_points: int) -> void:
 	_refresh_points()
 
 
+func _on_quest_claimed(_quest: Quest) -> void:
+	_refresh_quests()
+
+
 ## A banked skill point is worth nothing until it is spent, and levelling no longer
 ## seizes the screen, so the button that leads to the tree carries the count. The
 ## standalone badge `skill_tree_ui.gd` draws is the other half of the same cue; this
 ## is the one that is also the way in.
 func _refresh_points() -> void:
-	var button: Button = _buttons.get("skills")
+	var points: int = _level_up_manager.points if _level_up_manager != null else 0
+	_badge("skills", "SKILLS", "K", points, UiTheme.COLOR_GOLD)
+
+
+## The quest board banks finished tasks silently, exactly as the skill tree banks points, so the
+## button that leads to it carries how many are ready to hand in. Without it a player who is not
+## already in the habit of opening the panel never finds out one went green.
+func _refresh_quests() -> void:
+	var log_node := QuestLog.find(self)
+	var ready: int = log_node.ready_count() if log_node != null else 0
+	# Green rather than the skill tree's gold: two counts side by side in the same colour read as
+	# one number split across two buttons, and these mean different things.
+	_badge("quests", "TASKS", "J", ready, UiTheme.COLOR_GOOD)
+
+
+## Draws `count` on a button's face, or the plain face when it is zero.
+##
+## Shared because the two badges were the same six lines with different strings, and because the
+## compact form has to be handled identically by both — a badge that hardcoded "  [K]" would put
+## the key hint back on a row that had just dropped it to fit.
+func _badge(action: String, label: String, key: String, count: int, colour: Color) -> void:
+	var button: Button = _buttons.get(action)
 	if button == null:
 		return
 
-	var points: int = _level_up_manager.points if _level_up_manager != null else 0
-	if points > 0:
-		button.text = "SKILLS +%d  [K]" % points
-		button.add_theme_color_override("font_color", UiTheme.COLOR_GOLD)
+	if count > 0:
+		button.text = "%s +%d" % [label, count] if _compact else "%s +%d  [%s]" % [label, count, key]
+		button.add_theme_color_override("font_color", colour)
 	else:
-		button.text = _face("SKILLS", "K")
+		button.text = _face(label, key)
 		button.add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 
 

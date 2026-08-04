@@ -76,6 +76,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("run_summary", _cmd_run_summary)
 	dev.register_command("end_run", _cmd_end_run)
 	dev.register_command("kill_enemy", _cmd_kill_enemy)
+	dev.register_command("quest_state", _cmd_quest_state)
+	dev.register_command("claim_quest", _cmd_claim_quest)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -3553,4 +3555,91 @@ func _cmd_kill_enemy(args: Dictionary) -> Dictionary:
 		"success": true,
 		"message": "killed %d enemy(s): %s" % [killed_types.size(), ", ".join(killed_types)],
 		"data": {"killed": killed_types.size(), "types": killed_types},
+	}
+
+
+func _quest_log() -> QuestLog:
+	for node in _dev.get_tree().get_nodes_in_group("QuestLog"):
+		if node is QuestLog:
+			return node
+	return null
+
+
+func _quest_ui() -> QuestUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/QuestUI") as QuestUi
+
+
+## Every offered quest with its live progress, plus whether the panel is open.
+##
+## Progress is derived rather than stored (see QuestBoard), so this verb is the only way to see
+## what the log currently believes: there is no field to `get-state`. Reports the panel's own
+## state alongside, for the reason `world_clock` reads its tints back — "the quest completed" and
+## "the quest completed and the panel never noticed" live in different files.
+func _cmd_quest_state(_args: Dictionary) -> Dictionary:
+	var log_node := _quest_log()
+	if log_node == null:
+		return {"success": false, "message": "no QuestLog in the scene", "data": {}}
+
+	var offered := []
+	for id in log_node.available():
+		var quest: Quest = log_node.board.get_quest(id)
+		offered.append({
+			"id": id,
+			"name": quest.display_name,
+			"progress": log_node.progress_of(id),
+			"target": quest.amount,
+			"complete": log_node.is_complete(id),
+			"consumes": quest.consumes(),
+			"coins": quest.reward_coins,
+			"xp": quest.reward_xp,
+		})
+
+	var panel := _quest_ui()
+	return {
+		"success": true,
+		"message": "%d offered, %d ready to hand in" % [offered.size(), log_node.ready_count()],
+		"data": {
+			"offered": offered,
+			"claimed": log_node.claimed.keys(),
+			"ready_count": log_node.ready_count(),
+			"total_quests": log_node.board.order.size(),
+			"panel_open": panel.is_open() if panel != null else false,
+		},
+	}
+
+
+## Hands in a quest by id, through the same `claim()` the button calls.
+##
+## Goes through the real path rather than writing the claimed set, so the spend, the payout and
+## the signals all happen — a verb that marked it claimed would report success for a quest that
+## paid nothing and took nothing.
+func _cmd_claim_quest(args: Dictionary) -> Dictionary:
+	var log_node := _quest_log()
+	if log_node == null:
+		return {"success": false, "message": "no QuestLog in the scene", "data": {}}
+
+	var id := str(args.get("id", ""))
+	if id == "":
+		return {"success": false, "message": "pass {\"id\": \"<quest id>\"}", "data": {}}
+
+	if not log_node.board.has_quest(id):
+		return {"success": false, "message": "no quest '%s'" % id, "data": {}}
+
+	# The reason is reported rather than a bare false, because "already claimed", "not yet
+	# complete" and "gated on another quest" are three different answers and the caller cannot
+	# tell them apart from the return value.
+	if not log_node.claim(id):
+		var why := "already claimed"
+		if not log_node.is_claimed(id):
+			why = "not complete (%d of %d)" % [
+				log_node.progress_of(id), log_node.board.get_quest(id).amount]
+			if not log_node.board.is_offered(id, log_node.claimed):
+				why = "not offered yet — its prerequisites are unclaimed"
+		return {"success": false, "message": "'%s' was not claimed: %s" % [id, why], "data": {"reason": why}}
+
+	var quest: Quest = log_node.board.get_quest(id)
+	return {
+		"success": true,
+		"message": "claimed '%s' for %d gold and %d xp" % [id, quest.reward_coins, quest.reward_xp],
+		"data": {"id": id, "coins": quest.reward_coins, "xp": quest.reward_xp},
 	}

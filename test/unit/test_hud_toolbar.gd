@@ -161,18 +161,24 @@ func test_the_strip_stays_inside_a_small_phone_viewport() -> String:
 	return ""
 
 
-## The width budget a fourth button spends into, asserted rather than estimated.
+## Every button reachable on the narrowest screen the game expects, however many there are.
 ##
-## 390x844 is a phone held upright and the narrowest viewport the game is expected to
-## report. The test above cannot stand in for it: `UiTheme.scale_for()` clamps at
-## SCALE_MIN, so 390 and 720 both land on the same 0.85 factor and produce the *same*
-## row — but one of them has 720px to put it in and the other has 390.
+## 390x844 is a phone held upright. The test above cannot stand in for it: `UiTheme.scale_for()`
+## clamps at SCALE_MIN, so 390 and 720 both land on the same 0.85 factor and produce the *same*
+## buttons — but one of them has 720px to put them in and the other has 390.
 ##
-## Nothing clips or wraps when the budget is blown. `_build_row()` anchors the row to
-## the top-right with `grow_horizontal = GROW_DIRECTION_BEGIN`, so an over-wide row
-## grows off the LEFT edge and the leftmost button simply stops being reachable, with
-## no visual cue that a button is missing.
-func test_a_fourth_button_still_fits_a_portrait_phone() -> String:
+## This used to be `test_a_fourth_button_still_fits_a_portrait_phone`, a width *budget*: the row
+## was an HBoxContainer anchored top-right with `grow_horizontal = GROW_DIRECTION_BEGIN`, so an
+## over-wide row neither clipped nor wrapped — the leftmost button simply ended up off the left
+## edge, reachable by nothing and announced by nothing. Four buttons cleared 390px by about two
+## pixels, which was never a budget so much as a coincidence, and the fifth (`quests`) blew it.
+##
+## The row is an `HFlowContainer` now, so it wraps to a second line instead and there is no
+## budget to spend. What is asserted is therefore the property that actually matters and always
+## did — every button is fully on screen — rather than the proxy that only held while they
+## happened to fit on one line. A sixth button makes the strip taller; it can no longer make one
+## disappear.
+func test_every_button_is_reachable_on_a_portrait_phone() -> String:
 	var strip := await _make_toolbar(Vector2i(390, 844))
 	var tree: SceneTree = Engine.get_main_loop() as SceneTree
 	strip.visible = true
@@ -187,22 +193,61 @@ func test_a_fourth_button_still_fits_a_portrait_phone() -> String:
 		if err != "":
 			return err
 
-	# ...and by more than a hair. The skills button rewrites its own face when points
-	# bank ("SKILLS +9  [K]"), and `style_button` gives every button 8px of unscaled
-	# content margin per side, so the widest the row ever gets is not the width it has
-	# while idle. A budget that only passes for the idle row fails in the game, on the
-	# very screen the player earned a level on.
+	# ...and still when the faces are at their widest. Two buttons rewrite themselves when
+	# something is banked ("SKILLS +99  [K]", "TASKS +9  [J]"), and `style_button` adds 8px of
+	# unscaled content margin per side, so the widest the strip ever gets is not the width it has
+	# while idle. A layout that only holds for the idle strip fails in the game, on the very
+	# screen the player earned a level on.
 	strip.get_button_for("skills").text = "SKILLS +99  [K]"
+	strip.get_button_for("quests").text = "TASKS +9  [J]"
+	await tree.process_frame
 	await tree.process_frame
 
-	var left := INF
 	for action in strip.get_actions():
-		left = minf(left, strip.get_button_for(action).get_global_rect().position.x)
+		var rect: Rect2 = strip.get_button_for(action).get_global_rect()
+		var err: String = _T.assert_true(
+			screen.encloses(rect),
+			"the loaded '%s' is still on screen (got %s of %s)"
+				% [action, str(rect), str(screen.size)])
+		if err != "":
+			return err
 
-	return _T.assert_gte(
-		left, 0.0,
-		"the loaded row still starts on screen (leftmost edge at %.1f of %.0f)"
-			% [left, screen.size.x])
+	return ""
+
+
+## The height the strip reports has to cover every button it drew, on any screen.
+##
+## `skill_tree_ui.gd`'s banked-points badge parks itself under `occupied_top_height()`, so a
+## strip that reported less than its real extent would have the badge drawn straight through a
+## button. That was a safe assumption while the row was one line of fixed height; it stopped
+## being one when the row became an `HFlowContainer` that wraps, because
+## `get_combined_minimum_size()` on a flow container is width-dependent and answers for whatever
+## width it had when asked — the one-line height, for a strip about to become two.
+##
+## Asserted on both a phone and a desktop window, because which of the two wraps depends on font
+## metrics and is not itself worth pinning; what is worth pinning is that the answer covers the
+## buttons either way.
+func test_the_reported_height_covers_every_button() -> String:
+	for size in [Vector2i(390, 844), Vector2i(1280, 720)]:
+		var strip := await _make_toolbar(size)
+		strip.visible = true
+
+		var reported := strip.occupied_top_height()
+		var err: String = _T.assert_gt(
+			reported, 0.0, "a visible strip at %s reports a height" % str(size))
+		if err != "":
+			return err
+
+		for action in strip.get_actions():
+			var rect: Rect2 = strip.get_button_for(action).get_global_rect()
+			var covered: String = _T.assert_gte(
+				reported, rect.end.y,
+				"'%s' at %s sits within the reported %.1f (its bottom is %.1f)"
+					% [action, str(size), reported, rect.end.y])
+			if covered != "":
+				return covered
+
+	return ""
 
 
 func test_the_strip_reports_the_corner_it_occupies() -> String:

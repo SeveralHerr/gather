@@ -121,6 +121,7 @@ func _ready():
 	_setup_weather()
 	_setup_raid_banner()
 	_setup_run_summary()
+	_setup_quest_ui()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
 
@@ -196,6 +197,24 @@ func _setup_run_summary() -> void:
 	summary.stats = get_node_or_null("Systems/RunStats") as RunStats
 	summary.input_manager = input_manager
 	ui_layer.add_child(summary)
+
+
+## The quest board panel. Built here for the same reason as the land panel: view-only, persists
+## nothing, and building it in code keeps the shared scene file from growing a branch per feature.
+##
+## Before `_setup_hud_toolbar()`, like the other two — the toolbar discovers the panels it has to
+## hide behind by walking `UI` for `PanelFrame`s at build time.
+func _setup_quest_ui() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the quest panel has nowhere to live")
+		return
+
+	var panel := QuestUi.new()
+	panel.name = "QuestUI"
+	panel.quest_log = get_node_or_null("Systems/QuestLog") as QuestLog
+	panel.input_manager = input_manager
+	ui_layer.add_child(panel)
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself

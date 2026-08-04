@@ -37,6 +37,7 @@
 [ext_resource type="Script" path="res://systems/world_clock.gd" id="45_wclck"]
 [ext_resource type="Script" path="res://systems/raid_director.gd" id="46_raidd"]
 [ext_resource type="Script" path="res://systems/run_stats.gd" id="47_rstat"]
+[ext_resource type="Script" path="res://systems/quest_log.gd" id="48_qlog"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -788,5 +789,8 @@ script = ExtResource("46_raidd")
 
 [node name="RunStats" type="Node" parent="Systems"]
 script = ExtResource("47_rstat")
+
+[node name="QuestLog" type="Node" parent="Systems"]
+script = ExtResource("48_qlog")
 
 [connection signal="timeout" from="World/ResourceTimer" to="World/ResourceTimer" method="_on_timeout"]
