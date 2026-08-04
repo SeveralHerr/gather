@@ -54,7 +54,7 @@ live progress, so there is always something specific worth going and doing. Fini
 hand it in for coins and xp.
 ([mp4](docs/media/quests-showcase.mp4))
 
-![The tasks panel opening on First Timber at nine of ten wood, the player closing it and felling a tree, then reopening the panel on a card turned green with HAND IN, pressing it, and the coins and xp landing at his feet](docs/media/quests-showcase.gif)
+![The quest board panel opening on First Timber at nine of ten wood, the player closing it and felling a tree, then reopening the panel on a card turned green with HAND IN, pressing it, and the coins and xp landing at his feet](docs/media/quests-showcase.gif)
 
 ### The run has an ending
 

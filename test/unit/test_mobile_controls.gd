@@ -122,7 +122,9 @@ func test_every_button_names_an_action_the_input_map_has() -> String:
 		if err != "":
 			return err
 
-	for required in ["gather", "attack", "action", "destroy", "inventory", "skills", "land"]:
+	for required in [
+			"gather", "attack", "action", "destroy",
+			"inventory", "quests", "skills", "land", "saves"]:
 		var err: String = _T.assert_true(actions.has(required), "'%s' is reachable" % required)
 		if err != "":
 			return err
@@ -145,13 +147,13 @@ func test_mine_and_hit_are_now_one_button() -> String:
 	if err != "":
 		return err
 
-	# Seven buttons, down from eight: the primary, USE, the four panels and BREAK.
-	# This was six until the SAVES panel arrived. The count is here to pin the MINE/HIT
+	# Eight buttons: the primary, USE, the five panels and BREAK. This was six until the
+	# SAVES panel arrived and seven until QUEST did. The count is here to pin the MINE/HIT
 	# merge — the thing the bead was about — so it moves when a *panel* is added and must
 	# not move when someone re-splits the primary button into two world verbs. The
 	# world_actions check below is the half that actually guards that.
 	err = _T.assert_eq(
-		MobileControls.BUTTON_SPECS.size(), 7, "the overlay draws seven buttons")
+		MobileControls.BUTTON_SPECS.size(), 8, "the overlay draws eight buttons")
 	if err != "":
 		return err
 
@@ -181,6 +183,70 @@ func test_break_is_out_of_the_thumbs_way_but_still_reachable() -> String:
 	return _T.assert_gt(
 		gap, primary.get_global_rect().size.y,
 		"BREAK is more than one button-height clear of the primary (gap %.1f)" % gap)
+
+
+## Every panel the desktop strip opens is reachable from the phone overlay too.
+##
+## The two tables are separate on purpose — the strip's faces carry key hints and wrap in a flow
+## container, the overlay's are square thumb targets placed by hand — but `hud_toolbar.gd` hides
+## itself outright the moment DisplayServer reports a touchscreen, so an action listed only there
+## is not merely inconvenient on a phone, it is unreachable. `quests` shipped exactly that way: a
+## key, a desktop button, and no way into the board at all on the device the web build is played
+## on. Nothing errors, no button looks missing, and the panel still works everywhere it is tested
+## — so an assertion spanning both tables is the only thing that catches it.
+func test_every_panel_the_desktop_strip_opens_is_reachable_on_a_phone() -> String:
+	var overlay = await _make_overlay()
+
+	var actions: Array = overlay.get_actions()
+	for spec in HudToolbar.BUTTON_SPECS:
+		var action := str(spec["action"])
+		var err: String = _T.assert_true(
+			actions.has(action),
+			"'%s' opens from the phone overlay as well as the toolbar" % action)
+		if err != "":
+			return err
+
+		# ...and stays live while the player is dead or mid-respawn, matching the keyboard
+		# bindings. A menu button gated on `disable_input` locks a phone player out of their
+		# own bag every time they die, which is the complaint input_manager.gd already fixed.
+		err = _T.assert_true(
+			MobileControls.MENU_ACTIONS.has(action),
+			"'%s' is a menu action, so dying does not lock it out" % action)
+		if err != "":
+			return err
+
+	return ""
+
+
+## Every button lands fully on the narrowest screen the game expects, now that both rows of the
+## `tr` cluster carry three.
+##
+## The overlay hit-tests its own rects from `_input()` rather than mounting real Buttons, so a
+## button laid out past an edge is neither clipped nor wrapped — it is simply somewhere no finger
+## can reach, with nothing on screen to say so. `hud_toolbar.gd` answered that hazard with a flow
+## container; this table is placed by arithmetic and has nothing to wrap it, so the assertion is
+## the guard.
+func test_every_button_lands_on_a_portrait_phone() -> String:
+	var overlay = await _make_overlay(Vector2i(390, 844))
+
+	var screen := Rect2(Vector2.ZERO, overlay.get_viewport_rect().size)
+	for spec in MobileControls.BUTTON_SPECS:
+		var action := str(spec["action"])
+		var button: Control = overlay.get_button_for(action)
+
+		var err: String = _T.assert_true(button != null, "'%s' has a button" % action)
+		if err != "":
+			return err
+
+		var rect: Rect2 = button.get_global_rect()
+		err = _T.assert_true(
+			screen.encloses(rect),
+			"'%s' is fully on a 390x844 screen (got %s of %s)"
+				% [action, str(rect), str(screen.size)])
+		if err != "":
+			return err
+
+	return ""
 
 
 # --- the resolution rule ------------------------------------------------------

@@ -194,12 +194,12 @@ func test_every_button_is_reachable_on_a_portrait_phone() -> String:
 			return err
 
 	# ...and still when the faces are at their widest. Two buttons rewrite themselves when
-	# something is banked ("SKILLS +99  [K]", "TASKS +9  [J]"), and `style_button` adds 8px of
+	# something is banked ("SKILLS +99  [K]", "QUESTS +9  [J]"), and `style_button` adds 8px of
 	# unscaled content margin per side, so the widest the strip ever gets is not the width it has
 	# while idle. A layout that only holds for the idle strip fails in the game, on the very
 	# screen the player earned a level on.
 	strip.get_button_for("skills").text = "SKILLS +99  [K]"
-	strip.get_button_for("quests").text = "TASKS +9  [J]"
+	strip.get_button_for("quests").text = "QUESTS +9  [J]"
 	await tree.process_frame
 	await tree.process_frame
 

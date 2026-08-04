@@ -64,8 +64,14 @@ signal layout_changed
 ## NOT sufficient on a phone on its own. This strip hides itself the moment
 ## DisplayServer reports a touchscreen (see `_touch_active()`), and `mobile_controls.gd`
 ## carries the thumb-reachable cluster instead — its own BUTTON_SPECS and its
-## MENU_ACTIONS list both need a `saves` entry before a touch device can open this panel
-## at all. Adding it here does not do that, and the two files do not share a table.
+## MENU_ACTIONS list both need an entry before a touch device can open the panel at all.
+## Adding one here does not do that, and the two files do not share a table.
+##
+## `quests` is the button that proved the warning: it was added here and nowhere else, so the
+## board had a key and a desktop button while being unreachable on a phone — no error, no missing
+## button, just a panel that did not exist for a touch player. `test_mobile_controls.gd` now
+## asserts that every panel this strip opens is reachable from the overlay too, so the next entry
+## added here cannot go missing there in silence.
 ##
 ## Deliberately absent: crafting (opened by walking up to a station and pressing the
 ## `action` key — it is a *place* in the world, not a menu). The bare `[` / `]`
@@ -84,7 +90,7 @@ signal layout_changed
 ## that carries the ready count is what turns a finished quest into something they act on.
 const BUTTON_SPECS := [
 	{"name": "BagButton", "action": "inventory", "label": "BAG", "key": "I"},
-	{"name": "QuestsButton", "action": "quests", "label": "TASKS", "key": "J"},
+	{"name": "QuestsButton", "action": "quests", "label": "QUESTS", "key": "J"},
 	{"name": "SkillsButton", "action": "skills", "label": "SKILLS", "key": "K"},
 	{"name": "LandButton", "action": "land", "label": "LAND", "key": "B"},
 	{"name": "SavesButton", "action": "saves", "label": "SAVES", "key": "O"},
@@ -101,8 +107,8 @@ const BUTTON_MIN_WIDTH := 78.0
 ##
 ## A floor rather than unbounded division, because a button narrower than its own label is not a
 ## smaller button, it is an unreadable one — and at that point running off the edge is at least
-## an honest failure. 46px at SCALE_MIN still fits "TASKS" at FONT_SMALL; it is reached only by
-## a viewport far narrower than any phone reports.
+## an honest failure. 46px at SCALE_MIN still fits the widest plain face in the table ("QUESTS" /
+## "SKILLS") at FONT_SMALL; it is reached only by a viewport far narrower than any phone reports.
 const BUTTON_FLOOR_WIDTH := 46.0
 
 const MARGIN := 12.0
@@ -414,7 +420,7 @@ func _refresh_quests() -> void:
 	var ready: int = log_node.ready_count() if log_node != null else 0
 	# Green rather than the skill tree's gold: two counts side by side in the same colour read as
 	# one number split across two buttons, and these mean different things.
-	_badge("quests", "TASKS", "J", ready, UiTheme.COLOR_GOOD)
+	_badge("quests", "QUESTS", "J", ready, UiTheme.COLOR_GOOD)
 
 
 ## Draws `count` on a button's face, or the plain face when it is zero.

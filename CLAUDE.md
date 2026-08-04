@@ -628,7 +628,7 @@ drops, no xp is paid and the boss chain never fires. `kill_enemy --args '{"type"
 
 **The quest board asks the player for things** (`gather-dj2`). `systems/quest_board.gd` is the
 registry (built imperatively like `SkillTree`), `Systems/QuestLog` owns claiming and persistence,
-`ui/quest_ui.gd` is the panel on `J` / the TASKS button. Nothing in the game had ever asked the
+`ui/quest_ui.gd` is the panel on `J` / the QUESTS button. Nothing in the game had ever asked the
 player for anything, so a new player had no idea what it wanted from them and an experienced one
 had no short-term goal between the long ones.
 
@@ -657,6 +657,18 @@ sets a Button's minimum width is its *text* plus `style_button`'s margins, and t
 the game is `"SKILLS +99  [K]"`. `occupied_top_height()` measures the buttons as well as the
 container, because `HFlowContainer.get_combined_minimum_size()` is width-dependent and answers
 for whatever width it had when asked — the one-line height, for a strip about to wrap.
+
+**A panel needs a button in TWO tables, and the second one is silent when you forget it.**
+`hud_toolbar.gd` hides its whole strip the moment `DisplayServer` reports a touchscreen, so
+`ui/mobile_controls.gd`'s `BUTTON_SPECS` is the *only* route into a panel on a phone — and its
+`MENU_ACTIONS` list is what keeps that button alive while the player is dead or mid-respawn. The
+quest board shipped in the toolbar alone: a key, a desktop button, and no way into the board at
+all on the device the web build is played on. Nothing errored, no button looked missing, and
+every test passed. `test_mobile_controls.gd` now walks `HudToolbar.BUTTON_SPECS` and asserts each
+action is reachable from the overlay and present in `MENU_ACTIONS`, so the next one added to one
+table cannot go missing from the other in silence. The faces differ on purpose (`QUESTS  [J]` on
+the strip, a square `QUEST` on the overlay) — the overlay's buttons are sized from the screen's
+shortest edge, so the label is fitted to the button.
 
 Devtools: `quest_state` (every offered quest with live progress, plus whether the panel is open)
 and `claim_quest`, which goes through the real `claim()` so the spend, the payout and the signals

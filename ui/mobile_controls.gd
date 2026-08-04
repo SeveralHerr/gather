@@ -132,7 +132,7 @@ const JOYSTICK_SCALE_MAX := 1.25
 ##             thumb reaching for the big button cannot clip it.
 ##   destroy   removes a misplaced building. Held, same as gather. Moved out of the
 ##             thumb cluster and up to the top-right corner (see below).
-##   inventory / skills / land   the three panels. They are the progression UI, and
+##   inventory / quests / skills / land   the panels. They are the progression UI, and
 ##             on a phone this cluster is the only way *into* them. It used to be
 ##             the only way back out too, which is why the overlay was mounted on
 ##             top of everything; every panel now closes from its own PanelFrame X,
@@ -164,11 +164,18 @@ const JOYSTICK_SCALE_MAX := 1.25
 ## quickload the current slot, and `saves` below opens the panel that picks one) and
 ## the mouse buttons (touch already emulates a left click).
 ##
-## `saves` sits in row 1 rather than beside SKILL/BAG/LAND: the `tr` row 0 already
-## carries three, and this strip is the *only* way to reach a panel on a touch device —
-## `hud_toolbar.gd` hides its whole cluster whenever DisplayServer reports a touchscreen
-## (`hud_toolbar.gd:240`), so a panel missing from here is unreachable on a phone rather
-## than merely inconvenient.
+## `saves` and `quests` sit in row 1 rather than beside SKILL/BAG/LAND: the `tr` row 0
+## already carries three, and this strip is the *only* way to reach a panel on a touch
+## device — `hud_toolbar.gd` hides its whole cluster whenever DisplayServer reports a
+## touchscreen (`_apply_visibility` / `_touch_active`), so a panel missing from here is
+## unreachable on a phone rather than merely inconvenient. `quests` was exactly that: the
+## board shipped with a key, a desktop toolbar button and no way in at all on a phone, and
+## nothing said so — the panel simply did not exist for a touch player. This table and
+## `hud_toolbar.gd`'s do not share a row, so adding a button there does not add one here.
+##
+## The face reads QUEST rather than QUESTS for the same reason SKILL and SAVE are clipped:
+## these buttons are square and sized from the screen's shortest edge, so the label is
+## fitted to the button rather than the other way round.
 const BUTTON_SPECS := [
 	{"name": "PrimaryButton", "action": PRIMARY_ACTION, "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
 	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1},
@@ -177,6 +184,7 @@ const BUTTON_SPECS := [
 	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "DestroyButton", "action": "destroy", "label": "BREAK", "big": false, "primary": false, "corner": "tr", "row": 1},
 	{"name": "SavesButton", "action": "saves", "label": "SAVE", "big": false, "primary": false, "corner": "tr", "row": 1},
+	{"name": "QuestsButton", "action": "quests", "label": "QUEST", "big": false, "primary": false, "corner": "tr", "row": 1},
 ]
 
 ## The corners the layout walks, in the order rows stack away from each.
@@ -185,7 +193,7 @@ const CORNERS := ["br", "tr"]
 ## The buttons that open a panel rather than acting on the world. They stay live
 ## while `disable_input` is raised for death and respawn, matching the keyboard
 ## bindings in input_manager.gd. See _press_blocked_for().
-const MENU_ACTIONS := ["inventory", "skills", "land", "saves"]
+const MENU_ACTIONS := ["inventory", "quests", "skills", "land", "saves"]
 
 var _joystick: Control
 
