@@ -4971,3 +4971,44 @@ Guidelines that make an entry useful later:
   - Improvement: a `sample-pixels --rect X,Y,W,H` verb returning mean/brightest/dominant RGB
     from the same capture path `screenshot` already uses. Colour regressions become assertable
     instead of eyeballed.
+
+## 2026-08-04 — Blue skeleton as real art, and backing out a shader fix's side effect
+
+- Value: **warranted** — a pixel A/B proved a regression the user had spotted and I would
+  otherwise have argued was correct behaviour.
+  - Expected: the report "the player looks different" to be unrelated to my change, since I had
+    only touched a shader to make `modulate` work and the player's material sets
+    `flash_intensity = 0.0`, which passes the texture straight through.
+  - Got: it was mine, and measurably. Sampling the most blue-dominant pixel on the player at a
+    fixed hour, with only the shader body swapped between runs: **old `(0, 152, 220)` day /
+    `(0, 129, 236)` night, new `(0, 91, 190)` / `(0, 77, 204)`.** `COLOR` carries the
+    canvas-wide `CanvasModulate` as well as the node's `modulate`, so `texture * COLOR` put the
+    player and every enemy under the day/night tint for the first time — they had never been,
+    because the shader had always discarded COLOR. That is a change to how the whole cast is
+    lit, not a bug fix, and it arrived as a side effect of fixing a corpse fade.
+  - Cheaper: no. Three screenshots across this session all failed to tell me the player had
+    changed — I looked at several and never noticed. Two numbers did it immediately.
+  - The fix that survived is `tex_color.a *= COLOR.a` rather than `tex_color *= COLOR`: alpha
+    only, so `Enemy._death_pop`'s `modulate:a` tween works and RGB is untouched. Verified by
+    re-running the same sample: **`(0, 152, 220)` / `(0, 129, 236)`, pixel-identical to the
+    original.** That equality is the whole argument that the regression is gone, and no
+    screenshot could have supplied it.
+
+- Note, not a gap: the charged skeleton is a **generated sprite** now rather than a `modulate`,
+  after the user said the tint read wrong. Worth recording because the two approaches failed
+  differently and the harness only caught one: the tint not rendering at all was findable by
+  sampling pixels, but "this tint reads as a skeleton behind blue glass rather than as a blue
+  skeleton" is a judgement no assertion in this project can make. The generator's existing
+  `_recolour_cell` multiplies a tint into the source, which preserves the source's hue
+  relationships and is exactly wrong for a near-white skull; the new `_ramp_cell` remaps
+  luminance through three stops instead. That distinction is aesthetic and was decided by
+  looking, correctly.
+
+- Gap: **[G-121] a `sample-pixels` verb** — hit again, and it is now the single highest-value
+  missing verb in this harness. Three separate findings this session came from reading pixels
+  back (the bolt reading as a laser, the charged tint never rendering, and this regression),
+  and each one needed the same ~30 lines of inline zlib/PNG scanline defiltering pasted again.
+  - [G-121] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: unchanged — `sample-pixels --rect X,Y,W,H` returning mean/brightest/dominant
+    RGB from the capture path `screenshot` already uses. Every one of the three findings above
+    becomes a one-line assertion instead of a script.

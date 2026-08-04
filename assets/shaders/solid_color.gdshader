@@ -1,29 +1,31 @@
 shader_type canvas_item;
 
-// The white hit flash, and — since gather-8ft — anything that tints one of these sprites.
+// The white hit flash.
 //
-// `tex_color` is multiplied by COLOR before the mix, and that multiply is load-bearing. In a
-// canvas_item fragment shader COLOR arrives holding the vertex colour, which is where Godot
-// puts a CanvasItem's `modulate`. The original wrote `COLOR = mix(texture(...), ...)` and threw
-// that away, so `modulate` on any node using this material did nothing at all — silently, with
-// the property still reading back exactly what had been assigned to it.
+// `tex_color.a *= COLOR.a` and NOT `tex_color *= COLOR`, and the difference is the whole
+// comment. COLOR arrives holding the vertex colour, which is where Godot puts a CanvasItem's
+// `modulate` AND the canvas-wide `CanvasModulate` that SkyLighting uses for the day/night
+// tint. Multiplying all four channels therefore does two things at once, and only one of them
+// is wanted:
 //
-// Two things were broken by that and both looked like bugs somewhere else:
+//  - Alpha: makes `modulate:a` work. Enemy._death_pop tweens it to 0 so a corpse fades out;
+//    with the original `COLOR = mix(texture(...), ...)` that tween drove a value nothing read,
+//    so corpses popped out at full opacity — the very thing the tween was added to fix.
+//  - RGB: would put the player and every enemy under the day/night tint for the first time.
+//    They have never been, because this shader has always discarded COLOR, and folding them in
+//    is a visible change to how the whole cast is lit rather than a bug fix. Measured on the
+//    player: (0, 152, 220) before against (0, 91, 190) after, at the same hour.
 //
-//  - The charged skeleton's blue (enemies/charged_bone_enemy.tscn sets Sprite2D.modulate) never
-//    appeared. Every property read said the tint was applied, because it was — it just never
-//    reached the fragment.
-//  - `Enemy._death_pop` tweens `modulate:a` to 0 so a corpse fades. It could not, so corpses
-//    still popped out at full opacity, which is the very thing that tween was added to fix.
-//
-// The flash itself is unchanged: at flash_intensity 0 this is texture * modulate, which is what
-// the default canvas_item fragment does anyway, and at 1 it is the solid flash colour.
+// So alpha is taken and RGB is left alone. If the cast should take world lighting, that is a
+// deliberate art decision and this is the line to change — but it is not a side effect to
+// acquire while fixing a fade.
 uniform float flash_intensity;
 uniform float r = 1;
 uniform float g = 1;
 uniform float b = 1;
 
 void fragment() {
-    vec4 tex_color = texture(TEXTURE, UV) * COLOR;
+    vec4 tex_color = texture(TEXTURE, UV);
+    tex_color.a *= COLOR.a;
     COLOR = mix(tex_color, vec4(r, g, b, tex_color.a), flash_intensity);
 }
