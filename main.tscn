@@ -35,6 +35,7 @@
 [ext_resource type="PackedScene" path="res://ui/mobile_controls.tscn" id="43_mobile"]
 [ext_resource type="Script" uid="uid://cor04yevqobh1" path="res://ui/save_slot_ui.gd" id="44_svslt"]
 [ext_resource type="Script" path="res://systems/world_clock.gd" id="45_wclck"]
+[ext_resource type="Script" path="res://systems/raid_director.gd" id="46_raidd"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -780,5 +781,8 @@ script = ExtResource("12_hyjmf")
 
 [node name="WorldClock" type="Node" parent="Systems"]
 script = ExtResource("45_wclck")
+
+[node name="RaidDirector" type="Node" parent="Systems"]
+script = ExtResource("46_raidd")
 
 [connection signal="timeout" from="World/ResourceTimer" to="World/ResourceTimer" method="_on_timeout"]

@@ -5057,3 +5057,32 @@ Guidelines that make an entry useful later:
     offscreen and writes a handful of PNGs, with no bus and no `--write-movie` pass. Framing
     and reach are most of what a clip author cannot check, and neither needs a window, audio,
     or the ~10 minutes a real take costs.
+
+## 2026-08-04 — design brainstorm: replayability and feature ideas (no code changed)
+
+- Value: **inconclusive** — no harness run at all; this turn produced ideas, not a diff, so
+  there was nothing for lint, tests or the bridge to assert against.
+  - Expected: nothing — the question was "what is this game missing", which runtime cannot answer.
+  - Got: n/a. Grounding came from reading `systems/skill_tree.gd` and `items/resources.gd`
+    directly (~4s of Read) plus the architecture notes in CLAUDE.md.
+  - Cheaper: nothing cheaper existed. Reading the two tuning files was already the minimum.
+
+- Gap: **no gaps this turn** — the harness was not exercised, so it could not fall short.
+  One observation for later: none of the existing verbs answer "how long does a run last"
+  or "what does the player have at day N", which is the kind of question the proposed
+  run-ending/score feature (idea 5) would immediately want. Not filing it as a numbered gap
+  until that feature is approved and the need is real rather than hypothetical.
+
+## 2026-08-04 — wrote docs/idea.md (design ideas doc; no game code changed)
+
+- Value: **inconclusive** — nothing executable changed, so lint, tests and the bridge had
+  nothing to assert. A markdown file cannot be verified by the harness.
+  - Expected: nothing. The turn was a Write plus two `ls` calls.
+  - Got: n/a.
+  - Cheaper: nothing — this was already the minimum.
+
+- Gap: **no gaps this turn.** Noting once, without filing a number, that the per-idea
+  "touches" notes in the new doc were assembled by reading CLAUDE.md and two registry files
+  by hand for the second turn running. If that becomes a third time it is a real gap and
+  gets an id — but it is a skill-shaped gap, not a harness-shaped one, so it likely does not
+  belong in this log at all.

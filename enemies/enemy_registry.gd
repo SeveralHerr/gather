@@ -37,6 +37,28 @@ const ELITE := "Elite"
 ## fact could be dropped without anything reporting it.
 const CHARGED := "ChargedBone"
 
+## The two types a night raid marches in (gather-0ez). Types rather than a `raider` flag on an
+## ordinary skeleton, for exactly the reasons the CHARGED note above gives — and here the
+## argument is stronger, because a raider carries a *second* fact an ambient enemy does not:
+## `hunt_range`, wide enough to cross the island. Both the ember tint and that range are
+## authored into the inherited scenes, so a reloaded raider is still red and still hunting with
+## nothing on the load path to remember either.
+##
+## They are `ambient: false` for the same reason CHARGED is: the raid is the only source. An
+## ambient raider would be a thing that walks across the map at you in broad daylight, which is
+## not a scarier island so much as a different game — and it would make the nights the raid
+## director schedules indistinguishable from every other hour.
+##
+## Loot is deliberately the ordinary table of the type it is. A raider is a skeleton or a spider
+## that got told where you live; it is not a treasure pinata, and paying it like one would make
+## surviving the night less rewarding than farming it. The raid's payout is the clear bonus in
+## RaidDirector, which arrives once and cannot be farmed by letting a raid run.
+const RAIDER_BONE := "RaiderBone"
+const RAIDER_SPIDER := "RaiderSpider"
+
+## The types a raid may march in, in the order the director rolls them.
+const RAIDER_TYPES := [RAIDER_BONE, RAIDER_SPIDER]
+
 ## The fallback for a save that names a type this build does not have. Bone was already the
 ## silent fallback in scene_for_type's `_:` arm; it stays the answer, but scene_for() now
 ## says so out loud instead of quietly demoting an elite to a skeleton.
@@ -78,6 +100,23 @@ const TYPES := {
 			{"item": Types.Item.Bone, "chance": 1.0, "min": 1, "max": 2},
 			FOOD_DROP,
 		],
+	},
+	RAIDER_BONE: {
+		"scene": "res://enemies/raider_bone_enemy.tscn",
+		"ambient": false,
+		# Nettable, like the skeleton it is. A player who spends a net on a raider mid-raid is
+		# trading a kill they needed for a machine loader they wanted, which is a real decision;
+		# refusing the catch would only make the net feel broken during the one fight that most
+		# invites using it.
+		"nettable": true,
+		"capture_item": Types.Item.BoneEnemy,
+		"loot": [FOOD_DROP],
+	},
+	RAIDER_SPIDER: {
+		"scene": "res://enemies/raider_spider_enemy.tscn",
+		"ambient": false,
+		"nettable": false,
+		"loot": [{"item": Types.Item.String, "chance": 0.5, "min": 1, "max": 1}, FOOD_DROP],
 	},
 	SPIDER: {
 		"scene": "res://enemies/spider_enemy.tscn",
@@ -135,6 +174,16 @@ static func ambient_types() -> Array:
 		if TYPES[type].get("ambient", false):
 			out.append(type)
 	return out
+
+
+## Whether `type` is one a night raid marches in.
+##
+## Asked of the *live* enemies rather than tracked as a counter, which is what makes the raid's
+## "how many are left" survive a load: a reloaded raider comes back through the ordinary enemy
+## load path with its type intact, and a counter incremented at spawn time would not. See
+## RaidDirector.live_raiders().
+static func is_raider(type: String) -> bool:
+	return RAIDER_TYPES.has(type)
 
 
 ## Whether the Net captures this type at all.

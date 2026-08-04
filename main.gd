@@ -119,6 +119,7 @@ func _ready():
 	# scatters over, and refresh_grass_decor repaints the whole map anyway.
 	refresh_grass_decor()
 	_setup_weather()
+	_setup_raid_banner()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
 
@@ -153,6 +154,28 @@ func _setup_weather() -> void:
 	rain_vfx.name = "RainVfx"
 	rain_vfx.clock = clock
 	world.add_child(rain_vfx)
+
+
+## The night-raid readout. Built here rather than placed in main.tscn for the same reason as
+## the land panel: it is view-only, it persists nothing, and building it in code keeps the
+## shared scene file from growing a branch per feature.
+##
+## The `UI` CanvasLayer, never `Player/Camera2D/HUD` — that Control is world space at the
+## camera's 8x zoom and is dimmed by the day/night CanvasModulate, so a raid readout parented
+## there would be at its least readable on exactly the nights it exists for.
+##
+## The RaidDirector itself IS in main.tscn, under Systems with the other models, because its
+## save entry is keyed on that path. This node only draws what it says.
+func _setup_raid_banner() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the raid banner has nowhere to live")
+		return
+
+	var banner := RaidBanner.new()
+	banner.name = "RaidBanner"
+	banner.director = get_node_or_null("Systems/RaidDirector") as RaidDirector
+	ui_layer.add_child(banner)
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself

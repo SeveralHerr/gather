@@ -388,6 +388,66 @@ last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state`
 an opaque object id, so what a kill actually left on the ground is otherwise unanswerable
 without walking the player over it — which conflates the drop with the pickup radius.
 
+**From night three, the dark comes to you** (`gather-0ez`). `Systems/RaidDirector`
+(`systems/raid_director.gd`) is the model and `ui/raid_banner.gd` is the view — the same split
+as `WorldClock`/`SkyLighting`, for the same three reasons. On `night_started` it opens a raid
+whose size and toughness grow with the day, spawns it in a stagger, and pays a clear bonus when
+the last raider goes down. Before it, night was `NIGHT_CAP_MULT` and `NIGHT_INTERVAL_MULT` — a
+few more wanderers, somewhere else — and walls, doors and turrets were decoration, because
+nothing was ever coming for anything.
+
+Six things here are load-bearing:
+
+- **Raiders are their own registry types, not a flag on a skeleton.** `EnemyRegistry.RAIDER_BONE`
+  and `RAIDER_SPIDER` are inherited scenes over the ordinary ones, exactly as `CHARGED` is, and
+  for the reason that note already gives: `type` is persisted and `scene_for_type()` rebuilds
+  from it, so the ember tint and the wide `hunt_range` come back from a load with no code on the
+  load path. It is also what makes **"how many raiders are left" a live count rather than a
+  counter** — `RaidDirector.live_raiders()` walks the spawner's children. A counter decremented
+  from each raider's `died` signal is wrong the instant the player quicksaves mid-raid: the
+  enemies come back through `EnemySpawner.loadObject`, which connects nothing, so every later
+  kill is invisible and the raid never clears.
+- **`Enemy.hunt_range` is the dial that makes a raid arrive.** `EnemyIdle` used to hardcode 30px
+  — two tiles — so a raider spawned across the island simply wandered where it landed. Ambient
+  enemies still get 30 from the export's default; only the raider scenes widen it, so the
+  ordinary island is unchanged.
+- **Raiders spawn in the player's OWN region, and `accepts_ambient_enemies` is deliberately not
+  consulted.** The first implementation picked any far-enough land and got this exactly
+  backwards: a fresh home island is 160px across, so *no* home cell cleared the 200px minimum
+  and every candidate that did was on a pregenerated island. Those raiders pathed at the player,
+  walked into the sea and stopped — right type, right toughness, velocity set, position
+  unchanged. A raid that never arrives is worse than none: the banner counts seven enemies the
+  player cannot find. Nothing headless sees this and no screenshot shows it; it took reading one
+  raider's position twice, eight seconds apart, to find it had moved 0.13 pixels.
+- **There is no baked navigation in this game**, and `EnemyFollow` now compensates. The tileset
+  declares navigation source groups but nothing in `main.tscn` is a `NavigationRegion2D`, so
+  `get_next_path_position()` returns a point on the straight line to the target — walk it into a
+  tree and `move_and_slide()` cancels the velocity and the enemy stands there pushing. That was
+  invisible while chasing was a two-tile affair; a raid is the first thing that asks an enemy to
+  cross an island. `EnemyFollow` measures actual displacement (never `velocity`, which is what
+  was *written* and stays nonzero against a wall) and sidesteps along the obstacle after
+  `STUCK_AFTER`. Baking navigation is the real fix and is a change to the tilemap, the save
+  format's terrain replay and every scene tile that writes a cell.
+- **Raiders are spawned outside `EnemySpawner`'s population cap, on purpose**, so `MAX_SIZE` is a
+  frame-rate bound before it is a difficulty one. A raid that counted against the ambient
+  ceiling would simply stop the trickle and feel like nothing had changed.
+- **Health scales with the night; damage deliberately does not.** The game has no armour, so a
+  raider that hits harder every night is a difficulty setting the player has no dial to answer.
+  More health is answered by every dial they *do* have: a better sword, the Combat branch, a
+  turret, a wall to fight behind.
+
+Dawn ends a raid without paying and **leaves the surviving raiders alive** — a wave evaporating
+at sunrise reads as the game tidying up after itself and cancels the night's tension in one
+frame. `raid_survived` and `raid_cleared` are separate signals because surviving until morning
+and clearing the field are different things, and only the second is a clear.
+
+The devtools verbs are `raid_state` (the director's state *and* the banner's, for the reason
+`world_clock` reads the tint back off all three canvases), `start_raid` — which **moves the
+clock to night first if it is daylight**, the same way `strike_lightning` starts a storm,
+because `_process` ends any raid it finds running outside the dark and the verb otherwise
+reported a cheerful success for a raid that was over one frame later — and `end_raid`, which is
+the dawn path rather than a clear, so it can never be used as a coin faucet.
+
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
 campfire) has to be distance-culled against the same budget.

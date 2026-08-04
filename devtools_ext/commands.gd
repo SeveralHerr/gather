@@ -70,6 +70,9 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("berry_bushes", _cmd_berry_bushes)
 	dev.register_command("charge_skeleton", _cmd_charge_skeleton)
 	dev.register_command("charged_state", _cmd_charged_state)
+	dev.register_command("raid_state", _cmd_raid_state)
+	dev.register_command("start_raid", _cmd_start_raid)
+	dev.register_command("end_raid", _cmd_end_raid)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -320,6 +323,19 @@ func _status(_args: Dictionary) -> Dictionary:
 		# a caller waiting on a bolt has no other way to know it is coming. Zero under a
 		# clear sky is correct; zero under `weather: rain` means the countdown never armed.
 		status["lightning_in"] = clock.lightning_time_left
+
+	# Whether a raid is running, on every reply, for the same reason the hour is. `live_enemies`
+	# well above the night cap is correct during a raid and a runaway spawner outside one, and
+	# nothing else in this block can tell those apart — raiders are deliberately spawned outside
+	# EnemySpawner's ceiling, so the cap it reports does not bound what is on the map.
+	var raids := _raid_director()
+	if raids:
+		status["raid_active"] = raids.raid_active
+		# Only while one is running. A "0 of 0" on every quiet reply is noise that trains the
+		# reader to skip the field, which is the one thing a liveness field must not do.
+		if raids.raid_active:
+			status["raid_remaining"] = raids.remaining()
+			status["raid_size"] = raids.raid_size
 
 	return status
 
@@ -3237,3 +3253,168 @@ func _ground_drop_names() -> Array:
 			continue
 		names.append(slot.item.name)
 	return names
+
+
+## The RaidDirector, by group and type-checked rather than indexed — see the note above
+## _level_up_manager.
+func _raid_director() -> RaidDirector:
+	for node in _dev.get_tree().get_nodes_in_group("RaidDirector"):
+		if node is RaidDirector:
+			return node
+	return null
+
+
+func _raid_banner() -> RaidBanner:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/RaidBanner") as RaidBanner
+
+
+## Everything about tonight's raid in one read.
+##
+## The verb to reach for on anything touching night difficulty. It reports the director's state
+## AND the banner's, for the same reason `world_clock` reads the tint back off all three
+## canvases: a reply that echoed only the director cannot tell "the raid never started" apart
+## from "the raid started and the UI never heard it", and those two live in different files.
+##
+## `live_raiders` is counted off the map rather than read from a field, which is also how the
+## game itself answers the question — see the class comment on RaidDirector. A `raid_active`
+## with `remaining` stuck at its opening size across several calls is a raid whose enemies
+## never spawned; the two fields together say which.
+func _cmd_raid_state(_args: Dictionary) -> Dictionary:
+	var raids := _raid_director()
+	if raids == null:
+		return {"success": false, "message": "no RaidDirector in the scene", "data": {}}
+
+	var clock := _world_clock()
+	var day: int = clock.day if clock != null else 0
+	var banner := _raid_banner()
+
+	var data := {
+		"raid_active": raids.raid_active,
+		"raid_day": raids.raid_day,
+		"raid_size": raids.raid_size,
+		# Split rather than reported as one total: "still to arrive" and "standing in front of
+		# you" are different problems, and a raid stalled on placement (the player standing in
+		# the middle of a small island) shows up as pending that never falls.
+		"raiders_pending": raids.raiders_pending,
+		"live_raiders": raids.live_raiders(),
+		"remaining": raids.remaining(),
+		"spawn_cooldown": raids._spawn_cooldown,
+		"last_raid_day": raids.last_raid_day,
+		"raids_cleared": raids.raids_cleared,
+		"running": raids.running,
+		# What tonight and the next few nights are worth, so a difficulty question can be
+		# answered without reading the curve. Derived from the clock's day, not the raid's, so
+		# it still answers on a quiet night.
+		"tonight_size": RaidDirector.size_for_day(day),
+		"tonight_health_mult": RaidDirector.health_mult_for_day(day),
+		"first_raid_night": RaidDirector.FIRST_RAID_NIGHT,
+		# The view's own state, read back off the node. See the docstring.
+		"banner_showing": banner.is_showing() if banner != null else false,
+	}
+
+	var message := "no raid running"
+	if raids.raid_active:
+		message = "night %d raid: %d of %d left" % [raids.raid_day, raids.remaining(), raids.raid_size]
+
+	return {"success": true, "message": message, "data": data}
+
+
+## Forces tonight's raid immediately, bypassing nightfall.
+##
+## Takes an optional `{"day": n}` to raid as if it were that night, which is how a late-game
+## raid is reached without playing to it.
+##
+## **It moves the clock to night first if it is daylight**, and that is not a convenience — a
+## raid in daylight is a state the game cannot reach, and `RaidDirector._process` enforces
+## exactly that by ending any raid it finds running outside the dark. Without this the verb
+## returned a cheerful "night 9 raid started: 7 raiders" for a raid that was over one frame
+## later with nothing spawned, and burned `last_raid_day` on the way past. Same shape, and the
+## same reasoning, as `strike_lightning` starting a storm rather than flashing under a clear
+## sky; the message names which of the two happened so nothing about the resulting `phase` is a
+## surprise.
+##
+## It refuses when a raid is already running, since a second would double the enemies and the
+## payout against a single `raid_size`.
+func _cmd_start_raid(args: Dictionary) -> Dictionary:
+	var raids := _raid_director()
+	if raids == null:
+		return {"success": false, "message": "no RaidDirector in the scene", "data": {}}
+
+	if raids.raid_active:
+		return {
+			"success": false,
+			"message": "a raid is already running (night %d, %d left)" % [raids.raid_day, raids.remaining()],
+			"data": {"raid_day": raids.raid_day, "remaining": raids.remaining()},
+		}
+
+	var clock := _world_clock()
+	var day := int(args.get("day", clock.day if clock != null else RaidDirector.FIRST_RAID_NIGHT))
+
+	# Checked BEFORE the clock is moved. A quiet night is a refusal, and refusing after having
+	# dragged the world into darkness would leave the session somewhere the caller did not ask
+	# to be, reported as a failure.
+	if RaidDirector.size_for_day(day) <= 0:
+		return {
+			"success": false,
+			"message": "night %d is a quiet night (raids start on night %d)" % [day, RaidDirector.FIRST_RAID_NIGHT],
+			"data": {"day": day, "first_raid_night": RaidDirector.FIRST_RAID_NIGHT},
+		}
+
+	var made_night := false
+	if clock != null and not clock.is_night():
+		# Just inside NIGHT rather than at its midpoint, so the forced raid gets the whole three
+		# minutes of dark a natural one would — landing at 0.9 would give it seconds before dawn
+		# ended it, which is the same silent-truncation bug in a subtler form.
+		clock.set_time_of_day(WorldClock.DUSK_END + 0.01)
+		made_night = true
+
+	var size := raids.start_raid(day)
+	if size <= 0:
+		return {
+			"success": false,
+			"message": "night %d sent nobody" % day,
+			"data": {"day": day},
+		}
+
+	var message := "night %d raid started: %d raiders, %.2fx health" % [day, size, RaidDirector.health_mult_for_day(day)]
+	if made_night:
+		message += " (the clock was moved to night first — a raid cannot run in daylight)"
+
+	return {
+		"success": true,
+		"message": message,
+		"data": {
+			"day": day,
+			"size": size,
+			"health_mult": RaidDirector.health_mult_for_day(day),
+			"telegraph_seconds": RaidDirector.TELEGRAPH_SECONDS,
+			"spawn_stagger": RaidDirector.SPAWN_STAGGER,
+			# Named rather than implied by `phase` in the status block, so a caller reading only
+			# `data` still knows the world it got back is not the world it had.
+			"moved_clock_to_night": made_night,
+		},
+	}
+
+
+## Ends the running raid the way dawn would, and reports what was still standing.
+##
+## Deliberately the dawn path rather than a clear: a verb that paid the clear bonus would be a
+## coin faucet, and one that despawned the raiders would leave the map in a state the game
+## itself cannot reach. The raiders are left alive, exactly as they are at sunrise.
+func _cmd_end_raid(_args: Dictionary) -> Dictionary:
+	var raids := _raid_director()
+	if raids == null:
+		return {"success": false, "message": "no RaidDirector in the scene", "data": {}}
+
+	if not raids.raid_active:
+		return {"success": false, "message": "no raid running", "data": {}}
+
+	var day := raids.raid_day
+	var left := raids.remaining()
+	raids._end_raid_at_dawn()
+
+	return {
+		"success": true,
+		"message": "night %d raid ended with %d still standing" % [day, left],
+		"data": {"day": day, "remaining_at_end": left, "live_raiders": raids.live_raiders()},
+	}
