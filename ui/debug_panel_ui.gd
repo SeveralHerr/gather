@@ -744,8 +744,12 @@ func _refresh_readout() -> void:
 
 	var lum := _lum()
 	if lum != null:
-		lines.append("level    %d   xp %d/%d   points %d   skills %d" % [
-			lum.level, lum.xp, lum.next_level, lum.points, lum.taken.size()])
+		# `next_level` is cumulative, so "xp 716/1479" does not say what the level in progress
+		# costs — and the cost per level is the whole subject of the curve. Both readings, since
+		# the pair is what makes a pacing complaint checkable against the arithmetic.
+		lines.append("level    %d   xp %d/%d (this level %d)   points %d   skills %d" % [
+			lum.level, lum.xp, lum.next_level, LevelUpManager.cost_of_level(lum.level + 1),
+			lum.points, lum.taken.size()])
 
 	if player != null:
 		# Driven off PlayerStats.BASE so a stat added later shows up here for free.

@@ -33,70 +33,70 @@ func _xp_bar_node() -> ProgressBar:
 	_xp_bar = player.get_node_or_null("Camera2D/HUD/PlayerInfo/XpBar") as ProgressBar
 	return _xp_bar
 
-## XP needed to reach level 2, and the ratio between one threshold and the next.
-## The old curve doubled (10/20/40/80...), which outran the 1-4 xp a node pays by
-## about level 5 and left most of the tree unreachable.
+## XP needed to reach level 2, and the ratio between the cost of one level and the cost of
+## the next.
 ##
-## 1.35 was calibrated against a twelve-node tree. The tree is sixteen nodes now, and
-## because the cost of the last level compounds, those four extra nodes doubled the
-## price of clearing it: 1020 XP, against the 500 that
-## test_player_stats.test_the_whole_tree_is_reachable_in_one_run treats as the edge of
-## one session. 1.28 puts sixteen nodes at 465. The guard is the design intent and the
-## growth rate is the dial, so the dial moved.
+## The history matters here, because four passes turned this dial and three of them were
+## turning it against the wrong quantity. The curve doubled once (10/20/40/80...), which
+## outran the 1-4 xp a node paid by about level 5; then 1.35, 1.28 and 1.30 were each
+## calibrated by asking what clearing the whole tree cost; then `gather-1n2` found a new
+## player banking six skill points within minutes of starting and raised the base from 10 to
+## 40, lowering growth to 1.19 to keep the tail where it was. `gather-7p4` made skills cost
+## tier+1 points — 45 levels rather than 16 — and XP_STEP_CAP was added below to stop the
+## tail compounding out of reach.
 ##
-## 1.30 is that same dial turned back up a little: levels were arriving faster than the
-## player found anything to spend them on, and the world now regrows more slowly, so a
-## level should cost more of it. Clearing the tree goes 465 -> 561, still one run. The
-## first level is untouched at 10 — the growth rate is what lengthens the run, and making
-## the opening skill cost more would only delay the tree becoming visible at all.
+## None of that fixed the symptom that keeps being reported, because the symptom is the
+## curve's SHAPE and every pass moved a dial. next_threshold() used to compound the
+## *cumulative* threshold:
 ##
-## That last sentence was wrong, and 10/1.30 is what it cost (`gather-1n2`). A new player
-## banked six skill points within minutes of starting: the thresholds are cumulative — xp
-## is never reset — so they ran 10, 13, 17, 23, 30, 39, and a node pays a flat 1 xp. Six
-## points for under forty nodes reads as confetti, not progression, and the tree was fully
-## visible before the player had learned what any of it did.
+##     next = ceil(current * XP_GROWTH)      # `current` is the total xp needed so far
 ##
-## Every previous pass turned the growth rate because that was the dial that fixed the
-## tail. The opening is the other end of the curve and growth barely touches it, so this
-## pass moves the base instead — and *lowers* growth to pay for it, because compounding is
-## what would otherwise turn a high base into a four-figure tree. 40 with 1.19:
+## so what one level cost was `total_so_far * 0.19` — and the total so far, immediately after
+## the first level, is 40. Level 2 cost 40 xp. Level 3 cost EIGHT. Levels 4 to 7 cost 10, 12,
+## 14 and 16. Raising the base made the first level dearer and thereby made every level after
+## it *cheaper relative to it*: `gather-1n2`'s complaint, arriving again one level later.
 ##
-##   first point  10 -> 40 XP     the tree now appears after a real stretch of mining
-##   sixth point   39 -> 100 XP   2.6x slower, which is the whole point of this pass
-##   whole tree   561 -> 578 XP   +3%, i.e. still the same one long run it was
+## XP_GROWTH now compounds the STEP — what one level costs — and a threshold is the running
+## sum of the steps (xp is still never reset, so thresholds are still cumulative). The curve
+## is now monotone in the thing the player actually feels: no level is cheaper than the level
+## before it, and none is cheaper than the first.
 ##
-## 35/1.20 was the first proposal and lands the six-point mark at 90 (2.3x) — the tail is
-## equivalent, the opening is the thing being fixed, and 100 sits in the middle of the
-## intended band rather than under it. The whole-tree figure is what is actually being
-## held constant here; test_the_whole_tree_is_reachable_in_one_run's bound is unmoved at
-## 650 because 578 did not need it moved, and a bound that only ever follows the dial is
-## not a guard.
+##   level    cost of that level      cumulative threshold
+##            was       now           was      now
+##   2         40        40            40       40
+##   3          8        43            48       83
+##   7         16        58           100      291    six points, i.e. four skills
+##   11        33        79           202      574    a full Foraging branch
+##   14        55        99           342      850    gold
+##   46       150       150          4869     5529    the whole 45-point tree
+##
+## 1.08 rather than 1.19 because the rate now multiplies a quantity that starts at 40 instead
+## of one that starts at 0.19 * 40, so carrying the old number over would be a different curve
+## entirely: at 1.19 the steps hit XP_STEP_CAP by level 10 and the whole mid-game flattens
+## into 150 a level. 1.08 keeps the ramp geometric to level 19, which is where the cap used to
+## start biting — so the tail this repo has already tuned twice is arithmetically the tail it
+## had — and lands the whole tree at 5529 against 4869, inside the band
+## test_the_whole_tree_is_a_campaign_not_a_session draws around a campaign.
 const XP_FIRST_LEVEL := 40
-const XP_GROWTH := 1.19
+const XP_GROWTH := 1.08
 
-## The most one level may cost more than the level before it. Past this the curve stops
-## compounding and climbs by a flat XP_STEP_CAP per level.
+## The most one level may cost. Past this the curve stops compounding and every further level
+## costs a flat XP_STEP_CAP.
 ##
-## Every note above tunes a curve that assumed ONE point per level, so the tree cost as
-## many levels as it had nodes — sixteen. Skills cost tier+1 points now (`gather-7p4`) and
-## the tree is 45 points, i.e. 45 levels. Compounding does not survive that: at a clean
-## 1.19 the level-46 threshold alone is 90,053 XP against a node's flat 1 XP, so the top
-## third of the tree is not expensive, it is unreachable, and every branch's capstone
-## becomes decoration.
+## Added by `gather-7p4`: skills cost tier+1 points, so the 17-node tree is 45 points and
+## therefore 45 levels, and compounding does not survive that. At a clean geometric rate the
+## level-46 threshold alone is five figures against a node's flat 1 xp, so the top third of the
+## tree is not expensive, it is unreachable, and every branch's capstone becomes decoration.
 ##
-## Capping the STEP rather than lowering XP_GROWTH is what keeps this pass to one change.
-## The cap does not bite until about level 19, so everything the earlier passes were
-## calibrated for is arithmetically untouched — the first level is still 40, six points
-## still cost 100, and gold still lands at 342. Only the tail, which no previous tuning
-## ever had to reach, is different:
+## This used to cap the DIFFERENCE between two cumulative thresholds, which under the old
+## compound-the-total curve was the same thing as capping what a level cost. Now that
+## XP_GROWTH compounds the step, the step IS what a level costs and this caps it directly —
+## the same invariant test_the_curve_stops_compounding_before_it_runs_away always measured
+## (`threshold - previous <= XP_STEP_CAP`), finally expressed in the terms the code uses.
 ##
-##   whole tree   90,053 -> 4,869 XP
-##   gold (L14)      342 ->   342     unchanged
-##   six points      100 ->   100     unchanged
-##
-## 150 rather than a lower cap because the late game should still get dearer per level,
-## just linearly: at 120 the tree lands at 4,048 and the last twenty levels flatten into
-## a plateau that reads as the curve having given up.
+## 150 rather than a lower ceiling because the late game should still be dearer per level than
+## the early one, and because it is where the old curve topped out as well: the endgame's cost
+## per level is the one part of the curve this pass does not move.
 const XP_STEP_CAP := 150
 
 ## XP award table for everything that is not a resource node. Node xp lives in
@@ -242,7 +242,10 @@ func add_xp(amount: int, world_position: Vector2 = Vector2.INF) -> int:
 	while xp >= next_level:
 		level += 1
 		points += 1
-		next_level = next_threshold(next_level)
+		# Derived from the level rather than advanced from the previous threshold. A threshold
+		# IS a function of the level, and keeping one source of truth for it is what stopped
+		# the curve compounding its own total — see XP_GROWTH.
+		next_level = xp_for_level(level + 1)
 		_splash_level_up()
 		level_gained.emit(level)
 		points_changed.emit(points)
@@ -316,20 +319,33 @@ func _on_skill_point_splash_due() -> void:
 	SplashText.spawn(self, _player_position(), "+1 SKILL POINT", SplashText.COLOR_POINT, SplashText.Emphasis.BIG)
 
 
-## The cumulative XP threshold that follows `current`. Static and shared with
-## add_xp so a test of the curve exercises the arithmetic the game actually runs.
+## What reaching `target_level` costs on its own — the gap between its threshold and the one
+## before it, and the number a player experiences as "a level". Level 2 costs XP_FIRST_LEVEL;
+## every level after it costs XP_GROWTH times the one before, until that reaches XP_STEP_CAP
+## and stays there.
 ##
-## Geometric while the step is small, arithmetic once it is not — see XP_STEP_CAP.
-static func next_threshold(current: int) -> int:
-	return mini(int(ceil(current * XP_GROWTH)), current + XP_STEP_CAP)
-
-
-## Total XP needed to reach `target_level` from a fresh start.
-static func xp_for_level(target_level: int) -> int:
-	var threshold := XP_FIRST_LEVEL
+## round() rather than ceil(): 1.08 * 50 is 54.000000000000007 in a double, so ceil() turns a
+## rate meant to read as "eight percent dearer" into a silent off-by-one on every step that
+## happens to land near an integer.
+static func cost_of_level(target_level: int) -> int:
+	var step := XP_FIRST_LEVEL
 	for _i in range(max(0, target_level - 2)):
-		threshold = next_threshold(threshold)
-	return threshold
+		step = mini(int(round(step * XP_GROWTH)), XP_STEP_CAP)
+	return step
+
+
+## Total XP needed to reach `target_level` from a fresh start: the value `next_level` holds and
+## the maximum the XP bar draws against. Cumulative, because xp is never reset on a level-up.
+##
+## Static and shared with add_xp so a test of the curve exercises the arithmetic the game
+## actually runs.
+static func xp_for_level(target_level: int) -> int:
+	var total := 0
+	var step := XP_FIRST_LEVEL
+	for _i in range(max(0, target_level - 1)):
+		total += step
+		step = mini(int(round(step * XP_GROWTH)), XP_STEP_CAP)
+	return total
 
 
 func is_available(skill_id: String) -> bool:
@@ -403,6 +419,9 @@ func saveObject() -> Dictionary:
 		"points": points,
 		"level": level,
 		"xp": xp,
+		# Still written, and no longer read: loadObject derives it from `level` so that a file
+		# cannot carry an older curve's pacing forward. Kept in the payload because it is what
+		# makes a save readable by eye — "716 of 1504" says where the player was.
 		"next_level": next_level,
 		# "x,y" strings rather than the Vector2i keys themselves: entries are
 		# JSON-stringified individually (see SaveLoad), and JSON has no vector type — a
@@ -421,13 +440,20 @@ func _built_cells_saved() -> Array:
 
 
 func loadObject(loadedDict: Dictionary) -> void:
-	# The only two raw indexes left in an otherwise fully-defaulted method. Both keys have
-	# existed since the beginning, but an abort here happens BEFORE sync_player_stats()
-	# below, so the player would load with the saved skill set applying none of its effects
-	# (gather-xc0).
+	# Fully defaulted, like the rest of this method: an abort here happens BEFORE
+	# sync_player_stats() below, so the player would load with the saved skill set applying
+	# none of its effects (gather-xc0).
 	xp = int(loadedDict.get("xp", 0))
-	next_level = int(loadedDict.get("next_level", next_level))
-	level = loadedDict.get("level", 1)
+	level = int(loadedDict.get("level", 1))
+
+	# Derived, not read back, even though every save carries a "next_level". Saves written
+	# before the curve was reshaped carry a threshold from the old one — test/fixtures'
+	# level-18 save says 819 where this curve says 1479 — and honouring it would leave that
+	# player finishing one level on the old pacing and every later level on the new — a
+	# difficulty setting that depends on which build wrote the file. Levels and points already
+	# earned are untouched: the new curve is dearer at every level past the first, so a
+	# recomputed threshold is never already met and a load can never cascade level-ups.
+	next_level = xp_for_level(level + 1)
 
 	# "pending_levels" is what banked levels were called before they became points.
 	points = loadedDict.get("points", loadedDict.get("pending_levels", 0))

@@ -543,7 +543,7 @@ func _on_hold_timer_timeout():
 	# bushes for one — an item duplicator built out of the same code that makes a gold
 	# pickaxe worth buying.
 	if node is BerryBush:
-		_uproot_bush(info)
+		_uproot_bush(info, node)
 		return
 
 	# remove_resource emits resource_removed, which main.gd answers with
@@ -574,20 +574,31 @@ func _pick_berries(bush: BerryBush, info) -> void:
 		# that raises here would abort this method silently — see CLAUDE.md on `-> void`.
 		push_warning("ResourceManager2: Types.Item.Berry is not registered, the bush paid nothing")
 
-	level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
+	# Berries always drop; the xp does not. A bush the player planted pays none, on either of
+	# its two gathers — see BerryBush.awards_gather_xp.
+	if bush.awards_gather_xp():
+		level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
 	GameSoundManager.stop_gathering_sound()
 	emit_signal("resource_removing_stop", info.location, info.resource)
 
 
 ## Pulling an already-picked bush out of the ground. Exactly one bush, whatever the tool.
-func _uproot_bush(info) -> void:
+##
+## Takes the node as well as the target info because the two are no longer interchangeable: the
+## item that comes back is the same either way, but whether the uproot pays xp is a property of
+## THIS bush's history, which only the node carries.
+func _uproot_bush(info, bush: BerryBush) -> void:
 	var bush_item := GameItems.get_item(Types.Item.BerryBush)
 	if bush_item != null:
 		PickUpManager.create_pickup(bush_item, info.location)
 	else:
 		push_warning("ResourceManager2: Types.Item.BerryBush is not registered, the uprooted bush was lost")
 
-	level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
+	# Nothing for a bush the player planted. Uprooting one returns the item that was spent
+	# planting it, so paying xp for it would mint xp out of a round trip — see
+	# BerryBush.awards_gather_xp.
+	if bush.awards_gather_xp():
+		level_up_manager.add_xp(info.resource.xp, world_position_of(info.location))
 	GameSoundManager.stop_gathering_sound()
 	emit_signal("resource_removed", info.location, info.resource)
 

@@ -106,6 +106,60 @@ func test_the_xp_curve_climbs() -> String:
 	return ""
 
 
+func test_no_level_is_cheaper_than_the_one_before_it() -> String:
+	# The bug the whole curve reshape was for, and the one thing test_the_xp_curve_climbs above
+	# could never catch: it checks that the CUMULATIVE threshold climbs, which it does under any
+	# curve that charges anything at all, so it passed happily while a level cost a fifth of the
+	# level before it.
+	#
+	# XP_GROWTH used to compound the cumulative total, making one level's cost 19% of everything
+	# earned so far — 40 XP for level 2, then 8, 10, 12, 14, 16. What a player feels is the step,
+	# not the sum, and a step that collapses immediately after the first level reads as
+	# "levelling stopped costing anything", which is exactly what was reported. Twice.
+	var previous := 0
+	for target_level in range(2, 50):
+		var step := LevelUpManager.cost_of_level(target_level)
+
+		var err: String = _T.assert_gte(
+			step, previous,
+			"level %d costs %d XP where level %d cost %d — the curve dips" % [
+				target_level, step, target_level - 1, previous]
+		)
+		if err != "":
+			return err
+
+		err = _T.assert_gte(
+			step, LevelUpManager.XP_FIRST_LEVEL,
+			"level %d costs %d XP, less than the %d the first level cost" % [
+				target_level, step, LevelUpManager.XP_FIRST_LEVEL]
+		)
+		if err != "":
+			return err
+
+		previous = step
+
+	return ""
+
+
+func test_the_step_is_what_the_threshold_is_made_of() -> String:
+	# cost_of_level and xp_for_level are two readings of one curve, and the game reads both:
+	# add_xp advances `next_level` with the second while a player experiences the first. They
+	# drifted apart before — xp_for_level compounded a total that no per-level cost matched —
+	# so this pins them to each other rather than to a number.
+	var running := 0
+	for target_level in range(2, 30):
+		running += LevelUpManager.cost_of_level(target_level)
+
+		var err: String = _T.assert_eq(
+			LevelUpManager.xp_for_level(target_level), running,
+			"level %d's threshold is not the sum of every level's cost up to it" % target_level
+		)
+		if err != "":
+			return err
+
+	return _T.assert_eq(LevelUpManager.xp_for_level(1), 0, "a fresh player has earned nothing")
+
+
 func test_the_whole_tree_is_a_campaign_not_a_session() -> String:
 	# This was test_the_whole_tree_is_reachable_in_one_run, and its premise was one point
 	# per level: clearing every node meant reaching level (nodes + 1), sixteen levels, 578
@@ -116,8 +170,9 @@ func test_the_whole_tree_is_a_campaign_not_a_session() -> String:
 	# The intent it guarded is still real and still worth a bound, so it is restated
 	# rather than dropped: the tree must remain FINISHABLE. The failure mode it was
 	# written against — a curve that outruns the 1 XP a node pays and leaves the capstones
-	# as decoration — is exactly what an uncapped 1.19 does at 45 levels (90,053 XP), so
-	# this is the test that fails if XP_STEP_CAP is ever removed.
+	# as decoration — is what compounding does over 45 levels with nothing to stop it
+	# (15,358 XP at the current rate, 90,053 at the 1.19 this was written against), so this
+	# is the test that fails if XP_STEP_CAP is ever removed.
 	#
 	# The band, not a point: 10,000 is roughly a long campaign at a node a second, and the
 	# floor is what stops a future pass "fixing" the tail by flattening the curve into
@@ -153,8 +208,17 @@ func test_a_single_branch_is_reachable_in_one_run() -> String:
 
 	var xp_needed := LevelUpManager.xp_for_level(branch_cost + 1)
 
+	# 400 was this bound until the curve was reshaped, and it was not a design figure: with the
+	# cost of a level pinned to 19% of the running total, levels 3 to 11 cost 8 to 33 XP, and
+	# nine levels for the price of five nodes each is what "a session" then meant. The bound is
+	# arithmetically impossible now and rightly so — ten levels that never cost less than the
+	# first cannot come to less than ten times the first, i.e. 400 on the nose.
+	#
+	# 800 restates the intent against a monotone curve: a player who commits to one branch sees
+	# its capstone inside a session. It currently lands at 574, so there is room for the growth
+	# rate to move without this bound moving with it.
 	return _T.assert_true(
-		xp_needed < 400,
+		xp_needed < 800,
 		"a full Foraging branch costs %d XP, which is more than a session" % xp_needed
 	)
 
@@ -218,7 +282,16 @@ func test_the_opening_does_not_hand_out_six_points() -> String:
 	if err != "":
 		return err
 
+	# 160 was the ceiling while a level cost 19% of the running total, so the five levels after
+	# the first came to 60 XP between them and 160 was generous. It now costs 291: the levels
+	# after the first stopped being nearly free, which is the fix, and a ceiling calibrated on
+	# the broken shape would veto it.
+	#
+	# 450 is the same statement about pacing, measured against a curve where no level is cheaper
+	# than the first: six levels for 450 XP is an average of 75, under twice the opening level's
+	# price, so the first four skills are still an opening and not the whole arc. The floor above
+	# is what guards the reported symptom; this half only stops the opening becoming a grind.
 	return _T.assert_true(
-		sixth_point <= 160,
+		sixth_point <= 450,
 		"six skill points cost %d XP, so the early tree is out of reach" % sixth_point
 	)

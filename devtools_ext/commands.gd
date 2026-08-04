@@ -293,6 +293,9 @@ func _status(_args: Dictionary) -> Dictionary:
 	if level_up:
 		status["xp"] = level_up.xp
 		status["next_level"] = level_up.next_level
+		# The cumulative threshold cannot be read as a pace. This is the marginal one, on every
+		# reply, so any run that earns xp says how much of a level it earned.
+		status["level_cost"] = LevelUpManager.cost_of_level(level_up.level + 1)
 		status["level"] = level_up.level
 		status["skill_points"] = level_up.points
 		status["skill_panel_open"] = _skill_panel_open()
@@ -602,6 +605,11 @@ func _cmd_add_xp(args: Dictionary) -> Dictionary:
 		"data": {
 			"xp": level_up.xp,
 			"next_level": level_up.next_level,
+			# What the level in progress costs on its own. `next_level` is cumulative, so it
+			# cannot answer "is levelling too cheap" — the answer to that is this number
+			# against the 1 xp a resource node pays, and a run that adds xp is exactly where
+			# it wants reading.
+			"level_cost": LevelUpManager.cost_of_level(level_up.level + 1),
 			"level": level_up.level,
 			"skill_points": level_up.points,
 			"panel_open": _skill_panel_open(),
@@ -2906,6 +2914,7 @@ func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
 	var fruiting := 0
 	var picked := 0
 	var regrown := 0
+	var planted := 0
 
 	for child in handler.tileMap.get_children():
 		if not (child is BerryBush):
@@ -2921,12 +2930,21 @@ func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
 			"fruiting": child.is_fruiting,
 			"regrow_left": child.regrow_remaining(),
 			"region": handler.region_for_cell(cell).id,
+			# Provenance, because it is what decides whether harvesting this bush pays xp and
+			# it is invisible in every other read: a planted bush and a wild bush that has been
+			# picked are the same sprite in the same state. Without this, "the bush paid no xp"
+			# and "the xp gate is broken" cannot be told apart from outside the game.
+			"planted": child.was_planted,
+			"awards_xp": child.awards_gather_xp(),
 		})
 
 		if child.is_fruiting:
 			fruiting += 1
 		else:
 			picked += 1
+
+		if child.was_planted:
+			planted += 1
 
 	# What the player is holding, on the same read. "The bush is picked" and "the bush paid
 	# out" are two different claims, and a census of the world can only make the first: a pick
@@ -2939,14 +2957,15 @@ func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
 
 	return {
 		"success": true,
-		"message": "%d bush(es): %d fruiting, %d picked; carrying %d berries, %d bushes%s" % [
-			bushes.size(), fruiting, picked, carried["berries"], carried["bushes"],
+		"message": "%d bush(es): %d fruiting, %d picked, %d planted; carrying %d berries, %d bushes%s" % [
+			bushes.size(), fruiting, picked, planted, carried["berries"], carried["bushes"],
 			", %d forced to regrow" % regrown if force_regrow else "",
 		],
 		"data": {
 			"total": bushes.size(),
 			"fruiting": fruiting,
 			"picked": picked,
+			"planted": planted,
 			"regrow_seconds": BerryBush.REGROW_SECONDS,
 			"carried": carried,
 			"bushes": bushes,

@@ -248,3 +248,85 @@ func test_clearing_the_marks_makes_every_bush_wild_again() -> String:
 
 	var bush := await _host()
 	return _T.assert_true(bush.is_fruiting, "a cleared mark is not claimed")
+
+
+# --- xp provenance ------------------------------------------------------------------------
+#
+# ResourceManager2 asks awards_gather_xp() on both of a bush's gathers, so these are the whole
+# gate. Driving the real gather path instead would need a TileMap, a player and a pickaxe to
+# assert one boolean, and would still be asserting this boolean.
+
+func test_a_wild_bush_pays_xp() -> String:
+	var bush := await _host()
+
+	var err: String = _T.assert_false(bush.was_planted, "nobody planted it")
+	if err != "":
+		return err
+
+	return _T.assert_true(bush.awards_gather_xp(), "finding a bush in the world is worth xp")
+
+
+func test_a_planted_bush_pays_no_xp_on_either_gather() -> String:
+	# The faucet: a replanted bush comes up already picked, so it can be uprooted again
+	# immediately, and both gathers used to pay `xp`. Uproot, replant, uproot is a zero-material
+	# loop, so the xp has to be gated on the bush's history rather than on its state.
+	BerryBush.mark_planted(Vector2i.ZERO)
+
+	var bush := await _host()
+
+	var err: String = _T.assert_true(bush.was_planted, "the bush knows the player put it there")
+	if err != "":
+		return err
+
+	err = _T.assert_false(bush.awards_gather_xp(), "uprooting it again pays nothing")
+	if err != "":
+		return err
+
+	# The other half of the loop, fifteen minutes later: a farmed bush is a food supply, not a
+	# second xp economy, so refruiting does not restore the payout either.
+	bush.refruit()
+
+	return _T.assert_false(bush.awards_gather_xp(), "and neither does picking it once it regrows")
+
+
+func test_provenance_survives_a_save_and_load() -> String:
+	# The only field in the payload that cannot be re-derived from the world: _planted_cells is
+	# a session-lifetime static with a two-second TTL and main.gd clears it before a load
+	# replays, so a dropped flag reopens the faucet on the first load and nothing reports it.
+	BerryBush.mark_planted(Vector2i.ZERO)
+
+	var planted := await _host()
+	var round_tripped = JSON.parse_string(JSON.stringify(planted.save()))
+	_T.free_ui(planted)
+	_bush = null
+
+	BerryBush.clear_planted_marks()
+	var reloaded := await _host()
+	reloaded.load(round_tripped)
+
+	var err: String = _T.assert_true(reloaded.was_planted, "the reloaded bush is still a planted one")
+	if err != "":
+		return err
+
+	return _T.assert_false(reloaded.awards_gather_xp(), "so it still pays no xp after a load")
+
+
+func test_a_payload_without_the_flag_leaves_a_wild_bush_paying() -> String:
+	# Every save written before the flag existed. Those worlds cannot say which bushes were
+	# planted, and defaulting the other way would strip the xp from every wild bush on the map
+	# — a silent loss, where this direction is a bounded one-off gain on bushes the player
+	# already planted before this build.
+	var bush := await _host()
+	bush.load({"data": {"fruiting": false, "regrow_left": 120.0}})
+
+	var err: String = _T.assert_false(bush.was_planted, "an absent flag loads as wild")
+	if err != "":
+		return err
+
+	# And a payload this build cannot fully parse still applies the flag: load() RETURNS on an
+	# unreadable `fruiting` rather than falling through, so provenance is read before that guard.
+	# A bush whose state cannot be restored is still a bush the player planted, and the gate has
+	# to survive the half-parse or a hand-edited save is a free xp faucet.
+	bush.load({"data": {"fruiting": "yes", "planted": true}})
+
+	return _T.assert_false(bush.awards_gather_xp(), "a half-parsed payload still applies provenance")

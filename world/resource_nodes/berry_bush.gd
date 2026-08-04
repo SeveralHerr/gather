@@ -53,6 +53,12 @@ const PLANT_MARK_TTL_MSEC := 2000
 ## in leaf; a bush the player plants does not (see _planted_cells).
 var is_fruiting := true
 
+## Whether the player put this bush here. Set once, in _ready(), from the planting mark; saved,
+## because it is provenance rather than state and nothing can ever re-derive it from the world.
+##
+## It exists to answer awards_gather_xp() — see there for why a planted bush pays no xp.
+var was_planted := false
+
 var _regrow: Timer
 
 
@@ -103,6 +109,7 @@ func _ready() -> void:
 	add_child(_regrow)
 
 	if _claim_planted(cell()):
+		was_planted = true
 		pick()
 	else:
 		_show_state()
@@ -144,6 +151,24 @@ func pick() -> void:
 	is_fruiting = false
 	_show_state()
 	_restart_regrow(REGROW_SECONDS)
+
+
+## Whether harvesting this bush should pay xp. False for anything the player planted.
+##
+## A bush is the one resource that can be picked up and put back down, and both of its gathers
+## used to pay `xp`, so replanting one minted xp out of nothing: a replanted bush comes up
+## already picked (see _planted_cells) and is therefore immediately uprootable, which made
+## uproot-replant-uproot a zero-material loop paying 1 xp a cycle forever. That is the same
+## faucet shape as place-destroy-repeat, which LevelUpManager.built_cells closed, and as the
+## pickup award, which was deleted.
+##
+## Provenance rather than a per-cell ledger, because a bush moves and a cell does not: the
+## exploit is one bush being harvested over and over, so the flag belongs on the bush. It also
+## covers the slow half of the loop — a planted bush pays nothing for its 15-minute refruit
+## either, so a bush farm is a food supply and not a second xp economy. Berries are the point
+## of a farm; the xp was paid when the wild bush was found.
+func awards_gather_xp() -> bool:
+	return not was_planted
 
 
 ## Puts the fruit back immediately, cancelling any regrow in flight. Used by the load path and
@@ -212,6 +237,12 @@ func save() -> Dictionary:
 		"data": {
 			"fruiting": is_fruiting,
 			"regrow_left": regrow_remaining(),
+			# Provenance, and the one field here that cannot be recovered by looking at the
+			# world: _planted_cells is a session-lifetime static with a two-second TTL, and
+			# main.gd clears it before a load replays. Drop it and every planted bush reloads
+			# as a wild one, which reopens the xp faucet awards_gather_xp() closes — silently,
+			# and only for players who saved.
+			"planted": was_planted,
 		},
 		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343",
@@ -229,6 +260,14 @@ func load(dict) -> void:
 	var data = dict.get("data")
 	if typeof(data) != TYPE_DICTIONARY:
 		return
+
+	# Read before the `fruiting` guard below, which returns rather than falls through: a payload
+	# this build cannot fully parse must still not hand back a bush that pays xp. Absent in every
+	# save written before the flag existed, and `false` is the right default there — those saves
+	# predate a planted bush being distinguishable at all, and defaulting the other way would
+	# strip the xp from every wild bush on the map instead.
+	if typeof(data.get("planted")) == TYPE_BOOL:
+		was_planted = data["planted"]
 
 	# An unreadable flag is left alone rather than defaulted. Defaulting it to `true` would
 	# mean a payload this build cannot parse quietly puts fruit back on every bush in the

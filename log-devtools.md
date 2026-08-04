@@ -4538,3 +4538,41 @@ Guidelines that make an entry useful later:
     a dead owner should be reclaimed with a note, not reported as contention. Failing that,
     have headless `--script` runs skip the ownership claim entirely; they are not
     interactive sessions and nothing ever addresses them over the bus.
+
+## 2026-08-04 — reshaped the XP curve and closed the replanted-berry-bush XP faucet
+
+- Value: **inconclusive** — this container has no Godot binary at all, so nothing in the
+  harness ran; the arithmetic half was verified against a reimplementation instead.
+  - Expected: `/verify` to fail two existing curve guards by design
+    (`test_a_single_branch_is_reachable_in_one_run` at 400 and
+    `test_the_opening_does_not_hand_out_six_points` at 160, both calibrated on the broken
+    shape), pass the rest, and — at runtime — show `add_xp` advancing `next_level` to a
+    threshold that matches `cost_of_level`.
+  - Got: nothing from the harness. `python3 tools/devtools.py harness-version` returned
+    `game not running: 'harness_version' was never picked up (2.0s grace...)` and
+    `find / -iname "*godot*"` found no engine, so lint, tests and the bridge were all
+    unavailable. Substituted a Python mirror of `cost_of_level` / `xp_for_level` (GDScript
+    `round()` semantics included) asserting the four invariants the new tests assert:
+    monotone steps, no step below `XP_FIRST_LEVEL`, `xp_for_level(L) == sum(cost_of_level)`,
+    and `max marginal <= XP_STEP_CAP`. It printed `invariants OK; max marginal = 150` and the
+    guard values `L7 = 291`, `L11 = 574`, `L46 = 5529`, which is how the two revised bounds
+    were chosen rather than guessed.
+  - Cheaper: nothing cheaper existed here. On a machine with the engine this wanted the full
+    `/verify`: the curve is pure arithmetic and a Python mirror covers it, but
+    `BerryBush.was_planted` surviving a real save/load through `SaveLoad.late_load` is a
+    runtime claim the unit round-trip only approximates.
+
+- Gap: **the harness cannot report that it is absent.** Every entry point fails with a
+  message about the *game*, not about the toolchain: `devtools.py harness-version` says
+  `game not running`, and the documented lint/test commands are `godot --headless ...`, which
+  in a container without the binary is a shell `command not found` rather than anything the
+  harness accounts for. Exit code `2` is documented as "the runner couldn't run", but there is
+  no way to reach a runner to get a `2`. Workaround: `find / -iname "*godot*"` to prove the
+  engine is missing, then a hand-written Python mirror of the arithmetic under test, and a
+  handoff that says plainly which claims are unverified.
+  - [G-113] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `python tools/devtools.py doctor` (or a `--check` on the existing verbs)
+    that resolves the Godot binary first and distinguishes "no engine on this machine" from
+    "engine present, game not running" from "wrong `user://`". It would also give `/verify` a
+    single honest early exit on a CI or cloud checkout, instead of three commands that each
+    fail for a different-looking reason.
