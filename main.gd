@@ -115,6 +115,9 @@ func _ready():
 
 	_setup_land_purchase()
 	_setup_islands()
+	# After the islands, not after the home island: their terrain is part of the grass this
+	# scatters over, and refresh_grass_decor repaints the whole map anyway.
+	refresh_grass_decor()
 	_setup_weather()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
@@ -286,6 +289,10 @@ func expand_island(new_radius: int) -> int:
 	tileMap.set_cells_terrain_connect(0, lands, 0, 1)
 	_sync_home_region()
 
+	# Here as well as in _on_land_purchased, because LandManager.loadObject re-grows a saved
+	# island by calling _expand() directly and never emits land_purchased.
+	refresh_grass_decor()
+
 	return lands.size() - before
 
 
@@ -312,6 +319,10 @@ func _on_land_purchased(_new_radius: int, _tiles_added: int) -> void:
 	# before _setup_islands, so the signal is connected while island_manager is still absent.
 	if island_manager != null:
 		island_manager.refresh_connections()
+
+	# Last, and not merely a repeat of the one inside expand_island: that call runs before
+	# this signal is emitted, so it cannot see an isthmus refresh_connections has just carved.
+	refresh_grass_decor()
 
 
 ## The land economy and its panel. Both are created here rather than placed in
@@ -406,6 +417,11 @@ func _finish_load() -> void:
 	if island_manager != null:
 		island_manager.reassert_after_load()
 
+	# The replay clears every layer above 0, tufts included, and the islands only get their
+	# terrain back on the line above. Nothing is loaded here: the scatter is re-derived from
+	# the island seed the save already carries.
+	refresh_grass_decor()
+
 
 func add_highlight(location):
 	tileMap.set_cell(3, tileMap.local_to_map(location), 4, Vector2i(7, 1))
@@ -465,6 +481,9 @@ func _on_destroy_added(location: Vector2i, item: GameItem):
 func _on_destroy_removed(location: Vector2i, item: GameItem):
 	tileMap.set_cell(item.layer,tileMap.local_to_map(location), -1)
 	tileMap.set_cell(3, tileMap.local_to_map(location), -1)
+
+	# A demolished wall or floor uncovers whatever the scatter says belongs on that cell.
+	refresh_decor_cell(tileMap.local_to_map(location))
 
 	var wall := wall_type_at(item.atlas_location, item.tile_source_id)
 	if wall.is_empty():
@@ -563,6 +582,11 @@ func clear_tile(location: Vector2i):
 	# Remove highlight
 	tileMap.set_cell(3, location, -1)
 	tileMap.set_cell(1, location, -1)
+
+	# And the ground grows back over where it stood. The scatter is a pure function of the
+	# cell, so a chopped tree uncovers the same tuft that was there before it grew - not a
+	# new one, which would make felling a forest look like scattering seed.
+	refresh_decor_cell(location)
 	
 ## Places `item`'s tile at `location`.
 ##
@@ -588,6 +612,12 @@ func set_tile(location: Vector2i, tile_source_id: int, atlas_location: Vector2i,
 		if not cells.has(location):
 			cells.append(location)
 		reconnect_walls(wall)
+
+	# Anything landing on a cell takes its decoration with it. This is the single write path
+	# for every tile the game places - a resource spawning, a wall, a floor, a chest, a
+	# station - so hooking it here is what makes "no flower under a building" true for all of
+	# them at once rather than for the ones somebody remembered.
+	refresh_decor_cell(location)
 
 func is_wall_tile(atlas_location, source_id: int) -> bool:
 	return not wall_type_at(atlas_location, source_id).is_empty()
@@ -638,18 +668,24 @@ func is_occupied(tilePos: Vector2i, include_resources = false, is_wall: bool = f
 		occupied = true
 	
 	
-	var atlas_location = tileMap.get_cell_atlas_coords(1, tilePos)
-	var source_id = tileMap.get_cell_source_id (1, tilePos)
-	var item = resources.get_item_or_resource(atlas_location, source_id)
-	
-	if item != null and item.is_scene_tile:
-		occupied = true
+	# Guarded on there being a tile at all. get_item_or_resource is a linear scan of both
+	# registries, and an EMPTY cell reads back as source -1 / atlas (-1, -1), which no entry is
+	# registered under - so the unguarded call scanned everything to conclude nothing, on every
+	# empty cell. That is most cells: this function is the spawn loop's retry test (up to 100
+	# times per node placed), the pathfinder's neighbour test, and now one call per grass cell
+	# on a decoration repaint, where it was 38ms of a 1878-cell island.
+	var source_id = tileMap.get_cell_source_id(1, tilePos)
+	if source_id != -1:
+		var item = resources.get_item_or_resource(tileMap.get_cell_atlas_coords(1, tilePos), source_id)
+		if item != null and item.is_scene_tile:
+			occupied = true
 			
 
 	return occupied
 		
 func RemoveResource(location):
 	tileMap.set_cell(1, location, -1)
+	refresh_decor_cell(location)
 
 ## Identity of a tile-based resource, as the pair that actually distinguishes one.
 ##
@@ -719,6 +755,160 @@ func land_tiles() -> Array:
 		if tileMap.get_cell_atlas_coords(0, cell) == GRASS_ATLAS:
 			tiles.append(cell)
 	return tiles
+
+
+# --- ground decoration ---------------------------------------------------------
+#
+# Grass tufts and wildflowers scattered over plain grass. Three constraints shape all of it:
+#
+#  - It must not read as terrain. Decoration goes on its OWN layer, never into layer 0,
+#    because GRASS_ATLAS on layer 0 is the definition of "walkable, buildable land"
+#    everywhere in the project - is_occupied(), land_tiles(), walkable_cells_from_home() and
+#    every island census key off that exact atlas coordinate. Painting tufts as a ground
+#    variant would have silently un-landed every cell it touched.
+#  - It must not block anything. DECOR_LAYER is a layer no occupancy check looks at:
+#    is_occupied() reads layers 0, 1 and 2 by index and never enumerates, so a tuft cannot
+#    refuse a resource, a building or a spawn. That is the whole reason for a separate
+#    layer rather than a flag on the ground tile.
+#  - It must not be saved. decor_at() is a pure function of the cell and the island seed,
+#    and LandManager restores that seed before re-expanding, so a repaint after load
+#    reproduces the identical scatter. Persisting it would have added a few thousand
+#    entries per save to store something already derivable.
+
+## The layer the decoration lives on. Declared in main.tscn after Water, at z_index -1 - the
+## same z as Ground, so equal-z layers draw in index order and a tuft sits above the ground
+## and below the Floor (z 0), Resources, walls and the player (z 1). A laid floor covers its
+## tufts; a tree merely stands among them.
+const DECOR_LAYER := 6
+
+## assets/art/ground_decor.png, registered as its own atlas source in world_tile_set.tres
+## with no terrain, no physics polygon and no navigation - decoration that joined terrain
+## set 0 would be pulled into set_cells_terrain_connect, and a collision polygon on it would
+## turn every tuft into a wall. Regenerate the sheet with tools/gen_ground_decor.py.
+const DECOR_SOURCE_ID := 14
+
+## Fraction of plain-grass cells carrying anything at all.
+const DECOR_CHANCE := 0.18
+
+## Relative weight of each column, three grass shapes then three blooms.
+##
+## The weights are the whole design. Grass is the substrate and flowers are the punctuation:
+## at 22 parts in 100 of the decorated cells, and 18% of cells decorated, a flower lands on
+## roughly one grass tile in 25 - often enough to catch the eye while crossing the island,
+## rare enough that finding one still reads as finding something.
+const DECOR_WEIGHTS := [34, 26, 18, 8, 8, 6]
+
+## Where variant `variant` sits on the sheet. One row, one column per variant, in the order
+## tools/gen_ground_decor.py writes them.
+static func decor_atlas(variant: int) -> Vector2i:
+	return Vector2i(variant, 0)
+
+## Which variant, if any, belongs on `cell` - an index into DECOR_WEIGHTS, or -1 for a bare
+## cell.
+##
+## Static and pure so the scatter can be tested without a TileMap, and deterministic in
+## (cell, seed) so it never has to be persisted. The mixing is a rough xorshift-flavoured
+## avalanche rather than hash(): cell coordinates are small, dense and adjacent, and a hash
+## that does not diffuse them leaves visible diagonal banding across the island.
+static func decor_at(cell: Vector2i, seed_value: int) -> int:
+	var h := _decor_hash(cell, seed_value)
+
+	# Three independent draws out of one hash rather than three hashes: the low bits decide
+	# presence, the middle bits pick the variant, and a high bit decides the flip.
+	if float(h % 10000) / 10000.0 >= DECOR_CHANCE:
+		return -1
+
+	var total := 0
+	for weight in DECOR_WEIGHTS:
+		total += int(weight)
+
+	var roll: int = (h >> 8) % total
+	for i in DECOR_WEIGHTS.size():
+		roll -= int(DECOR_WEIGHTS[i])
+		if roll < 0:
+			return i
+	return DECOR_WEIGHTS.size() - 1
+
+
+## The alternative-tile transform for `cell`: 0 upright, TRANSFORM_FLIP_H mirrored. Mirroring
+## doubles the number of distinct silhouettes on the map for no extra art, and the blades are
+## asymmetric enough that it reads as a different clump rather than as the same one.
+##
+## Meaningless on a cell decor_at() returned -1 for; nothing asks.
+static func decor_flip(cell: Vector2i, seed_value: int) -> int:
+	return TileSetAtlasSource.TRANSFORM_FLIP_H if (_decor_hash(cell, seed_value) >> 20) & 1 else 0
+
+
+static func _decor_hash(cell: Vector2i, seed_value: int) -> int:
+	var h: int = seed_value * 0x27d4eb2d
+	h = (h ^ (cell.x * 0x9e3779b1)) * 0x85ebca6b
+	h = (h ^ (h >> 13)) ^ (cell.y * 0xc2b2ae35)
+	h = (h ^ (h >> 16)) * 0x27d4eb2d
+	# GDScript ints are 64-bit and these products overflow into the sign bit, so mask to a
+	# positive value before anything takes a modulo of it.
+	return h & 0x7fffffff
+
+
+## Whether this TileMap has a decor layer at all.
+##
+## A TileMap built by a unit test has only the layers that test needed. Checked rather than
+## assumed because set_cell() on a missing layer errors out, and an error inside a `-> void`
+## aborts the method and still looks like a clean return (gather-1t9).
+func _has_decor_layer() -> bool:
+	return tileMap != null and tileMap.get_layers_count() > DECOR_LAYER
+
+
+## Brings one cell's decoration up to date: paints it, or clears it, whichever is now right.
+##
+## Decoration never shares a cell with anything. `is_occupied(cell, true)` is the same
+## question the game already asks before it will place or spawn anything - it covers a
+## resource or building on layer 1, a floor on layer 2, a scene-backed node, and ground that
+## is not plain grass - so a tuft appears exactly where the world is empty and disappears the
+## moment something lands on it. Reusing that predicate rather than writing a second one is
+## the point: two spellings of "is this cell free" drift, and the drift here would show up as
+## a flower growing through a chest.
+##
+## Cheap enough to call from every tile write. It is one cell, and the alternative - a full
+## repaint per placed wall - is thousands.
+func refresh_decor_cell(cell: Vector2i) -> void:
+	if not _has_decor_layer():
+		return
+
+	var variant := decor_at(cell, island_seed())
+	if variant < 0 or is_occupied(cell, true):
+		tileMap.set_cell(DECOR_LAYER, cell, -1)
+		return
+
+	tileMap.set_cell(
+		DECOR_LAYER, cell, DECOR_SOURCE_ID, decor_atlas(variant), decor_flip(cell, island_seed())
+	)
+
+
+## Repaints every tuft and flower on the map from scratch.
+##
+## Total rather than incremental, and that is not laziness. Buying a parcel does not merely
+## add cells - it turns the ring the player already owned from coastline into plain grass,
+## so the cells eligible for decoration change well inside the old coastline. Painting only
+## the new ring would leave a permanent bare band at every radius the island ever stopped
+## at. Idempotent, so the call sites are free to overlap.
+func refresh_grass_decor() -> void:
+	if not _has_decor_layer():
+		return
+
+	tileMap.clear_layer(DECOR_LAYER)
+
+	var seed_value := island_seed()
+	for cell in land_tiles():
+		var variant := decor_at(cell, seed_value)
+		# Same occupancy rule as refresh_decor_cell, hoisted out of the per-cell path so a
+		# full repaint is one is_occupied call per grass cell rather than two.
+		if variant < 0 or is_occupied(cell, true):
+			continue
+
+		tileMap.set_cell(
+			DECOR_LAYER, cell, DECOR_SOURCE_ID,
+			decor_atlas(variant), decor_flip(cell, seed_value)
+		)
 
 
 ## How much land there is in total. Grows as parcels are bought and as islands are

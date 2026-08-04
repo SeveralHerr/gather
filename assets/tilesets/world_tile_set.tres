@@ -1,6 +1,7 @@
-[gd_resource type="TileSet" load_steps=34 format=3 uid="uid://2hnc5oivl1li"]
+[gd_resource type="TileSet" load_steps=36 format=3 uid="uid://2hnc5oivl1li"]
 
 [ext_resource type="Texture2D" uid="uid://bha54k8g4j1qj" path="res://assets/art/tiles.png" id="1_fu67e"]
+[ext_resource type="Texture2D" uid="uid://5jjs7ixqpspc" path="res://assets/art/ground_decor.png" id="14_decor"]
 [ext_resource type="Texture2D" uid="uid://bns0btag74h0k" path="res://assets/art/placeholder_tiles.png" id="10_plchd"]
 [ext_resource type="Texture2D" uid="uid://1rde7kvflw0w" path="res://assets/art/stone_build_tiles.png" id="11_stone"]
 [ext_resource type="PackedScene" uid="uid://2m4ylcr6bkcn" path="res://world/tile_scenes/door.tscn" id="2_cujkm"]
@@ -13,7 +14,7 @@
 [ext_resource type="PackedScene" path="res://world/resource_nodes/stone_node.tscn" id="9_n6rxy"]
 [ext_resource type="PackedScene" path="res://world/tile_scenes/bone_worker.tscn" id="12_bwrkr"]
 [ext_resource type="PackedScene" path="res://world/tile_scenes/stone_worker.tscn" id="13_stwkr"]
-[ext_resource type="PackedScene" path="res://world/resource_nodes/berry_bush.tscn" id="14_berry"]
+[ext_resource type="PackedScene" path="res://world/resource_nodes/berry_bush.tscn" id="15_berry"]
 
 [sub_resource type="TileMapPattern" id="TileMapPattern_7ewrd"]
 tile_data = PackedInt32Array(0, 65536, 0, 65536, 65536, 1)
@@ -1952,7 +1953,7 @@ scenes/1/scene = ExtResource("12_bwrkr")
 scenes/1/scene = ExtResource("13_stwkr")
 
 [sub_resource type="TileSetScenesCollectionSource" id="TileSetScenesCollectionSource_berry"]
-scenes/1/scene = ExtResource("14_berry")
+scenes/1/scene = ExtResource("15_berry")
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_plchd"]
 texture = ExtResource("10_plchd")
@@ -2586,6 +2587,16 @@ texture_region_size = Vector2i(16, 16)
 0:6/0/physics_layer_1/angular_velocity = 0.0
 0:6/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_wpd03")
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_decor"]
+texture = ExtResource("14_decor")
+texture_region_size = Vector2i(16, 16)
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+3:0/0 = 0
+4:0/0 = 0
+5:0/0 = 0
+
 [resource]
 physics_layer_0/collision_layer = 1
 physics_layer_1/collision_layer = 1
@@ -2611,5 +2622,6 @@ sources/10 = SubResource("TileSetAtlasSource_plchd")
 sources/11 = SubResource("TileSetAtlasSource_stone")
 sources/12 = SubResource("TileSetScenesCollectionSource_bwrkr")
 sources/13 = SubResource("TileSetScenesCollectionSource_stwkr")
-sources/14 = SubResource("TileSetScenesCollectionSource_berry")
+sources/14 = SubResource("TileSetAtlasSource_decor")
+sources/15 = SubResource("TileSetScenesCollectionSource_berry")
 pattern_0 = SubResource("TileMapPattern_7ewrd")

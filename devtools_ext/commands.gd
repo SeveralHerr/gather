@@ -62,6 +62,7 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("save_slots", _cmd_save_slots)
 	dev.register_command("use_slot", _cmd_use_slot)
 	dev.register_command("slot_panel", _cmd_slot_panel)
+	dev.register_command("equipped_sprite", _cmd_equipped_sprite)
 	dev.register_command("world_clock", _cmd_world_clock)
 	dev.register_command("set_time_of_day", _cmd_set_time_of_day)
 	dev.register_command("set_weather", _cmd_set_weather)
@@ -433,6 +434,88 @@ func _cmd_player_state(_args: Dictionary) -> Dictionary:
 			"selected_item": selected.item.name if selected and selected.item else "",
 			"selected_count": selected.count if selected else 0,
 		},
+	}
+
+
+## The tool the player is drawn holding, next to the tool they are actually holding.
+##
+## Two things decide the held sprite and they can disagree: main.tscn authors a texture
+## onto Gather and Attack/Sprite, and PlayerManager.show_slot_data() overwrites it from
+## the equipped item. Nothing drove that overwrite at boot, so a new game showed the
+## authored iron pickaxe over the wooden one in slot 1 (gather-g92).
+##
+## `get-state` cannot see this: a Sprite2D's `texture` serialises as an opaque
+## `<AtlasTexture#-92233719...>` object id, so the region — the only part that says
+## *which* tool — never crosses the bus. That is what this verb is for. `matches` is the
+## whole answer; the regions are there so a mismatch says which tool is on screen.
+func _cmd_equipped_sprite(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player in the scene", "data": {}}
+
+	var selected = player.hot_bar_inventory.selected_slot_data
+	var item = selected.item if selected else null
+
+	# The sprite the equipped item would drive, so "matches" compares like with like: a
+	# sword never touches Gather and a pickaxe never touches Attack/Sprite.
+	var drawn: Sprite2D = null
+	if item is GameItemPickaxe:
+		drawn = player.gather
+	elif item is GameItemSword:
+		drawn = player.attack_sprite
+
+	return {
+		"success": true,
+		"message": "ok",
+		"data": {
+			"selected_slot": player.hot_bar_inventory.selected_index,
+			"selected_item": item.name if item else "",
+			"gather_region": _region_of(player.gather),
+			"attack_region": _region_of(player.attack_sprite),
+			"item_region": _region_of_texture(item.get_atlas()) if item else null,
+			# Null rather than false when the equipped item drives neither sprite — a
+			# placeable or a consumable is not a mismatch, it is not in the comparison.
+			"matches": (_region_of(drawn) == _region_of_texture(item.get_atlas())) if drawn else null,
+		},
+	}
+
+
+## A sprite's atlas region as plain numbers, or null if it has no AtlasTexture.
+func _region_of(sprite: Sprite2D):
+	if sprite == null:
+		return null
+	return _region_of_texture(sprite.texture)
+
+
+## An AtlasTexture flattened to the source image and the absolute rectangle on it.
+##
+## Both halves are needed and neither alone is enough. Three sheets are in play
+## (GameItem.SOURCE_ATLASES) and the generated ore sheet reuses coordinates the
+## hand-drawn one also has, so comparing rectangles alone can call two different
+## pictures equal. But comparing the *wrapper* instead is too strict in the other
+## direction: main.tscn authors its textures directly over `tiles.png` while
+## `GameItem.get_atlas()` goes through `game_items_atlas.tres` — an AtlasTexture whose
+## own atlas is that same png — so the identical picture arrives under two resource
+## paths depending only on which code last wrote it.
+##
+## Unwrapping to the base image settles both. All three .tres wrappers are zero-offset
+## over the whole sheet, but the offset is composed rather than assumed, so a future
+## wrapper that crops does not silently shift every answer.
+func _region_of_texture(texture):
+	var atlas := texture as AtlasTexture
+	if atlas == null:
+		return null
+
+	var rect := atlas.region
+	var base: Texture2D = atlas.atlas
+	# `while`, not `if`: the wrappers nest one deep today and nothing enforces that.
+	while base is AtlasTexture:
+		rect.position += (base as AtlasTexture).region.position
+		base = (base as AtlasTexture).atlas
+
+	return {
+		"x": rect.position.x, "y": rect.position.y, "w": rect.size.x, "h": rect.size.y,
+		"sheet": base.resource_path if base else "",
 	}
 
 

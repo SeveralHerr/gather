@@ -50,7 +50,11 @@ const STONE_BUILD_SOURCE_ID := 11
 
 ## Scenes-collection source id of the berry bush. A scene tile is keyed by its source, so the
 ## bush needs one of its own even though its art is on the shared sheet — see the tileset.
-const BERRY_BUSH_SOURCE_ID := 14
+##
+## 15 rather than 14 because the ground-decoration atlas took 14 first. Source ids are the
+## persistence key for every placed cell, so the rule is append-only and first-come: the
+## number a shipped build has already written into saves is not available to renumber.
+const BERRY_BUSH_SOURCE_ID := 15
 
 ## Icon sheet per tileset source. Everything hand-drawn lives on one sheet; the
 ## generated placeholder ores are on a second one (tools/generate_placeholder_art.gd)
