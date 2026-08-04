@@ -50,6 +50,18 @@ const BANDAGE := Color(0.95, 0.94, 0.90)
 const COOKED := Color(0.78, 0.47, 0.26)
 const BRICK := Color(0.70, 0.42, 0.34)
 
+## The charged skull (gather-8ft). A cold electric blue, chosen to sit as far from BONE above
+## as the sheet allows: the charged skull and the ordinary bone drop are the same silhouette,
+## so colour is the ONLY thing distinguishing them in a hotbar slot, and "slightly bluer bone"
+## would not survive being seen at 16px through a night tint.
+const CHARGED := Color(0.35, 0.72, 1.0)
+
+## The arc colours drawn over that skull. The core is near-white because electricity reads as
+## white-hot with a coloured halo, not as a bright version of its own colour — an arc drawn in
+## CHARGED alone disappears into the skull it is supposed to be crackling over.
+const ARC_CORE := Color(0.88, 0.97, 1.0)
+const ARC_GLOW := Color(0.40, 0.78, 1.0)
+
 ## Recolours are luminance-driven, so the original tile's shading survives. The
 ## gain lifts midtones back up after the tint multiply, which otherwise reads as
 ## a uniformly muddy silhouette.
@@ -91,7 +103,15 @@ const RECOLOURS := [
 	{"from": Vector2i(16, 1), "to": Vector2i(3, 1), "tint": BANDAGE, "what": "bandage"},
 	{"from": Vector2i(15, 0), "to": Vector2i(4, 1), "tint": COOKED, "what": "cooked food"},
 	{"from": Vector2i(1, 2), "to": Vector2i(5, 1), "tint": BRICK, "what": "stone brick"},
+
+	# The charged skull (gather-8ft), on the free row 0. Recoloured from the captured
+	# bone-enemy icon rather than the plain Bone drop, because that cell is a SKULL and the
+	# item is a skull - the player should recognise what fell out of the skeleton.
+	{"from": Vector2i(14, 0), "to": Vector2i(0, 0), "tint": CHARGED, "what": "charged skull"},
 ]
+
+## Where the charged skull lands, and where the arcs are drawn over it.
+const CHARGED_SKULL_CELL := Vector2i(0, 0)
 
 ## The coin has no plausible ancestor on the sheet, so it is drawn rather than
 ## recoloured.
@@ -118,6 +138,11 @@ func _init() -> void:
 	_draw_coin(sheet, COIN_CELL)
 	print("  gold coin  (drawn) -> %s" % COIN_CELL)
 
+	# After the recolour loop, deliberately: the arcs are drawn ON TOP of the blue skull that
+	# entry produced, so ordering here is what makes them visible at all.
+	_draw_arcs(sheet, CHARGED_SKULL_CELL)
+	print("  charged skull arcs  (drawn) -> %s" % CHARGED_SKULL_CELL)
+
 	var error := sheet.save_png(ProjectSettings.globalize_path(OUTPUT_SHEET))
 	if error != OK:
 		printerr("[generate_placeholder_art] save_png failed: %d" % error)
@@ -129,6 +154,41 @@ func _init() -> void:
 	])
 	print("[generate_placeholder_art] now run: godot --headless --path . --import")
 	quit(0)
+
+
+## Electricity crackling around the charged skull.
+##
+## The arcs are hand-placed pixel runs rather than a procedural bolt, and at this size that is
+## not laziness. A 16x16 cell is about four pixels of clearance around the skull; a random
+## walk through that space produces either a straight line or mush, and it produces a
+## DIFFERENT one every time the sheet is regenerated, so a committed asset would change under
+## a rerun that was meant to be a no-op.
+##
+## Two arcs, opposite corners, so the skull reads as being between them rather than as having
+## something stuck to one side. Each is a zigzag: the core in near-white with ARC_GLOW shed
+## one pixel below-left, which is the cheapest thing that reads as a glow without a blur.
+const ARCS := [
+	[Vector2i(2, 1), Vector2i(3, 2), Vector2i(2, 3), Vector2i(3, 4), Vector2i(2, 5)],
+	[Vector2i(13, 10), Vector2i(12, 11), Vector2i(13, 12), Vector2i(12, 13), Vector2i(13, 14)],
+]
+
+
+func _draw_arcs(sheet: Image, cell: Vector2i) -> void:
+	# Both loops bind through a typed local. Iterating an untyped Array yields Variant, and
+	# `var glow := point + Vector2i(...)` is a PARSE error on it rather than a runtime one —
+	# the same inference trap CLAUDE.md documents for the test runner's `_T`.
+	for arc in ARCS:
+		for point in arc:
+			# The glow goes down first so the core overwrites it wherever the two collide -
+			# an arc whose own halo is drawn over its centre reads as a smudge, not a spark.
+			var at: Vector2i = point
+			var glow := at + Vector2i(-1, 1)
+			if glow.x >= 0 and glow.y < CELL:
+				sheet.set_pixel(cell.x * CELL + glow.x, cell.y * CELL + glow.y, ARC_GLOW)
+	for arc in ARCS:
+		for point in arc:
+			var at: Vector2i = point
+			sheet.set_pixel(cell.x * CELL + at.x, cell.y * CELL + at.y, ARC_CORE)
 
 
 func _recolour_cell(source: Image, sheet: Image, from: Vector2i, to: Vector2i, tint: Color) -> void:

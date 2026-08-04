@@ -47,6 +47,44 @@ var is_lunging = false
 var anticipation_time = 0.5
 var lunge_time = 1
 
+## The blue a charged skeleton wears (gather-8ft).
+##
+## Applied to the sprite's `modulate`, NOT to the node's — the node carries the hit flash and
+## the death fade, and a charged skeleton that stopped flashing white when hit would read as
+## invulnerable. Per-item modulate multiplies, so the flash still lands on top of the blue.
+##
+## Kept above 1.0 on blue rather than below 1.0 on red and green, because the world is
+## already multiplied by NIGHT_TINT and a storm on top of that: darkening a darkened sprite
+## puts it under the readability floor the day/night section of CLAUDE.md sets, and the one
+## time a player meets one of these is at night in the rain.
+const CHARGED_TINT := Color(0.55, 0.85, 1.6)
+
+## Whether lightning has struck this one. Persisted: a charged skeleton that reloaded as an
+## ordinary one would take the skull with it, and nothing would report the loss.
+var is_charged := false
+
+
+## Marks this enemy as lightning-struck and turns it blue.
+##
+## Idempotent on purpose. A second bolt landing on an already-charged skeleton is a normal
+## thing for the spawner's roll to produce, and it must not stack a second tint multiply or
+## queue a second skull.
+func make_charged() -> void:
+	if is_charged:
+		return
+	is_charged = true
+	_apply_charged_tint()
+
+
+## Split from make_charged because the load path needs the colour without the guard: a
+## restored enemy already has is_charged set from the save, so make_charged would early-out
+## and leave it the wrong colour — visibly ordinary, but still dropping a skull.
+func _apply_charged_tint() -> void:
+	var s := _sprite()
+	if s != null:
+		s.modulate = CHARGED_TINT
+
+
 func _ready():
 	add_to_group("SaveLoad")
 	# Its own group, so nothing has to find enemies by filtering the save system's
@@ -55,6 +93,15 @@ func _ready():
 	add_to_group("Enemy")
 	if animated_sprite_2d:
 		animated_sprite_2d.play("Idle")
+
+	# The sprite only exists once the scene is instanced, and the loader sets `is_charged`
+	# before add_child for the same reason it sets `max_health` there — so the colour has to
+	# be (re)applied here rather than at the moment the flag was written. A restored charged
+	# skeleton that came back grey would still drop its skull, which is the worst version of
+	# this bug: the reward is intact and the warning that earns it is missing.
+	if is_charged:
+		_apply_charged_tint()
+
 	los_area_2d.connect("body_entered", Callable(self, "_on_body_entered"))
 	los_area_2d.connect("body_exited", Callable(self, "_on_body_exited"))
 	
@@ -126,6 +173,30 @@ func drop_loot() -> void:
 			push_warning("Enemy: '%s' loot table names unregistered item %s" % [type, item_type])
 			continue
 		PickUpManager.create_pickup(item, position)
+
+	_drop_charged_skull()
+
+
+## The skull is guaranteed rather than rolled, and it is deliberately NOT in the registry's
+## loot table.
+##
+## The table is keyed on type, and a charged skeleton is still a "Bone" — putting the skull
+## there would pay one out for every skeleton in the game. Being charged is already the rare
+## event (EnemySpawner.CHARGE_CHANCE on a near bolt only); rolling a second chance on top
+## would mean a player watches the one blue skeleton they have seen all night die and get
+## nothing, with no way to tell that from a bug.
+func _drop_charged_skull() -> void:
+	if not is_charged:
+		return
+
+	var skull := items.get_item(Types.Item.ChargedSkull)
+	if skull == null:
+		# get_item is not total over Types.Item, and this runs on the death path where a raise
+		# would abort the rest of the payout silently. Warn and drop the rest of the loot.
+		push_warning("Enemy: ChargedSkull is not registered, a charged kill paid nothing")
+		return
+
+	PickUpManager.create_pickup(skull, position)
 
 
 func drop_coins() -> void:

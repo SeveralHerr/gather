@@ -313,6 +313,52 @@ side. A later reader who reads the `if` as a missed `while` should read this par
 load takes a bolt off the player who saved eighteen seconds into a nineteen-second gap, and
 nothing reports that.
 
+**Rarely, a bolt lands on a skeleton and charges it** (`gather-8ft`). That is the one place the
+weather reaches into the combat loop, and the chain it starts is the reason the storm is worth
+standing out in:
+
+```
+WorldClock.lightning_struck(distance)
+  -> EnemySpawner.should_charge(distance, randf())     # CHARGE_CHANCE 0.08, near bolts only
+  -> Enemy.make_charged()                              # blue, and it stays blue
+  -> on death: one guaranteed ChargedSkull
+  -> GameItemChargedSkull.use()                        # fitted onto a worker or a turret
+  -> BoneWorker: 20s chop -> 10s      BoneTurret: 1.0s fire -> 0.55s, +2 bullet damage
+```
+
+Four things here are load-bearing and easy to undo:
+
+- **The skull is guaranteed on death and deliberately NOT in `EnemyRegistry`'s loot table.**
+  That table is keyed on type and a charged skeleton is still a `Bone`, so putting it there
+  pays one out for every skeleton in the game. Being charged is already the rare event;
+  rolling a second chance on top means a player watches the only blue skeleton they have seen
+  all night die and get nothing, with no way to tell that from a bug.
+- **Only `EnemyRegistry.BONE` charges.** Not spiders — the reward is a *skull* — and not the
+  elite, which is a bone enemy underneath but is the boss island's placed guard.
+- **The blue goes on the SPRITE's `modulate`, never the enemy's own.** The node's modulate
+  carries the hit flash and the death fade; a charged skeleton that stopped flashing white
+  when struck would read as invulnerable. Per-item modulate multiplies, so the flash still
+  lands on top of the blue. Verified at runtime: sprite `(0.55, 0.85, 1.6)`, node `(1, 1, 1)`.
+- **`_apply_charged_tint()` is split from `make_charged()` because the load path needs the
+  colour without the guard.** A restored enemy already has `is_charged` set from the save, so
+  `make_charged` early-outs; without the split it comes back grey and still drops its skull,
+  which is the worst version of the bug — the reward intact and the warning that earns it
+  gone.
+
+`BoneTurret` captures `_base_fire_interval` in `_ready` and always multiplies *that*, never the
+live `wait_time`. `Timer.start()` assigns `wait_time`, so deriving the charged interval from
+the current one compounds on every call — the `gather-9x0` furnace bug in a new place, and the
+reason `make_charged` is idempotent in effect as well as in its guard. Measured: still `0.55`
+after four calls, not `0.55^4`.
+
+The devtools verbs are `charge_skeleton` (forces one, bypassing both the roll and the distance
+gate, and reports honestly when there was no uncharged skeleton to hit) and `charged_state`,
+which counts charged enemies, workers and turrets in one read and lists `ground_drops` by item
+name. That last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state`
+reports it as an opaque object id, so "did the charged kill actually drop a skull" was
+otherwise unanswerable without walking the player over it — which conflates the drop with the
+pickup radius.
+
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
 campfire) has to be distance-culled against the same budget.

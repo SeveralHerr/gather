@@ -74,6 +74,62 @@ var loaded: bool = false
 ## the better way to clear a node.
 const CHOP_SECONDS := 20.0
 
+## What a charged skull does to that cadence (gather-8ft).
+##
+## 0.5 halves the 20s chop to 10s. The multiplier is deliberately large enough to be worth
+## crossing a stormy island for: CHOP_SECONDS is set high on purpose (see the comment above -
+## hand-gathering is meant to beat automation), so a 10% nudge would be a reward the player
+## could not detect without a stopwatch, which is the same dead-content failure the Cooked
+## Food repricing fixed.
+##
+## It stays a multiplier rather than a second absolute number so the two cannot drift: retune
+## CHOP_SECONDS and the charged worker moves with it.
+const CHARGED_CHOP_MULTIPLIER := 0.5
+
+## The blue a charged machine wears. Shared in spirit with Enemy.CHARGED_TINT and kept above
+## 1.0 on blue for the same reason: this is read at night, in rain, under a tint that is
+## already multiplying everything down.
+const CHARGED_TINT := Color(0.55, 0.85, 1.6)
+
+## Whether a charged skull has been fitted. Persisted - it is a permanent upgrade the player
+## paid a rare drop for, and a reload that quietly returned the machine to stock would be
+## exactly the "load succeeds and hands back less" failure the save-fidelity section names.
+var charged := false
+
+
+## Seconds for one chop, given whether a skull is fitted.
+##
+## A method rather than a variable because work_timer.start() is called from two places, and
+## a stored value would have to be recomputed at both of them. Static so the arithmetic is
+## testable without a worker, a tree or a timer.
+static func chop_seconds_for(is_charged: bool) -> float:
+	return CHOP_SECONDS * CHARGED_CHOP_MULTIPLIER if is_charged else CHOP_SECONDS
+
+
+## Fits a skull. Idempotent, like set_loaded above and for the same reason: the item is
+## consumed by the inventory around this call, so charging twice would spend two skulls for
+## one upgrade.
+func make_charged() -> void:
+	if charged:
+		return
+	charged = true
+	_apply_charged_look()
+
+	# The cadence has to be re-armed, not just recorded. work_timer is already counting down
+	# from the SLOW interval; leaving it be means the upgrade the player just paid for does
+	# not take effect until the current chop finishes, which at 20s is long enough to read as
+	# the skull having done nothing.
+	work_timer.start(chop_seconds_for(charged))
+
+
+## The blue, plus the crackle. Split out because the load path needs it without the guard in
+## make_charged - a restored worker already has `charged` set and would early-out.
+func _apply_charged_look() -> void:
+	for sprite in [unloaded_sprite, loaded_sprite]:
+		if sprite != null:
+			sprite.modulate = CHARGED_TINT
+	_set_spark_emitting(true)
+
 ## Only used if the scene's WorkArea ever loses its CircleShape2D. The authored shape is the
 ## source of truth for reach, so the collision shape and the search radius cannot drift.
 const DEFAULT_REACH := 40.0
@@ -197,8 +253,11 @@ func _ready() -> void:
 	# WorkTimer is authored with neither autostart nor a wait_time, so this is the only place
 	# the cadence is set. It used to carry 3.0 and autostart, which start() silently overrode
 	# — two numbers for one thing, and the one you would find first was the dead one.
-	work_timer.start(CHOP_SECONDS)
+	work_timer.start(chop_seconds_for(charged))
 	_refresh_sprites()
+	_build_sparks()
+	if charged:
+		_apply_charged_look()
 
 
 ## Swap to the assembled unit. Idempotent: loading an already-loaded worker is a no-op
@@ -232,6 +291,55 @@ func _refresh_sprites() -> void:
 	_update_carry_visual()
 	if not loaded:
 		_set_working(false)
+
+
+## The crackle over a charged worker.
+##
+## CPUParticles2D rather than GPUParticles2D on purpose: project.godot runs gl_compatibility
+## on mobile, and the same renderer note that caps Light2D counts (see SkyLighting) makes GPU
+## particles the less portable of the two for something this small. Sixteen sparks is not
+## work worth moving to the GPU anyway.
+##
+## Built once in _ready and left emitting=false, rather than created when the skull is
+## fitted: a node added mid-frame to a StaticBody2D that the tilemap may be re-parenting is
+## how the worker ends up with two of them after a load.
+var _sparks: CPUParticles2D
+
+
+func _build_sparks() -> void:
+	if is_instance_valid(_sparks):
+		return
+
+	_sparks = CPUParticles2D.new()
+	_sparks.name = "Sparks"
+	_sparks.emitting = false
+	_sparks.amount = 16
+	_sparks.lifetime = 0.45
+	_sparks.explosiveness = 0.0
+	# A small box around the body rather than a point, so the sparks look like they are coming
+	# off the whole machine instead of leaking from its centre.
+	_sparks.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	_sparks.emission_rect_extents = Vector2(5, 7)
+	_sparks.direction = Vector2(0, -1)
+	_sparks.spread = 180.0
+	_sparks.gravity = Vector2.ZERO
+	_sparks.initial_velocity_min = 4.0
+	_sparks.initial_velocity_max = 14.0
+	_sparks.scale_amount_min = 0.5
+	_sparks.scale_amount_max = 1.0
+	# Near-white core fading to the blue, the same reasoning as the item icon's arcs: an
+	# electric spark reads as white-hot with a coloured halo, not as a bright blue dot.
+	_sparks.color = Color(0.88, 0.97, 1.0)
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.88, 0.97, 1.0, 1.0))
+	ramp.set_color(1, Color(0.35, 0.72, 1.0, 0.0))
+	_sparks.color_ramp = ramp
+	add_child(_sparks)
+
+
+func _set_spark_emitting(on: bool) -> void:
+	if is_instance_valid(_sparks):
+		_sparks.emitting = on
 
 
 ## The think tick. Movement happens every frame in _physics_process; this only ever decides
@@ -325,7 +433,7 @@ func _on_arrived() -> void:
 			_state = State.CHOPPING
 			_swing_accum = 0.0
 			_set_working(true)
-			work_timer.start(CHOP_SECONDS)
+			work_timer.start(chop_seconds_for(charged))
 		State.TO_CHEST:
 			_deposit_carry()
 		State.RETURNING, State.WANDER:
@@ -871,7 +979,10 @@ func save() -> Dictionary:
 		# would point through cells that have changed. Coming back IDLE and holding the
 		# right amount lets the normal logic re-plan against the world that actually
 		# loaded, which is both simpler and correct.
-		"data": {"loaded": loaded, "carry": _carry},
+		# `charged` rides in the same data dict. It is configuration in the sense that it never
+		# changes once set, but it is not derivable from anything else in the save - the skull
+		# that paid for it is long gone - so it has to be written.
+		"data": {"loaded": loaded, "carry": _carry, "charged": charged},
 		# See SaveLoad.CHUNK_KIND (gather-34n).
 		SaveLoad.CHUNK_KIND: SaveLoad.chunk_kind_of(self),
 		"filepath": "343",
@@ -898,6 +1009,12 @@ func load(dict) -> void:
 
 	if typeof(data.get("loaded")) == TYPE_BOOL and data["loaded"]:
 		set_loaded()
+
+	# typeof rather than `== true`, for the reason the doc comment above spells out: a String
+	# here would RAISE on comparison and abort the rest of the load. A save from before
+	# charged skulls existed has no key and reads as an ordinary worker.
+	if typeof(data.get("charged")) == TYPE_BOOL and data["charged"]:
+		make_charged()
 
 	# Saves predating gather-z3o carry no key, which reads as 0 — the old behaviour, and
 	# correct for them. Clamped because the value came off disk: a negative carry would

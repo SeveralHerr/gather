@@ -65,5 +65,10 @@ enum Item {
 	# is the node standing in the world AND the item an uprooted one becomes, so a bush can be
 	# carried and replanted; Berry is what picking it yields. Appended, like everything above.
 	BerryBush,
-	Berry
+	Berry,
+
+	# What a lightning-struck skeleton leaves behind (gather-8ft). Appended, like everything
+	# above: the enum's ordinals are the ids in every save file, so inserting rather than
+	# appending renames every item after the insertion point in every existing save.
+	ChargedSkull
 }

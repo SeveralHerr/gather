@@ -4811,3 +4811,61 @@ Guidelines that make an entry useful later:
 - Gap: **the harness cannot report that it is absent** (G-113, third hit this session).
   - [G-113] status: open | seen: 3 | harness: 0.8.0
 
+
+## 2026-08-04 — Charged skeletons: lightning-struck skulls that upgrade workers and turrets (gather-8ft)
+
+- Value: **warranted** — runtime found a real defect in my own test method, and settled four
+  claims the suite structurally cannot reach.
+  - Expected: the unit tests to cover the arithmetic and the save payload, and runtime to be a
+    formality confirming the blue actually lands on a sprite.
+  - Got: four things. (1) The **mutation check exposed a test with no teeth**, and it is the
+    `gather-1t9` failure in the wild: replacing the `typeof` guard in
+    `normalize_enemy_entry` with `raw.get("charged") == true` left the file reporting
+    `Total: 540 | Passed: 11 | Failed: 0` with **two SCRIPT ERRORs on stderr and nothing
+    else** — the raise aborted the static, `-> Dictionary` returned an empty one, reading the
+    missing key aborted my test too, and a `-> String` abort returns `""` and counts as a
+    pass. Adding `assert_true(restored.has("charged"))` first turns it into a real
+    `exit 1 / [FAIL]`. (2) The tint lands on the right node: sprite `(0.55, 0.85, 1.6)`,
+    enemy node `(1.0, 1.0, 1.0)` — so a charged skeleton still flashes white when hit.
+    (3) The whole drop chain, as data: `ground_drops` went from `[]` to
+    `['String', 'Gold Coin', 'Bone', 'Charged Skull', 'Gold Coin']`. (4) Both upgrades and
+    their idempotency: worker `20.0 -> 10.0`, turret `1.0 -> 0.55`, and **still `0.55` after
+    four `make_charged` calls** rather than `0.55^4`, which is the `Timer.start()`-assigns-
+    `wait_time` trap that `_base_fire_interval` exists to avoid.
+  - Cheaper: for the arithmetic, yes — `chop_seconds_for` is a static and the tests are 4s.
+    For nothing else here. No headless test in this project can observe a sprite's modulate,
+    a CPUParticles2D emitting, or a Timer's live `wait_time` after a load.
+
+- Note, not a gap: I twice asserted against **the wrong node**, and both times the harness
+  gave me the evidence to catch it rather than a false pass. First a reload left two enemies
+  in the tree — `Enemy` (freshly spawned, white) and `@CharacterBody2D@292` (restored,
+  charged) — and reading the stable-looking path said the restore had failed when it had not.
+  Then `run-method _on_died` on the first auto-named body killed a **spider**, which
+  `ground_drops` reported as `['String', 'Gold Coin']` — String is spider loot, and that one
+  word is the only reason I did not record "the skull does not drop" as a finding. The lesson
+  is narrow and worth keeping: after a load, an auto-named node is the restored one and the
+  human-readable name is usually something else. Enumerate and check a property, never trust
+  a path that looks right.
+
+- Gap: **`get-state` cannot see into a `Resource`-typed property, which makes the most common
+  "what is on the ground / in this slot" question unanswerable.** `get-state --node
+  .../PickUps/PickUp --property slot_data` returns
+  `slot_data: ():<Resource#-9223371682201202966>`, and the same for the sprite's
+  `texture: ():<AtlasTexture#...>`. Every inventory slot, every pickup and every AtlasTexture
+  in this project is behind that wall. Workaround: I added a project verb
+  (`charged_state` -> `ground_drops`) that walks the pickups and reports `slot_data.item.name`
+  — which works, but it is a bespoke verb per Resource-shaped question, and the generic
+  primitive should not need one.
+  - [G-117] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let `--property` take a dotted path (`--property slot_data.item.name`), or
+    have `get-state` expand a Resource one level into its script variables instead of
+    printing an object id. One level would have answered this without a new verb.
+
+- Gap: **`step-time` caps at 60s, and the cap is not discoverable before you hit it.**
+  `step-time --seconds 90` returned `Failed: step_time refuses 90.000s; the maximum is 60.0s`.
+  The message is good; the problem is that spawning enough enemies to test against needs
+  minutes of game time, so this is two or three calls where the caller thinks in one. Not
+  a bug — the bus serves one command at a time and a long block would look like a hang.
+  - [G-118] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: mention the 60s ceiling in the `step-time` row of the CLAUDE.md
+    cheat-sheet, so it is read before it is discovered.

@@ -68,6 +68,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("set_weather", _cmd_set_weather)
 	dev.register_command("strike_lightning", _cmd_strike_lightning)
 	dev.register_command("berry_bushes", _cmd_berry_bushes)
+	dev.register_command("charge_skeleton", _cmd_charge_skeleton)
+	dev.register_command("charged_state", _cmd_charged_state)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -3101,3 +3103,106 @@ func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
 			"bushes": bushes,
 		},
 	}
+
+
+## Forces a bolt onto a skeleton, bypassing both the rarity roll and the distance gate.
+##
+## Those two exist to make this rare in play (EnemySpawner.CHARGE_CHANCE is 0.08 on near bolts
+## only), which is exactly what makes it untestable by waiting: a storm would have to run for
+## minutes to produce one, and it might not. This reaches the state the game reaches, it just
+## does not make you earn it.
+##
+## Deliberately does NOT start a storm first, unlike strike_lightning. A charged skeleton is a
+## lasting property of an enemy rather than one frame of weather, so there is no half-applied
+## state to avoid here — and forcing rain would change the spawn cadence and the tint under a
+## caller who only asked about skeletons.
+func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
+	var spawner := _enemy_spawner()
+	if spawner == null:
+		return {"success": false, "message": "no EnemySpawner in the scene", "data": {}}
+
+	var struck: Enemy = spawner.charge_random_skeleton()
+	if struck == null:
+		# The honest answer, and a distinct one from success: "there were no uncharged
+		# skeletons" and "it worked" are different worlds, and a verb that returned ok for
+		# both would send the caller looking in sky_lighting.gd for a bug in the spawner.
+		return {
+			"success": false,
+			"message": "no live uncharged skeleton to strike",
+			"data": _charged_census(),
+		}
+
+	var data := _charged_census()
+	data["struck_at"] = {"x": struck.global_position.x, "y": struck.global_position.y}
+	return {
+		"success": true,
+		"message": "charged a skeleton at (%.0f, %.0f)" % [struck.global_position.x, struck.global_position.y],
+		"data": data,
+	}
+
+
+## Who is charged right now — enemies, workers and turrets in one read.
+##
+## The three live in different parts of the tree and are charged by different paths (a bolt, a
+## skull fitted by hand), so a caller checking whether the chain works end to end would
+## otherwise need three calls and have to know where each of them lives.
+func _cmd_charged_state(_args: Dictionary) -> Dictionary:
+	return {"success": true, "message": "ok", "data": _charged_census()}
+
+
+func _charged_census() -> Dictionary:
+	var tree := _dev.get_tree()
+	var skeletons := 0
+	var charged_skeletons := 0
+	for node in tree.get_nodes_in_group("Enemy"):
+		if node is Enemy and node.type == EnemyRegistry.BONE:
+			skeletons += 1
+			if node.is_charged:
+				charged_skeletons += 1
+
+	var workers := 0
+	var charged_workers := 0
+	var turrets := 0
+	var charged_turrets := 0
+	for node in tree.get_nodes_in_group("SaveChunks"):
+		if node is BoneWorker:
+			workers += 1
+			if node.charged:
+				charged_workers += 1
+		elif node is BoneTurret:
+			turrets += 1
+			if node.charged:
+				charged_turrets += 1
+
+	return {
+		"skeletons": skeletons,
+		"charged_skeletons": charged_skeletons,
+		"workers": workers,
+		"charged_workers": charged_workers,
+		"turrets": turrets,
+		"charged_turrets": charged_turrets,
+		# The tuning, echoed so a caller reading a surprising rate does not have to open the
+		# spawner to find out what rate to expect.
+		"charge_chance": EnemySpawner.CHARGE_CHANCE,
+		"charge_max_distance": EnemySpawner.CHARGE_MAX_DISTANCE,
+		"charged_chop_seconds": BoneWorker.chop_seconds_for(true),
+		"plain_chop_seconds": BoneWorker.chop_seconds_for(false),
+		# What is lying on the ground, by item name. A PickUp's `slot_data` is a Resource and
+		# `get-state` reports it as an opaque object id, so there is otherwise no way to answer
+		# "did the charged kill actually drop a skull" short of walking the player over it and
+		# reading the inventory - which conflates the drop with the pickup radius.
+		"ground_drops": _ground_drop_names(),
+	}
+
+
+func _ground_drop_names() -> Array:
+	var names: Array = []
+	var pickups := _dev.get_tree().root.get_node_or_null(PickUpManager.PICKUPS_PATH)
+	if pickups == null:
+		return names
+	for node in pickups.get_children():
+		var slot = node.get("slot_data")
+		if slot == null or slot.item == null:
+			continue
+		names.append(slot.item.name)
+	return names

@@ -33,6 +33,21 @@ const SPAWN_INTERVAL := 21.0
 const SPAWN_JITTER := 5.0
 const MIN_INTERVAL := 0.5
 
+## How often a bolt that lands near the player also lands ON a skeleton (gather-8ft).
+##
+## Deliberately small. The charged skull is the best upgrade a worker or a turret can get and
+## it costs nothing but being outside in a storm, so the price is rarity — a storm is roughly
+## LIGHTNING_MIN_GAP..MAX apart per bolt, and at 8% a player stands in a long storm and sees
+## maybe one. Raising this does not make the game more generous so much as it makes the blue
+## skeleton ordinary, and the whole effect is that it is not.
+const CHARGE_CHANCE := 0.08
+
+## How close a bolt has to be to hit anything. WorldClock's `distance` is 0.0 overhead to 1.0
+## at the horizon, so this keeps strikes to bolts that flashed brightly and cracked almost at
+## once — the ones the player actually saw land. A skeleton charging on a distant rumble is
+## an event with no visible cause, which reads as a bug rather than as luck.
+const CHARGE_MAX_DISTANCE := 0.35
+
 ## Live enemies allowed per plain-grass tile, and the bounds the density is
 ## clamped into. The floor keeps the opening island from being empty; the ceiling
 ## is the old MAX_LIVE_ENEMIES, and exists because enemies that are never killed
@@ -79,6 +94,46 @@ func _ready() -> void:
 	timer.one_shot = false
 	timer.start(next_interval())
 
+	# Connected here rather than polled, because a bolt IS an event — unlike the tint, which
+	# changes every frame of a twilight and is why SkyLighting polls instead. WorldClock
+	# registers its group in _enter_tree precisely so a consumer can find it from _ready
+	# regardless of tree order (see the long comment on WorldClock._enter_tree; the resource
+	# respawn timer connecting from _ready is the bug that lesson came from).
+	var clock := _clock()
+	if clock != null and not clock.lightning_struck.is_connected(_on_lightning_struck):
+		clock.lightning_struck.connect(_on_lightning_struck)
+
+
+## A bolt landed. Rarely, and only if it was close, it landed on a skeleton.
+##
+## Spiders are deliberately excluded rather than merely unlikely: the reward is a SKULL, and a
+## charged spider dropping one would be the kind of detail that reads as a copy-paste rather
+## than as a rule. EnemyRegistry.BONE is the test, so the elite — which is a bone enemy
+## underneath but is the boss island's guard — is excluded too.
+func _on_lightning_struck(distance: float) -> void:
+	if not should_charge(distance, randf()):
+		return
+	charge_random_skeleton()
+
+
+## Charges one live, uncharged skeleton and returns it, or null if there were none.
+##
+## Public and returning the enemy so devtools can force the effect and say what it hit — a
+## verb that charged something and reported only "ok" cannot tell "there were no skeletons"
+## apart from "it worked", and those live in different files.
+func charge_random_skeleton() -> Enemy:
+	var candidates: Array[Enemy] = []
+	for child in get_children():
+		if child is Enemy and child.type == EnemyRegistry.BONE and not child.is_charged:
+			candidates.append(child)
+
+	if candidates.is_empty():
+		return null
+
+	var struck: Enemy = candidates[randi() % candidates.size()]
+	struck.make_charged()
+	return struck
+
 
 # --- pure helpers (unit-tested; keep them free of node access) ----------------
 
@@ -97,13 +152,23 @@ static func is_too_close_to_player(spawn_pos: Vector2, player_pos: Vector2) -> b
 	return spawn_pos.distance_to(player_pos) < MIN_SPAWN_DISTANCE
 
 
+## Whether a bolt at `distance` charges a skeleton, given a 0..1 `roll`.
+##
+## Static and roll-injected like jittered_interval above, so the decision is testable without
+## a storm, a skeleton or a SceneTree — the alternative is a test that fires bolts until one
+## happens to connect, which is slow and flaky in exactly the proportion CHARGE_CHANCE is
+## small.
+static func should_charge(distance: float, roll: float) -> bool:
+	return distance <= CHARGE_MAX_DISTANCE and roll < CHARGE_CHANCE
+
+
 ## One enemy's save payload. Deliberately carries no spawner-level state: `wave`
 ## and `wait_time` used to be written here (once per enemy!) and are gone.
 ## `target_is_null` / `attack_target_is_null` keep the original inverted sense so
 ## older saveFiles still read correctly.
 static func enemy_save_entry(
 	hp: int, target_is_null: bool, attack_target_is_null: bool, drop: int, pos: Vector2, type: String,
-	max_hp: int = 10, damage: int = 3
+	max_hp: int = 10, damage: int = 3, charged: bool = false
 ) -> Dictionary:
 	return {
 		"hp": hp,
@@ -118,6 +183,10 @@ static func enemy_save_entry(
 		# tougher back to a stock skeleton.
 		"max_hp": max_hp,
 		"damage": damage,
+		# Being lightning-struck is progress, not configuration: it happened to THIS skeleton
+		# during THIS storm and nothing can re-derive it. A reload that dropped it would take
+		# the skull with it and report nothing (gather-8ft).
+		"charged": charged,
 	}
 
 
@@ -147,6 +216,10 @@ static func normalize_enemy_entry(raw: Dictionary) -> Dictionary:
 		"type": str(raw.get("type", "Bone")),
 		"max_hp": int(raw.get("max_hp", 10)),
 		"damage": int(raw.get("damage", 3)),
+		# typeof rather than `== true`: comparing a String to a bool RAISES in GDScript, and a
+		# raise inside this static aborts the whole entry. Saves written before charged
+		# skeletons existed have no key at all and must read as an ordinary one.
+		"charged": typeof(raw.get("charged", false)) == TYPE_BOOL and raw.get("charged", false),
 	}
 
 
@@ -288,7 +361,8 @@ func saveObject() -> Dictionary:
 					child.position,
 					child.type,
 					child.max_health,
-					child.damage
+					child.damage,
+					child.is_charged
 				)
 			)
 
@@ -316,6 +390,9 @@ func loadObject(loadedDict: Dictionary) -> void:
 		instance.max_health = node["max_hp"]
 		instance.damage = node["damage"]
 		instance.type = node["type"]
+		# Alongside max_health and for the same reason: _ready is what turns these into
+		# something visible, and for `is_charged` that something is the blue tint.
+		instance.is_charged = node["charged"]
 		add_child(instance)
 		instance.position = Vector2(node["x"], node["y"])
 		instance.health_manager.current_health = node["hp"]
