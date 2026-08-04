@@ -139,7 +139,7 @@ func state() -> Dictionary:
 
 
 func clips() -> Array:
-	return ["turrets", "workers"]
+	return ["turrets", "workers", "weather"]
 
 
 ## Starts a clip. Returns immediately — the performance continues as a coroutine, and the
@@ -159,6 +159,8 @@ func start(clip_name: String) -> Dictionary:
 	match clip_name:
 		"workers":
 			_run_worker_clip()
+		"weather":
+			_run_weather_clip()
 		_:
 			_run_turret_clip()
 	return {"success": true, "message": "clip '%s' started" % clip_name, "data": state()}
@@ -954,6 +956,465 @@ func _walk_to(handler: TileMapHandler, player: Player, cell: Vector2i,
 	player.position = target
 	player.velocity = Vector2.ZERO
 	return reached
+
+
+# --- the weather clip -----------------------------------------------------------------
+#
+# One held shot on the player's own coastline while a whole day passes over him: a bright
+# afternoon, a sweep down through dusk into night with the lantern coming up, a storm, three
+# bolts at chosen distances, and then dawn. Nothing is placed, netted or fought. The subject
+# is the sky and everything else in frame is there to be lit by it.
+#
+# Two properties of the feature decide almost every number below.
+#
+# **A CanvasModulate tints exactly one canvas and this game has three**, so SkyLighting writes
+# the world, the sea and the HUD separately (the canvas table in CLAUDE.md, and the header of
+# world/vfx/sky_lighting.gd). The one of those three writes a viewer can actually check is the
+# SEA: land going dark while the water stays daylight blue is precisely the failure that write
+# exists to prevent, and it is what "night" looks like when it is broken. So this clip is
+# staged on a coastline and candidates are scored on how much open water the frame holds — a
+# clip shot inland shows a screen that got dimmer and proves nothing about any of it.
+#
+# **The tint is constant across DAY and constant across NIGHT**; only the two twilights move
+# (WorldClock.tint_for). A clock swept at one rate therefore spends most of its footage on
+# frames pixel-identical to their neighbours. Every sweep here is aimed at a twilight, and the
+# flat stretches either side are either skipped before the recording starts or crossed fast.
+#
+# The clip tells one deliberate lie, flagged at its call site the way `player.invulnerable`
+# and WORKER_CHOP are: the storm's own lightning countdown is parked so that the only bolts
+# are the three the clip chose. See WEATHER_BOLT_HOLD_OFF.
+
+## Where the clock is set before the recording starts.
+##
+## Inside DAY, whose tint is flat DAY_TINT everywhere, so this is visually indistinguishable
+## from noon — but it is only 0.01 of a day (six world-seconds) short of DAY_END, which is
+## where the light actually starts to move. Opening at noon instead would mean either a long
+## sweep across frames that do not change or a jump, and a jump reads as a cut.
+const WEATHER_OPEN_T := 0.59
+
+## Where the nightfall sweep stops. A little past DUSK_END (0.70), where the tint has already
+## settled to flat NIGHT_TINT, so a frame of timing wobble cannot leave the sweep ending
+## halfway down the twilight ramp with the sky still visibly moving under the next beat.
+const WEATHER_NIGHT_T := 0.72
+
+## The two stops of the daybreak sweep: one just short of the midnight wrap, one in full
+## morning. Split because everything between here and 1.0 is flat NIGHT_TINT and everything
+## from 1.0 to DAWN_END (0.10) is the sunrise — one rate across both would spend most of the
+## beat on an unchanging dark screen and then hurry the only part worth filming.
+const WEATHER_PREDAWN_T := 0.99
+const WEATHER_DAWN_T := 0.13
+
+## How long the storm is asked for. The game's own full-length storm, the same number
+## `set_weather` defaults to in devtools_ext — the clip only lives in the first ten seconds of
+## it and then clears it by hand, but asking for a real one means every value the clip puts
+## into the clock is one the clock could have rolled for itself.
+const WEATHER_STORM_SECONDS := WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
+
+## The bolts, in order, as `distance` — 0.0 overhead, 1.0 on the horizon.
+##
+## Far, middle, near, and the order is the point of the beat rather than decoration. That one
+## number drives the flash brightness (SkyLighting.flash_peak_for), the thunder's volume and
+## its pitch (GameSoundManager.play_thunder), so a horizon bolt and an overhead one differ in
+## every channel at once — and showing both is the only way that shared derivation is visible
+## at all. A single bolt would be indistinguishable from a hardcoded flash.
+##
+## Note there is no thunder DELAY to space around: sound_manager.gd plays the crack
+## immediately and says why (a 4.5-second gap in a ten-minute day read as broken audio, not as
+## distance). The gaps below are therefore about the eye recovering, not the ear catching up.
+const WEATHER_BOLTS := [0.92, 0.45, 0.06]
+
+## What `lightning_time_left` is parked at after the storm starts and after every forced bolt.
+##
+## **This is the clip's one lie about a number**, and it is out of the range the game itself
+## can roll (LIGHTNING_MIN_GAP..MAX_GAP is 5..20). The storm beat and the bolt beat run about
+## ten seconds of world time between them, so one or two natural bolts would land inside them
+## — and two strikes closer together than FLASH_DURATION read as one long flicker rather than
+## as two events, which is the artefact WorldClock's own five-second floor exists to avoid. A
+## clip that is *about* the difference between a near bolt and a far one cannot afford a
+## fourth, unchosen one landing on top of either.
+##
+## It is not left behind: the daybreak beat's `set_weather(CLEAR, 0.0)` zeroes this field on
+## its way past, and a clear sky with a disarmed countdown is exactly the invariant WorldClock
+## documents. The clip cannot end with an armed countdown under a dry sky.
+const WEATHER_BOLT_HOLD_OFF := 60.0
+
+## How far out the coastal search will walk from wherever the world put the player.
+const WEATHER_SEARCH := 16
+
+## How far the player paces, in tiles, and therefore how much clear walkable ground the stand
+## needs on either side of it.
+const WEATHER_STEP := 2
+
+## The fraction of the visible frame that should be open sea.
+##
+## About a third: enough that the water is plainly a second thing being lit rather than a
+## strip at the edge, and not so much that the player is standing on a spit with the island he
+## lives on out of shot. It is a target rather than a maximum on purpose — ranking on "most
+## sea" walks the stand out onto the narrowest finger of land the search can find.
+const WEATHER_SEA_TARGET := 0.34
+
+## Below this the frame has no sea worth calling sea, and the clip refuses to shoot rather
+## than filming a screen that merely gets darker. Reachable in a real world: on a maxed island
+## the coastline is 30-odd tiles from the middle, well past WEATHER_SEARCH.
+const WEATHER_SEA_MIN := 0.10
+
+## Beat lengths in seconds. Everything the clip's pacing depends on is here so it can be
+## retimed without reading the choreography. The two walks are not in it — `_walk_to` runs
+## until it arrives, so they add about 0.65s each — which puts the whole performance at
+## roughly 25 seconds between the two marks.
+const WEATHER_BEAT := {
+	"settle": 0.8,
+	"day_hold": 1.6,
+	"nightfall": 3.8,
+	"night_hold": 1.8,
+	"storm_hold": 2.4,
+	"bolt_gap": 2.4,
+	"last_bolt_hold": 1.8,
+	"storm_clearing": 0.9,
+	"predawn": 1.3,
+	"daybreak": 3.8,
+	"dawn_hold": 1.4,
+	"tail": 0.8,
+}
+
+
+func _run_weather_clip() -> void:
+	var handler := _handler()
+	var player := _player()
+	var clock := _clock()
+	if handler == null or player == null:
+		_fail("no TileMapHandler or player in the scene")
+		return
+	if clock == null:
+		_fail("no WorldClock in the scene, so there is no weather to film")
+		return
+
+	var shot = _stage_weather_shot(handler, player, clock)
+	if shot == null:
+		_fail("no coastal stand with at least %d%% sea in frame within %d tiles of the player" % [
+			int(WEATHER_SEA_MIN * 100.0), WEATHER_SEARCH,
+		])
+		return
+
+	# Everything above this line is setup and is expected to be trimmed off the front of the
+	# recording; everything below it is the clip.
+	await _wait(WEATHER_BEAT["settle"])
+	_mark("show_start")
+
+	await _beat_daylight(handler, player, shot)
+	await _beat_nightfall(clock)
+	await _beat_storm(handler, player, clock, shot)
+	await _beat_lightning(clock)
+	await _beat_daybreak(clock)
+
+	_mark("show_end")
+	await _wait(WEATHER_BEAT["tail"])
+
+	_release_all()
+	_beat = "done"
+	_running = false
+
+
+## Beat A — the baseline. Full afternoon light on the water, and the player walking a couple
+## of tiles along his own shoreline so the shot opens on someone rather than on a diorama.
+##
+## The walk runs ALONG the coast rather than towards or away from it, which is what keeps the
+## sea fraction the stand was chosen for from changing under the camera: the camera is a child
+## of the player, so two tiles seaward is two tiles of extra water in every later frame and the
+## staging search's answer would be stale by the time the storm arrived.
+func _beat_daylight(handler: TileMapHandler, player: Player, shot: Dictionary) -> void:
+	_beat = "daylight"
+	_mark("daylight")
+
+	await _walk_to(handler, player, shot["cell"] + shot["axis"] * WEATHER_STEP)
+	await _wait(WEATHER_BEAT["day_hold"])
+
+
+## Beat B — the day runs out. Dusk, then night: the world cools through the warm twilight, the
+## sea follows it down, and the lantern comes up.
+##
+## The player stands still through it on purpose. This is the beat where the only thing moving
+## is the light, and something walking about in it gives the eye somewhere else to be.
+func _beat_nightfall(clock: WorldClock) -> void:
+	_beat = "nightfall"
+	_mark("nightfall")
+
+	await _sweep_clock(clock, WEATHER_NIGHT_T, WEATHER_BEAT["nightfall"])
+	await _wait(WEATHER_BEAT["night_hold"])
+
+
+## Beat C — weather arrives. The rain starts, the tint drops towards the storm floor, and the
+## player steps back off the water's edge.
+##
+## The rain is started BEFORE the walk so the walk reads as a reaction to it. Ordered the other
+## way it is a man wandering back up the beach who is then rained on, which is the same two
+## events and none of the causality.
+func _beat_storm(handler: TileMapHandler, player: Player, clock: WorldClock,
+		shot: Dictionary) -> void:
+	_beat = "storm"
+	_mark("storm")
+
+	clock.set_weather(WorldClock.Weather.RAIN, WEATHER_STORM_SECONDS)
+	# set_weather arms a fresh 5-20s countdown, which would fire inside this beat. See
+	# WEATHER_BOLT_HOLD_OFF: the bolts in this clip are chosen, not rolled.
+	clock.lightning_time_left = WEATHER_BOLT_HOLD_OFF
+
+	await _walk_to(handler, player, shot["cell"])
+	await _wait(WEATHER_BEAT["storm_hold"])
+
+
+## Beat D — the bolts. Three of them, far to near, each given room to flash and rumble out
+## before the next.
+##
+## Fired through `WorldClock.force_lightning`, which is the same entry point the devtools verb
+## and the debug panel use, so the storm-first rule and the arm-before-emit ordering cannot
+## drift from them. The sky is already raining by the time this runs, so nothing here starts a
+## storm — but going through the function that would is what keeps that true if the beats above
+## are ever reordered.
+func _beat_lightning(clock: WorldClock) -> void:
+	_beat = "lightning"
+	_mark("lightning")
+
+	for index in WEATHER_BOLTS.size():
+		clock.force_lightning(WEATHER_BOLTS[index])
+		# Re-parked after every strike, because force_lightning re-arms a real gap on its way
+		# out and a 5-second one lands inside the pause below.
+		clock.lightning_time_left = WEATHER_BOLT_HOLD_OFF
+
+		# No sky.apply() here, deliberately, and the contrast with devtools_ext/commands.gd is
+		# the reason to say so: `strike_lightning` repaints before replying because its caller
+		# may screenshot without ever yielding a frame. A coroutine always yields, and
+		# SkyLighting repaints from _process, so the flash is on screen either way.
+		var last := index == WEATHER_BOLTS.size() - 1
+		await _wait(WEATHER_BEAT["last_bolt_hold"] if last else WEATHER_BEAT["bolt_gap"])
+
+
+## Beat E — the loop closes. The storm blows over in the dark, the clock runs on past midnight,
+## and the sun comes up on the coast the clip opened on.
+##
+## The storm is cleared while it is still fully night, not at sunrise, and the ordering is
+## visual rather than incidental: clearing rain is an instantaneous tint change (`tint_for`
+## simply stops multiplying by RAIN_TINT), and against a dark screen that lands as the cloud
+## breaking, where against a lit one it is a hard pop in the middle of the prettiest frames.
+func _beat_daybreak(clock: WorldClock) -> void:
+	_beat = "daybreak"
+	_mark("daybreak")
+
+	clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+	await _wait(WEATHER_BEAT["storm_clearing"])
+
+	# This sweep crosses midnight, and a day boundary is where WorldClock rolls fresh weather —
+	# RAIN_CHANCE is 0.25, so one take in four would otherwise close on a storm arriving over
+	# the sunrise. The clip declines exactly that one roll and hands the sky straight back
+	# afterwards. Re-entrancy is fine: the cancel below emits weather_changed(CLEAR), which this
+	# same handler ignores.
+	var decline := func(weather: WorldClock.Weather) -> void:
+		if weather == WorldClock.Weather.RAIN:
+			clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+	clock.weather_changed.connect(decline)
+
+	await _sweep_clock(clock, WEATHER_PREDAWN_T, WEATHER_BEAT["predawn"])
+	await _sweep_clock(clock, WEATHER_DAWN_T, WEATHER_BEAT["daybreak"])
+
+	clock.weather_changed.disconnect(decline)
+	await _wait(WEATHER_BEAT["dawn_hold"])
+
+
+# --- weather staging ------------------------------------------------------------------
+
+## Puts the world into the state the clip opens on, and returns `{cell, axis}` — where the
+## player stands and which way he paces — or null when nothing near him has sea in frame.
+func _stage_weather_shot(handler: TileMapHandler, player: Player, clock: WorldClock):
+	_beat = "staging"
+
+	var shot = _find_coast_stand(handler, player)
+	if shot == null:
+		return null
+
+	_freeze_ambient()
+	_clear_enemies()
+
+	player.position = handler.tileMap.map_to_local(shot["cell"])
+	player.velocity = Vector2.ZERO
+
+	# No `player.invulnerable` here, unlike the turret clip. Nothing in this clip attacks him:
+	# the spawner is frozen, the standing enemies are cleared, and lightning only reaches the
+	# combat loop through a skeleton it can charge, of which there are now none.
+
+	# The shipped zoom, not a wider one, and that is a choice rather than an oversight. Pulling
+	# back would put more sea in frame, which this clip wants — but it would also shrink the
+	# lantern, and the lantern coming up is the single clearest signal on screen that night has
+	# arrived rather than that someone turned the brightness down.
+	_set_zoom(player, CLOSE_ZOOM)
+	_hide_fps()
+
+	# The FPS counter goes and nothing else does. The HP and XP bars stay because they are the
+	# third canvas write: they are inside the CanvasModulate and hold their daylight colour at
+	# midnight only because _apply_hud cancels it. Hiding the HUD for tidiness would hide a
+	# third of the feature.
+
+	# Both set before the mark, so the jump is not in the footage. The weather is cleared as
+	# well as the hour: the clip's first beat is the baseline everything after it is read
+	# against, and a world that happened to be raining at the top would have nothing to arrive.
+	clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+	clock.set_time_of_day(WEATHER_OPEN_T)
+
+	var sky := _sky()
+	if sky != null:
+		sky.apply()
+	return shot
+
+
+## The stand: the cell nearest the player with a clear lane to pace along and about
+## WEATHER_SEA_TARGET of its frame open water, plus the axis to pace along.
+##
+## Ranked on the frame first and nearness second, so the search crosses the island to reach a
+## coast rather than settling for the nearest patch of walkable grass — which on any island is
+## the one the player is already standing in the middle of.
+func _find_coast_stand(handler: TileMapHandler, player: Player):
+	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
+	var best = null
+	var best_key := [-1.0, -(1 << 30)]
+	var best_sea := 0.0
+
+	for dy in range(-WEATHER_SEARCH, WEATHER_SEARCH + 1):
+		for dx in range(-WEATHER_SEARCH, WEATHER_SEARCH + 1):
+			var candidate := origin + Vector2i(dx, dy)
+			var frame := _frame_sea(handler, candidate)
+
+			# Perpendicular to the water, so pacing runs along the shoreline instead of into or
+			# away from it. `axis` is a direction, not a side; the beats step +STEP and back.
+			var sea_dir: Vector2i = frame["dir"]
+			var axis := Vector2i(sea_dir.y, -sea_dir.x)
+			if not _lane_clear(handler, candidate, axis):
+				continue
+
+			var sea: float = frame["fraction"]
+			var key := [-absf(sea - WEATHER_SEA_TARGET), -(dx * dx + dy * dy)]
+			if key > best_key:
+				best = {"cell": candidate, "axis": axis}
+				best_key = key
+				best_sea = sea
+
+	if best == null:
+		_note("no cell within %d tiles has a clear %d-tile lane to pace along"
+			% [WEATHER_SEARCH, WEATHER_STEP * 2 + 1])
+		return null
+	if best_sea < WEATHER_SEA_MIN:
+		# Refusing rather than shooting it. Without the sea in frame this is a clip of a screen
+		# getting darker, which is what the day/night work looks like when it is BROKEN.
+		_note("the best stand at %s has only %.0f%% sea in frame, wanted at least %.0f%%"
+			% [best["cell"], best_sea * 100.0, WEATHER_SEA_MIN * 100.0])
+		return null
+	return best
+
+
+## How much of the frame around `centre` is open water, and which way most of it lies.
+##
+## One pass for both answers, over the same VIEW_HALF the other clips reason about framing
+## with. Open water is the ABSENCE of a ground tile — the sea is a ColorRect in its own
+## CanvasLayer behind everything, not a tile of its own, which is the same fact
+## `_spawn_enemy`'s land check turns on.
+func _frame_sea(handler: TileMapHandler, centre: Vector2i) -> Dictionary:
+	var total := 0
+	var sea := 0
+	var west := 0
+	var east := 0
+	var north := 0
+	var south := 0
+
+	for y in range(centre.y - VIEW_HALF.y, centre.y + VIEW_HALF.y + 1):
+		for x in range(centre.x - VIEW_HALF.x, centre.x + VIEW_HALF.x + 1):
+			total += 1
+			if handler.tileMap.get_cell_source_id(0, Vector2i(x, y)) != -1:
+				continue
+			sea += 1
+			if x < centre.x:
+				west += 1
+			elif x > centre.x:
+				east += 1
+			if y < centre.y:
+				north += 1
+			elif y > centre.y:
+				south += 1
+
+	var dir := Vector2i.RIGHT
+	var most := east
+	if west > most:
+		dir = Vector2i.LEFT
+		most = west
+	if north > most:
+		dir = Vector2i.UP
+		most = north
+	if south > most:
+		dir = Vector2i.DOWN
+
+	return {"fraction": float(sea) / float(maxi(total, 1)), "dir": dir}
+
+
+## Whether the player can actually pace the lane this stand is chosen for.
+##
+## `is_occupied(cell, true)` is the game's own test and it is the right one here even though
+## nothing gets built: it is true for any layer-0 tile that is not GRASS_ATLAS, and plain grass
+## is what "walkable land" means everywhere in this project (main.gd:748). That rules out the
+## shore-transition tiles `set_cells_terrain_connect` paints along the water's edge — which is
+## correct, and does not push the stand inland, because the sea is scored over the whole frame
+## rather than under the player's feet.
+func _lane_clear(handler: TileMapHandler, centre: Vector2i, axis: Vector2i) -> bool:
+	# One tile of margin past where the walks actually stop, so the player is never pressed
+	# against a tree at the end of a walk.
+	for step in range(-(WEATHER_STEP + 1), WEATHER_STEP + 2):
+		if handler.is_occupied(centre + axis * step, true):
+			return false
+	return true
+
+
+## Runs the clock from where it is to `target_t` over `seconds` of recording, smoothly.
+##
+## Through `tick()` with a larger delta — the same call `_process` makes, so every phase
+## change, day boundary and weather expiry the sweep passes through fires exactly as it would
+## have if the player had waited ten real minutes for it. Teleporting with `set_time_of_day`
+## would be one frame of work and would read as a cut: the tint curve is smoothstepped and
+## continuous by construction (WorldClock._ramp), and a sweep is the only thing that shows it.
+##
+## Driven off a precomputed schedule rather than off the distance still to go. The clock is
+## ALSO ticking on its own in `_process` while this runs, so a feedback loop that re-read the
+## remaining distance every frame would eventually find itself a hair past the target and
+## sweep an entire further day to get back to it. This adds its own fraction on top of whatever
+## the world does underneath, which is both monotonic and the honest arithmetic.
+##
+## No `sky.apply()`: SkyLighting polls the clock every frame and repaints itself, which is why
+## it polls rather than listening for phase changes.
+func _sweep_clock(clock: WorldClock, target_t: float, seconds: float) -> void:
+	if clock == null or seconds <= 0.0:
+		return
+
+	var span := fposmod(target_t - clock.time_of_day, 1.0)
+	var elapsed := 0.0
+	var applied := 0.0
+
+	while elapsed < seconds:
+		await _dev.get_tree().process_frame
+		elapsed = minf(elapsed + _dev.get_process_delta_time(), seconds)
+		var want := span * (elapsed / seconds)
+		var step := want - applied
+		applied = want
+		if step > 0.0:
+			clock.tick(step * WorldClock.DAY_LENGTH_SECONDS)
+
+
+func _clock() -> WorldClock:
+	for node in _dev.get_tree().get_nodes_in_group("WorldClock"):
+		if node is WorldClock:
+			return node
+	return null
+
+
+func _sky() -> SkyLighting:
+	for node in _dev.get_tree().get_nodes_in_group("SkyLighting"):
+		if node is SkyLighting:
+			return node
+	return null
 
 
 # --- staging --------------------------------------------------------------------------
