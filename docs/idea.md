@@ -3,6 +3,13 @@
 Design ideas, not commitments. Nothing here is scheduled. When one gets approved it becomes a
 beads issue and this entry gets a line pointing at the id.
 
+**All of section B is built and shipped** (2026-08-04): B1 `gather-0ez`, B2 `gather-1zv`,
+B3 `gather-dj2`. See CLAUDE.md for how each works and what is load-bearing in it. B3 shipped as
+a panel rather than as the buildable signpost the entry describes — that half is `gather-3vv`.
+The size estimates below turned out roughly right except B1, which was worse than "medium" for
+exactly the reason flagged: enemies had nowhere to walk to, and it also turned out this game has
+no baked navigation at all.
+
 Written 2026-08-04, from a "the game is missing something" session. The code notes under each
 idea are the honest starting point, not a plan — check them against the tree before trusting them.
 
@@ -62,7 +69,7 @@ model to copy, including the save-fidelity rules. New `Types.Item` entries, a to
 
 ## B. Give the run a point
 
-### B1 — Nights get worse (medium)
+### B1 — Nights get worse (medium) — DONE, `gather-0ez`
 
 Day 1 night is quiet. Day 8 night sends a group at the base. Walls, doors and turrets become the
 reason you live through it instead of decoration.
@@ -74,7 +81,7 @@ population at `MAX_ENEMY_CAP` — both bounds have to bend for this or the escal
 Enemies also currently wander; "at your base" needs a target, which the enemy state machine does
 not have today. That is the real cost of this one.
 
-### B2 — The boss ends the run, with a score (small–medium)
+### B2 — The boss ends the run, with a score (small–medium) — DONE, `gather-1zv`
 
 Kill the boss → the run stops → a card shows Day, Level, gold, things built, islands opened.
 Then **New Run**.
@@ -90,7 +97,7 @@ build-in-code + `PRESET_FULL_RECT` pattern — do **not** hang it off `Player/Ca
 the world down and rebuilds it, and the save format is keyed on node paths, so "New Run" is
 closer to a fresh boot than to a load.
 
-### B3 — A quest board (medium)
+### B3 — A quest board (medium) — DONE, `gather-dj2`
 
 A signpost you build. It asks for things — "20 planks", "kill 15 skeletons", "own 3 turrets" —
 and pays small rewards. It also quietly teaches a new player what the game wants from them.
