@@ -121,9 +121,12 @@ func _ready():
 	# resource half is what stands in the world. They share the type id on purpose — that is
 	# what makes "the thing I dug up" and "the thing I put down" the same thing.
 	item_list[Types.Item.Berry] = GameItemConsumable.new(Vector2i(2, 23), 4, Types.Item.Berry, 1, false, "Berries", Vector2i.ZERO, false, 1)
-	# The charged skull (gather-8ft). Not placeable and not a consumable - it is fitted onto a
-	# worker or a turret, so its whole behaviour is in can_use/use on the class.
-	item_list[Types.Item.ChargedSkull] = GameItemChargedSkull.new(Vector2i(0, 0), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.ChargedSkull, 1, false, "Charged Skull", Vector2i.ZERO, false)
+	# The charged skull (gather-8ft) — what netting a charged skeleton yields, so it registers
+	# beside BoneEnemy in behaviour even though it appends down here. Not placeable and not a
+	# consumable: it loads a worker or a turret and charges it, and that whole behaviour is in
+	# can_use/use on the class. The player-facing name stays "Charged Skull" — the type id says
+	# which enemy was caught, the string says what is in the pack.
+	item_list[Types.Item.ChargedBoneEnemy] = GameItemChargedBoneEnemy.new(Vector2i(0, 0), GameItem.PLACEHOLDER_SOURCE_ID, Types.Item.ChargedBoneEnemy, 1, false, "Charged Skull", Vector2i.ZERO, false)
 	item_list[Types.Item.BerryBush] = GameItemBerryBush.new(Vector2i(0, 0), GameItem.BERRY_BUSH_SOURCE_ID, Types.Item.BerryBush, 1, true, "Berry Bush", Vector2i(0, 23), true)
 
 	

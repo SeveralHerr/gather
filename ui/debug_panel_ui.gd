@@ -101,6 +101,23 @@ func _spawner() -> EnemySpawner:
 
 # --- construction ------------------------------------------------------------
 
+## The clock and the lighting, by group. Both are created at runtime — the clock is authored
+## into main.tscn under Systems but registers its group in _enter_tree, and SkyLighting is made
+## by main.gd as a direct child of Main — so neither has a path this panel can rely on.
+func _clock() -> WorldClock:
+	for node in get_tree().get_nodes_in_group("WorldClock"):
+		if node is WorldClock:
+			return node
+	return null
+
+
+func _sky() -> SkyLighting:
+	for node in get_tree().get_nodes_in_group("SkyLighting"):
+		if node is SkyLighting:
+			return node
+	return null
+
+
 func _build() -> void:
 	_panel_root = Control.new()
 	# Named rather than left as a generated @Control@31: the devtools bridge addresses
@@ -375,6 +392,17 @@ func _build_world_tab(body: VBoxContainer) -> void:
 	_button(res_row, "Spawn 1", func(): _on_add_resources(1))
 	_button(res_row, "Spawn 20", func(): _on_add_resources(20))
 	_button(res_row, "Reseed home", _on_reseed)
+
+	body.add_child(HSeparator.new())
+
+	_heading(body, "Weather and lightning")
+	var weather_row := _row(body)
+	_button(weather_row, "Clear", func(): _on_set_weather(false))
+	_button(weather_row, "Rain", func(): _on_set_weather(true))
+	_button(weather_row, "Bolt (near)", func(): _on_strike(0.05))
+	_button(weather_row, "Bolt (far)", func(): _on_strike(0.9))
+	_button(weather_row, "Strike a skull", _on_charge_skeleton)
+	_hint(body, "A bolt starts a storm first if the sky is clear - lightning outside rain " 		+ "is a state the game itself cannot reach, so forcing one would leave a flash with " 		+ "nothing behind it. Near and far are the same bolt at different distances: the " 		+ "flash brightness, the delay before the thunder and its volume all come off that " 		+ "one number, so a far bolt is dim and arrives late. 'Strike a skull' does what a " 		+ "lucky near bolt does - it REPLACES a live skeleton with a charged one, so net it " 		+ "rather than killing it.")
 
 	body.add_child(HSeparator.new())
 
@@ -954,3 +982,64 @@ func _fail(message: String) -> void:
 	if _status:
 		_status.text = message
 		_status.add_theme_color_override("font_color", COLOR_WARN)
+
+
+# --- actions: weather and lightning ------------------------------------------
+
+func _on_set_weather(rain: bool) -> void:
+	var clock := _clock()
+	if clock == null:
+		return _fail("no WorldClock")
+
+	# A whole storm rather than a sliver: one short enough to expire on the next tick would
+	# take itself away before the player saw it, and the button would read as broken.
+	if rain:
+		clock.set_weather(
+			WorldClock.Weather.RAIN,
+			WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
+		)
+	else:
+		clock.set_weather(WorldClock.Weather.CLEAR, 0.0)
+
+	# Repaint rather than wait for SkyLighting's own _process. The panel is modal-ish and the
+	# player is looking at it when they click, so a tint that lags a frame behind the button
+	# reads as the button having missed.
+	_repaint_sky()
+	_ok("weather: %s" % WorldClock.weather_name(clock.weather))
+
+
+func _on_strike(distance: float) -> void:
+	var clock := _clock()
+	if clock == null:
+		return _fail("no WorldClock")
+
+	# The storm-first rule and the arm-before-emit ordering live on the clock, so this button
+	# and the strike_lightning devtools verb cannot disagree about what a forced bolt does.
+	var started_storm := clock.force_lightning(distance)
+	_repaint_sky()
+
+	var note := " (started a storm)" if started_storm else ""
+	_ok("bolt at distance %.2f%s" % [distance, note])
+
+
+func _on_charge_skeleton() -> void:
+	var spawner := _spawner()
+	if spawner == null:
+		return _fail("no EnemySpawner")
+
+	var struck: Enemy = spawner.charge_random_skeleton()
+	if struck == null:
+		# Distinct from success on purpose. "There were no plain skeletons" and "it worked" are
+		# different worlds, and a button that said the same for both would send the reader
+		# looking for the bug in the lighting.
+		return _fail("no plain skeleton to strike - spawn one first")
+
+	_ok("charged a skeleton at (%.0f, %.0f) - net it, do not kill it" % [
+		struck.global_position.x, struck.global_position.y
+	])
+
+
+func _repaint_sky() -> void:
+	var sky := _sky()
+	if sky:
+		sky.apply()

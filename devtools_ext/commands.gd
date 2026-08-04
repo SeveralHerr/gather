@@ -2932,31 +2932,16 @@ func _cmd_strike_lightning(args: Dictionary) -> Dictionary:
 	if clock == null:
 		return {"success": false, "message": "no WorldClock in the scene", "data": {}}
 
-	var started_storm := false
-	if clock.weather != WorldClock.Weather.RAIN:
-		# A whole storm rather than a sliver, for set_weather's reason: a storm short enough
-		# to expire on the next tick takes the bolt's own weather away underneath it.
-		clock.set_weather(
-			WorldClock.Weather.RAIN,
-			WorldClock.RAIN_MAX_FRACTION * WorldClock.DAY_LENGTH_SECONDS
-		)
-		started_storm = true
-
 	# Rolled here rather than left to the clock. A caller who names a distance has to get the
-	# one they named, and a caller who does not still has to be TOLD which one landed — a
-	# distance rolled inside the clock's own countdown is reported by nothing, and distance is
-	# the number the flash brightness, the thunder delay and the thunder volume all come from,
-	# so a reply that omits it cannot be checked against any of the three.
+	# one they named, and a caller who does not still has to be TOLD which one landed — distance
+	# is the number the flash brightness, the thunder delay and the thunder volume all come
+	# from, so a reply that omits it cannot be checked against any of the three.
 	var distance: float = clampf(float(args["distance"]), 0.0, 1.0) if args.has("distance") else randf()
 
-	# The clock's own two effects in the clock's own order, rather than a call into its
-	# countdown: that path rolls its own distance and this verb has to be able to name one.
-	# Re-arming BEFORE the emit is not cosmetic — world_clock.gd does it in that order because
-	# a listener is entitled to change the weather in response, and arming afterwards would
-	# overwrite the disarm that reaction just performed and leave a countdown running under a
-	# clear sky. A full fresh gap, not a remainder, for the same reason the clock uses one.
-	clock.lightning_time_left = randf_range(WorldClock.LIGHTNING_MIN_GAP, WorldClock.LIGHTNING_MAX_GAP)
-	clock.lightning_struck.emit(distance)
+	# The storm-first rule, the arm-before-emit ordering and the full-gap re-arm all live on the
+	# clock now (WorldClock.force_lightning), so this verb and the debug panel cannot drift apart
+	# on any of them. They each used to carry their own copy.
+	var started_storm := clock.force_lightning(distance)
 
 	# Repaint before replying, exactly as set_time_of_day and set_weather do. SkyLighting only
 	# folds the flash into the tint from _process, and a devtools call followed immediately by
@@ -3113,9 +3098,14 @@ func _cmd_berry_bushes(args: Dictionary) -> Dictionary:
 ## does not make you earn it.
 ##
 ## Deliberately does NOT start a storm first, unlike strike_lightning. A charged skeleton is a
-## lasting property of an enemy rather than one frame of weather, so there is no half-applied
-## state to avoid here — and forcing rain would change the spawn cadence and the tint under a
-## caller who only asked about skeletons.
+## live enemy rather than one frame of weather, so there is no half-applied state to avoid here —
+## and forcing rain would change the spawn cadence and the tint under a caller who only asked
+## about skeletons.
+##
+## What comes back is a NEW node. charge_random_skeleton() replaces the skeleton with a
+## ChargedBone instance standing in the same place rather than flipping a flag on it, so a caller
+## holding the old enemy's path is holding a freed node, and the census below moves a body from
+## `plain_skeletons` to `charged_skeletons` rather than incrementing one of them.
 func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
 	var spawner := _enemy_spawner()
 	if spawner == null:
@@ -3123,17 +3113,21 @@ func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
 
 	var struck: Enemy = spawner.charge_random_skeleton()
 	if struck == null:
-		# The honest answer, and a distinct one from success: "there were no uncharged
-		# skeletons" and "it worked" are different worlds, and a verb that returned ok for
-		# both would send the caller looking in sky_lighting.gd for a bug in the spawner.
+		# The honest answer, and a distinct one from success: "there were no plain skeletons"
+		# and "it worked" are different worlds, and a verb that returned ok for both would send
+		# the caller looking in sky_lighting.gd for a bug in the spawner.
 		return {
 			"success": false,
-			"message": "no live uncharged skeleton to strike",
+			"message": "no live plain skeleton to strike",
 			"data": _charged_census(),
 		}
 
 	var data := _charged_census()
 	data["struck_at"] = {"x": struck.global_position.x, "y": struck.global_position.y}
+	# The replacement's own type, read back off the node rather than assumed. A registry entry
+	# pointing at the wrong scene would still return a live enemy here, and every other number in
+	# this reply would look right while the thing standing in the world was an ordinary skeleton.
+	data["struck_type"] = struck.type
 	return {
 		"success": true,
 		"message": "charged a skeleton at (%.0f, %.0f)" % [struck.global_position.x, struck.global_position.y],
@@ -3144,21 +3138,30 @@ func _cmd_charge_skeleton(_args: Dictionary) -> Dictionary:
 ## Who is charged right now — enemies, workers and turrets in one read.
 ##
 ## The three live in different parts of the tree and are charged by different paths (a bolt, a
-## skull fitted by hand), so a caller checking whether the chain works end to end would
-## otherwise need three calls and have to know where each of them lives.
+## skull netted and fitted by hand), so a caller checking whether the chain works end to end
+## would otherwise need three calls and have to know where each of them lives.
 func _cmd_charged_state(_args: Dictionary) -> Dictionary:
 	return {"success": true, "message": "ok", "data": _charged_census()}
 
 
 func _charged_census() -> Dictionary:
 	var tree := _dev.get_tree()
-	var skeletons := 0
+
+	# Counted by TYPE, and the two counts are DISJOINT. A charged skeleton used to be a Bone
+	# carrying a flag, so `charged_skeletons` was a subset of `skeletons`; it is now its own type
+	# with its own scene, and a bolt moves a body from one count to the other. The keys are named
+	# `plain_skeletons` / `charged_skeletons` rather than left as `skeletons` precisely so a
+	# caller comparing against an older transcript sees the shape change instead of reading the
+	# new number under the old meaning.
+	var plain_skeletons := 0
 	var charged_skeletons := 0
 	for node in tree.get_nodes_in_group("Enemy"):
-		if node is Enemy and node.type == EnemyRegistry.BONE:
-			skeletons += 1
-			if node.is_charged:
-				charged_skeletons += 1
+		if not (node is Enemy):
+			continue
+		if node.type == EnemyRegistry.BONE:
+			plain_skeletons += 1
+		elif node.type == EnemyRegistry.CHARGED:
+			charged_skeletons += 1
 
 	var workers := 0
 	var charged_workers := 0
@@ -3174,8 +3177,15 @@ func _charged_census() -> Dictionary:
 			if node.charged:
 				charged_turrets += 1
 
+	# The net is now the ONLY way to collect a charged skull, and player_net.on_hit() decides
+	# entirely from the registry: is_nettable(body.type), then capture_item(body.type). If either
+	# is wrong the net sweeps through the enemy and catches nothing, with no error and nothing
+	# else in the game reporting it — so "is this type actually catchable" is the first question
+	# a caller asks when a swing produced no skull, and it is two dictionary reads to answer.
+	var captured = EnemyRegistry.capture_item(EnemyRegistry.CHARGED)
+
 	return {
-		"skeletons": skeletons,
+		"plain_skeletons": plain_skeletons,
 		"charged_skeletons": charged_skeletons,
 		"workers": workers,
 		"charged_workers": charged_workers,
@@ -3187,9 +3197,14 @@ func _charged_census() -> Dictionary:
 		"charge_max_distance": EnemySpawner.CHARGE_MAX_DISTANCE,
 		"charged_chop_seconds": BoneWorker.chop_seconds_for(true),
 		"plain_chop_seconds": BoneWorker.chop_seconds_for(false),
+		"charged_nettable": EnemyRegistry.is_nettable(EnemyRegistry.CHARGED),
+		# Empty rather than absent when the type is not nettable: capture_item() answers null in
+		# that case, and handing null to _type_name() would raise inside this getter — which,
+		# being untyped, would abort the whole census and return a half-built Dictionary.
+		"charged_capture_item": _type_name(captured) if captured != null else "",
 		# What is lying on the ground, by item name. A PickUp's `slot_data` is a Resource and
 		# `get-state` reports it as an opaque object id, so there is otherwise no way to answer
-		# "did the charged kill actually drop a skull" short of walking the player over it and
+		# "did the kill actually drop what it should" short of walking the player over it and
 		# reading the inventory - which conflates the drop with the pickup radius.
 		"ground_drops": _ground_drop_names(),
 	}

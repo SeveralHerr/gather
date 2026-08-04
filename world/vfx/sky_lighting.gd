@@ -138,6 +138,48 @@ const STRIKE_TWO_START := 0.30
 const STRIKE_TWO_PEAK_AT := 0.36
 const STRIKE_TWO_HEIGHT := 0.55
 
+## The bolt itself — the thing the player actually points at when they say they saw lightning.
+##
+## The flash alone was the whole effect for a while, and it reads as the screen blinking rather
+## than as a strike: the sky changes brightness and nothing in the world is the cause. Drawing
+## the arc is what makes the flash look like a consequence.
+##
+## Geometry is regenerated per strike rather than being one authored shape reused, because a
+## bolt that is the same silhouette every time reads as a sprite being toggled.
+const BOLT_SEGMENTS := 10
+const BOLT_HEIGHT := 260.0
+
+## Lateral wander per segment.
+##
+## Was 9.0, and a screenshot is the only thing that caught it: 9 units of jitter across a 260
+## unit drop is under four degrees, so the arc rendered as a very slightly bent vertical line
+## and read as a laser rather than as lightning. Every property on the node was correct and the
+## node was plainly there — this is the class of bug only an actual frame shows.
+const BOLT_JAG := 26.0
+const BOLT_WIDTH := 1.6
+
+## The flash where the bolt lands. Without it the arc simply stops in mid-air, which reads as
+## the sprite being clipped rather than as a strike hitting something.
+const BOLT_IMPACT_RADIUS := 7.0
+
+## How far from the player a bolt lands, at distance 0.0 and at 1.0.
+##
+## The far end is deliberately well outside the ~240 world units the camera shows at its 8
+## zoom, so a horizon bolt is simply not on screen and needs no special case to hide it — the
+## player sees its flash and hears its thunder, which is exactly what "far away" should mean.
+const BOLT_NEAR_OFFSET := 18.0
+const BOLT_FAR_OFFSET := 420.0
+
+## Above this the bolt is off screen however the jitter falls, so it is not built at all.
+const BOLT_CULL_OFFSET := 240.0
+
+const BOLT_CORE := Color(0.92, 0.97, 1.0)
+const BOLT_GLOW := Color(0.45, 0.72, 1.0)
+
+## Drawn well above the world so a bolt is never behind a tree or a wall. It is a light source
+## in front of the scene, not an object in it.
+const BOLT_Z := 400
+
 var clock: WorldClock
 
 ## The Main node everything above is resolved against.
@@ -154,6 +196,15 @@ var _lantern: PointLight2D
 ## for stat deltas and camera_hud.gd documents for its base transforms.
 var _base_water_color := Color.WHITE
 var _has_base_water := false
+
+## The World subtree, kept from _ready so a bolt has somewhere to be drawn. Bolts go in the
+## world canvas rather than the UI layer on purpose: a strike happens at a PLACE, and one drawn
+## in screen space would sit still while the player walked past it.
+var _world: Node2D
+
+## The live bolt, if one is on screen. At most one — a second strike replaces it rather than
+## stacking, matching the single flash envelope that fades them both.
+var _bolt: Node2D
 
 ## Seconds since the current bolt struck, and the gain that bolt is worth at its peak.
 ##
@@ -192,6 +243,7 @@ func _ready() -> void:
 		push_warning("SkyLighting: no World node, the day/night tint has nowhere to live")
 		return
 	world.add_child(_modulate)
+	_world = world as Node2D
 	apply()
 
 
@@ -223,6 +275,14 @@ func _advance_flash(delta: float) -> void:
 		# answer zero forever.
 		_flash_elapsed = FLASH_DURATION
 		_flash_peak = 0.0
+		_clear_bolt()
+		return
+
+	# Driven off the SAME envelope the flash uses rather than a tween of its own. Two timers
+	# for one event drift, and the way that shows up is a bolt still hanging in the air after
+	# the sky has finished flashing — which reads as a stuck sprite, not as lightning.
+	if is_instance_valid(_bolt):
+		_bolt.modulate.a = flash_envelope(_flash_elapsed, FLASH_DURATION)
 
 
 ## Pushes the clock's current tint into all three places. Public and idempotent so devtools
@@ -275,6 +335,8 @@ func _on_lightning_struck(distance: float) -> void:
 	# the flash down with it is not.
 	if GameSoundManager != null:
 		GameSoundManager.play_thunder(distance)
+
+	_spawn_bolt(distance)
 
 
 func _apply_ocean(tint: Color) -> void:
@@ -416,3 +478,134 @@ static func _strike(f: float, start: float, peak_at: float, end: float, height: 
 ## distance must not produce a gain the tint cannot survive.
 static func flash_peak_for(distance: float) -> float:
 	return lerpf(FLASH_PEAK_NEAR, FLASH_PEAK_FAR, clampf(distance, 0.0, 1.0))
+
+
+## Builds the arc for one strike, near the player, and returns immediately if it would land
+## off screen.
+##
+## The bolt is deliberately not pooled or reused. It is at most one node alive for half a
+## second, a few times per storm, and a pooled one would have to be re-jagged on every strike
+## anyway — the whole reason it is regenerated is that a repeated silhouette stops reading as
+## lightning and starts reading as a sprite being toggled.
+func _spawn_bolt(distance: float) -> void:
+	_clear_bolt()
+
+	if _world == null or not is_instance_valid(_world):
+		return
+
+	var player := main.get_node_or_null(PLAYER_PATH) as Node2D
+	if player == null:
+		return
+
+	# Offset grows with distance, so a far bolt is genuinely somewhere else rather than being a
+	# small one drawn on top of the player. Past the cull it cannot be on screen at all, and
+	# building it would be a node created purely to be invisible.
+	var offset := lerpf(BOLT_NEAR_OFFSET, BOLT_FAR_OFFSET, clampf(distance, 0.0, 1.0))
+	if offset > BOLT_CULL_OFFSET:
+		return
+
+	# Either side of the player, so strikes do not all march off in one direction.
+	var side := 1.0 if randf() < 0.5 else -1.0
+	var ground := player.global_position + Vector2(offset * side, randf_range(-24.0, 24.0))
+
+	_bolt = Node2D.new()
+	_bolt.name = "LightningBolt"
+	_bolt.z_index = BOLT_Z
+	_bolt.z_as_relative = false
+	_world.add_child(_bolt)
+
+	# Glow first, core second: the core has to be drawn OVER its own halo or the halo reads as
+	# a smudge across the middle of the arc rather than as light coming off it. Same ordering,
+	# and the same reason, as the charged-skull icon's arcs in tools/generate_placeholder_art.gd.
+	var points := _bolt_points(ground)
+	_add_bolt_line(points, BOLT_GLOW, BOLT_WIDTH * 3.0)
+	_add_bolt_line(points, BOLT_CORE, BOLT_WIDTH)
+
+	# A short fork off the middle of the arc. One branch, not a tree: at this size a second
+	# level of branching turns into a smudge, and the single fork is what stops the silhouette
+	# reading as one drawn line.
+	_add_bolt_line(_fork_points(points), BOLT_CORE, BOLT_WIDTH * 0.7)
+
+	_add_impact(ground)
+
+	_bolt.modulate.a = 0.0
+
+
+## A jagged descent to `ground`, in the bolt's local space.
+func _bolt_points(ground: Vector2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var drift := randf_range(-BOLT_JAG, BOLT_JAG)
+
+	for i in BOLT_SEGMENTS + 1:
+		var f := float(i) / float(BOLT_SEGMENTS)
+		# The taper converges only over the LAST third, not across the whole descent. Tapering
+		# linearly from the top (the obvious `* (1.0 - f)`) spends most of the arc's visible
+		# length nearly straight, which is what made the first version read as a beam even
+		# after the jitter was tripled — the jag was there, just all of it above the screen.
+		var taper := minf(1.0, (1.0 - f) * 3.0)
+		var jag := randf_range(-BOLT_JAG, BOLT_JAG) * taper
+		points.append(Vector2(
+			ground.x + jag + drift * taper,
+			ground.y - BOLT_HEIGHT * (1.0 - f)
+		))
+
+	return points
+
+
+## A branch leaving the arc partway down and petering out to one side.
+func _fork_points(trunk: PackedVector2Array) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	if trunk.size() < 4:
+		return points
+
+	var start := trunk[int(trunk.size() * 0.45)]
+	var away := 1.0 if randf() < 0.5 else -1.0
+	points.append(start)
+	for i in 3:
+		points.append(Vector2(
+			start.x + away * BOLT_JAG * 0.8 * float(i + 1) + randf_range(-4.0, 4.0),
+			start.y + BOLT_HEIGHT * 0.12 * float(i + 1)
+		))
+	return points
+
+
+## The bright point where the arc meets the ground.
+##
+## Drawn as a two-point Line2D with round caps rather than a Polygon2D circle: it is one node
+## either way, and this keeps every part of the bolt the same node type so the fade applied to
+## the parent's modulate needs no per-child special case.
+func _add_impact(ground: Vector2) -> void:
+	var dot := Line2D.new()
+	dot.points = PackedVector2Array([ground, ground + Vector2(0.01, 0.0)])
+	dot.width = BOLT_IMPACT_RADIUS
+	dot.default_color = BOLT_GLOW
+	dot.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	dot.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_bolt.add_child(dot)
+
+	var core := Line2D.new()
+	core.points = dot.points
+	core.width = BOLT_IMPACT_RADIUS * 0.45
+	core.default_color = BOLT_CORE
+	core.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	core.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_bolt.add_child(core)
+
+
+func _add_bolt_line(points: PackedVector2Array, colour: Color, width: float) -> void:
+	var line := Line2D.new()
+	line.points = points
+	line.width = width
+	line.default_color = colour
+	# Off: a rounded cap on a 1.6px line at this zoom just blunts the tip, and the joint mode
+	# is what keeps the corners of the zigzag sharp enough to read as an arc.
+	line.begin_cap_mode = Line2D.LINE_CAP_NONE
+	line.end_cap_mode = Line2D.LINE_CAP_NONE
+	line.joint_mode = Line2D.LINE_JOINT_SHARP
+	_bolt.add_child(line)
+
+
+func _clear_bolt() -> void:
+	if is_instance_valid(_bolt):
+		_bolt.queue_free()
+	_bolt = null

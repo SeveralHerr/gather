@@ -4869,3 +4869,53 @@ Guidelines that make an entry useful later:
   - [G-118] status: open | seen: 1 | harness: 0.8.0
   - Improvement: mention the 60s ceiling in the `step-time` row of the CLAUDE.md
     cheat-sheet, so it is read before it is discovered.
+
+## 2026-08-04 — Charged skeletons reworked to a netted enemy; visible bolt; darker storms (gather-8ft)
+
+- Value: **warranted**, and decisively — a screenshot caught a defect that every property read
+  in the session called correct.
+  - Expected: the rework to be verifiable from `charged_state` and `get-state`, and the new
+    bolt to be confirmed by the node existing with the right z_index and alpha.
+  - Got: the node checks all passed and the bolt was still **wrong on screen**. `get-state`
+    reported `z_index: 400`, two `Line2D` children and `modulate.a: 0.76` — every one of those
+    correct — while the actual frame showed a near-straight vertical line that read as a laser.
+    `BOLT_JAG` was 9.0 across a 260-unit drop, under four degrees. Worse, the first fix (tripling
+    the jag) still looked straight over the lower half, because the taper `* (1.0 - f)` spent
+    the wander at the top of the arc, mostly above the visible area. Neither is observable from
+    any property: the geometry was in `points`, which reads back as a `PackedVector2Array` of
+    plausible numbers. Only the PNG showed it.
+  - Cheaper: nothing. This is the case the "only open a screenshot when a genuine visual
+    regression is suspected" rule is about, and the suspicion came from the user, not the
+    harness — no gate in this project can assert "reads as lightning".
+
+- Note, not a gap: the same run confirmed the darker-storm change as **data before pixels**,
+  and that ordering was worth it. `world_clock` gave `world_tint [0.5, 0.55, 0.66]` against a
+  clear day's `[1,1,1]` and an ocean tracking it from `0.596` to `0.328`, with `flash: 0.0` so
+  nothing was being confounded by a bolt still fading. The screenshot then only had to answer
+  "does that read as a storm", not "did the number apply". Reading the tint first is what made
+  the screenshot a one-question check.
+
+- Note, not a gap: **a subagent's tool-call markup ended up inside a source file.**
+  `test/unit/test_charged_skeleton.gd` was written with a trailing literal `</content>` and
+  `</invoke>`, which lint caught immediately as `Parse Error: Unexpected "<" in class body` at
+  line 288. Worth recording because the failure was loud and instant — lint named the file and
+  line — and because the same class of corruption inside a comment or a string would not have
+  been. The fix was two lines; the lesson is that the parse gate is what makes fanning out
+  safe, not the agents' care.
+
+- Gap: **there is no way to press a UI button from the harness, so panel wiring is verified one
+  layer below what ships.** I added weather / bolt / strike-a-skull controls to
+  `ui/debug_panel_ui.gd` and verified them by calling `_on_set_weather`, `_on_strike` and
+  `_on_charge_skeleton` through `run-method` — which proves the actions, not the buttons.
+  `scene-tree` truncates before the World tab's children, so I could not even enumerate the
+  Buttons to confirm `_build_world_tab` had produced them, let alone emit `pressed`. Workaround:
+  test the callables directly and accept that a mis-wired `pressed.connect` would ship green.
+  - [G-119] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `press --node PATH` verb that finds the nearest `BaseButton` and emits
+    `pressed`, plus a `--filter`/`--depth` on `scene-tree` so a deep UI subtree can be listed
+    without returning the whole scene.
+
+- Gap: **`step-time` caps at 60s.** Hit again while waiting for skeletons to spawn so there was
+  something for a bolt to strike; needed three calls where the task was one wait.
+  - [G-118] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: unchanged — document the ceiling in the cheat-sheet row.

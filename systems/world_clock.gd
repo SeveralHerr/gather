@@ -97,7 +97,27 @@ const TWILIGHT_TINT := Color(0.86, 0.66, 0.55)
 ## Note that "cooler" here is a ratio, not a difference — blue is attenuated less than red,
 ## so the world leans cool at every hour even though the absolute gap between the channels
 ## shrinks along with everything else. test_world_clock.gd pins that distinction.
-const RAIN_TINT := Color(0.72, 0.76, 0.80)
+const RAIN_TINT := Color(0.50, 0.55, 0.66)
+
+## The darkest a storm is allowed to make the world, at any hour.
+##
+## RAIN_TINT above is a multiply, so without this a storm at midnight is NIGHT_TINT times
+## RAIN_TINT — about 0.21 on the red channel, which is well under the readability limit the
+## NIGHT_TINT comment describes and is where the 16px art stops being identifiable. The
+## multiply is still the right model for the shape of the effect (an overcast hour is that
+## hour, darker); it is simply unbounded, and the one place that matters is the one place the
+## player can least afford it.
+##
+## So the storm tint is floored rather than the rain multiply being made timid. That is what
+## lets a DAYTIME storm go properly dark — near night brightness, which is what a storm should
+## feel like — without a night storm following it down. Ordering is preserved either way: a
+## stormy midnight (0.30) is still darker than a clear one (0.42), so rain never brightens an
+## hour.
+##
+## test_world_clock.gd pins the resulting floor. If this is lowered, that test is the thing
+## that will tell you, and it is measuring the rainy-midnight product rather than NIGHT_TINT
+## alone precisely because that product is the real darkest case.
+const STORM_FLOOR := Color(0.30, 0.34, 0.50)
 
 ## Chance of a storm on any given day, rolled once at dawn.
 const RAIN_CHANCE := 0.25
@@ -346,7 +366,15 @@ static func tint_for(t: float, weather_state: Weather = Weather.CLEAR) -> Color:
 		tint = NIGHT_TINT
 
 	if weather_state == Weather.RAIN:
+		# Multiply, then floor. Both halves matter: the multiply is what makes an overcast hour
+		# read as THAT hour rather than as a flat grey biome, and the floor is what stops the
+		# same multiply driving midnight under the readability limit. See STORM_FLOOR.
 		tint = tint * RAIN_TINT
+		tint = Color(
+			maxf(tint.r, STORM_FLOOR.r),
+			maxf(tint.g, STORM_FLOOR.g),
+			maxf(tint.b, STORM_FLOOR.b)
+		)
 
 	return tint
 
@@ -478,6 +506,37 @@ func set_weather(new_weather: Weather, seconds: float) -> void:
 ## with a negative wait — thunder that never plays, and no error to say why.
 static func thunder_delay(distance: float) -> float:
 	return clampf(distance, 0.0, 1.0) * THUNDER_DELAY_MAX
+
+
+## Fires a bolt right now, at `distance`, and returns whether it had to start a storm first.
+##
+## The one place that knows how to reach the struck state, so the devtools verb and the debug
+## panel both call it instead of each carrying a copy. They did carry a copy, briefly, and the
+## rule below is exactly the kind that rots when duplicated: it is four lines, three of which
+## are orderings whose reasons are invisible at the call site.
+##
+##  - **A storm is started if the sky is clear.** Lightning outside rain is a state the game
+##    cannot otherwise reach, so forcing a bolt into a clear sky would leave the countdown
+##    disarmed on the next tick — a flash with nothing behind it. A whole storm rather than a
+##    sliver, or it expires on the next tick and takes the bolt's own weather with it.
+##  - **The countdown is re-armed BEFORE the emit, not after.** A listener is entitled to
+##    change the weather in response; arming afterwards would overwrite the disarm that
+##    reaction just performed and leave a countdown running under a clear sky.
+##  - **A full fresh gap, not a remainder**, matching what _advance_lightning does, so a forced
+##    bolt does not leave the next natural one arriving sooner than a gap.
+##
+## Repainting is deliberately NOT done here. This file draws nothing and lights nothing — that
+## is the whole split — so a caller that needs the screen to agree before it looks calls
+## SkyLighting.apply() itself.
+func force_lightning(distance: float) -> bool:
+	var started_storm := false
+	if weather != Weather.RAIN:
+		set_weather(Weather.RAIN, RAIN_MAX_FRACTION * DAY_LENGTH_SECONDS)
+		started_storm = true
+
+	lightning_time_left = randf_range(LIGHTNING_MIN_GAP, LIGHTNING_MAX_GAP)
+	lightning_struck.emit(clampf(distance, 0.0, 1.0))
+	return started_storm
 
 
 # --- save --------------------------------------------------------------------

@@ -35,8 +35,8 @@ const MIN_INTERVAL := 0.5
 
 ## How often a bolt that lands near the player also lands ON a skeleton (gather-8ft).
 ##
-## Deliberately small. The charged skull is the best upgrade a worker or a turret can get and
-## it costs nothing but being outside in a storm, so the price is rarity — a storm is roughly
+## Deliberately small. A netted charged skeleton is the best upgrade a worker or a turret can
+## get and it costs nothing but being outside in a storm, so the price is rarity — a storm is roughly
 ## LIGHTNING_MIN_GAP..MAX apart per bolt, and at 8% a player stands in a long storm and sees
 ## maybe one. Raising this does not make the game more generous so much as it makes the blue
 ## skeleton ordinary, and the whole effect is that it is not.
@@ -106,17 +106,23 @@ func _ready() -> void:
 
 ## A bolt landed. Rarely, and only if it was close, it landed on a skeleton.
 ##
-## Spiders are deliberately excluded rather than merely unlikely: the reward is a SKULL, and a
-## charged spider dropping one would be the kind of detail that reads as a copy-paste rather
+## Spiders are deliberately excluded rather than merely unlikely: what a bolt produces is a
+## charged SKELETON, and a charged spider turning into one would read as a copy-paste rather
 ## than as a rule. EnemyRegistry.BONE is the test, so the elite — which is a bone enemy
-## underneath but is the boss island's guard — is excluded too.
+## underneath but is the boss island's guard — is excluded too, and so is a charged skeleton
+## a previous bolt already made, since its type is no longer BONE.
 func _on_lightning_struck(distance: float) -> void:
 	if not should_charge(distance, randf()):
 		return
 	charge_random_skeleton()
 
 
-## Charges one live, uncharged skeleton and returns it, or null if there were none.
+## Replaces one live skeleton with a charged one and returns the new enemy, or null if there
+## were no skeletons to strike.
+##
+## A replacement rather than a flag on the old node: EnemyRegistry.CHARGED is a real type with
+## its own scene, so the blue, the sparks and the tougher stats all come from the scene and
+## come back on a load through `type` alone. Nothing here has to remember to re-apply them.
 ##
 ## Public and returning the enemy so devtools can force the effect and say what it hit — a
 ## verb that charged something and reported only "ok" cannot tell "there were no skeletons"
@@ -124,15 +130,29 @@ func _on_lightning_struck(distance: float) -> void:
 func charge_random_skeleton() -> Enemy:
 	var candidates: Array[Enemy] = []
 	for child in get_children():
-		if child is Enemy and child.type == EnemyRegistry.BONE and not child.is_charged:
+		if child is Enemy and child.type == EnemyRegistry.BONE:
 			candidates.append(child)
 
 	if candidates.is_empty():
 		return null
 
 	var struck: Enemy = candidates[randi() % candidates.size()]
-	struck.make_charged()
-	return struck
+
+	var charged: Enemy = EnemyRegistry.scene_for(EnemyRegistry.CHARGED).instantiate() as Enemy
+	# Nothing is overridden before add_child because nothing needs to be: max_health, damage and
+	# type are authored into charged_bone_enemy.tscn. Anything added here later must still be
+	# written BEFORE this line — _ready is what turns max_health into a HealthManager, and a
+	# value assigned after it is a number nobody reads.
+	add_child(charged)
+	# After add_child, matching loadObject below — the one other place in this file that puts a
+	# rebuilt enemy back where it was. Same ordering for the same read, so the two cannot drift.
+	charged.position = struck.position
+
+	# Deliberately NOT carrying struck.health_manager.current_health over. This is a different,
+	# tougher enemy and it arrives whole; inheriting a nearly-dead skeleton's HP would turn a
+	# bolt that happened to land on a wounded one into a free kill wearing the rare skin.
+	struck.queue_free()
+	return charged
 
 
 # --- pure helpers (unit-tested; keep them free of node access) ----------------
@@ -168,7 +188,7 @@ static func should_charge(distance: float, roll: float) -> bool:
 ## older saveFiles still read correctly.
 static func enemy_save_entry(
 	hp: int, target_is_null: bool, attack_target_is_null: bool, drop: int, pos: Vector2, type: String,
-	max_hp: int = 10, damage: int = 3, charged: bool = false
+	max_hp: int = 10, damage: int = 3
 ) -> Dictionary:
 	return {
 		"hp": hp,
@@ -183,10 +203,10 @@ static func enemy_save_entry(
 		# tougher back to a stock skeleton.
 		"max_hp": max_hp,
 		"damage": damage,
-		# Being lightning-struck is progress, not configuration: it happened to THIS skeleton
-		# during THIS storm and nothing can re-derive it. A reload that dropped it would take
-		# the skull with it and report nothing (gather-8ft).
-		"charged": charged,
+		# There was a `charged` bool here. It went out with the flag: a lightning-struck skeleton
+		# is its own type now, and `type` above already carries that through the save and back
+		# through scene_for_type(). A flag beside it would be a second copy of one fact, and two
+		# copies of a fact are two things that can disagree on a load.
 	}
 
 
@@ -216,10 +236,6 @@ static func normalize_enemy_entry(raw: Dictionary) -> Dictionary:
 		"type": str(raw.get("type", "Bone")),
 		"max_hp": int(raw.get("max_hp", 10)),
 		"damage": int(raw.get("damage", 3)),
-		# typeof rather than `== true`: comparing a String to a bool RAISES in GDScript, and a
-		# raise inside this static aborts the whole entry. Saves written before charged
-		# skeletons existed have no key at all and must read as an ordinary one.
-		"charged": typeof(raw.get("charged", false)) == TYPE_BOOL and raw.get("charged", false),
 	}
 
 
@@ -361,8 +377,7 @@ func saveObject() -> Dictionary:
 					child.position,
 					child.type,
 					child.max_health,
-					child.damage,
-					child.is_charged
+					child.damage
 				)
 			)
 
@@ -390,9 +405,6 @@ func loadObject(loadedDict: Dictionary) -> void:
 		instance.max_health = node["max_hp"]
 		instance.damage = node["damage"]
 		instance.type = node["type"]
-		# Alongside max_health and for the same reason: _ready is what turns these into
-		# something visible, and for `is_charged` that something is the blue tint.
-		instance.is_charged = node["charged"]
 		add_child(instance)
 		instance.position = Vector2(node["x"], node["y"])
 		instance.health_manager.current_health = node["hp"]

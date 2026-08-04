@@ -29,6 +29,14 @@ const BONE := "Bone"
 const SPIDER := "Spider"
 const ELITE := "Elite"
 
+## The skeleton a bolt landed on (gather-8ft). A type rather than a flag on a Bone, because
+## `type` is already persisted and already rebuilt through scene_for_type() — so being blue,
+## being tougher and being nettable into a different item all come back from a load with no
+## code on the load path at all. The flag it replaces needed its own save key, its own
+## normalize guard and its own re-application in _ready, and each of those was a place the
+## fact could be dropped without anything reporting it.
+const CHARGED := "ChargedBone"
+
 ## The fallback for a save that names a type this build does not have. Bone was already the
 ## silent fallback in scene_for_type's `_:` arm; it stays the answer, but scene_for() now
 ## says so out loud instead of quietly demoting an elite to a skeleton.
@@ -50,6 +58,26 @@ const TYPES := {
 		"nettable": true,
 		"capture_item": Types.Item.BoneEnemy,
 		"loot": [FOOD_DROP],
+	},
+	CHARGED: {
+		"scene": "res://enemies/charged_bone_enemy.tscn",
+		# NEVER trickled in. Lightning is this type's only source, and that is the whole design:
+		# an ambient charged enemy would put the rare reward on the ordinary spawn timer, and a
+		# player who can simply wait for one has no reason to be outside in a storm. The storm
+		# would still flash and rumble; it would just no longer mean anything.
+		"ambient": false,
+		# Caught with the Net like the skeleton it used to be, into its own capture item — that
+		# item is what loads a worker or a turret, so the catch IS the reward.
+		"nettable": true,
+		"capture_item": Types.Item.ChargedBoneEnemy,
+		# Deliberately barely better than an ordinary skeleton's. The reward is the capture, not
+		# the corpse: a rich table here would make killing it competitive with netting it, which
+		# inverts the whole point of hunting one. It is 30 health, so a player who fights it for
+		# loot has paid three skeletons' worth of effort for a bone.
+		"loot": [
+			{"item": Types.Item.Bone, "chance": 1.0, "min": 1, "max": 2},
+			FOOD_DROP,
+		],
 	},
 	SPIDER: {
 		"scene": "res://enemies/spider_enemy.tscn",

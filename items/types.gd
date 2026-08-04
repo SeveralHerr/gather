@@ -67,8 +67,12 @@ enum Item {
 	BerryBush,
 	Berry,
 
-	# What a lightning-struck skeleton leaves behind (gather-8ft). Appended, like everything
-	# above: the enum's ordinals are the ids in every save file, so inserting rather than
-	# appending renames every item after the insertion point in every existing save.
-	ChargedSkull
+	# The charged skeleton caught in the net (gather-8ft). This is the sibling of BoneEnemy
+	# above and reads as one next to it: BoneEnemy is a netted skeleton, ChargedBoneEnemy is a
+	# netted CHARGED skeleton, and both are capture items that load a worker or a turret. The
+	# name says which enemy was caught rather than what the drop looks like, which is why it is
+	# not "ChargedSkull" — the player-facing string still is. Appended, like everything above:
+	# the enum's ordinals are the ids in every save file, so inserting rather than appending
+	# renames every item after the insertion point in every existing save.
+	ChargedBoneEnemy
 }

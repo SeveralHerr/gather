@@ -526,3 +526,49 @@ func test_loading_a_clear_sky_leaves_nothing_armed() -> String:
 
 	clock.free()
 	return result
+
+
+func test_a_daytime_storm_is_about_as_dark_as_night() -> String:
+	# The requirement in words: a storm should feel like dusk arriving early, not like a grey
+	# filter. Before this it was 0.72 against night's 0.42 — perceptibly overcast and nowhere
+	# near dark, which is what "it should be darker when storming" was reporting.
+	#
+	# Asserted as a band rather than a value. A floor because the whole point is that it goes
+	# properly dark; a ceiling because a DAYTIME storm darker than actual midnight would make
+	# night itself meaningless and would put the 16px art under the readability limit at the
+	# one hour the player has no lantern ramp to compensate.
+	var storm := WorldClock.tint_for(0.35, WorldClock.Weather.RAIN)
+	var night := WorldClock.tint_for(0.85, WorldClock.Weather.CLEAR)
+
+	var err: String = _T.assert_true(
+		storm.r <= night.r * 1.35,
+		"a daytime storm is near night brightness (storm %.2f, night %.2f)" % [storm.r, night.r]
+	)
+	if err != "":
+		return err
+	return _T.assert_true(
+		storm.r >= night.r,
+		"but not darker than night itself (storm %.2f, night %.2f)" % [storm.r, night.r]
+	)
+
+
+func test_the_storm_floor_stops_rain_compounding_into_the_dark() -> String:
+	# RAIN_TINT is a multiply, so without STORM_FLOOR a storm at midnight lands around 0.21 —
+	# under the limit where the art stops being identifiable, at the exact moment the player is
+	# fighting in the dark and reading their health bar. The floor is what bounds that, and it
+	# has to bound it without ever making rain BRIGHTEN an hour.
+	var stormy_midnight := WorldClock.tint_for(0.85, WorldClock.Weather.RAIN)
+	var clear_midnight := WorldClock.tint_for(0.85, WorldClock.Weather.CLEAR)
+
+	var err: String = _T.assert_true(
+		stormy_midnight.r >= WorldClock.STORM_FLOOR.r - 0.0001,
+		"the floor holds at midnight (got %.3f)" % stormy_midnight.r
+	)
+	if err != "":
+		return err
+	# Ordering, not just magnitude: a floor set above the night tint would silently invert the
+	# relationship and make storms a way to SEE better after dark.
+	return _T.assert_true(
+		stormy_midnight.r <= clear_midnight.r,
+		"and rain never brightens an hour (storm %.3f vs clear %.3f)" % [stormy_midnight.r, clear_midnight.r]
+	)

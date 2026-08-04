@@ -1,16 +1,29 @@
 extends RefCounted
 
-## Lightning-struck skeletons and the skull they leave behind (gather-8ft).
+## The charged skeleton: the enemy a bolt makes, and the skull it becomes (gather-8ft).
 ##
-## Everything here is either a pure static or a save-payload round trip, so none of it needs a
-## SceneTree. The parts that do — the blue tint actually reaching a sprite, a charged worker's
-## timer actually re-arming — are asserted at runtime instead, because a headless test can
-## observe neither.
+## The blue skeleton is a distinct enemy TYPE rather than a flag on an ordinary Bone. That is
+## what makes most of this file registry reads: being blue, being tougher and being caught into
+## a different item are all authored into charged_bone_enemy.tscn and into EnemyRegistry, so a
+## saved charged enemy comes back charged through `type` alone with no code on the load path.
+## The flag it replaced needed its own save key, its own normalize guard and its own
+## re-application in _ready, and each of those was a place the fact could be dropped silently —
+## which is why the save round-trip tests that used to live here are gone rather than ported.
 ##
-## The rarity is the thing that makes this worth testing rather than playing: at
+## Everything below is a pure static, a registry read or a PackedScene read, so none of it needs
+## a SceneTree. The parts that do — a bolt actually replacing a node mid-storm, a netted skull
+## actually charging the worker it is dropped into — are asserted at runtime instead, because a
+## headless test can observe neither.
+##
+## The rarity is the thing that makes should_charge worth testing rather than playing: at
 ## CHARGE_CHANCE 0.08 on near bolts only, driving a real storm until one connects would take
 ## minutes and would be flaky in exactly that proportion. should_charge() takes the roll as an
 ## argument for that reason, and these tests supply it.
+##
+## Anything here that reads through a value which could be missing or null asserts that it is
+## PRESENT first. A runtime error inside a `-> String` method aborts it and still returns "",
+## which the runner counts as a pass (gather-1t9) — so an unguarded read does not fail loudly,
+## it disappears.
 
 var _T
 
@@ -69,7 +82,184 @@ func test_charging_is_rare_across_the_whole_distance_range() -> String:
 	)
 
 
-# --- what a charged skull does to a worker ------------------------------------
+# --- the enemy the bolt leaves behind -----------------------------------------
+
+
+func test_the_charged_type_is_registered_and_resolves_to_a_scene() -> String:
+	# EnemySpawner.charge_random_skeleton() instantiates EnemyRegistry.scene_for(CHARGED)
+	# directly, and so does the load path when a save names the type. A missing entry falls back
+	# to Bone with only a push_warning, so the bolt would appear to work and quietly hand back an
+	# ordinary skeleton — the exact failure the registry was built to stop being silent.
+	var err: String = _T.assert_true(
+		EnemyRegistry.has_type(EnemyRegistry.CHARGED),
+		"the charged skeleton is a declared enemy type, not a fallback to Bone"
+	)
+	if err != "":
+		return err
+
+	var scene: PackedScene = EnemyRegistry.scene_for(EnemyRegistry.CHARGED)
+	return _T.assert_true(scene != null, "and its scene loads")
+
+
+func test_the_charged_type_is_caught_by_the_net_into_its_own_item() -> String:
+	# The whole acquisition route. player_net.on_hit() is entirely registry-driven — it asks
+	# is_nettable(body.type) and then capture_item(body.type) — so a wrong entry here means the
+	# net passes through the rare enemy catching nothing, with no error anywhere. Nothing else
+	# in the codebase would report it.
+	var err: String = _T.assert_true(
+		EnemyRegistry.is_nettable(EnemyRegistry.CHARGED),
+		"the charged skeleton is catchable — the net is the only way to collect one"
+	)
+	if err != "":
+		return err
+
+	var captured = EnemyRegistry.capture_item(EnemyRegistry.CHARGED)
+	err = _T.assert_true(captured != null, "and it names a capture item")
+	if err != "":
+		return err
+
+	# Its OWN item, not the plain skull's. Catching a blue skeleton into Types.Item.BoneEnemy
+	# would look like a working net and silently pay out the ordinary reward.
+	err = _T.assert_eq(
+		captured, Types.Item.ChargedBoneEnemy, "and that item is the charged skull"
+	)
+	if err != "":
+		return err
+	return _T.assert_true(
+		EnemyRegistry.capture_item(EnemyRegistry.BONE) != captured,
+		"which is a different item from the plain skeleton's"
+	)
+
+
+func test_the_charged_type_is_never_ambiently_spawned() -> String:
+	# The one that matters most. Lightning is this type's only source, and that IS the design:
+	# an ambient charged enemy puts the rare reward on the ordinary spawn timer, so a player who
+	# can simply wait for one has no reason to be outside in a storm. The storm would still flash
+	# and rumble; it would just stop meaning anything. Nothing else in the game would report it —
+	# the spawner would look healthy, the census would look busy, and the feature would be dead.
+	var ambient := EnemyRegistry.ambient_types()
+
+	var err: String = _T.assert_false(
+		ambient.has(EnemyRegistry.CHARGED),
+		"the charged skeleton is never rolled by the ambient spawner"
+	)
+	if err != "":
+		return err
+	# Guards the assertion above from passing for the wrong reason: an ambient_types() that
+	# returned nothing at all would satisfy it while having broken every spawn in the game.
+	return _T.assert_true(
+		ambient.has(EnemyRegistry.BONE), "while the ordinary skeleton still is"
+	)
+
+
+func test_the_charged_scene_declares_the_type_the_net_reads() -> String:
+	# player_net.on_hit() reads `body.type` off the live node, not off whatever spawned it, so
+	# the string authored into charged_bone_enemy.tscn is what decides whether the net catches
+	# this enemy at all. An inherited scene that forgot to override `type` would arrive
+	# identifying as a Bone: blue, tough, and netting into the ordinary skull.
+	var scene: PackedScene = EnemyRegistry.scene_for(EnemyRegistry.CHARGED)
+	var err: String = _T.assert_true(scene != null, "the charged scene loads")
+	if err != "":
+		return err
+
+	var made = scene.instantiate()
+	# `made is Enemy` before any field read: instantiate() answering null or something else would
+	# raise on the next line, and a raise here returns "" and counts as a pass.
+	var is_enemy: bool = made is Enemy
+	var declared: String = made.type if is_enemy else ""
+	# Freed before the asserts, not after: an early return past a free() leaks the whole node
+	# tree into the suite's orphan count, which is what orphan_growth_max gates on.
+	if made != null:
+		made.free()
+
+	err = _T.assert_true(is_enemy, "and its root is an Enemy")
+	if err != "":
+		return err
+	return _T.assert_eq(
+		declared, EnemyRegistry.CHARGED, "and the scene declares the charged type"
+	)
+
+
+func test_the_charged_scene_is_tougher_than_a_plain_skeleton() -> String:
+	# The stats live on the two scenes rather than in code, so the only honest way to compare
+	# them is to build both and read them. instantiate() does not run _ready(), so this needs no
+	# SceneTree — the @export values are already assigned by then, which is also why the spawner
+	# must set them BEFORE add_child().
+	var plain_scene: PackedScene = EnemyRegistry.scene_for(EnemyRegistry.BONE)
+	var charged_scene: PackedScene = EnemyRegistry.scene_for(EnemyRegistry.CHARGED)
+
+	var err: String = _T.assert_true(
+		plain_scene != null and charged_scene != null, "both enemy scenes load"
+	)
+	if err != "":
+		return err
+
+	var plain = plain_scene.instantiate()
+	var charged = charged_scene.instantiate()
+
+	var both_are_enemies: bool = plain is Enemy and charged is Enemy
+	var plain_hp: int = plain.max_health if both_are_enemies else -1
+	var charged_hp: int = charged.max_health if both_are_enemies else -1
+	var plain_damage: int = int(plain.damage) if both_are_enemies else -1
+	var charged_damage: int = int(charged.damage) if both_are_enemies else -1
+
+	# Both freed before any early return, for the orphan reason above.
+	if plain != null:
+		plain.free()
+	if charged != null:
+		charged.free()
+
+	err = _T.assert_true(both_are_enemies, "and both roots are Enemies")
+	if err != "":
+		return err
+
+	# Not merely "greater". A charged skeleton with 11 health where a plain one has 10 is a rare
+	# enemy the player cannot tell apart from a common one in the only way that reaches them —
+	# how long it takes to kill. That is the dead-content shape the chop-cadence test below
+	# guards on the reward side, and it is the same failure here on the threat side.
+	err = _T.assert_gte(
+		float(charged_hp), float(plain_hp) * 1.5,
+		"a charged skeleton is meaningfully tougher (%d health against %d)" % [charged_hp, plain_hp]
+	)
+	if err != "":
+		return err
+
+	# `>=` rather than `>` on purpose: the health is what makes it a hunt, and hitting exactly as
+	# hard as a plain skeleton is a defensible tuning choice. Hitting SOFTER is not — a rarer,
+	# tougher enemy that does less damage reads as a downgrade wearing the rare skin.
+	return _T.assert_gte(
+		charged_damage, plain_damage,
+		"and never hits softer than a plain one (%d against %d)" % [charged_damage, plain_damage]
+	)
+
+
+func test_the_capture_item_resolves_to_a_registered_item() -> String:
+	# get_item() is deliberately not total over Types.Item — the world resources live in
+	# items/resources.gd — and player_net.on_hit() builds a SlotData around whatever it returns.
+	# A null there empties the net and pays out nothing, with no error. This is the cheapest
+	# possible guard against the id being added to the enum and never registered.
+	var items := Items.new()
+	items._ready()
+	var skull = items.get_item(Types.Item.ChargedBoneEnemy)
+
+	var err: String = _T.assert_true(skull != null, "ChargedBoneEnemy resolves to an item")
+	if err != "":
+		items.free()
+		return err
+
+	var is_right_class: bool = skull is GameItemChargedBoneEnemy
+	var not_placeable: bool = not skull.is_placeable
+	items.free()
+
+	err = _T.assert_true(is_right_class, "and it is a GameItemChargedBoneEnemy")
+	if err != "":
+		return err
+	return _T.assert_true(
+		not_placeable, "and it is not placeable — it is fitted into a machine, not put down"
+	)
+
+
+# --- what the captured skull does to a worker ---------------------------------
 
 
 func test_a_charged_worker_chops_faster() -> String:
@@ -94,92 +284,4 @@ func test_the_charged_chop_is_worth_noticing() -> String:
 	return _T.assert_true(
 		ratio <= 0.75,
 		"a skull takes at least a quarter off the chop (got %.2fx)" % ratio
-	)
-
-
-# --- the save round trip ------------------------------------------------------
-
-
-func test_a_charged_skeleton_survives_the_save() -> String:
-	# Routed through enemy_save_entry and normalize_enemy_entry together, so a key written by
-	# one and not read by the other fails here. Being lightning-struck cannot be re-derived
-	# from anything else in the file — the storm is over and the bolt is gone — so losing it
-	# silently downgrades the skull the player was about to collect.
-	var payload := EnemySpawner.enemy_save_entry(
-		7, true, true, 0, Vector2(12.0, -4.0), EnemyRegistry.BONE, 10, 3, true
-	)
-
-	var err: String = _T.assert_true(payload.has("charged"), "the charged flag is written")
-	if err != "":
-		return err
-
-	var restored := EnemySpawner.normalize_enemy_entry(payload)
-	return _T.assert_true(bool(restored["charged"]), "and it comes back charged")
-
-
-func test_an_ordinary_skeleton_does_not_come_back_charged() -> String:
-	var payload := EnemySpawner.enemy_save_entry(
-		7, true, true, 0, Vector2.ZERO, EnemyRegistry.BONE, 10, 3, false
-	)
-	var restored := EnemySpawner.normalize_enemy_entry(payload)
-	return _T.assert_false(bool(restored["charged"]), "an ordinary skeleton stays ordinary")
-
-
-func test_a_save_from_before_charged_skeletons_reads_as_ordinary() -> String:
-	# Every enemy in every existing save has no `charged` key at all. Defaulting it to true,
-	# or raising on the absent key, would either hand out free skulls or abort the entry.
-	var restored := EnemySpawner.normalize_enemy_entry({"type": "Bone", "hp": 10})
-	return _T.assert_false(bool(restored["charged"]), "an older save loads an ordinary skeleton")
-
-
-func test_a_string_where_the_flag_should_be_does_not_raise() -> String:
-	# `raw.get("charged") == true` against a String RAISES in GDScript rather than evaluating
-	# false, and a raise inside this static aborts the whole entry — which is how a hand-edited
-	# or corrupted save loses an enemy silently. The typeof guard is what this pins.
-	#
-	# The `has` check below is load-bearing and is NOT redundant with the assert after it.
-	# Measured: swapping the typeof guard for `raw.get("charged", false) == true` and running
-	# this file gave `Total: 540 | Passed: 11 | Failed: 0` with two SCRIPT ERRORs on stderr and
-	# nothing else — the raise aborted the static, `-> Dictionary` handed back an empty one,
-	# and reading a missing key aborted this test too, which for a `-> String` method returns
-	# "" and counts as a pass (gather-1t9). Asserting the dictionary came back POPULATED is
-	# what turns that silent stderr-only signal into a real red.
-	var restored := EnemySpawner.normalize_enemy_entry({"type": "Bone", "charged": "yes"})
-
-	var err: String = _T.assert_true(
-		restored.has("charged"),
-		"normalize returned a populated entry — an empty one means it raised and aborted"
-	)
-	if err != "":
-		return err
-
-	return _T.assert_false(
-		bool(restored["charged"]), "a non-bool reads as not charged instead of raising"
-	)
-
-
-# --- the skull itself ---------------------------------------------------------
-
-
-func test_the_charged_skull_is_a_registered_item() -> String:
-	# get_item() is deliberately not total over Types.Item, and Enemy._drop_charged_skull runs
-	# on the death path where a null would mean a charged kill paid nothing. This is the
-	# cheapest possible guard against the id being added to the enum and never registered.
-	var items := Items.new()
-	items._ready()
-	var skull := items.get_item(Types.Item.ChargedSkull)
-	var err: String = _T.assert_true(skull != null, "ChargedSkull resolves to an item")
-	if err != "":
-		items.free()
-		return err
-
-	var is_right_class: bool = skull is GameItemChargedSkull
-	var not_placeable: bool = not skull.is_placeable
-	items.free()
-
-	err = _T.assert_true(is_right_class, "and it is a GameItemChargedSkull")
-	if err != "":
-		return err
-	return _T.assert_true(
-		not_placeable, "and it is not placeable — it is fitted onto a machine, not put down"
 	)

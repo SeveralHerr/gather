@@ -313,37 +313,59 @@ side. A later reader who reads the `if` as a missed `while` should read this par
 load takes a bolt off the player who saved eighteen seconds into a nineteen-second gap, and
 nothing reports that.
 
-**Rarely, a bolt lands on a skeleton and charges it** (`gather-8ft`). That is the one place the
-weather reaches into the combat loop, and the chain it starts is the reason the storm is worth
-standing out in:
+**Rarely, a near bolt lands on a skeleton and what gets up is a different enemy** (`gather-8ft`).
+That is the one place the weather reaches into the combat loop, and the chain it starts is the
+reason the storm is worth standing out in:
 
 ```
 WorldClock.lightning_struck(distance)
-  -> EnemySpawner.should_charge(distance, randf())     # CHARGE_CHANCE 0.08, near bolts only
-  -> Enemy.make_charged()                              # blue, and it stays blue
-  -> on death: one guaranteed ChargedSkull
-  -> GameItemChargedSkull.use()                        # fitted onto a worker or a turret
+  -> EnemySpawner.should_charge(distance, randf())   # CHARGE_CHANCE 0.08, near bolts only
+  -> the struck Bone is REPLACED by an EnemyRegistry.CHARGED ("ChargedBone")
+                                                     # charged_bone_enemy.tscn, same spot, full health
+  -> the player NETS it                              # -> Types.Item.ChargedBoneEnemy
+  -> GameItemChargedBoneEnemy.use()                  # set_loaded() + make_charged(), one EMPTY machine
   -> BoneWorker: 20s chop -> 10s      BoneTurret: 1.0s fire -> 0.55s, +2 bullet damage
 ```
 
-Four things here are load-bearing and easy to undo:
+Six things here are load-bearing and easy to undo:
 
-- **The skull is guaranteed on death and deliberately NOT in `EnemyRegistry`'s loot table.**
-  That table is keyed on type and a charged skeleton is still a `Bone`, so putting it there
-  pays one out for every skeleton in the game. Being charged is already the rare event;
-  rolling a second chance on top means a player watches the only blue skeleton they have seen
-  all night die and get nothing, with no way to tell that from a bug.
-- **Only `EnemyRegistry.BONE` charges.** Not spiders — the reward is a *skull* — and not the
-  elite, which is a bone enemy underneath but is the boss island's placed guard.
-- **The blue goes on the SPRITE's `modulate`, never the enemy's own.** The node's modulate
-  carries the hit flash and the death fade; a charged skeleton that stopped flashing white
-  when struck would read as invulnerable. Per-item modulate multiplies, so the flash still
-  lands on top of the blue. Verified at runtime: sprite `(0.55, 0.85, 1.6)`, node `(1, 1, 1)`.
-- **`_apply_charged_tint()` is split from `make_charged()` because the load path needs the
-  colour without the guard.** A restored enemy already has `is_charged` set from the save, so
-  `make_charged` early-outs; without the split it comes back grey and still drops its skull,
-  which is the worst version of the bug — the reward intact and the warning that earns it
-  gone.
+- **Lightning is that type's only source, because `CHARGED` is `ambient: false`.** Letting the
+  spawn timer trickle one in puts the rare reward on the ordinary cadence, and a player who can
+  simply wait for one has no reason to be outside in a storm. The sky would still flash and
+  rumble; it would just stop meaning anything.
+- **Only `EnemyRegistry.BONE` is replaced.** Not spiders — what the capture loads is a *bone*
+  machine — and not the elite, which is a bone enemy underneath but is the boss island's placed
+  guard. `charged_bone_enemy.tscn` is an inherited scene over `bone_enemy.tscn`, the way
+  `elite_enemy.tscn` is, and overrides it to 30 health and 5 damage: netting one is a real fight
+  rather than a free pickup that happens to be blue.
+- **It is collected with the Net, exactly like an ordinary skeleton, and killing one is a loss.**
+  `player_net.on_hit()` is entirely registry-driven (`EnemyRegistry.is_nettable` /
+  `capture_item`), so this needed no change to the net at all — the type just names its own
+  capture item. Its loot table is deliberately barely better than a plain skeleton's and has to
+  stay that way: a rich one makes killing competitive with catching, which inverts the point of
+  hunting it. The reward is the capture.
+- **The blue and the sparks are baked into the `.tscn`, not applied by code.** That is the point
+  of a scene rather than a flag: the look comes back from a load because the scene is what gets
+  instantiated, with no load path involved. The flag design had to split `_apply_charged_tint()`
+  out of `make_charged()` purely so the load could re-apply the colour past the idempotence
+  guard, and a miss there brought the enemy back grey while it still paid out — the worst
+  version, the reward intact and the warning that earns it gone. That hazard is now gone for the
+  enemy. The machines keep their own `charged` flag and `_apply_charged_look()` split, and must:
+  a skull is fitted to a turret at runtime, so for them it genuinely is per-node state.
+- **The blue goes on the Sprite2D's `modulate`, never the root's.** The root's modulate carries
+  the hit flash and the death fade; something that stopped flashing white when struck would read
+  as invulnerable. Per-item modulate multiplies, so the flash still lands on top of the blue.
+- **Making this a real type made the save format simpler, not more complex.** `type` is already
+  persisted and `scene_for_type()` already rebuilds from it, so being blue, being tougher and
+  netting into a different item all survive a load for free, and the `charged` key — with its
+  `typeof(...) == TYPE_BOOL` normalize guard and its re-application after `add_child` — was
+  deleted rather than added to. A flag would have been a second copy of a fact the save already
+  carried, and two copies can disagree.
+
+The capture **loads an empty machine only**: `find_closest_loadable()` skips any `BoneTurret` or
+`BoneWorker` whose `loaded` is true. It is a loading item, not a retrofit for one already
+working, and without the skip a player standing beside a running turret has the skull ranked
+toward it while an empty worker a step further out goes without.
 
 `BoneTurret` captures `_base_fire_interval` in `_ready` and always multiplies *that*, never the
 live `wait_time`. `Timer.start()` assigns `wait_time`, so deriving the charged interval from
@@ -351,13 +373,13 @@ the current one compounds on every call — the `gather-9x0` furnace bug in a ne
 reason `make_charged` is idempotent in effect as well as in its guard. Measured: still `0.55`
 after four calls, not `0.55^4`.
 
-The devtools verbs are `charge_skeleton` (forces one, bypassing both the roll and the distance
-gate, and reports honestly when there was no uncharged skeleton to hit) and `charged_state`,
-which counts charged enemies, workers and turrets in one read and lists `ground_drops` by item
-name. That last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state`
-reports it as an opaque object id, so "did the charged kill actually drop a skull" was
-otherwise unanswerable without walking the player over it — which conflates the drop with the
-pickup radius.
+The devtools verbs are `charge_skeleton` (forces the replacement on a live skeleton, bypassing
+both the roll and the distance gate, and reporting honestly when there was no skeleton to hit)
+and `charged_state`, which counts enemies by type — `EnemyRegistry.CHARGED` against `BONE` —
+alongside charged workers and turrets in one read, and lists `ground_drops` by item name. That
+last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state` reports it as
+an opaque object id, so what a kill actually left on the ground is otherwise unanswerable
+without walking the player over it — which conflates the drop with the pickup radius.
 
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
