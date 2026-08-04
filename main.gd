@@ -120,6 +120,7 @@ func _ready():
 	refresh_grass_decor()
 	_setup_weather()
 	_setup_raid_banner()
+	_setup_run_summary()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
 
@@ -176,6 +177,25 @@ func _setup_raid_banner() -> void:
 	banner.name = "RaidBanner"
 	banner.director = get_node_or_null("Systems/RaidDirector") as RaidDirector
 	ui_layer.add_child(banner)
+
+
+## The end-of-run score card. Built here rather than placed in main.tscn for the same reason as
+## the land panel and the raid banner: it is view-only and persists nothing.
+##
+## Built BEFORE `_setup_hud_toolbar()`, and that ordering is load-bearing — the toolbar
+## discovers the panels it has to hide behind by walking `UI` for `PanelFrame`s at build time,
+## so a panel created after it is one the strip will happily float on top of.
+func _setup_run_summary() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the run summary has nowhere to live")
+		return
+
+	var summary := RunSummaryUi.new()
+	summary.name = "RunSummaryUI"
+	summary.stats = get_node_or_null("Systems/RunStats") as RunStats
+	summary.input_manager = input_manager
+	ui_layer.add_child(summary)
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself
@@ -386,6 +406,13 @@ func _setup_islands() -> void:
 	island_manager.tile_map_handler = self
 	island_manager.resource_manager = resource_manager
 	add_child(island_manager)
+
+	# Connected BEFORE generate(), so a boss that somehow dies during world generation still ends
+	# the run. Cheap insurance rather than a known case — but a wiring line that only works when
+	# it runs early is one that breaks silently when someone reorders this method.
+	var run_stats := get_node_or_null("Systems/RunStats") as RunStats
+	if run_stats != null and not island_manager.boss_killed.is_connected(run_stats._on_boss_killed):
+		island_manager.boss_killed.connect(run_stats._on_boss_killed)
 
 	island_manager.generate()
 	# Draws them empty and opens nothing: a starting coastline of radius 8 is nowhere near

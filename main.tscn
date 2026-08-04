@@ -36,6 +36,7 @@
 [ext_resource type="Script" uid="uid://cor04yevqobh1" path="res://ui/save_slot_ui.gd" id="44_svslt"]
 [ext_resource type="Script" path="res://systems/world_clock.gd" id="45_wclck"]
 [ext_resource type="Script" path="res://systems/raid_director.gd" id="46_raidd"]
+[ext_resource type="Script" path="res://systems/run_stats.gd" id="47_rstat"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_t1usi"]
 atlas = ExtResource("5_ba3bd")
@@ -784,5 +785,8 @@ script = ExtResource("45_wclck")
 
 [node name="RaidDirector" type="Node" parent="Systems"]
 script = ExtResource("46_raidd")
+
+[node name="RunStats" type="Node" parent="Systems"]
+script = ExtResource("47_rstat")
 
 [connection signal="timeout" from="World/ResourceTimer" to="World/ResourceTimer" method="_on_timeout"]

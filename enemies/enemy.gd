@@ -98,6 +98,18 @@ func _ready():
 	
 	
 func _on_died():
+	# FIRST, before the two awaits below, and that ordering is load-bearing (gather-1zv).
+	#
+	# This method suspends for 0.2s of particles, so everything after the first `await` runs a
+	# fifth of a second late — by which time other listeners on the same `died` signal have
+	# already run to completion. The boss is exactly that case: `IslandManager._on_boss_died`
+	# ends the run and builds the score card while this coroutine is still parked, so a kill
+	# recorded further down showed up on the card as "Enemies slain: 0" for the very enemy whose
+	# death produced it. The kill happened when the health hit zero, not when the smoke cleared.
+	var run_stats := RunStats.find(self)
+	if run_stats != null:
+		run_stats.record_kill()
+
 	# A kill is the biggest single event in the combat loop and used to be the quietest: the
 	# corpse waited 0.2s for its particles and then vanished at full opacity.
 	Juice.shake(self, Juice.Shake.HEAVY)

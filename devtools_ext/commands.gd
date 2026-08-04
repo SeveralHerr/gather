@@ -73,6 +73,9 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("raid_state", _cmd_raid_state)
 	dev.register_command("start_raid", _cmd_start_raid)
 	dev.register_command("end_raid", _cmd_end_raid)
+	dev.register_command("run_summary", _cmd_run_summary)
+	dev.register_command("end_run", _cmd_end_run)
+	dev.register_command("kill_enemy", _cmd_kill_enemy)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -3417,4 +3420,137 @@ func _cmd_end_raid(_args: Dictionary) -> Dictionary:
 		"success": true,
 		"message": "night %d raid ended with %d still standing" % [day, left],
 		"data": {"day": day, "remaining_at_end": left, "live_raiders": raids.live_raiders()},
+	}
+
+
+func _run_stats() -> RunStats:
+	for node in _dev.get_tree().get_nodes_in_group("RunStats"):
+		if node is RunStats:
+			return node
+	return null
+
+
+func _run_summary_ui() -> RunSummaryUi:
+	return _dev.get_tree().root.get_node_or_null("Main/UI/RunSummaryUI") as RunSummaryUi
+
+
+## The run's tally, plus whether the card is on screen.
+##
+## Reports the model AND the view, for the reason `world_clock` reads its tints back off all
+## three canvases: a reply that echoed only `run_ended` cannot tell "the run ended" apart from
+## "the run ended and the card never opened", and those live in different files.
+##
+## The `summary` block is the card's own contents, obtained from `RunStats.summary()` — the same
+## call the UI makes — so a mismatch between this verb and what the player sees is impossible by
+## construction rather than by two places being kept in step.
+func _cmd_run_summary(_args: Dictionary) -> Dictionary:
+	var stats := _run_stats()
+	if stats == null:
+		return {"success": false, "message": "no RunStats in the scene", "data": {}}
+
+	var card := _run_summary_ui()
+	var summary := stats.summary()
+
+	var data := {
+		"run_ended": stats.run_ended_flag,
+		"ended_cause": stats.ended_cause,
+		"card_open": card.is_open() if card != null else false,
+		"summary": summary,
+		# Formatted alongside the raw float, so the string the player reads is checkable without
+		# re-implementing the formatter in the test that checks it.
+		"play_time": RunStats.format_duration(stats.play_seconds),
+	}
+
+	var message := "run in progress"
+	if stats.run_ended_flag:
+		message = "run ended on day %d at level %d" % [stats.ended_day, stats.ended_level]
+
+	return {"success": true, "message": message, "data": data}
+
+
+## Ends the run as the boss would, so the card can be reached without playing to the arena.
+##
+## It goes through `RunStats.end_run()` rather than writing the flag, which means it takes the
+## real path: the day, level and gold are frozen the same way, and `run_ended` is emitted so the
+## card opens. A verb that set the flag directly would leave the card unshown and report success
+## for it.
+##
+## Refuses a run that is already over rather than re-showing the card — `end_run` is idempotent
+## by design, and a verb that hid that would make the idempotence untestable from the CLI.
+func _cmd_end_run(_args: Dictionary) -> Dictionary:
+	var stats := _run_stats()
+	if stats == null:
+		return {"success": false, "message": "no RunStats in the scene", "data": {}}
+
+	if not stats.end_run(RunStats.CAUSE_BOSS):
+		return {
+			"success": false,
+			"message": "the run already ended on day %d" % stats.ended_day,
+			"data": {"ended_day": stats.ended_day, "run_ended": true},
+		}
+
+	var card := _run_summary_ui()
+	return {
+		"success": true,
+		"message": "run ended on day %d at level %d" % [stats.ended_day, stats.ended_level],
+		"data": {
+			"summary": stats.summary(),
+			"card_open": card.is_open() if card != null else false,
+		},
+	}
+
+
+## Kills live enemies through the real death path.
+##
+## `clear-nodes --group Enemy` already frees them, and that is exactly why this verb is needed:
+## `queue_free()` is not a death. It skips `HealthManager.died`, so nothing drops, no xp is
+## paid, `RunStats` never counts the kill and — the case this was written for — the boss's
+## `died` connection never fires, so the run never ends. A test built on `clear-nodes` proves
+## the nodes are gone and nothing else.
+##
+## This drives `health_manager.take_damage()` instead, so everything a real kill does happens:
+## the loot table rolls, the coins drop, the corpse pops, the signals fire.
+##
+## `{"type": "Elite"}` restricts it to one EnemyRegistry type — which is how the boss is reached,
+## since it is the only Elite in the world. `{"count": n}` caps how many die. Both are optional;
+## with neither, everything alive dies.
+func _cmd_kill_enemy(args: Dictionary) -> Dictionary:
+	var wanted := str(args.get("type", ""))
+	var limit := int(args.get("count", 0))
+
+	var spawner := _enemy_spawner()
+	if spawner == null:
+		return {"success": false, "message": "no EnemySpawner in the scene", "data": {}}
+
+	var doomed: Array = []
+	for child in spawner.get_children():
+		if not (child is Enemy):
+			continue
+		if wanted != "" and child.type != wanted:
+			continue
+		doomed.append(child)
+		if limit > 0 and doomed.size() >= limit:
+			break
+
+	if doomed.is_empty():
+		# Honest rather than "ok". "There was no Elite to kill" and "the Elite died" are
+		# different answers, and a verb that returns success for both makes the boss chain
+		# untestable — which is the one thing it exists to test.
+		var described := "enemies" if wanted == "" else "'%s' enemies" % wanted
+		return {"success": false, "message": "no live %s" % described, "data": {"killed": 0}}
+
+	var killed_types: Array = []
+	for enemy in doomed:
+		if enemy.health_manager == null:
+			continue
+		killed_types.append(enemy.type)
+		# Through HealthManager, so `died` fires and every consumer of it runs. Damage well past
+		# max_health rather than exactly it: `take_damage` clamps, and a boss whose health was
+		# raised since this was written should still die in one call.
+		enemy.health_manager.take_damage(enemy.max_health * 10 + 100)
+
+	return {
+		"success": true,
+		"message": "killed %d enemy(s): %s" % [killed_types.size(), ", ".join(killed_types)],
+		"data": {"killed": killed_types.size(), "types": killed_types},
 	}

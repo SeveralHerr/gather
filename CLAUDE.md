@@ -593,6 +593,39 @@ still carrying the starting island's 28 nodes, ringed by three walkable islands 
 opened — for long enough to be baked into two committed fixtures (`gather-3m9`). If you
 need land without charging for it, call `grant_parcels`; do not re-derive it.
 
+**The boss ends the run, and the run has a score** (`gather-1zv`). `Systems/RunStats`
+(`systems/run_stats.gd`) is the model and `ui/run_summary_ui.gd` is the card — the same
+model/view split again. `IslandManager.boss_killed` is the hook; `RunStats.end_run()` freezes the
+score and emits it. Before this, killing the boss changed nothing and the world carried on
+identically forever, so there was nothing to be good at.
+
+- **RunStats owns only what nothing else counts** — kills, nodes gathered, deaths, time — and
+  reads level, gold, land, raids and skills from their owners when the card is built. A counter
+  here shadowing `LevelUpManager.level` would be a second copy of a fact, and it *would* diverge:
+  a load restores theirs and would have to remember to restore this one too.
+- **Three fields are the deliberate exception and are frozen at `end_run`**: day, level and gold.
+  The player may choose KEEP PLAYING and earn another thousand gold, and a card rebuilt from live
+  values afterwards would quietly rewrite what the run scored.
+- **`end_run` is idempotent, and `loadObject` deliberately does not emit `run_ended`.** Loading a
+  finished run must not throw the epitaph in the player's face; what they asked for by loading is
+  the world. The restored flag is what stops the boss ending the run a second time.
+- **`Enemy._on_died` records the kill BEFORE its two awaits**, and that ordering is load-bearing.
+  The method suspends for 0.2s of particles, so anything after the first `await` runs after every
+  other listener on the same `died` signal has finished — including the one that ends the run and
+  builds the card. Recorded further down, the boss's own death showed on the card as
+  "Enemies slain: 0".
+- **NEW RUN is `reload_current_scene()`**, which is a decision rather than a shortcut: every save
+  entry is keyed on `get_path()` and nothing anywhere unwinds world generation. Reloading is the
+  only path guaranteed to produce what a fresh boot produces, because it is one. It asks twice
+  before acting, and Escape / the X / the backdrop all mean KEEP PLAYING — the destructive option
+  is never on a route taken by reflex.
+
+The devtools verbs are `run_summary` (the model's tally *and* whether the card is open, for the
+reason `world_clock` reads its tints back), `end_run`, and `kill_enemy` — which exists because
+`clear-nodes --group Enemy` is not a death: `queue_free()` skips `HealthManager.died`, so nothing
+drops, no xp is paid and the boss chain never fires. `kill_enemy --args '{"type":"Elite"}'` drives
+`take_damage` instead, so a test of the ending exercises the ending.
+
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
 individually. Bound to `[` (save) and `]` (load).
