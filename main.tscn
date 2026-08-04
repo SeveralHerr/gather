@@ -406,6 +406,8 @@ layer_4/y_sort_enabled = true
 layer_4/z_index = 1
 layer_5/name = "Water"
 layer_5/z_index = -4
+layer_6/name = "Decor"
+layer_6/z_index = -1
 
 [node name="EnemySpawner" type="Node2D" parent="World" unique_id=444963715]
 y_sort_enabled = true

@@ -4258,3 +4258,141 @@ Guidelines that make an entry useful later:
     `find-nodes --class Enemy --where type=Elite` verb returning matching paths. The
     existing `clear-nodes --group/--class/--method` already does this matching internally
     to *free* nodes; exposing the same predicate as a read would cost little.
+
+## 2026-08-03 — Added a skills-recap instruction to the global CLAUDE.md
+
+- Value: **inconclusive** — no game code changed; this turn only created
+  `C:\Users\gotmi\.claude\CLAUDE.md`, which the harness has no view of and no way to
+  assert on.
+  - Expected: nothing — the harness verifies `res://` scripts and scenes at runtime, and
+    the edited file is outside the project entirely.
+  - Got: n/a, no harness command was run.
+  - Cheaper: nothing to run; a `Read` of the target path (which did not exist) was the
+    whole verification.
+
+- Gap: no gaps this turn — the change was outside the harness's scope, not beyond its reach.
+
+## 2026-08-03 — scattered grass tufts and wildflowers over plain grass (gather-5z0)
+
+- Value: **warranted** — runtime produced two claims the diff could not, one of which was a
+  latent bug in a design that looked finished on the page.
+  - Expected: that layer 6 at `z_index = -1` actually draws above layer 0 (also `-1`) under a
+    y-sorted TileMap — equal-z ordering by layer index is an engine detail no amount of
+    reading settles. And that the real generated island gets ~18% of its grass cells tufted,
+    rather than zero because source 14 failed to resolve at runtime.
+  - Got: both, plus the one that mattered. `grant_parcels(3)` took the map from 51 to 85
+    tufts and **8 of the new ones landed on cells that were coastline before the purchase** —
+    the exact cells an incremental "paint only the new ring" repaint would have left bare
+    forever, in a band at every radius the island ever stopped at. Nothing in the diff says
+    that; it only shows up because a purchase re-solves old coastline into plain grass. Also
+    `0 of 51` tufts on a non-grass atlas with 19 distinct ground atlases present, `14` tufts
+    sharing a cell with a layer-1 resource (the user's actual requirement, as data rather
+    than as an argument), and a quickload reproducing the scatter **cell-for-cell, 85/85**,
+    which is what the no-persistence design rests on.
+  - Cheaper: nothing. The 13 unit tests cover the pure scatter function and the `is_occupied`
+    invariant on a synthetic TileMap, and they are what caught nothing here — the coastline
+    promotion needs the real terrain solver, the round trip needs the real save path, and the
+    draw order needs pixels.
+
+- Value (second run, the art pass): **warranted** — `screenshot` was the only instrument that
+  could answer the question asked.
+  - Expected: that the redrawn sheet reads as grass rather than as the flat off-palette V it
+    replaced, and that the weighted variant table puts all six columns on the map rather than
+    starving the low-weight flowers.
+  - Got: all six columns live (`21/23/17` grass, `5/5/7` flowers, no stray source or column),
+    `18.7%` of grass decorated and flowers at `4.1%` of grass. The art itself took four
+    iterations that only a rendered preview could adjudicate — vertical bars read as a bar
+    chart, adjacent full-height columns read as a solid block, and a linear lean read as a
+    staircase. None of that is visible in a pixel array.
+  - Cheaper: for the *distribution*, the unit test `test_every_variant_is_reachable` would
+    have done it headless. For whether it looks like grass, nothing but the screenshot.
+
+- Gap: **no gaps this turn.** One thing worth noting rather than filing: `tilemap-cells`
+  returns `atlas` as `{"x":..,"y":..}` while `run-method get_used_cells` returns Vector2i
+  already stringified to `"(x, y)"`, so a script consuming both needs two parsers. That is
+  the harness faithfully reporting what Godot handed it, not a defect — recording it so the
+  next person writing a cross-layer probe expects it.
+
+## 2026-08-03 — four candidate decoration art styles, compared in-game (gather-5z0)
+
+- Value: **warranted** — the run overturned a judgement made from static previews, which is
+  the only kind of finding that justifies launching the game for an art change.
+  - Expected: that showing all four candidate styles in the running game would mostly confirm
+    the ranking already visible in the scattered-field mock-ups, and let a style be picked.
+  - Got: it contradicted them. Every style is **too large at the camera's 8x zoom** — a 16px
+    tile is 128px on screen and the flower blooms span ~11 of those 16 pixels, so in-game a
+    daisy is bigger than a rock and reads as an interactable pickup sitting next to the ore
+    nodes. The 2x field previews I ranked the styles on could not show this, because the
+    thing that fails is the sprite's size *relative to the other sprites*, and a preview over
+    bare grass has no other sprites in it. Four screenshots, one per style, at
+    `decor_style` 0..3.
+  - Cheaper: nothing that was actually tried. In principle a mock-up compositing the
+    candidates against a real screenshot would have caught it for no launches — worth doing
+    first next time an art change is judged. The scattered-field-over-flat-colour preview is
+    the thing that was too cheap.
+
+- Gap: **no gaps this turn.** Worth recording rather than filing: putting all four candidate
+  styles on one 24-column atlas and selecting between them with a `static var` made this one
+  import and four 8-second relaunches instead of four imports (~30s each). The harness did
+  not need to change for that — but a `set-state` on a `static var` followed by
+  `run-method refresh_grass_decor` would have made it one launch, and that failed only
+  because the repaint reads the var at paint time and the atlas columns are baked per style.
+  Noting the pattern because "put every candidate in one atlas and index it" is reusable for
+  any future art bake-off in this project.
+
+## 2026-08-03 — planned lightning strikes and blue skull enemies (no code written)
+
+- Value: **inconclusive** — a requirements-and-design turn; nothing was built, so no runtime
+  claim was available to make or to miss.
+  - Expected: nothing from runtime. The open questions were product decisions (strike
+    targeting, damage model, capture rule, rarity) and structural ones answerable by reading
+    — where weather lives, how the net decides what it catches, how a loaded machine stores
+    what is in it.
+  - Got: reading settled every structural question and changed the plan twice. `loaded` is a
+    bare `bool` on both `bone_turret.gd:11` and `bone_worker.gd:60`, so blue variants are a
+    save-format change rather than a new scene; `bullet.gd:28` hardcodes
+    `receive_hit(Vector2.ZERO, 3)`, so "turret hits harder" reaches the bullet and not the
+    turret; `enemy_spawner.gd:280-330` already persists `type`/`max_hp`/`damage` through
+    `EnemyRegistry`, so a new enemy type needs no new persistence at all. Also found that
+    nothing in `enemies/` draws a health bar, which makes the chosen "nettable below 50%"
+    rule illegible without added feedback — a design flag raised back to the user.
+  - Cheaper: nothing. Eight greps and six file reads is already the floor for this, and
+    launching the game would have told me less than `enemy_registry.gd` did.
+
+- Gap: **no gaps this turn.** The harness was not exercised — no lint, no tests, no bridge
+  call — because there is no diff to verify. Recording that explicitly so the absence reads
+  as "not applicable" rather than as a skipped gate; `/verify` is owed at the end of each
+  implementation phase, starting with the lightning VFX node.
+
+## 2026-08-03 — flat top-down decoration, occupancy gating, and an is_occupied hot-path fix
+
+- Value: **warranted** — two findings the diff and the unit suite both had no way to produce.
+  - Expected: that gating decoration on `is_occupied` would hold at runtime for both spawned
+    resources and player placements, and that the half-size blooms would stop reading as
+    interactable.
+  - Got: both, and a cost nobody had asked about. `refresh_grass_decor` measured **38 ms over
+    1878 grass cells** at max land, because `is_occupied` calls `get_item_or_resource` — a
+    linear scan of both registries — unconditionally, and an EMPTY cell reads back as source
+    `-1` / atlas `(-1, -1)`, which no entry is registered under. So it scanned everything to
+    conclude nothing, on every empty cell. Guarding that call on `source_id != -1` took the
+    repaint to below the measurement floor. That function is also the spawn loop's retry test
+    (up to 100 calls per node placed) and the pathfinder's neighbour test, so the fix is worth
+    more than the feature that exposed it. Also confirmed: `0` of 258 decorated cells overlap
+    layer 1 or 2 at max land, and placing a wall on a decorated cell cleared exactly that cell.
+  - Cheaper: for the occupancy rule, nothing — but the unit tests do cover it, and they were
+    written first and passed first. The 38 ms is the part only the running game could say, and
+    only because the timing was taken at max land rather than on the starting island.
+
+- Gap: **`tools/run_tests.gd` joins the DevTools bus and can seize ownership from a live
+  game.** Mid-session, `run-method` started returning empty replies; the client correctly
+  reported `Foreign instance on the bus: the reply to 'run_method' came from pid 16300, but
+  devtools_owner.json says pid 20584 owns this bus`. Listing processes found the culprit was
+  not another *game* but a headless `Godot --headless --script res://tools/run_tests.gd`
+  instance — the DevTools autoload loads under the test runner too, so a test run concurrent
+  with a live game fights it for the bus. The ownership check caught it, which is the good
+  news; what it cost was one silently wrong measurement (a 359 ms "repaint" that was two
+  instances answering) that I nearly wrote down as a result.
+  - [G-109] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `run_tests.gd` and `lint_project.gd` opt out of the bus entirely — they
+    are not interactive sessions and have no reason to register as its owner. Failing that,
+    give them an automatic private session id so they cannot collide with a running game.
