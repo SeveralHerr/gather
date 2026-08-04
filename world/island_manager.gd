@@ -1,6 +1,19 @@
 extends Node
 class_name IslandManager
 
+## A boss went down. Carries which island's, because a build with two bosses cannot tell them
+## apart otherwise — the same reason `_on_boss_died` takes the id through `bind()`.
+##
+## Named `boss_killed` rather than `boss_defeated` because that name is already the scalar
+## compatibility property below, and a signal and a property sharing a name is a GDScript error
+## rather than a style opinion.
+##
+## `RunStats` is the listener that matters: this is what ends the run (gather-1zv). Kept as a
+## signal rather than a direct call because this file has no business knowing that runs can end
+## — it draws islands and places bosses, and the next thing that wants to hear about a dead boss
+## should connect rather than be added to a list in here.
+signal boss_killed(island_id: String)
+
 ## The pregenerated islands: a forest grove, an ore island, and a boss arena.
 ##
 ## They are drawn at world generation and are visible across the water from the first
@@ -943,6 +956,12 @@ func _spawn_boss(island_id: String, centre: Vector2i) -> void:
 ## filled chest two tiles from a living boss is a prize the player can simply walk around.
 func _on_boss_died(island_id: String) -> void:
 	bosses_defeated[island_id] = true
+
+	# Announced before the reward is placed and before the early return below, so a boss with no
+	# BOSSES entry — a future one added to ISLANDS but not yet to the reward table — still ends
+	# the run. Whoever listens decides what a dead boss means; this file only knows one died.
+	boss_killed.emit(island_id)
+
 	if not BOSSES.has(island_id):
 		return
 

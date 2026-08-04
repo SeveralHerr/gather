@@ -388,6 +388,66 @@ last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state`
 an opaque object id, so what a kill actually left on the ground is otherwise unanswerable
 without walking the player over it — which conflates the drop with the pickup radius.
 
+**From night three, the dark comes to you** (`gather-0ez`). `Systems/RaidDirector`
+(`systems/raid_director.gd`) is the model and `ui/raid_banner.gd` is the view — the same split
+as `WorldClock`/`SkyLighting`, for the same three reasons. On `night_started` it opens a raid
+whose size and toughness grow with the day, spawns it in a stagger, and pays a clear bonus when
+the last raider goes down. Before it, night was `NIGHT_CAP_MULT` and `NIGHT_INTERVAL_MULT` — a
+few more wanderers, somewhere else — and walls, doors and turrets were decoration, because
+nothing was ever coming for anything.
+
+Six things here are load-bearing:
+
+- **Raiders are their own registry types, not a flag on a skeleton.** `EnemyRegistry.RAIDER_BONE`
+  and `RAIDER_SPIDER` are inherited scenes over the ordinary ones, exactly as `CHARGED` is, and
+  for the reason that note already gives: `type` is persisted and `scene_for_type()` rebuilds
+  from it, so the ember tint and the wide `hunt_range` come back from a load with no code on the
+  load path. It is also what makes **"how many raiders are left" a live count rather than a
+  counter** — `RaidDirector.live_raiders()` walks the spawner's children. A counter decremented
+  from each raider's `died` signal is wrong the instant the player quicksaves mid-raid: the
+  enemies come back through `EnemySpawner.loadObject`, which connects nothing, so every later
+  kill is invisible and the raid never clears.
+- **`Enemy.hunt_range` is the dial that makes a raid arrive.** `EnemyIdle` used to hardcode 30px
+  — two tiles — so a raider spawned across the island simply wandered where it landed. Ambient
+  enemies still get 30 from the export's default; only the raider scenes widen it, so the
+  ordinary island is unchanged.
+- **Raiders spawn in the player's OWN region, and `accepts_ambient_enemies` is deliberately not
+  consulted.** The first implementation picked any far-enough land and got this exactly
+  backwards: a fresh home island is 160px across, so *no* home cell cleared the 200px minimum
+  and every candidate that did was on a pregenerated island. Those raiders pathed at the player,
+  walked into the sea and stopped — right type, right toughness, velocity set, position
+  unchanged. A raid that never arrives is worse than none: the banner counts seven enemies the
+  player cannot find. Nothing headless sees this and no screenshot shows it; it took reading one
+  raider's position twice, eight seconds apart, to find it had moved 0.13 pixels.
+- **There is no baked navigation in this game**, and `EnemyFollow` now compensates. The tileset
+  declares navigation source groups but nothing in `main.tscn` is a `NavigationRegion2D`, so
+  `get_next_path_position()` returns a point on the straight line to the target — walk it into a
+  tree and `move_and_slide()` cancels the velocity and the enemy stands there pushing. That was
+  invisible while chasing was a two-tile affair; a raid is the first thing that asks an enemy to
+  cross an island. `EnemyFollow` measures actual displacement (never `velocity`, which is what
+  was *written* and stays nonzero against a wall) and sidesteps along the obstacle after
+  `STUCK_AFTER`. Baking navigation is the real fix and is a change to the tilemap, the save
+  format's terrain replay and every scene tile that writes a cell.
+- **Raiders are spawned outside `EnemySpawner`'s population cap, on purpose**, so `MAX_SIZE` is a
+  frame-rate bound before it is a difficulty one. A raid that counted against the ambient
+  ceiling would simply stop the trickle and feel like nothing had changed.
+- **Health scales with the night; damage deliberately does not.** The game has no armour, so a
+  raider that hits harder every night is a difficulty setting the player has no dial to answer.
+  More health is answered by every dial they *do* have: a better sword, the Combat branch, a
+  turret, a wall to fight behind.
+
+Dawn ends a raid without paying and **leaves the surviving raiders alive** — a wave evaporating
+at sunrise reads as the game tidying up after itself and cancels the night's tension in one
+frame. `raid_survived` and `raid_cleared` are separate signals because surviving until morning
+and clearing the field are different things, and only the second is a clear.
+
+The devtools verbs are `raid_state` (the director's state *and* the banner's, for the reason
+`world_clock` reads the tint back off all three canvases), `start_raid` — which **moves the
+clock to night first if it is daylight**, the same way `strike_lightning` starts a storm,
+because `_process` ends any raid it finds running outside the dark and the verb otherwise
+reported a cheerful success for a raid that was over one frame later — and `end_raid`, which is
+the dawn path rather than a clear, so it can never be used as a coin faucet.
+
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
 campfire) has to be distance-culled against the same budget.
@@ -532,6 +592,76 @@ three directly and skipped the signal, so `build_demo_world` produced a radius-3
 still carrying the starting island's 28 nodes, ringed by three walkable islands nobody had
 opened — for long enough to be baked into two committed fixtures (`gather-3m9`). If you
 need land without charging for it, call `grant_parcels`; do not re-derive it.
+
+**The boss ends the run, and the run has a score** (`gather-1zv`). `Systems/RunStats`
+(`systems/run_stats.gd`) is the model and `ui/run_summary_ui.gd` is the card — the same
+model/view split again. `IslandManager.boss_killed` is the hook; `RunStats.end_run()` freezes the
+score and emits it. Before this, killing the boss changed nothing and the world carried on
+identically forever, so there was nothing to be good at.
+
+- **RunStats owns only what nothing else counts** — kills, nodes gathered, deaths, time — and
+  reads level, gold, land, raids and skills from their owners when the card is built. A counter
+  here shadowing `LevelUpManager.level` would be a second copy of a fact, and it *would* diverge:
+  a load restores theirs and would have to remember to restore this one too.
+- **Three fields are the deliberate exception and are frozen at `end_run`**: day, level and gold.
+  The player may choose KEEP PLAYING and earn another thousand gold, and a card rebuilt from live
+  values afterwards would quietly rewrite what the run scored.
+- **`end_run` is idempotent, and `loadObject` deliberately does not emit `run_ended`.** Loading a
+  finished run must not throw the epitaph in the player's face; what they asked for by loading is
+  the world. The restored flag is what stops the boss ending the run a second time.
+- **`Enemy._on_died` records the kill BEFORE its two awaits**, and that ordering is load-bearing.
+  The method suspends for 0.2s of particles, so anything after the first `await` runs after every
+  other listener on the same `died` signal has finished — including the one that ends the run and
+  builds the card. Recorded further down, the boss's own death showed on the card as
+  "Enemies slain: 0".
+- **NEW RUN is `reload_current_scene()`**, which is a decision rather than a shortcut: every save
+  entry is keyed on `get_path()` and nothing anywhere unwinds world generation. Reloading is the
+  only path guaranteed to produce what a fresh boot produces, because it is one. It asks twice
+  before acting, and Escape / the X / the backdrop all mean KEEP PLAYING — the destructive option
+  is never on a route taken by reflex.
+
+The devtools verbs are `run_summary` (the model's tally *and* whether the card is open, for the
+reason `world_clock` reads its tints back), `end_run`, and `kill_enemy` — which exists because
+`clear-nodes --group Enemy` is not a death: `queue_free()` skips `HealthManager.died`, so nothing
+drops, no xp is paid and the boss chain never fires. `kill_enemy --args '{"type":"Elite"}'` drives
+`take_damage` instead, so a test of the ending exercises the ending.
+
+**The quest board asks the player for things** (`gather-dj2`). `systems/quest_board.gd` is the
+registry (built imperatively like `SkillTree`), `Systems/QuestLog` owns claiming and persistence,
+`ui/quest_ui.gd` is the panel on `J` / the TASKS button. Nothing in the game had ever asked the
+player for anything, so a new player had no idea what it wanted from them and an experienced one
+had no short-term goal between the long ones.
+
+**Every quest is a question about state something else already owns, and that is what keeps the
+whole feature small.** A quest is not accepted, subscribes to nothing, and accumulates no counter
+— its progress is derived on every read from the inventory, `RunStats.enemies_killed`,
+`RaidDirector.raids_cleared`, `WorldClock.day`, `LevelUpManager.level` or
+`LandManager.parcels_bought`. So `QuestLog` persists exactly one thing, the set of claimed ids,
+and there is no per-quest progress to save, migrate or lose. A per-quest counter fed by a signal
+is the same shape as the raid's "how many raiders are left" problem: right until the first
+quicksave, silently wrong after. It also means a quest added later works retroactively, which
+would otherwise take a migration.
+
+Two smaller rules: **rewards are coins and xp only**, never recipe or resource unlocks — an
+unlock must be applied exactly once and never on load (`Recipes` and `ResourceManager2` persist
+their own lists), and coins carry no such rule. And **a `HAVE` quest spends the items, so its
+button says HAND IN rather than CLAIM** before it is pressed; the spend happens *before* the
+quest is marked claimed, or a failed spend leaves it done and the items still in the bag.
+
+**The toolbar row is an `HFlowContainer` now**, because the quest button was the fifth. It used
+to be an `HBoxContainer` anchored top-right growing leftwards, so an over-wide row neither
+clipped nor wrapped — the leftmost button ended up off the edge, reachable by nothing and
+announced by nothing. Four buttons cleared a 390px portrait phone by about two pixels, which was
+a coincidence rather than a budget. It cannot be fixed by narrowing the buttons either: what
+sets a Button's minimum width is its *text* plus `style_button`'s margins, and the widest face in
+the game is `"SKILLS +99  [K]"`. `occupied_top_height()` measures the buttons as well as the
+container, because `HFlowContainer.get_combined_minimum_size()` is width-dependent and answers
+for whatever width it had when asked — the one-line height, for a strip about to wrap.
+
+Devtools: `quest_state` (every offered quest with live progress, plus whether the panel is open)
+and `claim_quest`, which goes through the real `claim()` so the spend, the payout and the signals
+all happen — and reports *why* a refusal happened, since "already claimed", "not complete" and
+"not offered yet" are three different answers.
 
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified

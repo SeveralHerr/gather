@@ -5057,3 +5057,88 @@ Guidelines that make an entry useful later:
     offscreen and writes a handful of PNGs, with no bus and no `--write-movie` pass. Framing
     and reach are most of what a clip author cannot check, and neither needs a window, audio,
     or the ~10 minutes a real take costs.
+
+## 2026-08-04 — design brainstorm: replayability and feature ideas (no code changed)
+
+- Value: **inconclusive** — no harness run at all; this turn produced ideas, not a diff, so
+  there was nothing for lint, tests or the bridge to assert against.
+  - Expected: nothing — the question was "what is this game missing", which runtime cannot answer.
+  - Got: n/a. Grounding came from reading `systems/skill_tree.gd` and `items/resources.gd`
+    directly (~4s of Read) plus the architecture notes in CLAUDE.md.
+  - Cheaper: nothing cheaper existed. Reading the two tuning files was already the minimum.
+
+- Gap: **no gaps this turn** — the harness was not exercised, so it could not fall short.
+  One observation for later: none of the existing verbs answer "how long does a run last"
+  or "what does the player have at day N", which is the kind of question the proposed
+  run-ending/score feature (idea 5) would immediately want. Not filing it as a numbered gap
+  until that feature is approved and the need is real rather than hypothetical.
+
+## 2026-08-04 — wrote docs/idea.md (design ideas doc; no game code changed)
+
+- Value: **inconclusive** — nothing executable changed, so lint, tests and the bridge had
+  nothing to assert. A markdown file cannot be verified by the harness.
+  - Expected: nothing. The turn was a Write plus two `ls` calls.
+  - Got: n/a.
+  - Cheaper: nothing — this was already the minimum.
+
+- Gap: **no gaps this turn.** Noting once, without filing a number, that the per-idea
+  "touches" notes in the new doc were assembled by reading CLAUDE.md and two registry files
+  by hand for the second turn running. If that becomes a third time it is a real gap and
+  gets an id — but it is a skill-shaped gap, not a harness-shaped one, so it likely does not
+  belong in this log at all.
+
+## 2026-08-04 — implemented docs/idea.md section B: night raids, run-end score card, quest board
+
+- Value: **warranted** — three runtime bugs that lint and 585 unit tests all passed clean on,
+  and one of them was the core mechanic of the feature not working at all.
+  - Expected: that the raid would spawn the right enemies with the right stats (which lint and
+    the new curve tests already covered), and that the card and panel would look roughly right.
+  - Got: three claims no diff could make.
+    1. `get-state` on a raider twice, eight seconds apart: `global_position` went from
+       `{"x": 205.359, "y": 3.474}` to `{"x": 205.494, "y": 3.496}` — 0.13px while
+       `velocity` read `{"x": -9.997, "y": 0.215}`. Raiders were spawning on land not walkably
+       connected to the player and pushing into the sea forever. Right type, right toughness,
+       right velocity, and a raid that could never arrive or be cleared.
+    2. After fixing placement, one raider in seven still never moved: this project has no baked
+       navigation (`world_tile_set.tres` declares source groups, nothing is a
+       `NavigationRegion2D`), so `get_next_path_position()` returns a straight line and the
+       enemy jams on the first tree. Invisible until now because `EnemyIdle` only chases inside
+       30px.
+    3. The score card rendered `Enemies slain 0` for the very boss whose death produced it,
+       while `run_summary` reported `enemies_killed: 1`. `Enemy._on_died` awaits 0.2s of
+       particles, so the run-ending listener on the same `died` signal finished first.
+  - Cheaper: nothing. (1) and (2) need a physics world and a real tilemap; (3) needs two
+    listeners on one signal in a live frame. The screenshot alone would have caught (3) but not
+    (1) or (2) — raiders standing still off-screen look identical to raiders walking.
+
+- Value note on the headless half: the unit suite was **not** overkill either, but for a
+  different reason than usual — `test_hud_toolbar.gd`'s existing width budget caught the fifth
+  toolbar button overflowing a 390px phone by 2.2px, which is a thing no runtime session at
+  1920x1080 would ever have shown.
+
+- Gap: **[G-123] no verb kills an enemy through its real death path** — `clear-nodes --group
+  Enemy` frees nodes with `queue_free()`, which skips `HealthManager.died`: nothing drops, no xp
+  is paid, `RunStats` never counts it and the boss's own `died` connection never fires. Testing
+  "the boss ends the run" was therefore impossible with the shipped verbs — a test built on
+  `clear-nodes` proves the nodes are gone and nothing else. Worked around by writing a project
+  verb, `kill_enemy --args '{"type":"Elite"}'`, which drives `take_damage`.
+  - [G-123] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: this is arguably project-specific (it needs to know about `HealthManager`), but
+    the *shape* is not: `clear-nodes` is the only generic way to remove a node and it is always
+    the wrong one when the node's removal has game meaning. A generic
+    `clear-nodes --via-method <name>` — call this method instead of `queue_free()` — would have
+    covered it with no game knowledge at all.
+
+- Gap: **[G-124] `get-state` on a String property is unreadable through the CLI** — reading a
+  Button's `text` back to confirm the two-step NEW RUN confirm returned
+  `Binary file (standard input) matches` from grep, because the reply carries embedded nulls.
+  `tr -d '\000'` worked around it. Small, but it turns a one-line assertion into a pipeline.
+  - [G-124] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: strip or escape non-printable bytes in the CLI's text output path.
+
+- Non-gap worth recording: `start_raid` was written to force a raid without touching the clock,
+  and the game correctly refused to let it — `RaidDirector._process` ends any raid running in
+  daylight, so the verb reported a cheerful "night 9 raid started: 7 raiders" for a raid that was
+  over one frame later with nothing spawned. The harness did not miss this; the harness is how it
+  was found, one `raid_state` call after the "successful" one. It is now the `strike_lightning`
+  pattern: the verb moves the clock to night first and says so in its message.

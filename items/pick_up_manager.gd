@@ -92,10 +92,18 @@ func create(slot_data: SlotData, position: Vector2):
 	#get_tree().root.add_child(pickup)
 
 
-func create_pickup(item: GameItem, position: Vector2):
+## One drop on the ground. `count` is how many the single pickup carries, NOT how many pickups
+## are made — a `SlotData` has always had a count and this simply stops the callers that want a
+## stack from having to mint one node per item.
+##
+## It matters at the two places that pay out in bulk: a cleared night raid is up to 96 coins, and
+## 96 nodes thrown at the player's feet is a frame-rate event followed by a ten-second vacuum, so
+## the reward would arrive as lag. Everything already calling this passes nothing and keeps the
+## single-item behaviour it had.
+func create_pickup(item: GameItem, position: Vector2, count: int = 1):
 	var slot_data: SlotData = SlotData.new()
 	slot_data.item = item
-	slot_data.count = 1
+	slot_data.count = maxi(1, count)
 	PickUpManager.create(slot_data, position)
 
 

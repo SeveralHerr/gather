@@ -449,6 +449,26 @@ const DAMAGE_FLASH_COLOR := Color(0.9, 0.1, 0.12)
 const DAMAGE_FLASH_ALPHA := 0.22
 const DAMAGE_FLASH_TIME := 0.3
 
+## The night-raid announcement (gather-0ez).
+##
+## Louder than the level-up wash above and in the opposite direction of the palette: gold says
+## "you earned something", and this has to say "stop gathering". The alpha is above the damage
+## flash and below nothing else in the game, because it fires at most once a night and it is the
+## one event that asks the player to go somewhere.
+##
+## The time is longer than either of the others for the same reason. A 0.3s flash competes with
+## the swing animation the player is in the middle of; 0.6s outlives it, so the screen is still
+## red when they look up.
+const RAID_FLASH_COLOR := Color(0.95, 0.24, 0.12)
+const RAID_FLASH_ALPHA := 0.38
+const RAID_FLASH_TIME := 0.6
+
+## The "NIGHT n — RAID" splash, and the "RAID REPELLED" one that answers it. Ember orange
+## against the green the game already uses for anything that went well, so the two ends of a
+## raid are told apart at a glance rather than by reading them.
+const RAID_SPLASH_COLOR := Color(1.0, 0.55, 0.25)
+const RAID_CLEARED_COLOR := Color(0.55, 1.0, 0.62)
+
 ## Knockback squash on a struck enemy: stretched along the blow. Peak values, tweened back to
 ## 1.0 over KNOCKBACK_SQUASH_TIME.
 const KNOCKBACK_SQUASH := Vector2(1.3, 0.75)

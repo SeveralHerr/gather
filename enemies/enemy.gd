@@ -30,6 +30,22 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 @export var drop: Types.Item
 @export var sound: GameSoundManager.SoundType
 
+## How far away this enemy will notice the player and give chase, in world pixels.
+##
+## 30 is what EnemyIdle used to hardcode, and it is deliberately tiny: tiles are 16px, so an
+## ambient wanderer only reacts once the player is within about two tiles. That is what makes
+## the ordinary island a place you walk through rather than a place that hunts you, and it is
+## the reason a raid needed a dial here at all — a raider spawned across the island with the
+## stock value simply wanders in a circle where it landed, which reads as the raid never
+## arriving rather than as enemies that cannot see you.
+##
+## An @export rather than a field written at spawn time, and that is the whole point: the
+## raider scenes set it, so it comes back from a load through `scene_for_type()` with nothing
+## on the load path to remember it. A value assigned by the spawner would have needed its own
+## save key, its own normalize guard and its own re-application — which is the trade
+## `EnemyRegistry.CHARGED` documents at length.
+@export var hunt_range := 30.0
+
 var level_up_manager: LevelUpManager
 
 var detection_range = 100
@@ -82,6 +98,18 @@ func _ready():
 	
 	
 func _on_died():
+	# FIRST, before the two awaits below, and that ordering is load-bearing (gather-1zv).
+	#
+	# This method suspends for 0.2s of particles, so everything after the first `await` runs a
+	# fifth of a second late — by which time other listeners on the same `died` signal have
+	# already run to completion. The boss is exactly that case: `IslandManager._on_boss_died`
+	# ends the run and builds the score card while this coroutine is still parked, so a kill
+	# recorded further down showed up on the card as "Enemies slain: 0" for the very enemy whose
+	# death produced it. The kill happened when the health hit zero, not when the smoke cleared.
+	var run_stats := RunStats.find(self)
+	if run_stats != null:
+		run_stats.record_kill()
+
 	# A kill is the biggest single event in the combat loop and used to be the quietest: the
 	# corpse waited 0.2s for its particles and then vanished at full opacity.
 	Juice.shake(self, Juice.Shake.HEAVY)

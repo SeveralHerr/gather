@@ -150,6 +150,14 @@ func _on_died():
 	if is_dead:
 		return
 	is_dead = true
+
+	# After the guard, so one death is one death. Recorded rather than punished: respawn is free
+	# (see respawn() below), so this is on the score card as texture — "day 14, never died" is a
+	# different run from "day 14, died nine times", and nothing else records the difference.
+	var run_stats := RunStats.find(self)
+	if run_stats != null:
+		run_stats.record_death()
+
 	respawn()
 
 

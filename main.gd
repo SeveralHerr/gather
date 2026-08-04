@@ -119,6 +119,9 @@ func _ready():
 	# scatters over, and refresh_grass_decor repaints the whole map anyway.
 	refresh_grass_decor()
 	_setup_weather()
+	_setup_raid_banner()
+	_setup_run_summary()
+	_setup_quest_ui()
 	_setup_debug_panel()
 	_setup_hud_toolbar()
 
@@ -153,6 +156,65 @@ func _setup_weather() -> void:
 	rain_vfx.name = "RainVfx"
 	rain_vfx.clock = clock
 	world.add_child(rain_vfx)
+
+
+## The night-raid readout. Built here rather than placed in main.tscn for the same reason as
+## the land panel: it is view-only, it persists nothing, and building it in code keeps the
+## shared scene file from growing a branch per feature.
+##
+## The `UI` CanvasLayer, never `Player/Camera2D/HUD` — that Control is world space at the
+## camera's 8x zoom and is dimmed by the day/night CanvasModulate, so a raid readout parented
+## there would be at its least readable on exactly the nights it exists for.
+##
+## The RaidDirector itself IS in main.tscn, under Systems with the other models, because its
+## save entry is keyed on that path. This node only draws what it says.
+func _setup_raid_banner() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the raid banner has nowhere to live")
+		return
+
+	var banner := RaidBanner.new()
+	banner.name = "RaidBanner"
+	banner.director = get_node_or_null("Systems/RaidDirector") as RaidDirector
+	ui_layer.add_child(banner)
+
+
+## The end-of-run score card. Built here rather than placed in main.tscn for the same reason as
+## the land panel and the raid banner: it is view-only and persists nothing.
+##
+## Built BEFORE `_setup_hud_toolbar()`, and that ordering is load-bearing — the toolbar
+## discovers the panels it has to hide behind by walking `UI` for `PanelFrame`s at build time,
+## so a panel created after it is one the strip will happily float on top of.
+func _setup_run_summary() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the run summary has nowhere to live")
+		return
+
+	var summary := RunSummaryUi.new()
+	summary.name = "RunSummaryUI"
+	summary.stats = get_node_or_null("Systems/RunStats") as RunStats
+	summary.input_manager = input_manager
+	ui_layer.add_child(summary)
+
+
+## The quest board panel. Built here for the same reason as the land panel: view-only, persists
+## nothing, and building it in code keeps the shared scene file from growing a branch per feature.
+##
+## Before `_setup_hud_toolbar()`, like the other two — the toolbar discovers the panels it has to
+## hide behind by walking `UI` for `PanelFrame`s at build time.
+func _setup_quest_ui() -> void:
+	var ui_layer := get_node_or_null("UI")
+	if ui_layer == null:
+		push_warning("TileMapHandler: no UI CanvasLayer, the quest panel has nowhere to live")
+		return
+
+	var panel := QuestUi.new()
+	panel.name = "QuestUI"
+	panel.quest_log = get_node_or_null("Systems/QuestLog") as QuestLog
+	panel.input_manager = input_manager
+	ui_layer.add_child(panel)
 
 
 ## The BAG / SKILLS / LAND buttons. Built last on purpose: the strip hides itself
@@ -363,6 +425,13 @@ func _setup_islands() -> void:
 	island_manager.tile_map_handler = self
 	island_manager.resource_manager = resource_manager
 	add_child(island_manager)
+
+	# Connected BEFORE generate(), so a boss that somehow dies during world generation still ends
+	# the run. Cheap insurance rather than a known case — but a wiring line that only works when
+	# it runs early is one that breaks silently when someone reorders this method.
+	var run_stats := get_node_or_null("Systems/RunStats") as RunStats
+	if run_stats != null and not island_manager.boss_killed.is_connected(run_stats._on_boss_killed):
+		island_manager.boss_killed.connect(run_stats._on_boss_killed)
 
 	island_manager.generate()
 	# Draws them empty and opens nothing: a starting coastline of radius 8 is nowhere near
