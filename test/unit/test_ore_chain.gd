@@ -411,15 +411,59 @@ func test_a_sword_never_outprices_the_pickaxe_of_its_own_tier() -> String:
 	return ""
 
 
-func test_both_new_consumables_heal_more_than_raw_food() -> String:
-	# A cooked or bound item that heals no better than the thing it was made from is a recipe
-	# that costs the player fuel to go backwards.
-	var raw := items.get_item(Types.Item.Food) as GameItemConsumable
+## How much better a crafted heal has to be than eating its own ingredients raw.
+##
+## A bare "better at all" is not the rule and was tried: Cooked Food cost 2 Food (4 each) and
+## healed 10, so it cleared that bar by two points while costing a station, fuel, a walk, and —
+## once Food became a 0.04 enemy drop — about fifty kills. It passed a test that only asked for
+## an improvement, which is how the recipe sat in that state (gather-as9).
+##
+## Doubling is the smallest multiple that says "worth the trip". Today's recipes clear it
+## comfortably: Cooked Food is 4 Berries (4 raw) into 10, and a Bandage is 2 Berries (2 raw)
+## into 8.
+const CRAFTED_HEAL_MULTIPLE := 2.0
+
+
+## A crafted heal has to beat what its own ingredients heal if eaten where they stand, by
+## CRAFTED_HEAL_MULTIPLE.
+##
+## This used to compare against raw Food specifically, which stopped meaning anything the
+## moment the recipes moved off Food. Summing the actual cost list is the version that says
+## what the rule is FOR: the failure it guards against is a recipe that charges the player fuel,
+## a station and a walk for a rounding error, and that failure does not care which item is the
+## input.
+func test_a_crafted_heal_beats_eating_its_own_ingredients() -> String:
 	for type in [Types.Item.Bandage, Types.Item.CookedFood]:
 		var made := items.get_item(type) as GameItemConsumable
 		if made == null:
 			return _T.assert_true(false, "a consumable is not registered")
-		if made.heal_value <= raw.heal_value:
+
+		var recipe = recipes.get_recipe(Types.Item.Sawmill, type)
+		if recipe == null:
+			recipe = recipes.get_recipe(Types.Item.Furnace, type)
+		if recipe == null:
+			return _T.assert_true(false, "%s has no recipe at either station" % made.name)
+
+		# Only the edible inputs count. Coal and string are real costs, but they are not
+		# healing the player is giving up to craft this.
+		var ingredient_healing := 0
+		var breakdown := []
+		for cost_type in recipe.cost_list:
+			var ingredient := items.get_item(cost_type) as GameItemConsumable
+			if ingredient == null:
+				continue
+			var count: int = recipe.cost_list[cost_type]
+			ingredient_healing += ingredient.heal_value * count
+			breakdown.append("%d %s (%d each)" % [count, ingredient.name, ingredient.heal_value])
+
+		if float(made.heal_value) < float(ingredient_healing) * CRAFTED_HEAL_MULTIPLE:
 			return _T.assert_true(false,
-				"%s heals %d, raw food heals %d" % [made.name, made.heal_value, raw.heal_value])
+				"%s heals %d but is made of %s, worth %d eaten raw - a station recipe should pay at least %.1fx"
+					% [
+						made.name,
+						made.heal_value,
+						", ".join(breakdown),
+						ingredient_healing,
+						CRAFTED_HEAL_MULTIPLE,
+					])
 	return ""

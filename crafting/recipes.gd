@@ -174,12 +174,22 @@ func furnace_recipes():
 
 	# --- Furnace additions (gather-cte).
 	#
-	# Cooking. Food drops from trees at a 0.2 chance and heals 4; two of them plus fuel heal
-	# 10, so the furnace is what turns a forager's incidental drops into real sustain. It is
-	# also the first furnace recipe whose inputs are not ore, which is the point — the machine
-	# should be worth walking to for something other than metal.
+	# Cooking. The furnace is what turns a forager's incidental drops into real sustain, and it
+	# is the first furnace recipe whose inputs are not ore — the machine should be worth
+	# walking to for something other than metal.
+	#
+	# Those drops are BERRIES now, not Food (gather-as9). The recipe was written when Food fell
+	# off trees at 0.2 — about one per five trees, gathered while doing something else — and
+	# Food is now a 0.04 enemy drop, about one per twenty-five kills. At that price the recipe
+	# inverted: two Food heal 4 each where they stand, so fifty kills bought a trip to the
+	# furnace to turn 8 points of healing into 10. A recipe that can be net-negative is not a
+	# rare reward, it is dead content.
+	#
+	# Four berries heal 4 raw and 10 cooked, which is the same 2.5x the original had, sourced
+	# from the node that replaced the tree drop. Food keeps out of it entirely: it is a rare
+	# find that heals 4 on the spot and is an input to nothing, so each item means one thing.
 	var cooked_food_costs = {}
-	cooked_food_costs[Types.Item.Food] = 2
+	cooked_food_costs[Types.Item.Berry] = 4
 	cooked_food_costs[Types.Item.CoalOre] = 1
 	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.CookedFood, cooked_food_costs))
 
@@ -395,12 +405,17 @@ func sawmill_recipes():
 	gold_sword_costs[Types.Item.Plank] = 4
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldSword, gold_sword_costs))
 
-	# The Combat branch's sustain, and the second thing string is for. Costing it in string
-	# rather than in food is what makes it Combat's own: spiders drop string, so the branch
-	# that fights is the branch that heals.
+	# The Combat branch's sustain, and the second thing string is for. The string is what makes
+	# it Combat's own: spiders drop it, so the branch that fights is the branch that heals.
+	#
+	# The other half was one Food and is now two Berries (gather-as9), for the reason spelled
+	# out on the cooked food recipe above — at a 0.04 enemy drop, one Food gated a bandage
+	# behind roughly twenty-five kills, and the Food was worth 4 of the bandage's 8 on its own.
+	# The identity survives the swap because it was never the food half that carried it: string
+	# still has to be fought for, and the berries are the part you pick between fights.
 	var bandage_costs = {}
 	bandage_costs[Types.Item.String] = 2
-	bandage_costs[Types.Item.Food] = 1
+	bandage_costs[Types.Item.Berry] = 2
 	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Bandage, bandage_costs))
 
 

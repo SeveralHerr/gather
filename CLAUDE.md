@@ -322,9 +322,15 @@ old code answered the second while meaning the first.
 
 Food no longer drops from trees. It is a 4% drop off every enemy type
 (`EnemyRegistry.FOOD_DROP`), so the biggest early heal is bought with a fight, and berries are
-what the forager gets instead. `Bandage` and `CookedFood` still cost `Food` and are therefore
-much harder to reach than before — see `gather-as9`, which is the open question about whether
-they should switch to berries.
+what the forager gets instead.
+
+**Food is now an input to nothing** (`gather-as9`). `CookedFood` and `Bandage` were priced
+against the old 0.2 tree drop and both moved onto berries — 4 Berries + coal, and 2 String +
+2 Berries. The rule that broke is worth knowing because a bare "the crafted thing heals more"
+does not catch it: Cooked Food cost 2 Food, which heal 4 each where they stand, and healed 10.
+It was an *improvement*, by two points, for a station, fuel, a walk and ~50 kills' worth of
+input. `test_ore_chain.gd:CRAFTED_HEAL_MULTIPLE` now requires a station recipe to pay at least
+2x what its own edible inputs are worth eaten raw, which is the version of the rule with teeth.
 
 **Gather loop**, the most-touched path and the one that spans the most files:
 
