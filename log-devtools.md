@@ -5422,3 +5422,45 @@ Two concrete improvements to the skill:
     xp/sec and yield/sec at each pickaxe tier, recipe cost in gather-seconds, and the level
     curve in nodes-per-level — so a balance claim is one read instead of a spreadsheet, and
     so a tuning edit can be asserted against in a unit test rather than eyeballed.
+
+## 2026-08-05 — consolidated three stray branches and the working tree onto main
+
+- Value: **overkill** — the running game was never launched, and it should not have been. This
+  was a merge turn: the only question was whether four independently-authored changes still
+  compile and pass together, and the two headless runners answer that without a bridge.
+  - Expected: the `fix/mobile-quests-button` and log-only merges to be clean; the real risk was
+    `worktree-agent-a7a8e6e340fa679a3`, whose `_seeded_veins_report` names
+    `IslandManager.SEEDED_VEINS`, `SEEDED_VEIN_ISLAND` and `ore_veins_seeded` — a branch tagged
+    `wip` that would not compile if `gather-frv` had not already landed on main.
+  - Got: `lint: 0 error(s), 0 warning(s) -> exit 0` and `Total: 587 | Passed: 587 | Failed: 0`,
+    with `grep -c "SCRIPT ERROR"` = 0 on the runner's stderr (the `gather-1t9` check, since a
+    green suite alone is not sufficient). That settles the compile question the text merge could
+    not: `git merge` resolved `commands.gd` cleanly and would have done so identically had the
+    symbols been absent.
+  - Cheaper: nothing meaningfully cheaper — lint alone (~10s) covered the compile risk, and the
+    test suite was the incremental cost of confirming the UI merge did not regress
+    `test_mobile_controls.gd`. `/verify` would have been the overkill here, not this.
+
+- Gap: **a committed generated artifact has no link to its generator, so nothing reports it
+  stale.** This turn committed `tools/balance_model.gd` alongside `.devtools/balance_model.json`,
+  which is that script's output captured against some earlier tree. Lint checks scripts, the
+  test runner checks tests, and `verify-runs.jsonl` records reach against the diff — none of them
+  knows that a JSON file in `.devtools/` is downstream of a `.gd` file and may now disagree with
+  it. Verified by hand instead: re-ran the generator and diffed
+  (`resources=8 recipes=30 skills=17 quests=14 findings=19`, output byte-identical), which is a
+  step that is easy to skip and silent when skipped — a stale committed model would read as
+  authoritative balance data.
+  - [G-130] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: let `devtools_config.json` declare `generated_artifacts: [{script, output}]` and
+    have `lint_project.gd` re-run each generator into a temp path and compare, failing when the
+    committed output differs. It generalises past this one file — the same shape covers any
+    checked-in fixture with a builder, including `test/fixtures/demo_homestead_save` and the
+    `build_demo_world` verb that produces it, which has already been baked wrong twice
+    (`gather-3m9`).
+
+- Improvement to the harness's own workflow, per the skill-reflection rule: the DEVELOPMENT RULE
+  in `CLAUDE.md` says run `/verify` after "any gameplay, script, or scene change", which reads as
+  covering a merge that touches `ui/` and `devtools_ext/`. It should not. A merge of already-
+  verified branches is a *composition* check, not a behaviour change, and the honest gate is lint
+  plus the suite. Worth stating the exception in the rule rather than leaving each session to
+  decide it silently — the current wording makes the correct cheap choice look like a skipped gate.
