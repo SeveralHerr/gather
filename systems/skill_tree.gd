@@ -331,6 +331,12 @@ func _build() -> void:
 	# land_cost_mult multiplies the price of the next parcel, so the effect is a
 	# NEGATIVE delta on a base of 1.0 — PlayerStats sums deltas onto BASE, giving
 	# 0.75. Written as +0.25 it would make land more expensive.
+	#
+	# What the 25% is worth moves with LandManager.COST_GROWTH, and it moved: buying all
+	# twelve parcels behind this node saves ~950 coins at 1.45, where it saved ~1740 at
+	# 1.55. Still the largest single coin saving in the tree and still most of a late
+	# parcel, but the retune flattened the tail this node was mostly discounting, so it is
+	# no longer a node that pays for itself several times over on its own.
 	_add(Skill.new(
 		"surveyor", BUILDING, 3,
 		"Surveyor",

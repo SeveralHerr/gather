@@ -108,9 +108,15 @@ func test_every_quest_asks_for_something_and_pays_for_it() -> String:
 	return ""
 
 
-## Priced against LandManager's curve rather than against taste: twelve parcels cost ~6950 coins
+## Priced against LandManager's curve rather than against taste: twelve parcels cost ~3795 coins
 ## in total. The board should be a real leg-up for a player who engages with it and nowhere near
 ## a replacement for mining gold — which is what the whole land economy is built on.
+##
+## The upper bound came down from 3000 with COST_GROWTH: 3000 was "well under" the old ~6955
+## curve and is 79% of today's, which is not a guard against anything. 2000 is a bit over half
+## the map and leaves the board (1385) real headroom without letting it grow into most of the
+## land economy unnoticed. The ceiling is not a statement that 1385 is the right share — that
+## is a tuning decision for the `reward_coins` arguments in quest_board.gd.
 func test_the_whole_board_is_worth_some_land_but_not_the_land_economy() -> String:
 	var board := _board()
 
@@ -124,8 +130,8 @@ func test_the_whole_board_is_worth_some_land_but_not_the_land_economy() -> Strin
 		return err
 
 	return _T.assert_true(
-		coins < 3000,
-		"...and is well under the ~6950 the land curve costs (got %d)" % coins)
+		coins < 2000,
+		"...and is well under the ~3795 the land curve costs (got %d)" % coins)
 
 
 func test_only_have_quests_take_anything_off_the_player() -> String:

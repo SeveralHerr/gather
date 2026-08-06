@@ -129,9 +129,15 @@ const FALLBACK_SPAWN_DISTANCE := 96.0
 ##
 ## Coins because land is what the player is saving for and a night spent defending should move
 ## that number; xp because the raid is the hardest thing they do and the level curve should
-## notice. Priced against `LandManager`'s curve — twelve parcels cost ~6950 coins in total — so
+## notice. Priced against `LandManager`'s curve — twelve parcels cost ~3795 coins in total — so
 ## a night-9 clear at 7 raiders pays 56, i.e. a couple of early parcels across a good run and
 ## nowhere near an alternative to mining gold.
+##
+## Note this payout is also the whole reason the land curve's growth came down to 1.45: raid
+## income CAPS at night 15 (MAX_SIZE raiders x this constant = 96 a night) and never rises
+## again, so it is flat income against what used to be a runaway geometric price. Raising this
+## is the other way to close that gap, and the wrong one — it would make defending the night
+## the way land gets paid for, which is the land curve's problem solved by deleting mining.
 ##
 ## Paid ONCE, on the clear, and never for a raid that merely expired at dawn. A bonus that paid
 ## out either way would make letting the raid run the optimal play.

@@ -203,16 +203,22 @@ const ISTHMUS_WOBBLE := 0.9
 ##
 ## The coin count is sized against the land curve rather than picked, because "the boss island
 ## is the last thing they reach" fixes exactly when it is spent. LandManager charges
-## BASE_COST * COST_GROWTH^n, i.e. 20 * 1.55^n: the twelve parcels cost ~6950 coins in total
-## and the last one alone costs ~2480. The arena sits at distance 36 and opens somewhere
+## BASE_COST * COST_GROWTH^n, i.e. 20 * 1.45^n: the twelve parcels cost ~3795 coins in total
+## and the last one alone costs ~1190. The arena sits at distance 36 and opens somewhere
 ## around the tenth parcel, so the player collecting this has already spent something like
-## 4500 and is looking at the two most expensive purchases in the game.
+## 1800 and is looking at the two most expensive purchases in the game (~2000 between them).
 ##
-## 600 is a quarter of that final parcel. It lands as a real prize at the moment it is
+## 600 is about half of that final parcel. It lands as a real prize at the moment it is
 ## collected - the only single payout in the game on the scale of what the player is actually
 ## saving for - without being the parcel itself. The 40 it replaced was ~1.6% of the next
 ## thing the player wanted, which is to say a rounding error handed out for killing the boss:
 ## the ore in the other two slots was worth more, and it was the ore they remembered.
+##
+## It was a quarter of the final parcel when COST_GROWTH was 1.55 and is half of it at 1.45,
+## because the retune flattened the tail and this number stayed where it was. That is a
+## deliberate hold, not an oversight: the chest is the last thing in the game and the prize
+## reading larger against a cheaper map is the direction that retune was aiming at. If it ever
+## needs to come back down, it is this constant that moves, not the curve.
 const BOSS_ID := "boss"
 ## Points at the registry rather than repeating the string, so the name of a type exists in
 ## exactly one place (gather-33f). Still a constant here because the boss island's guard being
@@ -264,9 +270,9 @@ const BOSSES := {
 ## The numbers are sized against what they buy: iron smelts 1:1 into IronBar and an iron
 ## pickaxe costs 5 bars (recipes.gd), so four veins leave the player one short - close
 ## enough to want the skill, not close enough to skip it. Gold smelts 1:1 into a Coin and
-## the first parcel of land costs 12 (LandManager.BASE_COST), so two veins plus their
-## secondary-drop coins are worth about a quarter of one parcel: visibly the good stuff,
-## nowhere near an economy.
+## the first parcel of land costs 20 (LandManager.BASE_COST), so two veins plus their
+## secondary-drop coins are worth a fraction of one parcel: visibly the good stuff, nowhere
+## near an economy. (The 12 this comment used to quote was the pre-`gather-7p4` BASE_COST.)
 ##
 ## Ambient respawn cannot multiply these - it rolls the same unlocked-only set, so it will
 ## never put another iron node down - and seed_ore_veins() is flag-guarded so a reload does

@@ -64,9 +64,15 @@ func _add(quest: Quest) -> void:
 ## two crafting stations, at combat, at the raid, and finally at land — which is the real spine
 ## of the game and the thing nothing else signposts.
 ##
-## Rewards are priced against `LandManager`'s curve (20 * 1.55^n, ~6950 coins for all twelve
-## parcels). The whole board is worth roughly 1400 coins — a fifth of the land economy, so it is
-## a real leg-up for a player who engages with it and nowhere near a replacement for mining.
+## Rewards are priced against `LandManager`'s curve (20 * 1.45^n, ~3795 coins for all twelve
+## parcels). The whole board pays 1385 coins, which is a bit over a THIRD of the land economy.
+##
+## It was a fifth of it when COST_GROWTH was 1.55 and ~6955 coins bought the map; the curve came
+## down and these rewards did not follow, so the board's share rose without anyone editing it.
+## That is the figure to argue with if the board starts feeling like a replacement for mining
+## rather than a leg-up: a fifth of today's curve would be ~760 coins across all fourteen
+## quests. Nothing here is changed yet — the share is a deliberate open question, and it is
+## these `reward_coins` arguments that would move, never the land curve.
 func _build() -> void:
 	# --- the opening: things you were going to do anyway ---------------------------
 	_add(Quest.new(

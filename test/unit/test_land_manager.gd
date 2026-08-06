@@ -333,7 +333,7 @@ func test_a_save_roundtrip_restores_the_island_and_the_price() -> String:
 # --- granted land (gather-3m9) -----------------------------------------------
 #
 # Land can grow without being paid for: the devtools demo builder cannot route twelve
-# parcels through purchase(), because they cost about 6300 coins and the inventory does not
+# parcels through purchase(), because they cost about 3800 coins and the inventory does not
 # hold that many. The bug these guard against is what that path did instead - it wrote
 # `parcels_bought`, `radius` and `_expand()`, which is everything LandManager PERSISTS, and
 # never emitted `land_purchased`, which is everything a parcel DRIVES. TileMapHandler's

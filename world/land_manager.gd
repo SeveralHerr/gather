@@ -35,21 +35,35 @@ const RADIUS_STEP := 2
 ##
 ## 12/1.6 made the first parcel too cheap to be a decision: with a coin off every kill
 ## (Enemy.BASE_COIN_DROP) the map started growing before the player had chosen anything.
-## The front of the curve is what moved (`gather-7p4`) — 20 is most of a mining session
-## or a dozen fights — and growth came *down* to pay for it, on purpose:
+## The front of the curve moved then (`gather-7p4`) and has not moved since — 20 is most
+## of a mining session or a dozen fights, and that is where it should stay.
 ##
-##   parcel 1   12 ->  20      parcel 6   126 -> 179
-##   parcel 3   31 ->  48      parcel 12  2111 -> 2482
-##   all 12   ~5,600 -> ~7,000 coins
+## Growth has now come down twice, and the second cut is about the *tail*. The reason is
+## that the two sides of this trade are not the same shape: **the cost is geometric and the
+## income is flat.** Raid payout tops out at night 15 (MAX_SIZE 12 raiders x
+## RaidDirector.REWARD_COINS_PER_RAIDER 8 = 96 a night) and EnemySpawner's ambient cadence
+## is a fixed interval that scales with nothing at all, so from night 15 the player earns a
+## constant ~128 coins per in-game day forever. Multiplying the price by 1.55 against an
+## income multiplied by 1.0 does not spread the bill across the map — it piles the bill onto
+## the last few parcels. So growth came down again, 1.55 -> 1.45:
 ##
-## Growth had to come down because the tail here is not decoration. The three islands sit
-## on a ring inside radius_for(MAX_PARCELS), so they are reached by buying land out to the
-## cap — a curve that runs away does not make the late game expensive, it makes the
-## islands unreachable and quietly deletes a third of the map's content. +25% overall
-## against +67% on the opening parcel is the shape that was wanted: dearer to *start*
-## expanding, no dearer to finish.
+##   parcel 1    20 ->   20      parcel 8    430 ->  270
+##   parcel 5   115 ->   88      parcel 12  2481 -> 1191
+##   all 12   ~6,955 -> ~3,795 coins
+##
+## At 1.55 the last three parcels were 74% of everything the player would ever pay for land,
+## and parcel 12 on its own was ~19 in-game days — about 3.2 real hours — at maximum income,
+## against roughly 5 hours for the whole 45-point skill tree. The map outlasted the tree by
+## more than 2x. Note what did *not* move: the first five parcels are 240 coins against 288,
+## so the deliberately-tuned opening is intact and only the tail flattened.
+##
+## Putting growth back up does not make the late game expensive, it makes it unreachable. The
+## three islands sit on a ring inside radius_for(MAX_PARCELS) and are reached by buying land
+## out to the cap; the boss arena is at distance 36 and opens at or near the final parcel. A
+## curve that runs away quietly deletes a third of the map's content, and it does not report
+## itself as anything except a long grind.
 const BASE_COST := 20
-const COST_GROWTH := 1.55
+const COST_GROWTH := 1.45
 
 ## Beyond this the ring is bigger than the noise field is interesting and the
 ## price has run away regardless. It exists so the curve has a defined end rather

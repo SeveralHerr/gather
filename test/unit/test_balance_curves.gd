@@ -612,7 +612,7 @@ func test_the_respawn_tick_never_offers_a_node_to_a_region_that_opted_out() -> S
 ## (Enemy.BASE_COIN_DROP), and it has to stay a route rather than a technicality.
 ##
 ## Stated as a ceiling on KILLS because that is the unit the player pays in. Today's curve
-## correct for the whole map, but reachable. Today's curve asks about 6,955. A retune that
+## (BASE_COST 20, COST_GROWTH 1.45) asks 3,795. A retune that pushes past this ceiling has
 ## not made land dearer; it has deleted the combat route to it, and nothing else in the
 ## project would report that.
 ##
@@ -623,7 +623,7 @@ func test_the_respawn_tick_never_offers_a_node_to_a_region_that_opted_out() -> S
 ## (~30%) against the curve that actually exists, so this still fails on a real runaway
 ## rather than only on an absurd one. It is a ceiling on *reachability*, not a target: land
 ## getting cheaper is never what this test is meant to catch.
-const KILLS_FOR_THE_WHOLE_MAP := 8000
+const KILLS_FOR_THE_WHOLE_MAP := 5000
 
 
 func test_land_is_reachable_by_fighting_as_well_as_mining() -> String:

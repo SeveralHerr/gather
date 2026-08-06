@@ -222,7 +222,8 @@ func test_seeded_veins_are_the_types_the_spawn_roll_cannot_place() -> String:
 
 ## A few means a few. The veins are a teaser for crossing the water; the skills are still
 ## what make iron and gold renewable. Sized against what they buy: 5 IronBar for an iron
-## pickaxe, 12 coins for the first parcel of land.
+## pickaxe, 20 coins for the first parcel of land (LandManager.BASE_COST — the 12 this
+## comment used to quote predates `gather-7p4`).
 func test_seeded_veins_stay_a_handful() -> String:
 	var seeded := {}
 	for entry in IslandManager.SEEDED_VEINS:

@@ -154,9 +154,15 @@ func test_the_clear_bonus_scales_with_the_raid() -> String:
 	return _T.assert_eq(RaidDirector.reward_for_size(0), 0, "no raid, no bonus")
 
 
-## Priced against LandManager's curve rather than against taste. Twelve parcels cost ~6950 coins
+## Priced against LandManager's curve rather than against taste. Twelve parcels cost ~3795 coins
 ## in total; a full run of raids has to be a visible contribution to that without being an
 ## alternative to mining gold, which is what the land economy is actually built on.
+##
+## The ceiling came down from 5000 with COST_GROWTH. 5000 was below the old ~6955 curve; against
+## today's it is larger than the entire land economy, so the assertion could no longer fail for
+## the reason it names. 1900 is half the map, which is what "not most of the land curve" has
+## always meant — twenty nights of clears pay 1416, so the guard still has room to be right
+## about the current numbers and teeth against a payout retune.
 func test_a_run_of_raids_is_worth_land_but_is_not_the_land_economy() -> String:
 	var total := 0
 	for day in range(RaidDirector.FIRST_RAID_NIGHT, RaidDirector.FIRST_RAID_NIGHT + 20):
@@ -169,8 +175,8 @@ func test_a_run_of_raids_is_worth_land_but_is_not_the_land_economy() -> String:
 		return err
 
 	return _T.assert_true(
-		total < 5000,
-		"...and is not most of the %d-coin land curve (got %d)" % [6950, total])
+		total < 1900,
+		"...and is not most of the %d-coin land curve (got %d)" % [3795, total])
 
 
 # --- save fidelity ------------------------------------------------------------
