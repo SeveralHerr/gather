@@ -5214,3 +5214,81 @@ Guidelines that make an entry useful later:
   played. The director can do this only because it runs inside the game: over the bus a
   RefCounted comes back as an opaque object id, which is the same limitation `charged_state` was
   written to work around.
+
+## 2026-08-04 — planned the raid escalation / defense / boss arc (no code changed)
+
+- Value: **inconclusive** — a pure design turn: four read-only research agents over
+  `raid_director.gd`, the turret/wall stack, `island_manager.gd` + `land_manager.gd`, and the
+  XP/gold curves, then nine beads filed. Nothing was edited, so no gate ran and the harness was
+  never invoked.
+  - Expected: n/a — no diff to assert against.
+  - Got: n/a. Worth recording *why* the harness was not reached for: every question this turn was
+    "what is the current constant and which test pins it", which source and `test/unit/` answer
+    directly and more cheaply than a running game. `/verify` on a zero-line diff would have been
+    the definition of overkill.
+  - Cheaper: nothing — reading the files *was* the cheap path, and it is what happened.
+
+- Gap: **no way to ask the running game for a difficulty curve as data.** Calibrating the raid
+  ramp meant hand-evaluating `size_for_day` / `health_mult_for_day` / `cost_for_parcel` /
+  `xp_for_level` across 20+ days in prose arithmetic, and the same tables get recomputed by hand
+  every time anyone touches these constants. `raid_state` reports `tonight_size` and
+  `tonight_health_mult` for exactly one day, and `land_state` reports one parcel price; there is
+  no verb that sweeps a pure static across a range. Two arithmetic slips in this session were
+  caught only by a second pass.
+  - [G-127] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a generic `curve --node PATH --method NAME --from N --to M` verb that calls a
+    static/pure method over an integer range and returns the series, so "what does this ramp
+    actually look like" is one call rather than a transcription. It generalises past raids —
+    `cost_for_parcel`, `xp_for_level`, `cap_for_land_tiles` and `reward_for_size` all have the
+    same shape, and all four are things a design change has to re-read.
+
+- Gap: **the test suite pins tuning constants in bands, but nothing reports which band a proposed
+  constant lands in without running the suite.** `test_island_manager.gd:297` gates the boss chest
+  against `cost_for_parcel(MAX_PARCELS-1) * [0.15, 0.6)`, and `test_raid_director.gd:160` gates the
+  days-3..22 reward sum to `(500, 5000)`. Both are the right shape of test, and both are invisible
+  until a full `run_tests.gd` — so exploring "what if MAX_PARCELS were 16" is a 40-second round
+  trip per candidate rather than a read.
+  - [G-128] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: `run_tests.gd --json` already carries pass/fail; if band assertions also emitted
+    the computed value and the bounds, a failing tuning sweep would say "894 not in [372, 1489)"
+    instead of a message. That is a convention for `_T.assert_*` (an `assert_between`) more than a
+    harness feature, but the harness is where it would have to live to be uniform.
+
+## 2026-08-04 — the quest board was unreachable on a phone; renamed TASKS -> QUESTS
+
+- Value: **warranted** — a real `InputEventScreenTouch` on the new button flipped
+  `quest_state.panel_open` false -> true, which is the whole chain (`_button_at` hit test ->
+  `send_action` -> `InputManager._input` -> `QuestUi.toggle`) and the one thing no headless test
+  reaches, because both strips decide their own visibility from `DisplayServer`.
+  - Expected: with a touchscreen reported, the overlay should build an eighth button
+    (QuestsButton) whose rect lands on screen in the top-right cluster, and a synthesized touch on
+    its centre should open the quest panel — the path headless can't exercise, since both the
+    toolbar and the overlay read visibility from DisplayServer. Panel title should read QUESTS.
+  - Got: `set-feature --touchscreen true` -> `MobileControls.visible: true` /
+    `HudToolbar.visible: false`, i.e. the exact state the bug lived in. `QuestsButton` at
+    `Rect: 1533, 162, 101x101, In viewport: True`, column-aligned under LAND with SAVE and BREAK
+    beside it. Touch press+release at its centre: `panel_open = True`, title reads `QUESTS`. Two
+    guards also held: a tap on SKILL with the board open left `SkillTreeUI/PanelFrame.visible:
+    false` and fell through to the backdrop (closing the board) rather than firing underneath it,
+    and with `disable_input` forced true the button still opened the board — `MENU_ACTIONS`
+    working, not merely declared.
+  - Cheaper: the two unit tests added this turn get most of it headlessly — table membership
+    against `HudToolbar.BUTTON_SPECS`, `MENU_ACTIONS`, and every button's rect inside 390x844.
+    What only the running game gave was the touch -> InputManager -> panel chain and the
+    DisplayServer handoff between the two strips.
+
+- Gap: **nothing can answer "what can the player reach right now" in one read, which is exactly
+  the question this bug was.** The board had a key, a desktop button, a passing suite and no way
+  in on a phone; finding that took forcing the feature flag, reading `visible` on two nodes,
+  looking up a button path in `scene-tree`, computing a rect centre, and sending two `touch`
+  events. Every one of those is available and none of them is the question. `validate-ui` reports
+  0 issues for a UI whose only affordance is invisible on the current device, because an
+  unreachable panel is not a layout fault.
+  - [G-129] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a generic `reachable-ui` verb that walks visible `Control`s with a `pressed`
+    signal or a registered input action and reports `{action, node, rect, on_screen}` — the set a
+    finger or cursor could actually hit this frame. Diffing that between `--touchscreen true` and
+    `false` would have named this bug outright ("`quests` reachable on desktop, not on touch")
+    instead of it shipping. It generalises past touch: the same read catches a button laid out
+    off-screen, one under a full-rect `MOUSE_FILTER_STOP` sibling, and one whose whole strip is
+    hidden behind a device check.

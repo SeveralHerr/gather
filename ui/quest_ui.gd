@@ -1,7 +1,7 @@
 extends Control
 class_name QuestUi
 
-## The quest board panel, on `J` or the TASKS button.
+## The quest board panel, on `J`, the QUESTS button, or the phone overlay's QUEST button.
 ##
 ## The view half of `systems/quest_log.gd`; it holds no quest state and asks the log for
 ## everything it draws. Same split as every other panel in the game.
@@ -77,7 +77,7 @@ func _ready() -> void:
 
 func _build() -> void:
 	_frame = PanelFrame.new()
-	_frame.setup("TASKS", PANEL_MIN_SIZE)
+	_frame.setup("QUESTS", PANEL_MIN_SIZE)
 	_frame.close_requested.connect(_on_close_requested)
 	add_child(_frame)
 
@@ -100,7 +100,7 @@ func _build() -> void:
 	# error. Without it the panel opens on nothing at all and reads as broken.
 	_empty_label = _typed(Label.new(), UiTheme.FONT_BODY) as Label
 	_empty_label.name = "Empty"
-	_empty_label.text = "Every task done. Nothing left to ask of you."
+	_empty_label.text = "Every quest done. Nothing left to ask of you."
 	_empty_label.add_theme_color_override("font_color", UiTheme.COLOR_GOOD)
 	_empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_empty_label.visible = false
