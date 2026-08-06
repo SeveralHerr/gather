@@ -59,9 +59,14 @@ Concurrency:
     The id is spliced into the bus filenames (devtools_commands_a.json, ...), so
     N instances can share one user:// dir without answering each other's
     commands. Without a session the filenames are unchanged, so nothing about
-    existing usage moves. Note that a shared user:// still means shared
-    screenshots and a shared save dir - for full isolation combine --session with
-    a per-instance user:// (see the README's parallel-verification recipe).
+    existing usage moves.
+
+    `launch --isolated` also gives the instance its own bus DIRECTORY, passed as
+    `-- --devtools-busdir <dir>`, and proves the bus answers before printing the
+    follow-up command. What it still does NOT do is move user:// - Godot resolves
+    that inside the engine and honours no flag or environment variable for it, so
+    screenshots, saves and UI baselines stay shared. `ping` reports bus_dir and
+    user_dir separately so the difference is a read, not a promise.
 
 User data path resolution (highest priority first):
     1. --userdata <path>                                (global CLI flag)
@@ -84,11 +89,11 @@ from pathlib import Path
 from typing import Optional  # noqa: F401
 
 
-# harness-version: 0.8.0
+# harness-version: 0.10.0
 # Version of the godot-selftest-harness this client was copied from. Compared against
 # the running game's own stamp by the `harness-version` verb, so a half-refreshed
 # install (new client, old autoload) is visible instead of mysterious.
-HARNESS_VERSION = "0.8.0"
+HARNESS_VERSION = "0.10.0"
 
 COMMANDS_FILE = "devtools_commands.json"
 RESULTS_FILE = "devtools_results.json"
@@ -145,6 +150,47 @@ def bus_filenames(session=None):
         "devtools_commands_%s.json" % s,
         "devtools_results_%s.json" % s,
         "devtools_log_%s.jsonl" % s,
+    )
+
+
+def _breadcrumb_path(user_data: Path) -> Path:
+    """The `died inside this verb` record for the current session.
+
+    Mirrors _write_breadcrumb in dev_tools.gd. Present on disk means one thing
+    only: some process entered a handler and never came back out of it.
+    """
+    s = sanitize_session(_SESSION)
+    name = "devtools_last_command.json" if not s else "devtools_last_command_%s.json" % s
+    return user_data / name
+
+
+def _read_breadcrumb(user_data: Path):
+    """The breadcrumb dict, or None. Never raises."""
+    try:
+        data = json.loads(_breadcrumb_path(user_data).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _breadcrumb_note(user_data: Path) -> str:
+    """One line naming the verb a dead instance died inside, or ''.
+
+    A project verb took the game down and the only trace was a log line saying
+    the verb had STARTED, which reads the same as a verb still running - so "the
+    game died during give_item" had to be inferred (gather:G-103).
+    """
+    crumb = _read_breadcrumb(user_data)
+    if not crumb:
+        return ""
+    return (
+        "\nA '{action}' (pid {pid}) was still in its handler when the process "
+        "stopped: {file} was never cleared. If the game is gone, that verb is "
+        "what took it down.".format(
+            action=crumb.get("action", "?"),
+            pid=crumb.get("pid", "?"),
+            file=_breadcrumb_path(user_data).name,
+        )
     )
 
 
@@ -210,6 +256,53 @@ def _read_owner(user_data: Path):
     except (OSError, ValueError):
         return None, path
     return (data if isinstance(data, dict) else None), path
+
+
+def pid_alive(pid) -> bool:
+    """Is this pid a live process? Unknown counts as alive.
+
+    Used to tell "the owner file is stale after a crash" (the normal case) from
+    "another instance really does own this bus" (the dangerous one). Erring
+    towards alive is deliberate: wrongly declaring a live instance dead would
+    clear an owner file that is doing its job, which is the exact corruption the
+    owner file exists to prevent.
+    """
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True          # exists, we just may not signal it
+    except OSError:
+        return True          # Windows raises here for cases we cannot classify
+    except Exception:
+        return True
+    return True
+
+
+def owner_status(user_data: Path) -> dict:
+    """{present, pid, alive, path} for the bus owner record. Never raises.
+
+    Read BEFORE the command is written, so the very first call can say what it
+    knows instead of leaving the caller to interpret an empty response
+    (gather:G-100).
+
+    It deliberately does NOT delete a stale record, even though a dead owner
+    after a crash is the normal condition rather than an anomaly. The owner pid
+    is the only thing the reply-pid check has to compare against: deleting it
+    would turn "a survivor from an earlier run answered your command" - the
+    single most corrupting failure this bridge has - into silence. Staleness is
+    reported instead, which fixes the thing that actually hurt (a clean relaunch
+    reading as a second failure stacked on the first) without trading detection
+    for tidiness.
+    """
+    owner, path = _read_owner(user_data)
+    if owner is None:
+        return {"present": False, "pid": None, "alive": False, "path": path}
+    pid = owner.get("pid")
+    return {"present": True, "pid": pid, "alive": pid_alive(pid), "path": path}
 
 
 def _parse_project_godot(project_file: Path) -> dict:
@@ -376,13 +469,23 @@ def _wait_for_pickup(commands_path: Path, user_data: Path, action: str):
     owner, owner_path = _read_owner(user_data)
     owner_note = ""
     if owner is not None:
+        # "has likely exited" was a guess, and quoting it at every later call made
+        # a clean relaunch read as a second failure stacked on the first
+        # (gather:G-103). The pid is checkable, so check it and say which it is.
+        pid = owner.get("pid")
+        fate = ("that process is CONFIRMED GONE, so this is the ordinary "
+                "aftermath of a crash or quit - relaunch"
+                if not pid_alive(pid) else
+                "that process is STILL ALIVE, so it is running but not polling "
+                "THIS directory - check --userdata/--session")
         owner_note = (
             "\nOwner file {p} says pid {pid} (project {proj!r}, session {sess!r}) "
-            "last claimed this bus; that process has likely exited.".format(
+            "last claimed this bus; {fate}.".format(
                 p=owner_path.name,
-                pid=owner.get("pid"),
+                pid=pid,
                 proj=owner.get("project", ""),
                 sess=owner.get("session", ""),
+                fate=fate,
             )
         )
 
@@ -394,7 +497,8 @@ def _wait_for_pickup(commands_path: Path, user_data: Path, action: str):
         "still sitting there means nothing is polling that directory.\n"
         "Note that polling the WRONG user:// directory looks exactly like a dead "
         "game - set --userdata <path> or GODOT_USERDATA if the game is running.\n"
-        "Pass --no-precheck to skip this check and wait the full timeout.{session}{owner}".format(
+        "Pass --no-precheck to skip this check and wait the full timeout."
+        "{session}{owner}{crumb}".format(
             action=action,
             secs=PRECHECK_SECONDS,
             cycles=PRECHECK_SECONDS / 0.1,
@@ -407,6 +511,7 @@ def _wait_for_pickup(commands_path: Path, user_data: Path, action: str):
                 if _SESSION else ""
             ),
             owner=owner_note,
+            crumb=_breadcrumb_note(user_data),
         )
     )
 
@@ -426,6 +531,10 @@ def send_command(project_path: Path, action: str, args: dict = None, timeout: fl
     commands_name, results_name, _ = bus_filenames()
     commands_path = user_data / commands_name
     results_path = user_data / results_name
+
+    # Read the owner BEFORE writing, so a mismatch is attributable on the very
+    # first call rather than only once a crossed reply comes back (G-100).
+    owner_before = owner_status(user_data)
 
     # Clear any existing result
     if results_path.exists():
@@ -470,20 +579,38 @@ def send_command(project_path: Path, action: str, args: dict = None, timeout: fl
             # both are accepted as before.
             reply_pid = result.get("pid") if isinstance(result, dict) else None
             if isinstance(reply_pid, int):
-                owner, owner_path = _read_owner(user_data)
-                owner_pid = owner.get("pid") if isinstance(owner, dict) else None
+                owner_pid = owner_before["pid"] if owner_before["present"] else None
                 if isinstance(owner_pid, int) and owner_pid != reply_pid:
+                    # Two different situations, and conflating them is what made
+                    # the recovery path read as a second failure (G-103): a LIVE
+                    # owner means someone else legitimately holds this bus; a
+                    # DEAD one means a survivor from an earlier run answered,
+                    # which is the more corrupting case and the one that used to
+                    # be indistinguishable from a fresh instance.
+                    if owner_before["alive"]:
+                        detail = (
+                            "Another Godot instance owns this bus; use --session <id> "
+                            "(launch with `-- --devtools-session <id>`) or quit the "
+                            "other instance.")
+                    else:
+                        detail = (
+                            "The recorded owner pid {owner_pid} is GONE, so pid "
+                            "{reply_pid} is a survivor of an earlier run still "
+                            "polling this bus - not the instance you think you are "
+                            "driving. Kill it and relaunch:\n  {kill}".format(
+                                owner_pid=owner_pid, reply_pid=reply_pid,
+                                kill=("taskkill /F /PID %d" % reply_pid
+                                      if sys.platform == "win32"
+                                      else "kill -9 %d" % reply_pid)))
                     raise ForeignInstanceError(
                         "Foreign instance on the bus: the reply to '{action}' came "
                         "from pid {reply_pid}, but {owner_file} says pid {owner_pid} "
-                        "owns this bus.\n"
-                        "Another Godot instance owns this bus; use --session <id> "
-                        "(launch with `-- --devtools-session <id>`) or quit the "
-                        "other instance.".format(
+                        "owns this bus.\n{detail}".format(
                             action=action,
                             reply_pid=reply_pid,
-                            owner_file=owner_path,
+                            owner_file=owner_before["path"],
                             owner_pid=owner_pid,
+                            detail=detail,
                         )
                     )
 
@@ -525,14 +652,37 @@ def send_command(project_path: Path, action: str, args: dict = None, timeout: fl
 
 
 def cmd_screenshot(args, project_path: Path):
-    """Take a screenshot of the running game."""
-    result = send_command(project_path, "screenshot", {"filename": args.filename} if args.filename else {})
-    if result["success"]:
-        print(f"Screenshot saved: {result['data']['path']}")
-        print(f"Size: {result['data']['width']}x{result['data']['height']}")
-    else:
+    """Take a screenshot, optionally cropped and with nodes/groups hidden.
+
+    Data keys read: path, width, height, region, hidden. Hiding is done and
+    undone game-side inside one command, so a capture cannot leave the HUD
+    switched off (gather:G-079).
+    """
+    cmd_args = {}
+    if args.filename:
+        cmd_args["filename"] = args.filename
+    if args.region is not None:
+        cmd_args["region"] = args.region
+    if args.hide:
+        cmd_args["hide"] = [normalize_node_path(p) for p in args.hide]
+    if args.hide_group:
+        cmd_args["hide_group"] = args.hide_group
+
+    result = send_command(project_path, "screenshot", cmd_args)
+    if not result["success"]:
         print(f"Failed: {result['message']}", file=sys.stderr)
         sys.exit(1)
+    data = result["data"]
+    print(f"Screenshot saved: {data['path']}")
+    print(f"Size: {data['width']}x{data['height']}")
+    if data.get("region"):
+        r = data["region"]
+        print(f"Cropped to: {r['x']},{r['y']} {r['w']}x{r['h']}")
+    if data.get("hidden"):
+        print(f"Hidden for the capture (restored after): {', '.join(data['hidden'])}")
+    elif args.hide or args.hide_group:
+        print("WARNING: --hide/--hide-group matched no CanvasItem - the capture "
+              "shows everything.", file=sys.stderr)
 
 
 def cmd_validate(args, project_path: Path):
@@ -581,13 +731,56 @@ def print_validation_result(result: dict):
 
 
 def cmd_scene_tree(args, project_path: Path):
-    """Get the current scene tree."""
-    result = send_command(project_path, "scene_tree", {"depth": args.depth})
+    """Get the current scene tree, or a subtree of it."""
+    cmd_args = {"depth": args.depth}
+    if args.root:
+        cmd_args["root"] = normalize_node_path(args.root)
+    if args.properties:
+        cmd_args["properties"] = args.properties
+    result = send_command(project_path, "scene_tree", cmd_args)
     if result["success"]:
         print(json.dumps(result["data"], indent=2))
     else:
         print(f"Failed: {result['message']}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_curve(args, project_path: Path):
+    """Sweep a pure method over an integer range (bus verb: curve, G-127).
+
+    Data keys read: points, min, max, sum, node_path, method.
+    """
+    cmd_args = {
+        "node_path": normalize_node_path(args.node),
+        "method": args.method,
+        "from": args.start,
+        "to": args.end,
+        "step": args.step,
+        "arg_index": args.arg_index,
+    }
+    if args.args:
+        try:
+            extra = json.loads(args.args)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in --args: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(extra, list):
+            print("Error: --args must be a JSON array", file=sys.stderr)
+            sys.exit(1)
+        cmd_args["args"] = extra
+
+    result = send_command(project_path, "curve", cmd_args)
+    if not result["success"]:
+        print(f"Failed: {result['message']}", file=sys.stderr)
+        sys.exit(1)
+    data = result.get("data") or {}
+    if "points" not in data:
+        print(f"curve: the reply carried no 'points' key. Keys: {sorted(data)}",
+              file=sys.stderr)
+        sys.exit(1)
+    print(result.get("message", ""))
+    for point in data["points"]:
+        print(f"  {point.get('input')}: {_format_value(point.get('value'))}")
 
 
 def cmd_performance(args, project_path: Path):
@@ -636,10 +829,29 @@ def _print_orphans(data: dict, reset_baseline: bool):
         print(f"                  baseline reset to {baseline}")
 
 
+def _printable(text: str) -> str:
+    r"""Escape control bytes so a text reply stays greppable (gather:G-124).
+
+    Reading a Button's `text` back returned embedded NULs, and grep answered
+    `Binary file (standard input) matches` instead of the value - a one-line
+    assertion became a `tr -d '\000'` pipeline. Tabs and newlines are legitimate
+    inside a Godot string and are kept; everything else below 0x20, plus DEL, is
+    rendered as \xNN so it is visible rather than merely absent.
+    """
+    out = []
+    for ch in text:
+        code = ord(ch)
+        if code == 0x7F or (code < 0x20 and ch not in "\t\n"):
+            out.append("\\x%02x" % code)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _format_value(value) -> str:
     """Render one property value on a single line."""
     if isinstance(value, str):
-        return value
+        return _printable(value)
     if isinstance(value, bool) or value is None or isinstance(value, (int, float)):
         return json.dumps(value)
     # Vector2/Rect2/etc. arrive as small lists or dicts; keep them on one line.
@@ -677,8 +889,9 @@ def cmd_get_state(args, project_path: Path):
     for name in args.properties:
         if name in values:
             print(f"{name}: {_format_value(values[name])}")
-        elif name not in missing:
-            # The game neither returned it nor listed it as missing.
+        elif not any(str(m) == name or str(m).startswith(name + " (") for m in missing):
+            # The game neither returned it nor listed it as missing. A dotted path
+            # is listed as "a.b (reason it ran out)", hence the prefix match.
             missing.append(name)
 
     if missing:
@@ -696,19 +909,44 @@ def cmd_get_state(args, project_path: Path):
         sys.exit(1)
 
 
+_TUPLE_VALUE = re.compile(r"^[\(\[]?\s*-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)+\s*[\)\]]?$")
+
+
+def parse_value_arg(text: str):
+    """Decode a --value / --args scalar the way a person would write it.
+
+    JSON first (so `true`, `null`, `[1,2]`, `{"x":1}` and quoted strings keep
+    their exact meaning), then a bare number, then a bare numeric TUPLE:
+    `-200,-296` and `(-200,-296)` both become `[-200, -296]`, which is the shape
+    the game's _coerce_arg turns into a Vector2. Anything else is a plain string.
+
+    Why the tuple forms exist (gather:G-137): the error a caller got named the
+    type it wanted (Vector2) and not a syntax that produces one, so the working
+    spelling was found by guessing - `[-200,-296]` worked, `(-200,-296)` and
+    `-200,-296` did not. All three work now, on this side and on the game side.
+    """
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        return int(text)
+    except (ValueError, TypeError):
+        pass
+    try:
+        return float(text)
+    except (ValueError, TypeError):
+        pass
+    if isinstance(text, str) and _TUPLE_VALUE.match(text.strip()):
+        body = text.strip().strip("()[]")
+        return [float(p) if "." in p else int(p) for p in (q.strip() for q in body.split(","))]
+    return text
+
+
 def cmd_set_state(args, project_path: Path):
     """Set a node property."""
-    value = args.value
-    try:
-        value = json.loads(args.value)
-    except json.JSONDecodeError:
-        try:
-            value = int(args.value)
-        except ValueError:
-            try:
-                value = float(args.value)
-            except ValueError:
-                pass
+    args.node = normalize_node_path(args.node)  # G-025
+    value = parse_value_arg(args.value)
 
     result = send_command(project_path, "set_state", {
         "node_path": args.node,
@@ -716,14 +954,38 @@ def cmd_set_state(args, project_path: Path):
         "value": value
     })
     if result["success"]:
-        print("State updated")
+        data = result.get("data") or {}
+        # Say what actually landed, not just that a write happened. `State updated`
+        # was printed for a write that stored (0, 0) instead of the requested
+        # position, because the client never looked at the read-back the game had
+        # already put in the reply (gather:G-077).
+        if "read_back" in data:
+            print(f"State updated: {args.property} = {_format_value(data['read_back'])}"
+                  + ("  (coerced)" if data.get("coerced") else ""))
+        else:
+            print("State updated")
     else:
         print(f"Failed: {result['message']}", file=sys.stderr)
+        if "cannot convert" in str(result.get("message", "")):
+            print("  note: a leading '-' makes argparse read the value as a flag - "
+                  "write --value=-200,-296 (with '=') for negative tuples.",
+                  file=sys.stderr)
         sys.exit(1)
 
 
 def cmd_run_method(args, project_path: Path):
-    """Call a method on a node."""
+    """Call a method on a node.
+
+    Data keys read: result, returned_null, declared_return, node_path, method,
+    note (see _cmd_run_method in dev_tools.gd - these two halves must agree).
+    With --json the FULL reply envelope is printed, so this verb is pipeable into
+    a JSON parser like every `cmd` verb is (gather:G-131).
+    """
+    global _RAW_JSON
+    if getattr(args, "json", False):
+        _RAW_JSON = True
+
+    args.node = normalize_node_path(args.node)  # G-025
     method_args = []
     if args.args:
         try:
@@ -740,11 +1002,40 @@ def cmd_run_method(args, project_path: Path):
         "method": args.method,
         "args": method_args
     })
-    if result["success"]:
-        print(f"Result: {result['data'].get('result')}")
-    else:
+    # Only reached without --json (raw mode prints and raises inside send_command).
+    if not result["success"]:
         print(f"Failed: {result['message']}", file=sys.stderr)
         sys.exit(1)
+
+    data = result.get("data") or {}
+    if "result" not in data:
+        # Never paper over a missing key with a friendly line - a silent fallback
+        # is what made three wire mismatches invisible in 0.4.0.
+        print("run-method: the reply carried no 'result' key. "
+              f"Keys present: {sorted(data)}", file=sys.stderr)
+        sys.exit(1)
+
+    if not data.get("returned_null"):
+        print(f"Result: {_format_value(data['result'])}")
+        return
+
+    # null is ambiguous in GDScript: a `-> void` that ran perfectly and a `-> int`
+    # that aborted mid-body both come back as null, and the engine raises nothing
+    # the bridge could catch. Say which of the two the DECLARATION allows rather
+    # than printing a bare `Result: None` that reads as a failure (gather:G-096).
+    declared = data.get("declared_return", "")
+    if declared == "Nil":
+        print("Result: <no value>  (the method declares no return type; the call "
+              "itself completed)")
+    elif declared:
+        print(f"Result: null  (but the method declares -> {declared}; a null here "
+              "means it returned null OR aborted on a runtime error - check the "
+              "game's stderr for [ERR]/[SCRIPT ERROR])", file=sys.stderr)
+    else:
+        print("Result: null  (return type unknown: the method is absent from "
+              "get_method_list(), so null cannot be told from an abort)")
+    if data.get("note"):
+        print(f"  note: {data['note']}")
 
 
 def cmd_logs(args, project_path: Path):
@@ -799,12 +1090,46 @@ def cmd_ping(args, project_path: Path):
 
 
 def cmd_quit(args, project_path: Path):
-    """Quit the running Godot instance."""
+    """Quit the running instance and WAIT for the process to actually go.
+
+    `quit` was not reliably fatal: three separate times the old process was still
+    alive after a relaunch (once at 1.4 GB), and the only symptom was verbs
+    returning empty output while `ping` said `No response` - which reads as *no*
+    game rather than as *two* (gather:G-112). A survivor is worse than a failed
+    quit, so this reports one rather than assuming success.
+    """
+    try:
+        user_data = get_user_data_path(project_path)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    owner, _ = _read_owner(user_data)
+    pid = owner.get("pid") if isinstance(owner, dict) else None
+
     try:
         send_command(project_path, "quit", {"exit_code": args.exit_code or 0}, timeout=5.0)
         print("Quit command sent")
-    except TimeoutError:
+    except BridgeError:
         print("Quit command sent (no response expected)")
+
+    if not isinstance(pid, int):
+        print("  (no owner file, so there is no pid to confirm the exit against)")
+        return
+
+    deadline = time.time() + max(1.0, args.wait)
+    while time.time() < deadline:
+        if not pid_alive(pid):
+            print(f"  pid {pid} exited")
+            return
+        time.sleep(0.2)
+
+    print(f"\nWARNING: pid {pid} is STILL ALIVE {args.wait:g}s after quit.\n"
+          "A survivor answers the bus alongside any new instance, and the symptom "
+          "is empty replies, not an error. Kill it before launching again:\n"
+          + (f"  taskkill /F /PID {pid}" if sys.platform == "win32" else f"  kill -9 {pid}"),
+          file=sys.stderr)
+    sys.exit(1)
 
 
 # ==================== GENERIC ESCAPE HATCHES ====================
@@ -913,13 +1238,70 @@ def cmd_list_commands(args, project_path: Path):
         print(f"  {action}")
 
 
+_ADDON_VERSION_RE = re.compile(
+    r'^\s*const\s+HARNESS_VERSION\s*:\s*String\s*=\s*"([^"]+)"', re.M)
+
+
+def _installed_addon_version(project_path: Path):
+    """The addon's own stamp, read off disk. None when it cannot be read.
+
+    This is the half of the answer that needs no running game: the installed
+    revision is a constant in a file that is sitting right there.
+    """
+    path = project_path / "addons" / "godot_selftest" / "dev_tools.gd"
+    try:
+        m = _ADDON_VERSION_RE.search(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def _harness_version_offline(project_path: Path, as_json: bool, why: str) -> int:
+    """Print what disk alone can prove, and say plainly what is unknown.
+
+    Every gaps-log entry is written after the session is over, which is exactly
+    when the bridge is down - so failing the whole verb made the `harness:` field
+    it exists to fill unfillable at the only moment anyone fills it, and the field
+    got copied from a neighbouring entry instead (gather:G-116, gather:G-138).
+    """
+    installed = _installed_addon_version(project_path)
+    if as_json:
+        print(json.dumps({
+            "client": HARNESS_VERSION,
+            "installed": installed,
+            "harness_version": None,
+            "bridge": "cold",
+            "reason": why,
+        }, indent=2))
+    else:
+        print(f"Client:    {HARNESS_VERSION}  (tools/devtools.py)")
+        print(f"Installed: {installed or 'unreadable'}  "
+              "(addons/godot_selftest/dev_tools.gd, read from disk)")
+        print("Game:      unknown - the bridge is cold, so the RUNNING build was "
+              "not asked.")
+        print(f"  ({why})", file=sys.stderr)
+    if installed is not None and installed != HARNESS_VERSION:
+        print(f"\nWARNING: half-refreshed install - the addon on disk is {installed} "
+              f"and this client is {HARNESS_VERSION}. Re-run /scaffold-godot-harness.",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_harness_version(args, project_path: Path):
     """Report the harness revision installed game-side, and this client's own.
 
     Data keys read: harness_version, handlers, extension_loaded (see the
     _cmd_harness_version docstring in dev_tools.gd - these two halves must agree).
+
+    With no game running this falls back to the two revisions disk can prove
+    (this client's, and the installed addon's constant) rather than failing.
     """
-    result = send_command(project_path, "harness_version")
+    try:
+        result = send_command(project_path, "harness_version")
+    except BridgeError as e:
+        sys.exit(_harness_version_offline(
+            project_path, getattr(args, "json", False), str(e).splitlines()[0]))
 
     if not result.get("success", False):
         message = result.get("message", "")
@@ -1149,11 +1531,24 @@ def cmd_clear_nodes(args, project_path: Path):
         print("Error: Specify a selector: --group, --method, or --class", file=sys.stderr)
         sys.exit(1)
 
+    if args.via_method:
+        cmd_args["via_method"] = args.via_method
+        if args.via_args:
+            try:
+                cmd_args["via_args"] = json.loads(args.via_args)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON in --via-args: {e}", file=sys.stderr)
+                sys.exit(1)
+
     result = send_command(project_path, "clear_nodes", cmd_args)
-    if result["success"]:
-        count = result.get("data", {}).get("count", 0)
-        print(f"Cleared {count} node(s)")
-    else:
+    data = result.get("data") or {}
+    count = data.get("count", 0)
+    how = data.get("via") or "queue_free()"
+    print(f"Cleared {count} node(s) via {how}")
+    if data.get("skipped"):
+        print(f"  {len(data['skipped'])} matched but lack that method: "
+              f"{', '.join(data['skipped'])}", file=sys.stderr)
+    if not result["success"]:
         print(f"Failed: {result['message']}", file=sys.stderr)
         sys.exit(1)
 
@@ -1542,22 +1937,69 @@ def cmd_node_bounds(args, project_path: Path):
     print(f"  Alpha:        {data['modulate_a']:.1f}")
     print(f"  In viewport:  {data['in_viewport']}")
     if data.get("text"):
-        print(f"  Text:         \"{data['text']}\"")
+        print(f"  Text:         \"{_printable(data['text'])}\"")
+    # Say where the extent came from, because for a non-Control it is derived and
+    # may be degenerate - a 0x0 rect is "I know the origin, not the size", which
+    # must not read the same as "this node is zero-sized".
+    if data.get("size_source"):
+        print(f"  Size from:    {data['size_source']}")
+        if r["w"] == 0 and r["h"] == 0:
+            print("                (0x0: this class reports no extent - the "
+                  "position is real, the size is unknown)")
 
 
 # ==================== LAUNCH / TILEMAP / SCRIPT CENSUS ====================
 
 
+def _await_bus(project_path: Path, session: str, bus_dir: str, seconds: float = 20.0):
+    """Poll `ping` on the freshly launched instance's own bus. Reply dict or None.
+
+    Printing a follow-up command that cannot work is worse than failing, because
+    it reads as success - which is exactly how a half-applied `--isolated` cost
+    three sessions (gather:G-111). So the command is verified before it is
+    advertised.
+    """
+    global _SESSION, _USERDATA_OVERRIDE
+    prev_session, prev_userdata = _SESSION, _USERDATA_OVERRIDE
+    _SESSION = sanitize_session(session)
+    if bus_dir:
+        _USERDATA_OVERRIDE = bus_dir
+    try:
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            try:
+                reply = send_command(project_path, "ping", {}, timeout=3.0)
+                if isinstance(reply, dict) and reply.get("success"):
+                    return reply
+            except BridgeError:
+                pass
+            time.sleep(0.5)
+        return None
+    finally:
+        _SESSION, _USERDATA_OVERRIDE = prev_session, prev_userdata
+
+
 def cmd_launch(args, project_path: Path):
-    """Launch the game detached, logs under .devtools/ (G-057, minimal form).
+    """Launch the game detached, logs under .devtools/ (G-057).
 
     Godot binary resolution: --godot flag -> $GODOT_BIN -> the config's
     `godot_bin` key. stdout/stderr are redirected to files, NEVER
     subprocess.PIPE - an unread pipe fills and stalls Godot on Windows.
 
-    --isolated generates a session id and a temp userdata dir, exports
-    GODOT_DEVTOOLS_SESSION and GODOT_USERDATA to the spawned process, and prints
-    both so subsequent calls can pass --session/--userdata.
+    --isolated gives the new instance its own session id AND its own bus
+    directory (passed as `-- --devtools-busdir <dir>`, which the autoload
+    honours), then proves the bus answers before printing the follow-up command.
+
+    What --isolated does NOT do: move user:// itself. Godot resolves that inside
+    the engine and has no switch for it, so saves, screenshots and baselines are
+    still shared. The previous version printed a temp `userdata:` path as though
+    it had moved them; nothing ever wrote there, and the follow-up command it
+    printed failed with `game not running` (gather:G-091/G-111/G-115). The claim
+    is now exactly as large as the behaviour.
+
+    Everything after a bare `--` is forwarded to the Godot command line, so a run
+    needing an engine flag (`--write-movie out/frame.png --fixed-fps 30`) no
+    longer has to re-implement launching (gather:G-092).
     """
     config = _read_harness_config(project_path)
     godot = args.godot or os.environ.get("GODOT_BIN") or str(config.get("godot_bin", "") or "")
@@ -1570,23 +2012,63 @@ def cmd_launch(args, project_path: Path):
         print(f"Error: Godot binary not found: {godot_path}", file=sys.stderr)
         sys.exit(2)
 
+    # Refuse to add a second instance to a bus a LIVE process already owns
+    # (gather:G-112): two instances answering one bus is silent data corruption,
+    # and the owner file already carries everything needed to detect it. A dead
+    # owner is ignored, not obeyed - that is the normal post-crash state - but it
+    # is left on disk, because it is what the reply-pid check compares against.
+    if not args.isolated:
+        try:
+            user_data = get_user_data_path(project_path)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(2)
+        owner = owner_status(user_data)
+        if owner["present"] and owner["alive"]:
+            print(f"Error: pid {owner['pid']} still owns this bus "
+                  f"({owner['path'].name}).\n"
+                  "Quit it first, or launch with --isolated to get a bus of your own.\n"
+                  "Pass --allow-second-instance if you really mean to run two.",
+                  file=sys.stderr)
+            if not args.allow_second_instance:
+                sys.exit(1)
+
     devtools_dir = project_path / ".devtools"
     devtools_dir.mkdir(exist_ok=True)
     out_log = devtools_dir / "launch_stdout.log"
     err_log = devtools_dir / "launch_stderr.log"
 
-    cmd = [str(godot_path), "--path", str(project_path), "--mute"]
+    cmd = [str(godot_path), "--path", str(project_path)]
+    if not args.no_mute:
+        # Opt-out rather than unconditional: --write-movie records the audio bus
+        # into a .wav, and a muted run captures silence (gather:G-092).
+        cmd.append("--mute")
 
     env = os.environ.copy()
     session = ""
-    userdata = ""
+    bus_dir = ""
+    user_args = []
     if args.isolated:
         session = uuid.uuid4().hex[:8]
-        userdata = tempfile.mkdtemp(prefix="devtools_userdata_")
+        bus_dir = tempfile.mkdtemp(prefix="devtools_bus_")
         env["GODOT_DEVTOOLS_SESSION"] = session
-        env["GODOT_USERDATA"] = userdata
+        env["GODOT_DEVTOOLS_BUSDIR"] = bus_dir
+        user_args = ["--devtools-session", session, "--devtools-busdir", bus_dir]
     elif _SESSION:
+        session = _SESSION
         env["GODOT_DEVTOOLS_SESSION"] = _SESSION
+        user_args = ["--devtools-session", _SESSION]
+
+    # argparse.REMAINDER keeps the separator itself; drop it so `launch -- --foo`
+    # forwards `--foo` and not `-- --foo`.
+    passthrough = list(getattr(args, "godot_args", None) or [])
+    if passthrough and passthrough[0] == "--":
+        passthrough = passthrough[1:]
+    cmd += passthrough
+    if user_args:
+        # Godot's own `--` separator: everything after it reaches
+        # OS.get_cmdline_user_args(), which is where the autoload reads from.
+        cmd += ["--"] + user_args
 
     popen_kwargs = {}
     if sys.platform == "win32":
@@ -1600,16 +2082,57 @@ def cmd_launch(args, project_path: Path):
         proc = subprocess.Popen(cmd, stdout=out_f, stderr=err_f, env=env,
                                 cwd=str(project_path), **popen_kwargs)
 
+    # Record what was started, so a later bus failure can say whether THIS pid is
+    # gone instead of "likely exited" (gather:G-114). A detached child's exit CODE
+    # is not recoverable after the fact on Windows - liveness is, and liveness plus
+    # the breadcrumb is what actually answers "did it crash, and inside what".
+    launch_record = devtools_dir / "launch.json"
+    launch_record.write_text(json.dumps({
+        "pid": proc.pid,
+        "cmd": cmd,
+        "session": session,
+        "bus_dir": bus_dir,
+        "started_unix": time.time(),
+    }, indent=2), encoding="utf-8")
+
     print(f"Launched pid {proc.pid}: {' '.join(cmd)}")
     print(f"  stdout: {out_log}")
     print(f"  stderr: {err_log}")
-    if args.isolated:
-        print(f"  session:  {session}")
-        print(f"  userdata: {userdata}")
-        print(f"  Subsequent calls: python tools/devtools.py --session {session} "
-              f"--userdata {userdata} <verb>")
+    if passthrough:
+        print(f"  forwarded to Godot: {' '.join(passthrough)}")
+
+    if args.no_wait:
+        print("  --no-wait: the bus was NOT verified. "
+              "python tools/devtools.py ping")
+        return
+
+    reply = _await_bus(project_path, session, bus_dir)
+    if reply is None:
+        print("\nERROR: launched, but the bus never answered a ping within 20s.",
+              file=sys.stderr)
+        tail = ""
+        try:
+            tail = err_log.read_text(encoding="utf-8").strip()[-800:]
+        except OSError:
+            pass
+        if tail:
+            print(f"--- {err_log.name} (tail) ---\n{tail}", file=sys.stderr)
+        print("Not printing a follow-up command: it would not work.", file=sys.stderr)
+        sys.exit(1)
+
+    data = reply.get("data") or {}
+    print(f"  bus answered: pid {data.get('pid')}")
+    if session:
+        flags = f"--session {session}"
+        if bus_dir:
+            flags += f" --userdata {bus_dir}"
+        print(f"  Subsequent calls: python tools/devtools.py {flags} <verb>")
     else:
-        print("  Give it a few seconds, then: python tools/devtools.py ping")
+        print("  Subsequent calls: python tools/devtools.py <verb>")
+    if bus_dir:
+        print(f"  bus dir:  {data.get('bus_dir', bus_dir)}   (isolated)")
+        print(f"  user://:  {data.get('user_dir', '?')}   (SHARED - saves, "
+              "screenshots and UI baselines are not isolated)")
 
 
 def rect_arg(value: str):
@@ -1691,6 +2214,12 @@ def cmd_canvas_scale(args, project_path: Path):
     print(result.get("message", ""))
     print(f"  accumulated scale: ({scale.get('x')}, {scale.get('y')})  "
           f"filter: {data.get('effective_filter')} (from {data.get('filter_source')})")
+    if "canvas_layer" not in data:
+        print("  canvas layer: the reply carried no 'canvas_layer' key "
+              f"(keys: {sorted(data)})", file=sys.stderr)
+    else:
+        where = data.get("canvas_layer_path") or "root canvas (no CanvasLayer ancestor)"
+        print(f"  canvas layer: {data['canvas_layer']}  via {where}")
     for entry in data.get("chain", []) or []:
         s = entry.get("scale")
         s_txt = f" scale=({s.get('x')}, {s.get('y')})" if isinstance(s, dict) else ""
@@ -1728,6 +2257,246 @@ def cmd_scripts_seen(args, project_path: Path):
         print(f"  {script}")
 
 
+_GLUE_FLAGS = ("--value", "--args", "-a")
+
+
+def _glue_leading_dash_values(argv):
+    """Rewrite `--value -200,-296` into `--value=-200,-296` before argparse sees it.
+
+    argparse only exempts a token from option parsing when it matches its
+    negative-NUMBER pattern, so a negative Vector2 tuple is read as an unknown
+    flag and the command dies with `expected one argument` - which says nothing
+    about the real cause (gather:G-137). Only the value-carrying flags are glued,
+    and only when the next token already starts with '-', so nothing else moves.
+    """
+    out = []
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in _GLUE_FLAGS and i + 1 < len(argv) and argv[i + 1].startswith("-"):
+            out.append("%s=%s" % (tok, argv[i + 1]))
+            i += 2
+            continue
+        out.append(tok)
+        i += 1
+    return out
+
+
+# Godot's ResourceUID text encoding, reimplemented. Verified against
+# ResourceUID.id_to_text() on 4.6.1 for 1, 33, 34, 35, 1234567890 and two 63-bit
+# ids: base 34, digits 'a'..'z' (0..24) then '0'..'9' (25..33), most significant
+# first, no padding.
+_UID_CHAR_COUNT = ord("z") - ord("a")      # 25
+_UID_BASE = _UID_CHAR_COUNT + (ord("9") - ord("0"))   # 34
+
+
+def uid_to_text(uid_id: int) -> str:
+    """Godot's ResourceUID::id_to_text."""
+    if uid_id < 0:
+        return "uid://<invalid>"
+    out = []
+    while uid_id:
+        c = uid_id % _UID_BASE
+        if c < _UID_CHAR_COUNT:
+            out.append(chr(ord("a") + c))
+        else:
+            out.append(chr(ord("0") + (c - _UID_CHAR_COUNT)))
+        uid_id //= _UID_BASE
+    return "uid://" + "".join(reversed(out))
+
+
+def cmd_new_uid(args, project_path: Path):
+    """Emit a fresh, correctly-encoded, collision-checked uid:// string.
+
+    A subagent that is not allowed to run Godot also cannot generate a `.uid`,
+    so it hand-writes one and nobody can validate it until the orchestrator
+    imports - and lint's `UIDs: OK` is only reachable from a tree that already
+    compiles, which a fan-out does not have until every agent has landed
+    (gather:G-094). This is a pure function over the same encoding plus a scan of
+    the existing sidecars: no game, no editor, no import.
+    """
+    existing = set()
+    for sidecar in project_path.rglob("*.uid"):
+        try:
+            existing.add(sidecar.read_text(encoding="utf-8").strip())
+        except OSError:
+            continue
+
+    made = []
+    for _ in range(max(1, args.count)):
+        for _attempt in range(1000):
+            # 63-bit, matching create_id()'s 0x7FFF... mask.
+            text = uid_to_text(uuid.uuid4().int & 0x7FFFFFFFFFFFFFFF)
+            if text not in existing:
+                existing.add(text)
+                made.append(text)
+                break
+        else:
+            print("Error: could not find an unused uid in 1000 attempts (that "
+                  "should be impossible - is the project full of duplicates?)",
+                  file=sys.stderr)
+            sys.exit(1)
+
+    if args.write:
+        target = Path(args.write)
+        if not target.is_absolute():
+            target = project_path / target
+        if target.suffix != ".uid":
+            target = target.with_suffix(target.suffix + ".uid")
+        if target.exists():
+            print(f"Error: {target} already exists; refusing to overwrite a uid "
+                  "(changing one breaks every reference to it).", file=sys.stderr)
+            sys.exit(1)
+        target.write_text(made[0], encoding="utf-8")
+        print(f"{made[0]}  -> {target}")
+        return
+
+    for text in made:
+        print(text)
+    print(f"({len(existing) - len(made)} existing .uid sidecar(s) scanned for "
+          "collisions)", file=sys.stderr)
+
+
+def cmd_reachable_ui(args, project_path: Path):
+    """What a finger or cursor could actually hit right now (bus verb:
+    reachable_ui, gather:G-129). Data keys read: controls, count, reachable,
+    viewport.
+
+    Diff this between `set-feature --touchscreen true` and `false` to catch an
+    affordance that exists on one device and not the other.
+    """
+    result = send_command(project_path, "reachable_ui", {})
+    if not result["success"]:
+        print(f"Failed: {result['message']}", file=sys.stderr)
+        sys.exit(1)
+    data = result.get("data") or {}
+    if "controls" not in data:
+        print(f"reachable-ui: the reply carried no 'controls' key. Keys: {sorted(data)}",
+              file=sys.stderr)
+        sys.exit(1)
+    print(result.get("message", ""))
+    for c in data["controls"]:
+        r = c.get("rect") or {}
+        why = ""
+        if not c.get("on_screen"):
+            why = "  OFF-SCREEN"
+        elif c.get("blocked_by"):
+            why = f"  BLOCKED BY {c['blocked_by']}"
+        label = f' "{_printable(c["text"])}"' if c.get("text") else ""
+        print(f"  {c.get('path')}{label}  [{c.get('kind')}] "
+              f"{r.get('x'):.0f},{r.get('y'):.0f} {r.get('w'):.0f}x{r.get('h'):.0f}{why}")
+
+
+def cmd_find_nodes(args, project_path: Path):
+    """Find nodes by class/group/method and property predicates (bus verb:
+    find_nodes, gather:G-109). Data keys read: nodes, count, truncated."""
+    cmd_args = {"limit": args.limit}
+    if args.node_class:
+        cmd_args["class"] = args.node_class
+    if args.group:
+        cmd_args["group"] = args.group
+    if args.method:
+        cmd_args["method"] = args.method
+    if args.root:
+        cmd_args["root"] = normalize_node_path(args.root)
+    if args.properties:
+        cmd_args["properties"] = args.properties
+    where = {}
+    for pair in args.where or []:
+        if "=" not in pair:
+            print(f"Error: --where expects NAME=VALUE, got {pair!r}", file=sys.stderr)
+            sys.exit(2)
+        name, _, raw = pair.partition("=")
+        where[name] = parse_value_arg(raw)
+    if where:
+        cmd_args["where"] = where
+
+    result = send_command(project_path, "find_nodes", cmd_args)
+    if not result["success"]:
+        print(f"Failed: {result['message']}", file=sys.stderr)
+        sys.exit(1)
+
+    data = result.get("data") or {}
+    if "nodes" not in data:
+        print(f"find-nodes: the reply carried no 'nodes' key. Keys: {sorted(data)}",
+              file=sys.stderr)
+        sys.exit(1)
+    nodes = data["nodes"]
+    print(f"{data.get('count', len(nodes))} node(s) matched:")
+    for node in nodes:
+        extra = node.get("properties") or {}
+        suffix = ("  " + "  ".join(f"{k}={_format_value(v)}" for k, v in extra.items())
+                  if extra else "")
+        print(f"  {node.get('path')}  [{node.get('type')}]{suffix}")
+    if data.get("truncated"):
+        print(f"  ... truncated at --limit {args.limit}")
+    if not nodes:
+        # An empty match is a legitimate answer, but exiting 0 on it makes a typo'd
+        # predicate indistinguishable from a real absence in a shell pipeline.
+        sys.exit(1)
+
+
+def cmd_press(args, project_path: Path):
+    """Emit `pressed` on the nearest BaseButton (bus verb: press, gather:G-119)."""
+    cmd_args = {"node_path": normalize_node_path(args.node)}
+    if args.toggle is not None:
+        cmd_args["toggle"] = args.toggle
+    result = send_command(project_path, "press", cmd_args)
+    print(result.get("message", ""))
+    if not result["success"]:
+        sys.exit(1)
+
+
+def cmd_raycast(args, project_path: Path):
+    """Cast a ray and report what it hit (bus verb: raycast, gather:G-136).
+
+    Data keys read: clear, collider, collider_class, position, mask, mask_names.
+    """
+    cmd_args = {
+        "from": [float(args.origin[0]), float(args.origin[1])],
+        "to": [float(args.to[0]), float(args.to[1])],
+        "areas": bool(args.areas),
+    }
+    if args.mask is not None:
+        cmd_args["mask"] = args.mask
+    if args.exclude:
+        cmd_args["exclude"] = [normalize_node_path(p) for p in args.exclude]
+
+    result = send_command(project_path, "raycast", cmd_args)
+    if not result["success"]:
+        print(f"Failed: {result['message']}", file=sys.stderr)
+        sys.exit(1)
+
+    data = result.get("data") or {}
+    if "clear" not in data:
+        print(f"raycast: the reply carried no 'clear' key. Keys: {sorted(data)}",
+              file=sys.stderr)
+        sys.exit(1)
+    print(result.get("message", ""))
+    print(f"  mask {data.get('mask')} = {', '.join(data.get('mask_names') or [])}")
+    if not data["clear"]:
+        pos = data.get("position") or {}
+        print(f"  collider: {data.get('collider')} [{data.get('collider_class')}]")
+        print(f"  hit at:   ({pos.get('x')}, {pos.get('y')})")
+
+
+def cmd_sample_pixels(args, project_path: Path):
+    """Mean/dominant colour over a screen rect (bus verb: sample_pixels, G-121)."""
+    cmd_args = {}
+    if args.rect is not None:
+        cmd_args["rect"] = args.rect
+    result = send_command(project_path, "sample_pixels", cmd_args)
+    if not result["success"]:
+        print(f"Failed: {result['message']}", file=sys.stderr)
+        sys.exit(1)
+    data = result.get("data") or {}
+    print(result.get("message", ""))
+    for key in ("mean", "dominant", "brightest", "darkest"):
+        c = data.get(key)
+        if isinstance(c, dict):
+            print(f"  {key:<10} r={c.get('r'):.3f} g={c.get('g'):.3f} b={c.get('b'):.3f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="DevTools CLI - interact with running Godot instance")
     parser.add_argument("--project", "-p", help="Path to Godot project", default=".")
@@ -1758,6 +2527,15 @@ def main():
     # screenshot
     p = subparsers.add_parser("screenshot", help="Take a screenshot")
     p.add_argument("--filename", "-f", help="Output filename")
+    p.add_argument("--region", type=rect_arg, metavar="X,Y,W,H",
+                   help="Crop to this pixel rect (game-side, so the crop is "
+                        "reproducible from the command line)")
+    p.add_argument("--hide", action="append", metavar="NODE",
+                   help="Hide this node for the capture and restore it after "
+                        "(repeatable)")
+    p.add_argument("--hide-group", action="append", metavar="GROUP",
+                   help="Hide every CanvasItem in this group for the capture "
+                        "(repeatable)")
     p.set_defaults(func=cmd_screenshot)
 
     # validate
@@ -1772,7 +2550,25 @@ def main():
     # scene-tree
     p = subparsers.add_parser("scene-tree", help="Get scene tree")
     p.add_argument("--depth", "-d", type=int, default=10, help="Max depth")
+    p.add_argument("--root", help="Start from this node instead of the current "
+                                  "scene (a deep UI subtree otherwise truncates)")
+    p.add_argument("--property", dest="properties", action="append", metavar="NAME",
+                   help="Report this property on every node (repeatable). "
+                        "find-nodes is usually the better verb for identifying one.")
     p.set_defaults(func=cmd_scene_tree)
+
+    # curve
+    p = subparsers.add_parser(
+        "curve", help="Call a pure method over an integer range and print the series")
+    p.add_argument("--node", "-n", required=True, help="Node path")
+    p.add_argument("--method", "-m", required=True, help="Method name")
+    p.add_argument("--from", dest="start", type=int, required=True, metavar="N")
+    p.add_argument("--to", dest="end", type=int, required=True, metavar="N")
+    p.add_argument("--step", type=int, default=1)
+    p.add_argument("--args", help="JSON array of extra arguments")
+    p.add_argument("--arg-index", type=int, default=0,
+                   help="Which parameter the swept value fills (default 0)")
+    p.set_defaults(func=cmd_curve)
 
     # performance
     p = subparsers.add_parser("performance", help="Get performance metrics")
@@ -1784,14 +2580,20 @@ def main():
     p = subparsers.add_parser("get-state", help="Get node state")
     p.add_argument("--node", "-n", help="Node path")
     p.add_argument("--property", dest="properties", action="append", metavar="NAME",
-                   help="Only report this property (repeatable). Exits 1 if a name is unknown.")
+                   help="Only report this property (repeatable). Exits 1 if a name is "
+                        "unknown. A dotted path walks into Resources and Dictionaries: "
+                        "--property texture.region, --property slot_data.item.name.")
     p.set_defaults(func=cmd_get_state)
 
     # set-state
     p = subparsers.add_parser("set-state", help="Set node property")
     p.add_argument("--node", "-n", required=True, help="Node path")
     p.add_argument("--property", required=True, help="Property name")
-    p.add_argument("--value", required=True, help="Property value")
+    p.add_argument("--value", required=True,
+                   help="Property value. JSON, a bare number, or a numeric tuple: "
+                        "[-200,-296] | -200,-296 | (-200,-296) all reach the game as "
+                        "a Vector2. Write --value=-200,-296 with an '=' when it starts "
+                        "with '-', or argparse reads it as a flag.")
     p.set_defaults(func=cmd_set_state)
 
     # run-method
@@ -1799,6 +2601,8 @@ def main():
     p.add_argument("--node", "-n", required=True, help="Node path")
     p.add_argument("--method", "-m", required=True, help="Method name")
     p.add_argument("--args", "-a", help="Method arguments as JSON array")
+    p.add_argument("--json", action="store_true",
+                   help="Print the full reply envelope as JSON (pipeable, like `cmd`)")
     p.set_defaults(func=cmd_run_method)
 
     # logs
@@ -1808,8 +2612,11 @@ def main():
     p.set_defaults(func=cmd_logs)
 
     # quit
-    p = subparsers.add_parser("quit", help="Quit Godot")
+    p = subparsers.add_parser("quit", help="Quit Godot, and confirm the process is gone")
     p.add_argument("--exit-code", type=int, help="Exit code")
+    p.add_argument("--wait", type=float, default=10.0, metavar="SECONDS",
+                   help="How long to wait for the process to exit before reporting "
+                        "a survivor (default 10; exits 1 if it is still alive)")
     p.set_defaults(func=cmd_quit)
 
     # cmd - arbitrary registered verb
@@ -1828,11 +2635,26 @@ def main():
     p.set_defaults(func=cmd_list_commands)
 
     # launch - start the game detached
-    p = subparsers.add_parser("launch", help="Launch the game detached (logs under .devtools/)")
+    p = subparsers.add_parser(
+        "launch", help="Launch the game detached (logs under .devtools/)",
+        epilog="Everything after a bare -- goes to the Godot command line: "
+               "devtools.py launch --no-mute -- --write-movie out/frame.png --fixed-fps 30")
     p.add_argument("--godot", help="Godot binary (else $GODOT_BIN, else config godot_bin)")
     p.add_argument("--isolated", action="store_true",
-                   help="Private bus + userdata: prints the --session/--userdata to pass "
-                        "on subsequent calls")
+                   help="Private session id AND a private bus directory, verified before "
+                        "the follow-up command is printed. user:// itself is still shared - "
+                        "Godot has no switch for it.")
+    p.add_argument("--no-mute", action="store_true",
+                   help="Do not pass --mute (a --write-movie run records the audio bus, "
+                        "and a muted run captures silence)")
+    p.add_argument("--no-wait", action="store_true",
+                   help="Return as soon as the process is spawned, without proving the "
+                        "bus answers")
+    p.add_argument("--allow-second-instance", action="store_true",
+                   help="Launch even when a live process already owns this bus "
+                        "(two instances answering one bus is silent corruption)")
+    p.add_argument("godot_args", nargs=argparse.REMAINDER, metavar="-- GODOT ARGS",
+                   help="Passed straight to Godot after a bare --")
     p.set_defaults(func=cmd_launch)
 
     # harness-version - which harness revision is installed
@@ -1944,7 +2766,71 @@ def main():
     p.add_argument("--group", help="Free nodes in this group")
     p.add_argument("--method", help="Free nodes that have this method")
     p.add_argument("--class", dest="class_name", help="Free nodes of this class")
+    p.add_argument("--via-method", metavar="NAME",
+                   help="Call this method on each match instead of queue_free(). "
+                        "queue_free() skips the game's own removal path, so a "
+                        "cleared enemy drops nothing and pays no xp.")
+    p.add_argument("--via-args", metavar="JSON",
+                   help="JSON array of arguments for --via-method")
     p.set_defaults(func=cmd_clear_nodes)
+
+    # new-uid (offline: no game, no editor, no import)
+    p = subparsers.add_parser(
+        "new-uid", help="Emit a fresh uid:// string, collision-checked against "
+                        "the project's existing .uid sidecars")
+    p.add_argument("--count", type=int, default=1, help="How many to emit")
+    p.add_argument("--write", metavar="PATH",
+                   help="Write it to PATH (a .uid suffix is added if missing). "
+                        "Refuses to overwrite an existing sidecar.")
+    p.set_defaults(func=cmd_new_uid)
+
+    # find-nodes
+    p = subparsers.add_parser(
+        "find-nodes", help="Find nodes by class/group/method and property predicates")
+    p.add_argument("--class", dest="node_class", help="Nodes of this class")
+    p.add_argument("--group", help="Nodes in this group")
+    p.add_argument("--method", help="Nodes that have this method")
+    p.add_argument("--where", action="append", metavar="NAME=VALUE",
+                   help="Property must equal this (repeatable; dotted paths allowed, "
+                        "e.g. --where type=Elite --where slot_data.item.name='Iron Bar')")
+    p.add_argument("--property", dest="properties", action="append", metavar="NAME",
+                   help="Also report this property for each hit (repeatable)")
+    p.add_argument("--root", help="Search only this subtree (default: the whole tree)")
+    p.add_argument("--limit", type=int, default=200, help="Max hits to return")
+    p.set_defaults(func=cmd_find_nodes)
+
+    # press
+    p = subparsers.add_parser("press", help="Emit `pressed` on the nearest BaseButton")
+    p.add_argument("--node", "-n", required=True, help="Button path (or its parent)")
+    p.add_argument("--toggle", type=lambda v: v.lower() in ("1", "true", "yes"),
+                   default=None, metavar="BOOL",
+                   help="For a toggle_mode button, the state to set before emitting")
+    p.set_defaults(func=cmd_press)
+
+    # raycast
+    p = subparsers.add_parser(
+        "raycast", help="What would a ray on this collision mask hit?")
+    p.add_argument("--from", dest="origin", required=True, type=coord_pair, metavar="X,Y")
+    p.add_argument("--to", required=True, type=coord_pair, metavar="X,Y")
+    p.add_argument("--mask", type=int, help="Collision mask (default: every layer)")
+    p.add_argument("--areas", action="store_true", help="Also hit Area2Ds")
+    p.add_argument("--exclude", action="append", metavar="NODE",
+                   help="Exclude this CollisionObject2D (repeatable)")
+    p.set_defaults(func=cmd_raycast)
+
+    # reachable-ui
+    p = subparsers.add_parser(
+        "reachable-ui",
+        help="Every Control a finger or cursor could actually hit this frame "
+             "(off-screen and input-blocked ones are named, not omitted)")
+    p.set_defaults(func=cmd_reachable_ui)
+
+    # sample-pixels
+    p = subparsers.add_parser(
+        "sample-pixels", help="Mean / dominant colour over a screen rect")
+    p.add_argument("--rect", type=rect_arg, metavar="X,Y,W,H",
+                   help="Screen rect (default: the whole viewport)")
+    p.set_defaults(func=cmd_sample_pixels)
 
     # set-game-speed
     p = subparsers.add_parser("set-game-speed", help="Set game speed (time scale)")
@@ -2028,7 +2914,7 @@ def main():
     p.add_argument("node_path", help="Node path (e.g., /root/Main/HUD/TopBar/CurrencyLabel)")
     p.set_defaults(func=cmd_node_bounds)
 
-    args = parser.parse_args()
+    args = parser.parse_args(_glue_leading_dash_values(sys.argv[1:]))
 
     global _USERDATA_OVERRIDE, _PRECHECK_ENABLED, _SESSION, _RAW_JSON
     _USERDATA_OVERRIDE = args.userdata
