@@ -42,6 +42,7 @@ animations = [{
 }]
 
 [node name="StaticBody2D" type="StaticBody2D"]
+collision_layer = 128
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1

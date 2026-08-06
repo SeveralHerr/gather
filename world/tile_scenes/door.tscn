@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://2m4ylcr6bkcn"]
+[gd_scene load_steps=8 format=3 uid="uid://2m4ylcr6bkcn"]
 
 [ext_resource type="Texture2D" uid="uid://dw6y7kiwj4ynf" path="res://assets/tilesets/game_items_atlas.tres" id="1_q5b2c"]
 [ext_resource type="Script" path="res://world/tile_scenes/door.gd" id="2_jk7c1"]
@@ -31,6 +31,9 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_rdqto"]
+size = Vector2(24, 24)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_blocker"]
 size = Vector2(16, 16)
 
 [node name="Door" type="AnimatedSprite2D"]
@@ -45,3 +48,10 @@ collision_mask = 33
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
 z_index = 1
 shape = SubResource("RectangleShape2D_rdqto")
+
+[node name="Blocker" type="StaticBody2D" parent="."]
+collision_layer = 65
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Blocker"]
+shape = SubResource("RectangleShape2D_blocker")

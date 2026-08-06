@@ -14,7 +14,7 @@ region = Rect2(0, 80, 16, 32)
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
-collision_layer = 5
+collision_layer = 132
 script = ExtResource("2_bv0l3")
 type = 12
 

@@ -14,7 +14,7 @@ size = Vector2(14, 7)
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
-collision_layer = 5
+collision_layer = 132
 script = ExtResource("1_i51o1")
 type = 7
 

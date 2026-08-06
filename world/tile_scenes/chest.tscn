@@ -12,6 +12,7 @@ atlas = ExtResource("1_mgq6d")
 region = Rect2(176, 32, 16, 16)
 
 [node name="Chest" type="StaticBody2D"]
+collision_layer = 128
 z_index = 1
 y_sort_enabled = true
 texture_filter = 1
