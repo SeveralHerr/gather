@@ -49,11 +49,21 @@ const OUTRO_HOLD := 1.8
 const PULSE_SCALE := 0.06
 const PULSE_TIME := 0.18
 
-## Fill colours. The bar runs from the raid's own ember orange toward red as the night is won,
-## so the strip is a different colour at a glance when the fight is nearly over — the number is
-## the precise readout and the colour is the peripheral one.
-const BAR_FULL := Color(0.95, 0.35, 0.18)
-const BAR_LOW := Color(1.0, 0.72, 0.28)
+## Fill colours. The bar starts at the palette's danger red and cools toward orange as the
+## night is won, so the strip is a different colour at a glance when the fight is nearly over —
+## the number is the precise readout and the colour is the peripheral one.
+##
+## They are UiTheme's own now, not a hand-mixed ember pair. A raid is the loudest "this is
+## going badly" the game has, and it was saying it in a red that appeared nowhere else; an
+## unaffordable cost, a destructive button and a raid at full strength are all the same danger
+## and now all the same COLOR_BAD. The cooling end is COLOR_ORANGE rather than COLOR_GOLD
+## because gold is the currency colour and sits on the count label two rows up.
+##
+## The lerp between them at `_on_raid_progress` is not the gradient this palette forbids —
+## that rule is about a *spatial* ramp across one element. The bar is a flat fill at every
+## instant; what changes over the night is which flat colour it is.
+const BAR_FULL := UiTheme.COLOR_BAD
+const BAR_LOW := UiTheme.COLOR_ORANGE
 
 ## Injected by `TileMapHandler._setup_raid_banner()` before this node enters the tree, so
 ## `_ready()` never has to go hunting through groups. Left null in a unit test that builds the
@@ -180,6 +190,11 @@ func _build() -> void:
 	_bar_fill = StyleBoxFlat.new()
 	_bar_fill.bg_color = BAR_FULL
 	_bar_fill.set_corner_radius_all(UiTheme.RADIUS_CONTROL)
+	# Built by hand rather than through `UiTheme._flat()` because the fill takes no outline of
+	# its own — the inset background behind it already carries one. It still has to opt out of
+	# anti-aliasing: on a square box that is a row of blended pixels along an edge every sprite
+	# beside it keeps hard. See the `_flat()` header for why the property name is the trap.
+	_bar_fill.anti_aliasing = false
 	_bar.add_theme_stylebox_override("fill", _bar_fill)
 	_column.add_child(_bar)
 

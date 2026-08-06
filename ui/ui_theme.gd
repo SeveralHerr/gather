@@ -76,6 +76,18 @@ const COLOR_BAD := Color("e43b44")
 const COLOR_GOOD := Color("63c74d")
 ## Neutral highlight — selected hotbar slot, hovered card.
 const COLOR_ACCENT := Color("0099db")
+## The fourth branch hue. Gold is already spoken for by currency, so Industry
+## needs its own warm tone or the skill tree has two columns that read the same.
+const COLOR_ORANGE := Color("f77622")
+
+## The three states a card in a grid can be in — a skill node, a recipe.
+##
+## These live here rather than in `skill_node_button.gd` and `recipe_card.gd`
+## because both files declared the same two colours independently and a third
+## file declared a fourth grey for the same border. One card palette, one place.
+const COLOR_CARD := Color("2f3757")
+const COLOR_CARD_LOCKED := Color("222842")
+const COLOR_CARD_TAKEN := Color("2a4535")
 
 ## Chrome for controls that sit over the world rather than over a backdrop (the
 ## touch buttons, the hotbar). Near-opaque on purpose: a translucent fill lets the

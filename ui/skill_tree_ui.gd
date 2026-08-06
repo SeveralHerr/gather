@@ -42,10 +42,17 @@ const BADGE_WIDTH := 170.0
 const BADGE_MARGIN := 14.0
 const BADGE_PAD := 6.0
 
-## The dark-gold fill behind the banked-point count. No UiTheme equivalent — it is
-## the only "this is currency" tint in the game, and COLOR_INSET behind a gold
-## border reads as an ordinary recessed box rather than as a purse.
-const COLOR_POINTS_BG := Color(0.16, 0.13, 0.05)
+## The ground behind the banked-point count. No UiTheme equivalent — it is the only
+## "this is currency" chip in the game, and COLOR_INSET behind a gold border reads as
+## an ordinary recessed box rather than as a purse.
+##
+## It used to be a dark *gold*, on the theory that a purse should be tinted like its
+## contents. Under the flat palette that is gold text on a gold-derived ground with a
+## gold border, and the count is the one number in this panel a player has to read at a
+## glance. So the tint went the other way: a near-black a shade warmer than COLOR_INK,
+## dark enough to keep COLOR_GOLD at full contrast on it and warm enough not to be
+## mistaken for the outline it sits inside.
+const COLOR_POINTS_BG := Color("1c121c")
 
 var level_up_manager: LevelUpManager
 var input_manager: InputManager

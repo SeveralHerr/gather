@@ -29,12 +29,16 @@ const CARD_GAP := 2.0
 const ICON_HEIGHT := 46.0
 const NAME_HEIGHT := 30.0
 
-## The card's own surface ramp, and the two colours UiTheme deliberately has no entry
-## for: COLOR_INSET is the recessed *well* the grid sits in, so a card painted with it
-## reads as a hole rather than as a tile sitting in one. Everything else - the text,
-## the dim text, the shortfall red, the inert border - comes from UiTheme.
-const COLOR_BG := Color("262c38")
-const COLOR_BG_LOCKED := Color("1c1f26")
+## The card's own surface ramp, aliased onto UiTheme's shared card colours. It used to
+## be two hex literals here, byte-identical to the pair `skill_node_button.gd` declared
+## for the same three-state card - which is why UiTheme now owns them.
+##
+## The colour a card must *not* take is COLOR_INSET: that is the recessed well the grid
+## sits in, so a card painted with it reads as a hole rather than as a tile sitting in
+## one. Everything else - the text, the dim text, the shortfall red, the ink outline -
+## comes from UiTheme too.
+const COLOR_BG := UiTheme.COLOR_CARD
+const COLOR_BG_LOCKED := UiTheme.COLOR_CARD_LOCKED
 
 var product: Types.Item
 var state: int = State.LOCKED
@@ -166,8 +170,12 @@ func _on_gui_input(event: InputEvent) -> void:
 
 
 func _restyle() -> void:
-	var style := StyleBoxFlat.new()
-	style.set_corner_radius_all(UiTheme.RADIUS_CONTROL)
+	# UiTheme's factory rather than a bare StyleBoxFlat, for the same reason the skill
+	# card uses it: square corners and `anti_aliasing = false` are what keep the tile
+	# reading as pixel art, and the ink outline is the default a locked card keeps and a
+	# live one overrides with its accent. Content margins stay at zero - the MarginContainer
+	# inside owns the padding, and a second source of it would double the inset.
+	var style := UiTheme._flat(COLOR_BG)
 	style.set_content_margin_all(0)
 
 	match state:

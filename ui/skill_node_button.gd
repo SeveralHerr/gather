@@ -21,10 +21,16 @@ const ROW_GAP := 8
 ## Reserved width for the point price. Two digits' worth — the tree tops out at 5.
 const COST_WIDTH := 14
 
-## Card background. Darker than the panel behind it so the border colour reads.
-const BG_LOCKED := Color("1c1f26")
-const BG_AVAILABLE := Color("262c38")
-const BG_TAKEN := Color("2f3a2c")
+## Card background, one per state. Darker than the panel behind it so the branch
+## colour on the border reads, and taken cards shift green so a learned branch is
+## legible as a block of colour rather than card by card.
+##
+## These are UiTheme's shared card ramp rather than three literals here: `recipe_card.gd`
+## declared a byte-identical pair of the first two, and "a card is darker than the panel
+## it sits on" is a decision the whole UI makes once, not one this file makes again.
+const BG_LOCKED := UiTheme.COLOR_CARD_LOCKED
+const BG_AVAILABLE := UiTheme.COLOR_CARD
+const BG_TAKEN := UiTheme.COLOR_CARD_TAKEN
 
 ## Aliases onto the shared palette. Kept as names because `refresh()` reads them
 ## per state and the state table is easier to follow with them spelled out.
@@ -175,9 +181,11 @@ func set_state(new_state: int, is_affordable: bool) -> void:
 
 
 func refresh() -> void:
-	var style := StyleBoxFlat.new()
-	style.set_corner_radius_all(4)
-	style.set_border_width_all(2)
+	# Through UiTheme's factory rather than a bare StyleBoxFlat: it is what pins the
+	# square corners and `anti_aliasing = false` that every other box in the UI has, and
+	# what supplies the ink outline a locked card keeps. Fill, outline colour and width
+	# are then set per state below.
+	var style := UiTheme._flat(BG_LOCKED)
 	style.content_margin_left = 0
 
 	# The price is spent, not owed, once the node is learned — showing "4" on a taken card
@@ -201,16 +209,28 @@ func refresh() -> void:
 		State.AVAILABLE:
 			style.bg_color = BG_AVAILABLE
 			# Only a node you can actually afford right now gets the full-strength
-			# border; the rest sit at half so the panel points at what is buyable.
+			# border; the rest sit darkened and a pixel thinner so the panel points at
+			# what is buyable.
 			style.border_color = _branch_color if affordable else _branch_color.darkened(0.45)
-			style.set_border_width_all(3 if affordable else 2)
+			style.set_border_width_all(
+				UiTheme.BORDER_WIDTH if affordable else UiTheme.BORDER_WIDTH - 1)
+			# The one state that casts. A locked or learned card lies flat on the panel;
+			# an available one is lifted off it by the hard offset shadow, which is the
+			# depth cue this style has in place of a glow or a gradient. The shadow is
+			# drawn outside the card's rect and is not a content margin, so the grid's
+			# layout is untouched by it.
+			UiTheme._with_shadow(style)
 			_icon.modulate = Color.WHITE
 			_name_label.add_theme_color_override("font_color", TEXT_BRIGHT)
 			_summary_label.add_theme_color_override("font_color", TEXT_DIM)
 			_summary_label.text = skill.summary
 		_:
 			style.bg_color = BG_LOCKED
-			style.border_color = Color("343a46")
+			# The inert card is the one element with no colour of its own: bare ink, the
+			# same outline everything else in the UI is drawn with. It used to be a mid
+			# grey, which in a flat palette reads as a *lighter* border than the branch
+			# ones rather than as an absent one.
+			style.border_color = UiTheme.COLOR_INK
 			_icon.modulate = Color(1, 1, 1, 0.25)
 			_name_label.add_theme_color_override("font_color", TEXT_DIM)
 			_summary_label.add_theme_color_override("font_color", TEXT_DIM.darkened(0.25))

@@ -17,9 +17,35 @@ const BORDER := 1.0
 ## Drawn above the node being gathered; tiles are 16px.
 const Y_OFFSET := -13.0
 
-const BACKING_COLOR := Color(0.07, 0.06, 0.09, 0.85)
-const FILL_START_COLOR := Color(0.44, 0.78, 0.35)
-const FILL_END_COLOR := Color(0.96, 0.88, 0.33)
+## The outline, and the floor of the empty track inside it.
+##
+## This bar is drawn straight onto the tilemap with nothing behind it, so the ink *is* the
+## separation - there is no panel, no backdrop and no dim to do the job for it. The 0.85
+## alpha it used to carry let bright grass show through the one element on screen that
+## exists to be read at a glance; opaque is not a style preference here. See the COLOR_INK
+## note in `ui/ui_theme.gd`.
+##
+## The track is the same recessed colour a list background takes in a panel, for the same
+## reason: with only ink behind it, a part-filled bar and a short bar look identical.
+const BACKING_COLOR := UiTheme.COLOR_INK
+const TRACK_COLOR := UiTheme.COLOR_INSET
+
+## The fill, and the fraction at which it flips from the first to the second.
+##
+## These two used to be lerped continuously across `progress`, which this palette does not
+## do - a gradient is a soft edge by definition, and every other edge in the game is hard.
+## It also answered the only question the colour is here to answer ("is this swing nearly
+## done?") with a ramp of muddy in-between olives that nobody reads as a percentage; the
+## *length* of the bar is the continuous readout and it is already there. One hard flip at
+## FILL_SNAP_AT makes the colour a discrete event instead: green while the swing runs, gold
+## once the payout is imminent. The names are kept because they still say which end of the
+## gather each belongs to.
+##
+## Green over green grass survives only because of the ink around it. If the outline above
+## is ever thinned or re-alpha'd, this is the thing that stops being legible first.
+const FILL_START_COLOR := UiTheme.COLOR_GOOD
+const FILL_END_COLOR := UiTheme.COLOR_GOLD
+const FILL_SNAP_AT := 0.75
 
 var progress: float = 0.0
 
@@ -93,8 +119,12 @@ func _draw() -> void:
 	)
 	draw_rect(backing, BACKING_COLOR)
 
+	# The well inside the outline. Drawn unconditionally, including at zero, so the ink stays
+	# a border around something rather than becoming a solid blob whose width means nothing.
+	draw_rect(Rect2(-WIDTH * 0.5, -HEIGHT * 0.5, WIDTH, HEIGHT), TRACK_COLOR)
+
 	if progress <= 0.0:
 		return
 
 	var fill := Rect2(-WIDTH * 0.5, -HEIGHT * 0.5, WIDTH * progress, HEIGHT)
-	draw_rect(fill, FILL_START_COLOR.lerp(FILL_END_COLOR, progress))
+	draw_rect(fill, FILL_END_COLOR if progress >= FILL_SNAP_AT else FILL_START_COLOR)

@@ -15,12 +15,23 @@ class_name IslandCompass
 
 ## Colour per island id, and the fallback for anything added to IslandManager.ISLANDS
 ## later without a colour of its own.
+##
+## All four are UiTheme's, not hand-mixed near-misses of it, so a marker belongs to the same
+## palette as the tiles it is drawn over (see the palette note in `ui/ui_theme.gd`). The
+## three that matter are chosen for *separation at 9px*, not for association: these are read
+## in peripheral vision, at the very edge of the screen, one at a time. Green, gold and red
+## are the widest-apart triple the palette holds. Ore is gold rather than the more obvious
+## COLOR_ORANGE for exactly that reason - orange and COLOR_BAD are neighbours on the ramp,
+## and the marker a player must never misread is the boss one, where the cost of guessing
+## wrong is walking a wood pickaxe into the elite guard.
 const MARKER_COLORS := {
-	"forest": Color("4a9c3f"),
-	"ore": Color("c88a3a"),
-	"boss": Color("c04040"),
+	"forest": UiTheme.COLOR_GOOD,
+	"ore": UiTheme.COLOR_GOLD,
+	"boss": UiTheme.COLOR_BAD,
 }
-const DEFAULT_COLOR := Color("d0d0d0")
+## An island with no colour of its own gets the plain body text white - unclassified, but
+## never less legible than the three that are classified.
+const DEFAULT_COLOR := UiTheme.COLOR_TEXT
 
 ## How far in from the viewport edge a marker sits, and how big it is drawn. Both in
 ## screen pixels, and both independent of window size - the markers are HUD furniture,
@@ -104,20 +115,45 @@ func _draw_marker(id: String, target: Vector2, view: Vector2, tiles_away: int) -
 
 	var color: Color = MARKER_COLORS.get(id, DEFAULT_COLOR)
 
-	draw_circle(at, MARKER_RADIUS, Color(0, 0, 0, 0.45))
+	# The larger circle is not a halo, it is the outline: opaque ink, the same near-black every
+	# other element in the UI is separated from the world by. It was a 45%-alpha black, which
+	# over bright grass tinted rather than separated - and a marker sitting on the coastline
+	# had a different edge colour on its ocean half than on its land half.
+	draw_circle(at, MARKER_RADIUS, UiTheme.COLOR_INK)
 	draw_circle(at, MARKER_RADIUS - 2.0, color)
 
 	# A triangle on the outer side of the dot, so the marker reads as pointing rather than
-	# merely sitting there.
+	# merely sitting there. Drawn twice: an expanded copy in ink first, then the island's
+	# colour on top of it. The pointer is the one part of the marker that sticks out past the
+	# circle, so without its own 2px of ink it is the one part with nothing between it and the
+	# grass. The ink base is pulled *back* 2px, under the circle, so the two never seam.
+	var perp := Vector2(-direction.y, direction.x)
 	var tip := at + direction * (MARKER_RADIUS + 8.0)
-	var across := Vector2(-direction.y, direction.x) * 6.0
+	var base := at + direction * MARKER_RADIUS
+	var across := perp * 6.0
 	draw_colored_polygon(
-		PackedVector2Array([tip, at + direction * MARKER_RADIUS + across, at + direction * MARKER_RADIUS - across]),
+		PackedVector2Array([
+			tip + direction * 2.0,
+			base + perp * 8.0 - direction * 2.0,
+			base - perp * 8.0 - direction * 2.0,
+		]),
+		UiTheme.COLOR_INK
+	)
+	draw_colored_polygon(
+		PackedVector2Array([tip, base + across, base - across]),
 		color
 	)
 
+	# The distance readout carried a 1px offset drop shadow, which leaves the top and left of
+	# every glyph touching the grass unaided. `draw_string_outline` puts the same opaque ink on
+	# all four sides for the same one extra call - this direction separates with outlines, not
+	# with soft alpha underneath. The font size is UiTheme's rather than a literal 13, which
+	# belonged to no scale and matched nothing else on screen; it is measured and drawn at the
+	# same constant, so the centring below stays centred.
 	var label := "%dm" % tiles_away
-	var text_size := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+	var text_size := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT_SMALL)
 	var text_at := at - direction * 0.0 + Vector2(-text_size.x * 0.5, MARKER_RADIUS + text_size.y + 2.0)
-	draw_string(_font, text_at + Vector2(1, 1), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0, 0, 0, 0.6))
-	draw_string(_font, text_at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, color)
+	draw_string_outline(
+		_font, text_at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT_SMALL, 2, UiTheme.COLOR_INK
+	)
+	draw_string(_font, text_at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT_SMALL, color)

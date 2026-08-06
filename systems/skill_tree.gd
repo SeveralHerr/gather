@@ -12,11 +12,22 @@ const BUILDING := "Building"
 const BRANCHES := [FORAGING, INDUSTRY, COMBAT, BUILDING]
 
 ## One colour per branch, used for node borders, titles and the connector lines.
+##
+## These are UiTheme's palette entries rather than four hex literals of this file's
+## own. Two of the old ones were byte-identical to a UiTheme constant and a third was
+## a near-miss of one — close enough to read as the same hue on screen, far enough
+## apart that a repaint moved one and left the other behind. Industry is the branch
+## with no obvious entry: gold is already spent on the point bank in the panel's own
+## header, so it takes COLOR_ORANGE, which exists for exactly this.
+##
+## The only hard requirement is that the four stay clearly distinguishable — they are
+## the sole thing telling a player which column a card belongs to once the cards are
+## scrolled away from their titles. Green, orange, red, blue.
 const BRANCH_COLORS := {
-	FORAGING: Color("6fcf6a"),
-	INDUSTRY: Color("e0a33c"),
-	COMBAT: Color("e05a4f"),
-	BUILDING: Color("58a8e0"),
+	FORAGING: UiTheme.COLOR_GOOD,
+	INDUSTRY: UiTheme.COLOR_ORANGE,
+	COMBAT: UiTheme.COLOR_BAD,
+	BUILDING: UiTheme.COLOR_ACCENT,
 }
 
 ## Blurb under each branch title in the panel.

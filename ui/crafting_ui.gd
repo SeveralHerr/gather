@@ -53,12 +53,12 @@ const STATUS_HEIGHT := 30.0
 const PROGRESS_HEIGHT := 10.0
 
 ## Each station is tinted with the skill branch that unlocks most of its recipes, so
-## the panel is coloured by the progression it belongs to. Workbench green and the
-## default blue are UiTheme's own; the furnace amber is deliberately darker than
-## COLOR_GOLD, which is the currency colour and would read as "this is money".
+## the panel is coloured by the progression it belongs to. All three are UiTheme's own;
+## the furnace takes COLOR_ORANGE rather than the nearer COLOR_GOLD, which is the
+## currency colour and would read as "this is money".
 const STATION_ACCENTS := {
 	Types.Item.Workbench: UiTheme.COLOR_GOOD,
-	Types.Item.Furnace: Color("e0a33c"),
+	Types.Item.Furnace: UiTheme.COLOR_ORANGE,
 }
 const DEFAULT_ACCENT := UiTheme.COLOR_ACCENT
 

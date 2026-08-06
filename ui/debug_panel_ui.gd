@@ -21,15 +21,30 @@ class_name DebugPanelUi
 ## Capped, then clamped to the viewport. Nothing here may hardcode a viewport size.
 const PANEL_MAX := Vector2(1120, 760)
 
-## Same palette as the other panels. Copied rather than shared because the project has
-## no theme resource at all - every panel carries its own const block.
-const COLOR_BACKDROP := Color(0.02, 0.03, 0.05, 0.78)
-const COLOR_FRAME := Color("161a21")
-const COLOR_INSET := Color("11141a")
-const COLOR_TEXT := Color("f2f4f8")
-const COLOR_TEXT_DIM := Color("7d8494")
-const COLOR_OK := Color("7fd18a")
-const COLOR_WARN := Color("e0a458")
+## The palette, from `ui/ui_theme.gd`.
+##
+## This block used to be a full second copy of it, justified in a comment saying the
+## project had no theme resource at all - every panel carried its own consts. That is no
+## longer true: `UiTheme` is exactly that shared place, and a copy that agrees today is
+## just a copy that can disagree after the next recolour. This one already had - COLOR_OK
+## and COLOR_WARN were near-misses of the shared green and amber, not either of them.
+##
+## What is left is aliases, kept as *names* rather than substituted at every call site,
+## because the names read better where they are used (`COLOR_OK` on a success status line
+## says more than `COLOR_GOOD` does). COLOR_FRAME and COLOR_INSET are gone entirely: they
+## only ever fed the two local style factories, and those now come from `UiTheme` too.
+## Nothing may be added here that is not an alias - a colour *defined* in this file is the
+## drift starting over.
+##
+## COLOR_WARN is the one that had to choose rather than map. It is only ever `_fail()`'s
+## status line - "no player", "inventory full", "no scene for Elite" - so it is a warning
+## and takes COLOR_ORANGE, not COLOR_GOLD, which the rest of the game spends on currency
+## and on "this one matters".
+const COLOR_BACKDROP := UiTheme.COLOR_BACKDROP
+const COLOR_TEXT := UiTheme.COLOR_TEXT
+const COLOR_TEXT_DIM := UiTheme.COLOR_TEXT_DIM
+const COLOR_OK := UiTheme.COLOR_GOOD
+const COLOR_WARN := UiTheme.COLOR_ORANGE
 
 ## How often the live readout re-reads the world while the panel is open. The readout
 ## is the only thing here that polls; every action is one-shot.
@@ -140,19 +155,19 @@ func _build() -> void:
 	_panel_root.add_child(center)
 
 	_frame = PanelContainer.new()
-	_frame.add_theme_stylebox_override("panel", _frame_style())
+	_frame.add_theme_stylebox_override("panel", UiTheme.frame_style())
 	center.add_child(_frame)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_bottom", 14)
+	margin.add_theme_constant_override("margin_left", UiTheme.PAD_PANEL)
+	margin.add_theme_constant_override("margin_right", UiTheme.PAD_PANEL)
+	margin.add_theme_constant_override("margin_top", UiTheme.PAD_PANEL)
+	margin.add_theme_constant_override("margin_bottom", UiTheme.PAD_PANEL)
 	_frame.add_child(margin)
 
 	var column := VBoxContainer.new()
 	column.name = "Column"
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", UiTheme.GAP)
 	margin.add_child(column)
 
 	_build_header(column)
@@ -171,13 +186,13 @@ func _build() -> void:
 	_status = Label.new()
 	_status.name = "Status"
 	_status.text = "ready"
-	_status.add_theme_font_size_override("font_size", 12)
+	_status.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	_status.add_theme_color_override("font_color", COLOR_TEXT_DIM)
 	column.add_child(_status)
 
 	var footer := Label.new()
 	footer.text = "[F3] or [Esc] close   -   debug build only"
-	footer.add_theme_font_size_override("font_size", 11)
+	footer.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	footer.add_theme_color_override("font_color", COLOR_TEXT_DIM)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(footer)
@@ -189,7 +204,7 @@ func _build_header(column: VBoxContainer) -> void:
 
 	var title := Label.new()
 	title.text = "DEBUG"
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", UiTheme.FONT_TITLE)
 	title.add_theme_color_override("font_color", COLOR_TEXT)
 	row.add_child(title)
 
@@ -199,7 +214,7 @@ func _build_header(column: VBoxContainer) -> void:
 
 	var subtitle := Label.new()
 	subtitle.text = "manual testing"
-	subtitle.add_theme_font_size_override("font_size", 11)
+	subtitle.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	subtitle.add_theme_color_override("font_color", COLOR_TEXT_DIM)
 	subtitle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(subtitle)
@@ -215,7 +230,7 @@ func _tab(tabs: TabContainer, title: String) -> VBoxContainer:
 
 	var body := VBoxContainer.new()
 	body.name = "Body"
-	body.add_theme_constant_override("separation", 8)
+	body.add_theme_constant_override("separation", UiTheme.GAP)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(body)
 	return body
@@ -235,7 +250,7 @@ func _build_state_tab(body: VBoxContainer) -> void:
 	_readout = Label.new()
 	_readout.name = "Readout"
 	_readout.text = "-"
-	_readout.add_theme_font_size_override("font_size", 12)
+	_readout.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	_readout.add_theme_color_override("font_color", COLOR_TEXT)
 	box.add_child(_readout)
 
@@ -289,7 +304,7 @@ func _build_player_tab(body: VBoxContainer) -> void:
 	var speed_row := _row(body)
 	var speed_label := Label.new()
 	speed_label.text = "Speed x"
-	speed_label.add_theme_font_size_override("font_size", 12)
+	speed_label.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	speed_label.add_theme_color_override("font_color", COLOR_TEXT_DIM)
 	speed_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	speed_row.add_child(speed_label)
@@ -920,27 +935,22 @@ func _layout() -> void:
 	_frame.size = wanted
 
 
-func _frame_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_FRAME
-	style.border_color = Color("2c3340")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
-	return style
-
-
+## `UiTheme.inset_style()` plus a content margin, which is the one thing this panel needs
+## that the shared well does not provide: everywhere else an inset wraps a container that
+## supplies its own padding, whereas here the readout Label is the direct child, so with
+## no margin the text starts hard against the outline. Built on the factory rather than
+## hand-rolled so the `anti_aliasing` setting (and every later addition to it) comes for
+## free - a StyleBoxFlat assembled locally is how this file ended up divergent last time.
 func _inset_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_INSET
-	style.set_corner_radius_all(4)
-	style.set_content_margin_all(10)
+	var style := UiTheme.inset_style()
+	style.set_content_margin_all(UiTheme.PAD_PANEL)
 	return style
 
 
 func _heading(parent: Node, text: String) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", UiTheme.FONT_BODY)
 	label.add_theme_color_override("font_color", COLOR_TEXT)
 	parent.add_child(label)
 
@@ -948,16 +958,20 @@ func _heading(parent: Node, text: String) -> void:
 func _hint(parent: Node, text: String) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_font_size_override("font_size", UiTheme.FONT_SMALL)
 	label.add_theme_color_override("font_color", COLOR_TEXT_DIM)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Deliberately still a literal, and not derived from PAD_PANEL: it is the wrap width a
+	# hint gets inside the widest the panel is ever allowed to be, and it has to leave room
+	# for the tab strip and the scrollbar as well as the margins. Tie it to the padding and
+	# it silently retunes itself the next time the padding moves.
 	label.custom_minimum_size = Vector2(PANEL_MAX.x - 120.0, 0)
 	parent.add_child(label)
 
 
 func _row(parent: Node) -> HBoxContainer:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	row.add_theme_constant_override("separation", UiTheme.GAP)
 	parent.add_child(row)
 	return row
 
@@ -965,7 +979,11 @@ func _row(parent: Node) -> HBoxContainer:
 func _button(parent: Node, text: String, action: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
+	# 30, not UiTheme.TOUCH_MIN: this is the one panel that is never played on a phone -
+	# main.gd only builds it behind OS.is_debug_build(), and there are five buttons to a
+	# row. A 48px floor here wraps every row and costs the readout its screen height.
 	button.custom_minimum_size = Vector2(0, 30)
+	UiTheme.style_button(button)
 	button.pressed.connect(action)
 	parent.add_child(button)
 	return button
