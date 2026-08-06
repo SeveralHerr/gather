@@ -349,8 +349,8 @@ func test_a_scarce_resource_is_scarce_in_the_world_not_just_in_the_table() -> St
 # --- 5. the flow the whole game runs at ---------------------------------------
 
 
-## How often the world puts one node back, in seconds. Read out of main.tscn rather than
-## restated, so retuning the scene is what this test notices.
+## How often the world puts one node back PER AMBIENT REGION, in seconds. Read out of
+## main.tscn rather than restated, so retuning the scene is what this test notices.
 const RESPAWN_INTERVAL := 24.0
 
 ## Nodes per land tile, and the floor under a region's ceiling. Both are the stock side of
@@ -369,6 +369,13 @@ const REGION_MIN_RESOURCES := 40
 ## run, and nothing else in the suite mentions it — the interval lives in main.tscn as a
 ## Timer property, which no test reads and no linter checks.
 ##
+## That interval is now what the MAINLAND receives, not what the map receives. The tick used
+## to be one node globally, rolled onto one region weighted by land tiles, so the island the
+## player stands on saw roughly 24s / its share of the world's grass — about 58s on a fresh
+## save, and the rest of the budget was spent on islands that were already full. It is one
+## node per eligible region per tick now; see ResourceSpawnTimer._on_timeout, and the two
+## tests below it for the behaviour that used to be wrong.
+##
 ## The wait_time is PARSED OUT OF THE SCENE rather than hardcoded here. A hardcoded copy
 ## would assert that this file still says 24.0, which is a fact about this file; parsing is
 ## what makes it a fact about the game.
@@ -379,8 +386,8 @@ func test_the_respawn_flow_is_the_real_ceiling() -> String:
 			"could not find a wait_time under [node name=\"ResourceTimer\"] in %s" % MAIN_SCENE)
 
 	var err: String = _T.assert_float_eq(wait_time, RESPAWN_INTERVAL, 0.001,
-		("World/ResourceTimer puts one node back every %.1fs in main.tscn, not %.1fs — that is "
-		+ "the ceiling on how fast the whole run can be played")
+		("World/ResourceTimer puts one node back per ambient region every %.1fs in main.tscn, "
+		+ "not %.1fs — that is the ceiling on how fast the whole run can be played")
 			% [wait_time, RESPAWN_INTERVAL])
 	if err != "":
 		return err
@@ -433,6 +440,165 @@ func _scene_timer_wait_time(node_name: String) -> float:
 	return -1.0
 
 
+# --- 5b. where that flow actually lands ---------------------------------------
+#
+# The interval above says how OFTEN a node comes back. These say WHERE, which turned out to
+# be the half that was wrong: the tick was global, it was rolled onto one region weighted by
+# land tiles, and a region already at its cap declined without the tick falling through to a
+# region that had room. Both halves of that are silent — a discarded tick logs nothing and
+# looks exactly like a world that regrows slowly.
+
+
+const SPAWN_TIMER_SCRIPT := "res://world/resource_spawn_timer.gd"
+
+
+## A TileMapHandler with the tilemap taken out.
+##
+## The real one answers count_land_tiles_in() by walking every used cell of a generated
+## world, which a headless test has none of. Everything else the eligibility rule touches —
+## `regions`, `home_region`, `island_regions`, LandRegion.accepts_ambient_resources() — is
+## the live code, so what is under test here is the real filter and not a restatement of it.
+class StubHandler extends TileMapHandler:
+	## Land tiles per region id. A region absent from this reads as zero tiles, which is
+	## itself one of the cases the filter has to reject.
+	var tiles := {}
+
+	func count_land_tiles_in(region: LandRegion) -> int:
+		return int(tiles.get(region.id, 0))
+
+
+## A ResourceManager2 that records what the tick offered it instead of writing to a tilemap.
+##
+## Only add_random_resource() is replaced. ambient_regions() is the shipping implementation,
+## so a change that re-derived eligibility inside the timer — the thing that would quietly
+## start restocking the boss arena — fails these rather than passing them.
+class SpawnProbe extends ResourceManager2:
+	## Region ids that are already at their node cap, i.e. that will decline.
+	var full := {}
+
+	## Region ids the tick called add_random_resource() for, and the subset that took a node.
+	var offered: Array = []
+	var placed: Array = []
+
+	func add_random_resource(region: LandRegion = null) -> bool:
+		# A null region here would mean the timer had fallen back to the global roll, which
+		# is the behaviour these tests exist to rule out. Recorded rather than crashed on:
+		# a raise inside a -> bool method returns false and would look like a full region.
+		if region == null:
+			offered.append("<global>")
+			return false
+		offered.append(region.id)
+		if full.has(region.id):
+			return false
+		placed.append(region.id)
+		return true
+
+
+func _region(id: String, ambient: bool = true) -> LandRegion:
+	var region := LandRegion.new()
+	region.id = id
+	region.ambient_resources = ambient
+	return region
+
+
+## Wires a probe onto a stub world and fires exactly one ResourceTimer timeout through the
+## real _on_timeout(). Frees both nodes, including ResourceManager2's orphan hold_timer —
+## it is created in a member initializer and never enters a tree here, so nothing else would.
+func _tick_once(probe: SpawnProbe, handler: StubHandler) -> void:
+	probe.tile_map_handler = handler
+
+	var timer = load(SPAWN_TIMER_SCRIPT).new()
+	timer.resourceManager = probe
+	timer._on_timeout()
+	timer.free()
+
+
+func _release(probe: SpawnProbe, handler: StubHandler) -> void:
+	if probe.hold_timer != null:
+		probe.hold_timer.free()
+	probe.free()
+	handler.free()
+
+
+## The bug this whole change was about, stated as behaviour rather than as arithmetic.
+##
+## An island at its cap declines — that part is correct and unchanged. What was wrong is that
+## its decline ENDED THE TICK: add_random_resource() with no region picked one region weighted
+## by land tiles and returned false if that region was full, with no fall-through. The two
+## small islands fill up within about ten minutes and stay full, so from then on most of the
+## world's respawn budget was being spent on ground that could not take it, and the mainland —
+## the only region the player is ever standing on — went hungry for a reason no screen shows.
+func test_a_full_region_does_not_eat_another_regions_respawn_tick() -> String:
+	var handler := StubHandler.new()
+	handler.home_region.id = "home"
+	handler.island_regions.append(_region("forest"))
+	handler.tiles = {"home": 94, "forest": 66}
+
+	var probe := SpawnProbe.new()
+	# The steady state of a real run: the small island is long since full.
+	probe.full["forest"] = true
+
+	_tick_once(probe, handler)
+	var offered: Array = probe.offered.duplicate()
+	var placed: Array = probe.placed.duplicate()
+	_release(probe, handler)
+
+	var err: String = _T.assert_true(not offered.has("<global>"),
+		"the respawn tick fell back to the un-regioned global roll, which is what it is here to replace")
+	if err != "":
+		return err
+
+	err = _T.assert_true(offered.has("forest") and offered.has("home"),
+		("one respawn tick offered a node to %s — it has to offer one to EVERY region that "
+		+ "accepts ambient resources, so that a full one declining costs the others nothing")
+			% [str(offered)])
+	if err != "":
+		return err
+
+	return _T.assert_eq(placed, ["home"],
+		("the forest island was at its cap and the mainland was not, yet the tick placed %s. "
+		+ "A full region must decline its own node without consuming the tick a region with "
+		+ "room could have used")
+			% [str(placed)])
+
+
+## The other half of the rule, and the one a well-meant simplification would break.
+##
+## The boss arena is kept bare by LandRegion.accepts_ambient_resources() and by nothing else
+## — there is no code anywhere that knows what a boss is. A region with no land under it is
+## excluded for a duller reason: get_random_tile_in() has nothing to return, so offering it a
+## node is a wasted call every 24 seconds forever.
+func test_the_respawn_tick_never_offers_a_node_to_a_region_that_opted_out() -> String:
+	var handler := StubHandler.new()
+	handler.home_region.id = "home"
+	handler.island_regions.append(_region("boss_arena", false))
+	handler.island_regions.append(_region("unbuilt"))
+	# The arena has plenty of grass, which is exactly why the flag rather than the tile count
+	# has to be what excludes it. "unbuilt" is registered but has no cells yet.
+	handler.tiles = {"home": 94, "boss_arena": 120, "unbuilt": 0}
+
+	var probe := SpawnProbe.new()
+
+	_tick_once(probe, handler)
+	var offered: Array = probe.offered.duplicate()
+	_release(probe, handler)
+
+	var err: String = _T.assert_true(not offered.has("boss_arena"),
+		("the respawn tick offered a node to the region that sets ambient_resources = false "
+		+ "(it offered %s) — that flag is the only thing keeping the boss arena clear")
+			% [str(offered)])
+	if err != "":
+		return err
+
+	err = _T.assert_true(not offered.has("unbuilt"),
+		"the respawn tick offered a node to a region with no land tiles, which can never take one")
+	if err != "":
+		return err
+
+	return _T.assert_eq(offered, ["home"],
+		"exactly the eligible regions get a tick, once each; got %s" % [str(offered)])
+
+
 # --- 6. the second route to land ----------------------------------------------
 
 
@@ -445,11 +611,18 @@ func _scene_timer_wait_time(node_name: String) -> float:
 ## Industry's capstone; fighting is the route that is open from the first minute
 ## (Enemy.BASE_COIN_DROP), and it has to stay a route rather than a technicality.
 ##
-## Stated as a ceiling on KILLS because that is the unit the player pays in. 8000 is roughly
-## an hour and a half of steady fighting at the spawner's cadence — expensive, which is
-## correct for the whole map, but reachable. Today's curve asks about 6,956. A retune that
-## pushes past this has not made land dearer; it has deleted the combat route to it, and
-## nothing else in the project would report that.
+## Stated as a ceiling on KILLS because that is the unit the player pays in. Today's curve
+## correct for the whole map, but reachable. Today's curve asks about 6,955. A retune that
+## not made land dearer; it has deleted the combat route to it, and nothing else in the
+## project would report that.
+##
+## 5000 rather than the 8000 it was: 8000 was sized against the old 1.55 curve's ~6,955 and
+## kept about 15% headroom over it. Growth came down to 1.45 and left the ceiling three
+## thousand kills above anything the game can charge — a guard with that much slack passes
+## for a curve nobody would ship. 5000 restores roughly the same proportion of headroom
+## (~30%) against the curve that actually exists, so this still fails on a real runaway
+## rather than only on an absurd one. It is a ceiling on *reachability*, not a target: land
+## getting cheaper is never what this test is meant to catch.
 const KILLS_FOR_THE_WHOLE_MAP := 8000
 
 

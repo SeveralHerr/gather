@@ -401,10 +401,17 @@ func _gather_rates() -> Array:
 #
 # Gathering is not what limits a resource. The world holds a fixed STOCK of nodes
 # (`resource_cap` == 0.25 per land tile, seeded to 70%) and refills it at a fixed FLOW of
-# exactly one node every `ResourceTimer.wait_time` seconds — one, globally, for the whole
-# map and every region on it, whatever the player is doing. So the sustainable rate of any
-# one resource is that interval divided by its share of the spawn roll, and for the scarce
-# end of the table that is a far harder ceiling than anything a pickaxe does.
+# one node every `ResourceTimer.wait_time` seconds PER REGION that accepts ambient
+# resources, whatever the player is doing. So the sustainable rate of any one resource, on
+# the island the player is standing on, is that interval divided by its share of the spawn
+# roll — and for the scarce end of the table that is a far harder ceiling than anything a
+# pickaxe does.
+#
+# It was one node per interval GLOBALLY, rolled onto one region weighted by land tiles, and
+# discarded outright if that region was already at its cap. The mainland therefore received
+# only HOME_TILES / AMBIENT_TILES of the world's respawn budget — 41.6% on a fresh save, one
+# node per ~58s — and once the two small islands filled up (about ten minutes in) most of the
+# rest was thrown away rather than passed on. See ResourceSpawnTimer._on_timeout.
 #
 # `land_tiles` is a parameter rather than a constant because it is the one quantity here
 # that generation decides: it is read off the running game with the `island_census` devtools
@@ -415,11 +422,12 @@ func _gather_rates() -> Array:
 ## radius 10 (a fresh save) and at radius 34 (all 12 parcels bought). Noise-thresholded land
 ## is well under the disc area, so these are not pi*r^2 and cannot be derived here.
 ##
-## AMBIENT_TILES is the denominator that actually matters: `ResourceManager2.pick_ambient_region`
-## rolls the one respawning node against every region that accepts ambient resources, weighted
-## by land tiles — so the mainland's share of the world's whole respawn budget is
-## HOME_TILES / AMBIENT_TILES, and the rest is spent on the two small islands. The boss arena
-## opts out and is excluded from both.
+## AMBIENT_TILES used to be the denominator that mattered, and is kept because it is the size
+## of the mistake rather than of the world: the tick was rolled against every region that
+## accepts ambient resources, weighted by land tiles, so the mainland's share of the world's
+## whole respawn budget was HOME_TILES / AMBIENT_TILES. Each region now gets its own node per
+## tick, so home's share is 1.0 of its own and these two are a historical ratio only. The boss
+## arena opts out and is excluded from both.
 const HOME_TILES_AT_START := 94
 const AMBIENT_TILES_AT_START := 226
 const HOME_TILES_AT_MAX := 1644
@@ -441,10 +449,12 @@ func _world_flow() -> Dictionary:
 			rows[res.name] = {
 				"share": share,
 				"seconds_between_spawns": seconds_between,
-				# The same figure once the mainland's share of the respawn budget is applied,
-				# i.e. what a player standing on their own island actually sees arrive.
-				"mainland_seconds_between_spawns_at_start": seconds_between / (float(HOME_TILES_AT_START) / float(AMBIENT_TILES_AT_START)),
-				"mainland_seconds_between_spawns_at_max": seconds_between / (float(HOME_TILES_AT_MAX) / float(AMBIENT_TILES_AT_MAX)),
+				# What a player standing on their own island actually sees arrive. The mainland
+				# now receives a whole tick rather than a share of one, so these are the figure
+				# above — kept as their own keys because the two were different numbers before
+				# the per-region tick and a reader comparing runs needs to see that they agree.
+				"mainland_seconds_between_spawns_at_start": seconds_between,
+				"mainland_seconds_between_spawns_at_max": seconds_between,
 				"nodes_per_hour": 3600.0 / seconds_between,
 				# What a node is worth once broken, at the gold-tier bonus.
 				"items_per_hour": 3600.0 / seconds_between * ((float(res.yield_min) + float(res.yield_max)) / 2.0 + 1.0),
@@ -455,21 +465,27 @@ func _world_flow() -> Dictionary:
 			}
 		per_stage[stage] = rows
 
+	# What the mainland used to receive, kept so the size of the change stays legible: a
+	# region already at its cap discarded its tick rather than passing it on, so once the two
+	# small islands filled — about ten minutes in, and permanently while the player is
+	# anywhere else — this was also the fraction of the world's respawn budget not thrown away.
 	var home_share_start: float = float(HOME_TILES_AT_START) / float(AMBIENT_TILES_AT_START)
 	var home_share_max: float = float(HOME_TILES_AT_MAX) / float(AMBIENT_TILES_AT_MAX)
 
 	return {
 		"respawn_interval": RESOURCE_RESPAWN_SECONDS,
-		# The two numbers the rest of this section is really about. A region already at its
-		# node cap DISCARDS its tick rather than passing it on, so once the two small islands
-		# have filled — which they do within the first ten minutes and stay that way while the
-		# player is anywhere else — the share below is also the fraction of the world's
-		# respawn budget that is not simply thrown away.
-		"home_share_at_start": home_share_start,
-		"home_share_at_max": home_share_max,
-		"mainland_seconds_per_node_at_start": RESOURCE_RESPAWN_SECONDS / home_share_start,
-		"mainland_seconds_per_node_at_max": RESOURCE_RESPAWN_SECONDS / home_share_max,
+		# One tick per region now, so home takes a whole one wherever the coastline is.
+		"home_share_at_start": 1.0,
+		"home_share_at_max": 1.0,
+		"former_home_share_at_start": home_share_start,
+		"former_home_share_at_max": home_share_max,
+		"mainland_seconds_per_node_at_start": RESOURCE_RESPAWN_SECONDS,
+		"mainland_seconds_per_node_at_max": RESOURCE_RESPAWN_SECONDS,
+		"former_mainland_seconds_per_node_at_start": RESOURCE_RESPAWN_SECONDS / home_share_start,
+		"former_mainland_seconds_per_node_at_max": RESOURCE_RESPAWN_SECONDS / home_share_max,
 		"respawn_interval_in_rain": RESOURCE_RESPAWN_SECONDS * 0.55,
+		# Per region, not for the map: the map's figure is this times the number of regions
+		# accepting ambient resources, which generation decides and this model cannot know.
 		"nodes_per_hour_total": 3600.0 / RESOURCE_RESPAWN_SECONDS,
 		"home_tiles_at_start": HOME_TILES_AT_START,
 		"ambient_tiles_at_start": AMBIENT_TILES_AT_START,

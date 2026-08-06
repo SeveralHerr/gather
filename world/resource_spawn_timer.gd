@@ -88,7 +88,37 @@ func _apply_weather(weather: WorldClock.Weather) -> void:
 	wait_time = _base_interval * multiplier
 
 
+## Puts one node back in EVERY region that accepts ambient resources, rather than one node
+## back in the world.
+##
+## This used to be a bare `add_random_resource()`, which rolls ONE region weighted by land
+## tiles and then declines outright if that region is already at its node cap. Two things
+## followed from that, and neither of them looks like a bug from anywhere in the game:
+##
+##   - **A full region SPENT the tick.** The two small islands fill to their cap within the
+##     first ten minutes of a run and stay there while the player is anywhere else, so from
+##     then on most of the world's respawn budget was rolled onto ground that could not take
+##     it and thrown away. Nothing reports a discarded tick; the world simply regrows slower
+##     and slower the longer the run goes on, which reads as the player clearing faster.
+##   - **The mainland only ever received its share of the roll.** Measured on the running
+##     build: 94 of 226 ambient land tiles on a fresh save, so the island the player is
+##     actually standing on put a node back every ~58 seconds while they can clear one every
+##     ~3. Supply, not the pickaxe and not the density cap, was the binding constraint on the
+##     whole game.
+##
+## Per region, a full island declines exactly as it did before and that decline costs the
+## other regions nothing. `ambient_regions()` is asked rather than re-deriving eligibility
+## here, because `accepts_ambient_resources()` is the only thing keeping the boss arena bare
+## and two copies of that rule can disagree - see ResourceManager2.ambient_regions().
+##
+## **The INTERVAL is deliberately untouched.** This changes WHO receives a tick, not how
+## often one arrives: `wait_time` is still the 24s authored in main.tscn and rain still
+## multiplies it. That keeps this one dial. If regrowth still reads as too slow afterwards,
+## the next edit is that number - not a second node per region per tick, which hands the
+## pacing back to the density cap and makes the timer something the player never feels again.
 func _on_timeout():
 	if resourceManager == null:
 		return
-	resourceManager.add_random_resource()
+
+	for region in resourceManager.ambient_regions():
+		resourceManager.add_random_resource(region)

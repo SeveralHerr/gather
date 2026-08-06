@@ -319,30 +319,50 @@ func add_random_resource(region: LandRegion = null) -> bool:
 	return true
 
 
-## Which region the respawn timer restocks this tick, weighted by how much land each one
-## has - otherwise a six-tile grove is restocked as often as the whole mainland, and the
-## mainland goes bare. Regions that opt out are never picked, which is what keeps a boss
-## arena clear without the timer needing to know what a boss is.
+## Every region the respawn timer may put a node into as things stand: it says yes to
+## ambient resources, and it actually has land under it.
 ##
-## An island the player cannot walk to yet IS picked, and deliberately: it was stocked at
+## Both halves of that rule live here and only here. The spawn timer asks this on every
+## tick and pick_ambient_region() below asks it too, and a second copy that drifted would
+## restock the one region whose entire purpose is to stay empty - `accepts_ambient_
+## resources()` is what keeps the boss arena bare, and nothing else in the game enforces it.
+##
+## An island the player cannot walk to yet IS eligible, and deliberately: it was stocked at
 ## generation and it has to stay stocked, or the grove the player has been saving up for is
 ## a thinning one by the time they arrive. See LandRegion.connected - that gate is the enemy
 ## spawner's now, not this one's.
-func pick_ambient_region() -> LandRegion:
-	if tile_map_handler == null:
-		return null
-
+func ambient_regions() -> Array[LandRegion]:
 	var eligible: Array[LandRegion] = []
-	var tile_counts := []
-	var total := 0
+	if tile_map_handler == null:
+		return eligible
 
 	for region in tile_map_handler.regions:
 		if not region.accepts_ambient_resources():
 			continue
-		var tiles: int = tile_map_handler.count_land_tiles_in(region)
-		if tiles <= 0:
+		if tile_map_handler.count_land_tiles_in(region) <= 0:
 			continue
 		eligible.append(region)
+
+	return eligible
+
+
+## One region, weighted by how much land each one has - otherwise a six-tile grove is
+## picked as often as the whole mainland.
+##
+## No longer the respawn timer's route: that now stocks EVERY eligible region on each tick
+## rather than rolling for one of them (see ResourceSpawnTimer._on_timeout for why). This
+## remains the answer to "put a node somewhere reasonable", which is what the debug panel's
+## spawn button wants and what add_random_resource() falls back to when handed no region.
+func pick_ambient_region() -> LandRegion:
+	if tile_map_handler == null:
+		return null
+
+	var eligible := ambient_regions()
+	var tile_counts := []
+	var total := 0
+
+	for region in eligible:
+		var tiles: int = tile_map_handler.count_land_tiles_in(region)
 		tile_counts.append(tiles)
 		total += tiles
 
