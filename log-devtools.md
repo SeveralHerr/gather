@@ -5761,3 +5761,135 @@ Two concrete improvements to the skill:
   all — it swaps the atlas region and adds a sparks emitter — and the hit flash is a shader
   parameter at `enemy.gd:370`. A duplicated fact drifted from its original and nothing reported
   it, which is the concrete argument for the index-plus-one-home shape this change leaves behind.
+
+## 2026-08-05 — Renamed the starter station Sawmill -> Workbench across the project
+
+- Value: **warranted** — the diff is 24 mechanical files, but two of the claims I had to make
+  about it (the enum ordinal did not move; the pre-v4 save key still reads) are runtime facts a
+  diff cannot settle, and one of them is a rename the task explicitly asked for and I refused.
+  - Expected: lint green after `--import`, the suite unchanged from HEAD, and
+    `test_crafting`'s two legacy-payload tests still passing to prove the v1/v3 fixtures
+    were not collateral.
+  - Got: `lint: 0 error(s), 0 warning(s) -> exit 0` with `res://crafting/workbench.tscn: OK`
+    (the scene rename resolved through the tileset's `uid://1ka6xlmaapop`, which is the thing
+    a grep cannot check). `--file test_crafting` -> `Selected: 20 of 664 discovered`, 20/20,
+    including `[PASS] test_a_pre_station_keyed_save_still_restores_both_stations` and
+    `[PASS] test_the_committed_save_fixtures_still_restore_their_unlocks` — the assertion that
+    `"sawmill_recipes"` in `LEGACY_SAVE_KEYS` is a *string on disk* and not a straggler.
+    Full suite `Total: 664 | Passed: 662 | Failed: 2`, the same two as HEAD (`gather-54ze`).
+  - Cheaper: nothing. `grep` proved the identifiers were gone; only a run proved the bytes
+    still matched.
+
+- Gap: **attributing a pre-existing red gate still costs a full second project build** —
+  the same friction logged at [G-138] one entry above, hit again from the other direction.
+  `git stash` was unavailable here (a concurrent agent shares the tree), so the fallback was
+  `git worktree add <scratch>/baseline HEAD --detach` plus a second
+  `--headless --import` (~90s, a fresh `.godot/` cache) before
+  `run_tests.gd -- --file test_balance_curves` could confirm `Failed: 2` at HEAD too.
+  - [G-139] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `run_tests.gd --baseline <git-ish>` flag, mirroring `lint_project.gd`'s
+    existing `--baseline PATH` split into `NEW` vs `PRE-EXISTING`. Lint already refuses to
+    re-triage repo debt by hand; the test runner makes you do it, and does it by rebuilding
+    the whole project. Even a cached per-commit results file keyed on `git rev-parse HEAD`
+    would turn the 90s worktree build into a lookup.
+
+- Note on the change itself: the task listed `"sawmill_recipes"` in `Recipes.LEGACY_SAVE_KEYS`
+  as in scope. It is not renameable — it is the top-level key in `demo_homestead_save_v1` and
+  `_v3`, both of which "must never be regenerated", and renaming the identifier does not rename
+  the bytes it has to match. The failure would have been silent: `loadObject` falls through the
+  legacy branch, finds nothing, and returns a save with its unlock list quietly emptied. Left
+  as-is with a comment at `recipes.gd:33` saying why, so the next reader does not "finish" the
+  rename. Same for the three `"sawmill_recipes"` literals in `test_crafting.gd`, which
+  construct v3 payloads on purpose.
+
+## 2026-08-05 — Added the world-space interact prompt (gather-rlf3) and generalized the interaction
+
+- Value: **insufficient** — the headless half reached and settled every rule that could be
+  wrong *silently*, and reached none of the feature's actual point, which is what it looks
+  like on screen at zoom 8.
+  - Expected: lint + tests would confirm the new `class_name` resolves and the three
+    resolutions (key name, caption, `has_method("player_interact")` predicate) answer
+    correctly; nothing about the pop, the bob or the on-screen size.
+  - Got: exactly that, plus two findings the diff alone would not have produced. (1)
+    `SCRIPT ERROR: Invalid type in function 'is_interactable' ... argument 1 (previously
+    freed) is not a subclass of the expected argument class` — a parameter typed `Object`
+    raises *at the call boundary* when handed a freed instance, and `player.gd`'s `chests`
+    array genuinely holds freed objects (gather-3zg.6), so the predicate would have raised
+    in the real game on the exact case it was written for. Now `Variant` + `typeof()`.
+    (2) `ERROR: Not supported by this display server. at:
+    keyboard_get_keycode_from_physical` — the headless DisplayServer pushes an engine error
+    for the physical→layout translation, so every headless run touching the prompt would
+    have printed four of those into the one log that carries this project's real failure
+    signal. Guarded on `keyboard_get_layout_count() > 0`. Both were invisible in the test
+    *results*: all 22 passed through both of them (gather-1t9 again).
+  - Cheaper: nothing. Neither finding is visible in a diff, and both came from stderr of a
+    run whose exit code was 0. Reading the file back would have shown a green suite.
+
+- Gap: **[G-057] again — a purely visual feature shipped with zero runtime verification, by
+  instruction.** Third consecutive occurrence, same cause: the bridge is one shared
+  command/result file pair, a sibling agent was live on the same repo, so `godot --path .`,
+  `/verify` and every `devtools.py` verb (including `harness-version`) were out of bounds.
+  The harness version below came from lint's banner, `lint: godot-selftest-harness 0.8.0`.
+  This diff's whole acceptance criterion is "does a child notice the prompt and press the
+  key", and nothing run here can speak to it.
+  - [G-057] status: open | seen: 3 | harness: 0.8.0
+  - Improvement: unchanged — `devtools.py launch --isolated` doing the project copy, the
+    session id and `GODOT_USERDATA` in one command. Three turns of un-runtime-verified
+    visual work is now the case for it.
+
+- Gap: **no headless way to assert a world-space indicator's on-screen footprint.** The one
+  thing that decides whether this feature works or covers the station it points at is
+  `size_in_world_px * camera.zoom`, and a headless `instantiate_scene` has no camera: the
+  node reports `scale` and a `_draw()` nobody rasterizes. `node-bounds` and `canvas-scale`
+  answer exactly this question and both need a running game — i.e. they are unavailable in
+  precisely the situation ([G-057]) where they are most needed. Workaround: sized the cap
+  from `Font.get_string_size` and asserted only `global_position == target + Y_OFFSET`,
+  which pins the anchor and says nothing about the extent.
+  - [G-140] status: open | seen: 2 | harness: 0.8.0
+  - Improvement: a headless assertion helper that hosts a Node2D under a SubViewport with a
+    `Camera2D` at a caller-given zoom and returns the node's rasterized screen rect —
+    `_T.screen_rect(node, zoom)`. It would turn "is this element tile-sized or panel-sized"
+    from a runtime eyeball into a unit test, for this prompt and for `GatherProgress`,
+    `DamageNumber` and `SplashText` alike, all four of which currently justify their font
+    sizes in a comment and assert none of them.
+
+## 2026-08-05 — Workbench rename + the interact prompt, verified against the running game
+
+- Value: **warranted** — the run produced the one claim the diff could not, and it was a
+  *failure*: the prompt was built to spec, passed lint and 22 unit tests, and was unreadable
+  on screen. Nothing short of a rasterized frame could have said so.
+  - Expected: runtime will settle whether the prompt actually appears and where —
+    specifically whether `Y_OFFSET = -16` places the bubble over the station or a full tile
+    above it, and whether the key cap resolves to a real `F` from the live InputMap rather
+    than the headless fallback.
+  - Got: both of those, and the thing I had not thought to predict. The cap resolved `F`
+    correctly and anchored correctly, but the screenshot next to the gather selector showed
+    why it did not read: the selector is a 16px tile of white corner brackets — **128 screen
+    px at zoom 8** — and the cap was under 30. Two different visual languages, and the eye
+    took the brackets every time. The user's words were "too hard to read. Make it look like
+    the selector", which is the same finding arrived at from the other side. The rework
+    (white corner brackets, dark plate, `KEY_FONT_SIZE` 22 -> 64, `Y_OFFSET` -16 -> -22)
+    is a direct consequence. Also confirmed the generalization end to end: the panel that
+    opened on `F` was titled `WORKBENCH`, and the identical prompt captioned itself `Chest`
+    over a `TestChest` — two unrelated classes through one `has_method` predicate.
+  - Cheaper: nothing. Lint was `0 error(s)`, the 22 new unit tests passed, and reading the
+    diff shows a well-argued `KEY_FONT_SIZE := 22`. The defect exists only on a rendered
+    frame beside another element, which is the one artifact none of those produce.
+
+- Gap: **a stale harness install fails as "runner could not run", not as "your install is
+  old".** `python tools/import_check.py` — Phase 1's mandated import gate — exited 2 with
+  `can't open file '...\tools\import_check.py': [Errno 2] No such file or directory`, which
+  is the same exit code the contract reserves for a real runner failure. The install is a
+  clean, unmodified **0.8.0**; the plugin ships **0.9.0**, and `import_check.py` is a 0.9.0
+  addition. Two more 0.9.0 features were missing the same silent way: `find-nodes` (argparse
+  rejected it mid-run, costing a fallback to grepping `scene-tree`) and reach's exclusion of
+  `test_dir` from the denominator — 9 of my 14 "NOT reached" files are test scripts that can
+  never appear in a scene tree. Workaround: substituted the bare `--import` plus lint's
+  `class_cache_stale` check, which did not fire (`169 scripts compiled OK`).
+  - [G-141] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have `/verify` Phase 0 read `harness-version` against the plugin's
+    `harness_history.json` and print one line — `install 0.8.0, plugin 0.9.0: import_check,
+    find-nodes and test_dir reach-exclusion unavailable this run` — *before* Phase 1 uses
+    them. The drift check already computes exactly this bearing; it just runs as a separate
+    block whose result nothing downstream consumes. Failing that, `import_check.py` missing
+    should exit with its own code, not 2.

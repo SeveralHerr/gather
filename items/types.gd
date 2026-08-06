@@ -9,7 +9,12 @@ enum Item {
 	Stone,
 	Wood,
 	Plank,
-	Sawmill,
+	# Renamed from Sawmill (gather-mhwy). Renamed IN PLACE, on purpose: the identifier is
+	# not the save key, the ordinal is, and this is still 7 — the same 7 written into every
+	# existing saveFile and into crafting/workbench.tscn's `type`. Moving it to the append
+	# block below to "keep the order tidy" would change that integer and rename this station
+	# to something else in every save ever written.
+	Workbench,
 	WoodFloor,
 	CoalOre,
 	IronOre,

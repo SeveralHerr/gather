@@ -126,7 +126,7 @@ func _build_registries() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 	tree_def = SkillTree.new()
 	board = QuestBoard.new()

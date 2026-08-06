@@ -428,6 +428,62 @@ static func ease_out_back(t: float) -> float:
 
 
 # ---------------------------------------------------------------------------------------
+# The interact prompt
+# ---------------------------------------------------------------------------------------
+#
+# `ui/interact_prompt.gd` — the "F / Furnace" bubble over the nearest chest or station. It is
+# the one indicator in the game that is *ambient*: it is on screen for as long as the player
+# stands next to something, where every other reaction here fires and is gone inside a second.
+# That changes what the numbers are for. A pop that is fun once is a twitch when it repeats
+# every time the player walks past a row of benches, and an idle animation loud enough to
+# notice is one that competes with the gather bar directly above it.
+#
+# So the shape is: a decisive arrival, a very small idle, and a leave that is over before the
+# player has finished walking away. The prompt is driven procedurally from `_process` off
+# decaying floats — not by Tweens — for the reason `SplashText`'s header states at length: a
+# retarget can fire several times in a second as the player walks a row, and a killed-and-
+# rebuilt tween per retarget is the allocation-per-event shape this project keeps fixing.
+
+## The arrival. Grows from PROMPT_POP_FROM through `ease_out_back`, so it overshoots and
+## settles rather than fading up — the bubble has to be *noticed*, since noticing it is the
+## entire feature.
+const PROMPT_POP_TIME := 0.22
+const PROMPT_POP_FROM := 0.35
+
+## The same pop replayed when the nearest interactable changes while the prompt is already up.
+## Much shallower: a row of stations must read as the bubble sliding along the row and nodding
+## at each one, not as it being destroyed and rebuilt at every step.
+const PROMPT_RETARGET_FROM := 0.78
+
+## How fast the bubble catches up to a new target, as the rate of an exponential approach
+## (per second). 16 crosses a tile in a couple of frames — fast enough that it is never
+## visibly lagging behind the player, slow enough that the movement is legible as movement.
+const PROMPT_FOLLOW_SPEED := 16.0
+
+## The idle. One sine drives both the vertical bob (world pixels — tiles are 16, so this is
+## under a tenth of a tile) and a matching swell, in phase, so they read as one breath rather
+## than as two effects. Slower than a heartbeat on purpose: this is on screen continuously.
+const PROMPT_BOB_HZ := 0.9
+const PROMPT_BOB_PIXELS := 0.7
+const PROMPT_BREATHE := 0.05
+
+## The press reaction. Squashed wide and flat and kicked upward — anti-correlated axes, the
+## same squash-and-stretch shape `SplashText.POP_SQUASH` uses, plus a white flash on the cap.
+## It has to be clearly distinct from the arrival pop above: the arrival says "this opens" and
+## this says "that worked", and a player who cannot tell them apart cannot tell a press that
+## registered from one that missed.
+const PROMPT_PRESS_TIME := 0.2
+const PROMPT_PRESS_SQUASH := Vector2(1.4, 0.68)
+const PROMPT_PRESS_RISE := 1.5
+
+## The leave: shrink, rise and fade. Short — the player is already walking away, and anything
+## slower leaves a ghost trailing them across the clearing.
+const PROMPT_LEAVE_TIME := 0.14
+const PROMPT_LEAVE_SCALE := 0.55
+const PROMPT_LEAVE_RISE := 2.0
+
+
+# ---------------------------------------------------------------------------------------
 # Milestones and combat
 # ---------------------------------------------------------------------------------------
 

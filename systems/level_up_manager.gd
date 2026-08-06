@@ -108,7 +108,7 @@ const XP_STEP_CAP := 150
 ##                 rarer again and no longer needs to pay like an event; 3 keeps it worth
 ##                 more than a common node without making the spawner the xp faucet.
 ##   XP_CRAFT 2  - a crafted item always consumes gathered input, so crafting cannot be
-##                 farmed independently of gathering. 2 makes running a sawmill feel
+##                 farmed independently of gathering. 2 makes running a workbench feel
 ##                 worth watching without out-earning the pickaxe.
 ##   PLACING A TILE pays NOTHING, and used to pay XP_BUILD 1 on the reasoning that a placed
 ##   tile is the tail end of a chain already paid for — it was gathered or crafted first. The

@@ -32,7 +32,9 @@ var loads = []
 ## "sawmill_recipes". The point is that a third station now persists with no format change at
 ## all. The migration is Recipes.loadObject, structural for the same reason decode_entries is:
 ## a v3 file migrated verbatim into a slot is still v3 on disk while this build writes v4, so
-## the reader has to recognise the shape rather than trust the number.
+## the reader has to recognise the shape rather than trust the number. "sawmill_recipes" is
+## still spelled that way on purpose: the station is called the Workbench since gather-mhwy,
+## but the key is bytes in files already written and cannot be renamed with it.
 const FORMAT_VERSION := 4
 
 ## The version reported for a file with no header, i.e. every save written before gather-8rs.

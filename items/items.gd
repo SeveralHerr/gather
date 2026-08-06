@@ -9,7 +9,7 @@ func _ready():
 	item_list[Types.Item.Stone] = GameItem.new(Vector2i(1, 2), 4, Types.Item.Stone, 1, false, "Stone", Vector2i.ZERO)
 	item_list[Types.Item.Wood] = GameItem.new(Vector2i(2, 2), 4, Types.Item.Wood, 1, false, "Wood", Vector2i.ZERO)
 	item_list[Types.Item.Plank] = GameItem.new(Vector2i(3, 2), 4, Types.Item.Plank, 1, false, "Plank", Vector2i.ZERO)
-	item_list[Types.Item.Sawmill] = GameItemPlaceable.new(Vector2i(0, 0), 2, Types.Item.Sawmill, 1, true, "Sawmill", Vector2i(0, 2), true)
+	item_list[Types.Item.Workbench] = GameItemPlaceable.new(Vector2i(0, 0), 2, Types.Item.Workbench, 1, true, "Workbench", Vector2i(0, 2), true)
 	item_list[Types.Item.WoodFloor] = GameItemFloor.new(Vector2i(4, 2), 4, Types.Item.WoodFloor, 2, true, "Wood Floor", Vector2i.ZERO)
 	item_list[Types.Item.CoalOre] = GameItem.new(Vector2i(5, 2), 4, Types.Item.CoalOre, 1, false, "Coal Ore", Vector2i.ZERO)
 	item_list[Types.Item.IronOre] = GameItem.new(Vector2i(6, 2), 4, Types.Item.IronOre, 1, false, "Iron Ore", Vector2i.ZERO)

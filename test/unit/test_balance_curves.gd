@@ -60,7 +60,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 
 func _pickaxe(type: Types.Item) -> GameItemPickaxe:

@@ -254,7 +254,7 @@ const SCENE_PROPS := {
 	"res://world/resource_nodes/berry_bush.tscn": PROP_BIT,
 	"res://world/tile_scenes/chest.tscn": PROP_BIT,
 	"res://turrets/bone_turret.tscn": PROP_BIT,
-	"res://crafting/sawmill.tscn": PROP_BIT | INTERACTABLE_BIT,
+	"res://crafting/workbench.tscn": PROP_BIT | INTERACTABLE_BIT,
 	"res://crafting/furnace.tscn": PROP_BIT | INTERACTABLE_BIT,
 	"res://world/tile_scenes/test_chest.tscn": PROP_BIT | INTERACTABLE_BIT,
 }

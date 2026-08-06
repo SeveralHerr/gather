@@ -24,7 +24,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 
 func _pickaxe(type: Types.Item) -> GameItemPickaxe:
@@ -65,9 +65,9 @@ func test_no_pickaxe_has_a_zero_gather_time() -> String:
 
 
 func test_iron_pickaxe_costs_iron_rather_than_bone() -> String:
-	var recipe = recipes.get_sawmill_recipe(Types.Item.IronPickaxe)
+	var recipe = recipes.get_workbench_recipe(Types.Item.IronPickaxe)
 	if recipe == null:
-		return _T.assert_true(false, "no sawmill recipe for the iron pickaxe")
+		return _T.assert_true(false, "no workbench recipe for the iron pickaxe")
 
 	var err: String = _T.assert_true(recipe.cost_list.has(Types.Item.IronBar), "iron pickaxe costs iron bars")
 	if err != "":

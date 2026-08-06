@@ -22,6 +22,13 @@ func _find_inventory_manager() -> NewInventoryManager:
 func player_interact() -> void:
 	toggle_inventory.emit(self)
 
+
+## What the world-space interact prompt calls this chest (`ui/interact_prompt.gd`). Out of the
+## item registry rather than a literal, for the same reason CraftingStation's is — the class is
+## called TestChest and the player must never be shown that.
+func interact_prompt_label() -> String:
+	return InteractPrompt.item_name(GameItems, Types.Item.Chest, "Chest")
+
 func _ready():
 	add_to_group("external_inventory")
 	add_to_group("SaveChunks")

@@ -25,7 +25,7 @@ Back up whatever is in that slot first — the copy is destructive and there is 
 A maxed island — 12 parcels, radius 34 — with a player-built homestead on it:
 
 - a 7x5 wood-walled house with a door, floored inside
-- 2 chests, a sawmill and a furnace inside it
+- 2 chests, a workbench and a furnace inside it
 - 4 bone turrets on the corners, 2 bone workers and 2 stone workers flanking
 - level 18, banked skill points, the Industry chain taken through `smelting`, and
   wood/stone/planks/ore in the bag

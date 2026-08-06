@@ -1312,7 +1312,7 @@ func _cmd_gather_state(_args: Dictionary) -> Dictionary:
 
 # --- crafting ----------------------------------------------------------------
 
-## Places a sawmill or furnace next to the player. set_tile takes a Vector2i, which
+## Places a workbench or furnace next to the player. set_tile takes a Vector2i, which
 ## run-method cannot coerce (gather-6sp), and a station is a scene tile whose
 ## alternative id carries the is_scene flag - nothing generic can express that.
 func _cmd_place_station(args: Dictionary) -> Dictionary:
@@ -1321,11 +1321,11 @@ func _cmd_place_station(args: Dictionary) -> Dictionary:
 	if handler == null or player == null:
 		return {"success": false, "message": "no TileMapHandler or player", "data": {}}
 
-	var wanted: String = str(args.get("type", "Sawmill")).to_lower()
-	var station_type = Types.Item.Sawmill if wanted == "sawmill" else (
+	var wanted: String = str(args.get("type", "Workbench")).to_lower()
+	var station_type = Types.Item.Workbench if wanted == "workbench" else (
 		Types.Item.Furnace if wanted == "furnace" else -1)
 	if station_type == -1:
-		return {"success": false, "message": "type must be Sawmill or Furnace", "data": {}}
+		return {"success": false, "message": "type must be Workbench or Furnace", "data": {}}
 
 	var item: GameItem = GameItems.get_item(station_type)
 	var origin: Vector2i = handler.tileMap.local_to_map(player.global_position)
@@ -1613,7 +1613,7 @@ func _placeable_names() -> Array:
 
 ## Places any placeable tile from the registry, by name, at a chosen cell.
 ##
-## Exists because place_station (sawmill/furnace), place_build (walls/floors) and
+## Exists because place_station (workbench/furnace), place_build (walls/floors) and
 ## place_worker (bone workers) were three partial reimplementations of one operation, each
 ## covering its own author's case, and a runtime pass that needed a chest beside a worker
 ## could not get one from any of them (G-077).
@@ -2662,7 +2662,7 @@ func _cmd_build_demo_world(args: Dictionary) -> Dictionary:
 	var furniture := {
 		Vector2i(1, 1): Types.Item.Chest,
 		Vector2i(2, 1): Types.Item.Chest,
-		Vector2i(4, 1): Types.Item.Sawmill,
+		Vector2i(4, 1): Types.Item.Workbench,
 		Vector2i(5, 1): Types.Item.Furnace,
 	}
 	for offset in furniture:

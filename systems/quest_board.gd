@@ -98,7 +98,7 @@ func _build() -> void:
 	_add(Quest.new(
 		"sawdust", Quest.Kind.HAVE, 10,
 		"Sawdust",
-		"A sawmill turns wood into planks while you walk away. Bring ten planks.",
+		"A workbench turns wood into planks while you walk away. Bring ten planks.",
 		45, 25, Types.Item.Plank, ["first_timber"]
 	))
 	_add(Quest.new(

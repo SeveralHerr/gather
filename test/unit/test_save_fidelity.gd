@@ -211,13 +211,13 @@ func test_recipe_id_minus_one_resolves_to_no_recipe() -> String:
 	# Both lookups answer null for -1, which is what makes the guard reachable rather than
 	# theoretical.
 	var furnace: Variant = Recipes.get_furnace_recipe(-1)
-	var sawmill: Variant = Recipes.get_sawmill_recipe(-1)
+	var workbench: Variant = Recipes.get_workbench_recipe(-1)
 
 	var f: String = _T.assert_true(furnace == null, "get_furnace_recipe(-1) is null")
 	if f != "":
 		return f
 
-	return _T.assert_true(sawmill == null, "get_sawmill_recipe(-1) is null")
+	return _T.assert_true(workbench == null, "get_workbench_recipe(-1) is null")
 
 
 # --- bone turret: the assembly flag, and every bullet ------------------------

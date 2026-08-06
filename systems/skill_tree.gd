@@ -71,14 +71,14 @@ func _build() -> void:
 	_add(Skill.new(
 		"swift_hands", FORAGING, 0,
 		"Swift Hands",
-		"Gather 15% faster with every pickaxe, and build a second sawmill.",
+		"Gather 15% faster with every pickaxe, and build a second workbench.",
 		"-15% gather time",
 		Types.Item.WoodPickaxe, [],
 		{"gather_speed_mult": -0.15},
-		# A station produces one item per second, so a second sawmill is throughput,
+		# A station produces one item per second, so a second workbench is throughput,
 		# not decoration. It hangs off the branch's first node because the player is
-		# handed exactly one sawmill at the start and nothing else ever grants another.
-		[{"product": Types.Item.Sawmill, "station": Types.Item.Sawmill}]
+		# handed exactly one workbench at the start and nothing else ever grants another.
+		[{"product": Types.Item.Workbench, "station": Types.Item.Workbench}]
 	))
 	_add(Skill.new(
 		"bountiful", FORAGING, 1,
@@ -89,7 +89,7 @@ func _build() -> void:
 		{"bonus_yield_chance": 0.25},
 		# String otherwise drops from spiders and nowhere else, which left the whole
 		# Combat tier-2 unlock hostage to which enemy the spawner rolled.
-		[{"product": Types.Item.String, "station": Types.Item.Sawmill}]
+		[{"product": Types.Item.String, "station": Types.Item.Workbench}]
 	))
 	_add(Skill.new(
 		"scholar", FORAGING, 2,
@@ -118,10 +118,10 @@ func _build() -> void:
 	_add(Skill.new(
 		"bone_pickaxe", INDUSTRY, 0,
 		"Bone Pickaxe",
-		"Craft the bone pickaxe at the sawmill.",
+		"Craft the bone pickaxe at the workbench.",
 		"Unlocks a recipe",
 		Types.Item.BonePickaxe, [], {},
-		[{"product": Types.Item.BonePickaxe, "station": Types.Item.Sawmill}]
+		[{"product": Types.Item.BonePickaxe, "station": Types.Item.Workbench}]
 	))
 	# The id stays "iron_age" — it is in LEGACY_IDS and in every save's taken set, so
 	# renaming it would silently drop the skill on load. Its *content* is repointed:
@@ -135,9 +135,9 @@ func _build() -> void:
 		"Furnace + copper gear",
 		Types.Item.CopperOre, ["bone_pickaxe"], {},
 		[
-			{"product": Types.Item.Furnace, "station": Types.Item.Sawmill},
+			{"product": Types.Item.Furnace, "station": Types.Item.Workbench},
 			{"product": Types.Item.CopperBar, "station": Types.Item.Furnace},
-			{"product": Types.Item.CopperPickaxe, "station": Types.Item.Sawmill},
+			{"product": Types.Item.CopperPickaxe, "station": Types.Item.Workbench},
 			# Cooking arrives with the furnace, because it is the first reason to visit one
 			# that is not metal (gather-cte).
 			{"product": Types.Item.CookedFood, "station": Types.Item.Furnace},
@@ -154,7 +154,7 @@ func _build() -> void:
 		Types.Item.IronBar, ["iron_age"], {},
 		[
 			{"product": Types.Item.IronBar, "station": Types.Item.Furnace},
-			{"product": Types.Item.IronPickaxe, "station": Types.Item.Sawmill},
+			{"product": Types.Item.IronPickaxe, "station": Types.Item.Workbench},
 			# Charcoal lands here rather than at the furnace's own tier because this is
 			# the node that doubles coal consumption: from now on a bad roll on coal
 			# veins stalls the branch, and wood is the one thing never in short supply.
@@ -167,15 +167,15 @@ func _build() -> void:
 			# and pricing it in iron bars here means the recipe and its material arrive on
 			# the same purchase, rather than the hidden cross-tier dependency the bone
 			# turret's costs had to be repriced to escape.
-			{"product": Types.Item.BoneWorker, "station": Types.Item.Sawmill},
+			{"product": Types.Item.BoneWorker, "station": Types.Item.Workbench},
 			# Both workers ride the one node. They are the same machine pointed at different
 			# resources, so splitting them across two purchases would price a pair the player
 			# will always want together as though it were two decisions.
-			{"product": Types.Item.StoneWorker, "station": Types.Item.Sawmill},
+			{"product": Types.Item.StoneWorker, "station": Types.Item.Workbench},
 			# The iron bar had exactly one buyer (the pickaxe) for the whole branch, and the
 			# brick gives fired stone a home on the tier that already doubles coal use
 			# (gather-cte).
-			{"product": Types.Item.IronSword, "station": Types.Item.Sawmill},
+			{"product": Types.Item.IronSword, "station": Types.Item.Workbench},
 			{"product": Types.Item.StoneBrick, "station": Types.Item.Furnace},
 		],
 		[Types.Item.IronResource]
@@ -208,11 +208,11 @@ func _build() -> void:
 		Types.Item.GoldBar, ["smelting", "light_step"], {},
 		[
 			{"product": Types.Item.GoldBar, "station": Types.Item.Furnace},
-			{"product": Types.Item.GoldPickaxe, "station": Types.Item.Sawmill},
+			{"product": Types.Item.GoldPickaxe, "station": Types.Item.Workbench},
 			# Same reasoning as the iron sword one tier down: the gold bar fed only the
 			# pickaxe and the mint, and the capstone should arm the player as well as tool
 			# them.
-			{"product": Types.Item.GoldSword, "station": Types.Item.Sawmill},
+			{"product": Types.Item.GoldSword, "station": Types.Item.Workbench},
 		],
 		[Types.Item.GoldResource]
 	))
@@ -254,7 +254,7 @@ func _build() -> void:
 		# The node was named for a sword the player could never make (gather-cte). Combat had
 		# no craftable of its own at all — every node was a stat bump or a turret — so the
 		# branch that fights crafted nothing at its own stations.
-		[{"product": Types.Item.BoneSword, "station": Types.Item.Sawmill}]
+		[{"product": Types.Item.BoneSword, "station": Types.Item.Workbench}]
 	))
 	_add(Skill.new(
 		"tough_hide", COMBAT, 1,
@@ -265,17 +265,17 @@ func _build() -> void:
 		{"max_health_bonus": 5},
 		# Sustain lands on the survivability node, and costs string — which spiders drop — so
 		# the branch that fights is the branch that heals.
-		[{"product": Types.Item.Bandage, "station": Types.Item.Sawmill}]
+		[{"product": Types.Item.Bandage, "station": Types.Item.Workbench}]
 	))
 	_add(Skill.new(
 		"bone_turret", COMBAT, 2,
 		"Bone Turret",
-		"Craft turrets and nets at the sawmill.",
+		"Craft turrets and nets at the workbench.",
 		"Unlocks 2 recipes",
 		Types.Item.BoneTurret, ["tough_hide"], {},
 		[
-			{"product": Types.Item.BoneTurret, "station": Types.Item.Sawmill},
-			{"product": Types.Item.Net, "station": Types.Item.Sawmill},
+			{"product": Types.Item.BoneTurret, "station": Types.Item.Workbench},
+			{"product": Types.Item.Net, "station": Types.Item.Workbench},
 		]
 	))
 	# Combat's payout tier. Killing things is otherwise the one loop that does not
@@ -299,9 +299,9 @@ func _build() -> void:
 		"Unlocks 3 recipes",
 		Types.Item.WoodWall, [], {},
 		[
-			{"product": Types.Item.WoodFloor, "station": Types.Item.Sawmill},
-			{"product": Types.Item.WoodWall, "station": Types.Item.Sawmill},
-			{"product": Types.Item.WoodDoor, "station": Types.Item.Sawmill},
+			{"product": Types.Item.WoodFloor, "station": Types.Item.Workbench},
+			{"product": Types.Item.WoodWall, "station": Types.Item.Workbench},
+			{"product": Types.Item.WoodDoor, "station": Types.Item.Workbench},
 		]
 	))
 	# The stone set hangs off this node rather than getting one of its own: the branch
@@ -316,8 +316,8 @@ func _build() -> void:
 		Types.Item.StoneWall, ["wood_decor"],
 		{"move_speed_mult": 0.15},
 		[
-			{"product": Types.Item.StoneFloor, "station": Types.Item.Sawmill},
-			{"product": Types.Item.StoneWall, "station": Types.Item.Sawmill},
+			{"product": Types.Item.StoneFloor, "station": Types.Item.Workbench},
+			{"product": Types.Item.StoneWall, "station": Types.Item.Workbench},
 		]
 	))
 	_add(Skill.new(

@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://bns0btag74h0k" path="res://assets/art/placeholder_tiles.png" id="10_plchd"]
 [ext_resource type="Texture2D" uid="uid://1rde7kvflw0w" path="res://assets/art/stone_build_tiles.png" id="11_stone"]
 [ext_resource type="PackedScene" uid="uid://2m4ylcr6bkcn" path="res://world/tile_scenes/door.tscn" id="2_cujkm"]
-[ext_resource type="PackedScene" uid="uid://1ka6xlmaapop" path="res://crafting/sawmill.tscn" id="3_n5r8d"]
+[ext_resource type="PackedScene" uid="uid://1ka6xlmaapop" path="res://crafting/workbench.tscn" id="3_n5r8d"]
 [ext_resource type="PackedScene" uid="uid://hu4y0smkqoni" path="res://world/tile_scenes/chest.tscn" id="4_5yavt"]
 [ext_resource type="PackedScene" uid="uid://dk6uxq2qtyy8b" path="res://crafting/furnace.tscn" id="5_8m17u"]
 [ext_resource type="PackedScene" uid="uid://biwp8o3sgjfju" path="res://turrets/bone_turret.tscn" id="6_dqoys"]

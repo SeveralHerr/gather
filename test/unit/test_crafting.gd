@@ -23,7 +23,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 	recipes._seed_day_one()
 
 	tree = SkillTree.new()
@@ -54,7 +54,7 @@ const STOCK := 40
 func test_spending_charges_the_full_per_unit_cost() -> String:
 	# The bug this replaces: one remove() per cost KEY, so a 5-bar recipe took 1 bar.
 	var data := _inventory_with({Types.Item.IronBar: STOCK, Types.Item.Plank: STOCK})
-	var recipe = recipes.get_sawmill_recipe(Types.Item.IronPickaxe)
+	var recipe = recipes.get_workbench_recipe(Types.Item.IronPickaxe)
 
 	var bar_cost: int = recipe.cost_list[Types.Item.IronBar]
 	var plank_cost: int = recipe.cost_list[Types.Item.Plank]
@@ -84,7 +84,7 @@ func test_spending_charges_the_full_per_unit_cost() -> String:
 
 func test_spending_multiplies_by_the_amount_crafted() -> String:
 	var data := _inventory_with({Types.Item.Wood: STOCK})
-	var recipe = recipes.get_sawmill_recipe(Types.Item.String)
+	var recipe = recipes.get_workbench_recipe(Types.Item.String)
 
 	var wood_cost: int = recipe.cost_list[Types.Item.Wood]
 
@@ -112,7 +112,7 @@ func test_affording_counts_across_split_stacks() -> String:
 	wood.count = 4
 	data.inventory_slot_datas.append(wood)
 
-	var recipe = recipes.get_sawmill_recipe(Types.Item.StonePickaxe)
+	var recipe = recipes.get_workbench_recipe(Types.Item.StonePickaxe)
 	return _T.assert_true(
 		data.can_afford(recipe.cost_list, 1),
 		"8 stone spread over two stacks of 5 pays an 8-stone recipe")
@@ -122,7 +122,7 @@ func test_an_unaffordable_recipe_removes_nothing() -> String:
 	# All-or-nothing matters because the old path had no craft-time check at all and
 	# remove() silently no-ops on a miss, so a partial payment left no trace.
 	var data := _inventory_with({Types.Item.Stone: 8, Types.Item.Wood: 1})
-	var recipe = recipes.get_sawmill_recipe(Types.Item.StonePickaxe)
+	var recipe = recipes.get_workbench_recipe(Types.Item.StonePickaxe)
 
 	var paid: bool = data.spend_cost(recipe.cost_list, 1)
 	var err: String = _T.assert_false(paid, "one wood short is refused")
@@ -133,7 +133,7 @@ func test_an_unaffordable_recipe_removes_nothing() -> String:
 
 func test_affordable_count_is_the_tightest_ingredient() -> String:
 	var data := _inventory_with({Types.Item.Stone: 40, Types.Item.Wood: 5})
-	var recipe = recipes.get_sawmill_recipe(Types.Item.StonePickaxe)
+	var recipe = recipes.get_workbench_recipe(Types.Item.StonePickaxe)
 	# 40 stone is 5 pickaxes' worth, 5 wood is only 2.
 	return _T.assert_eq(data.affordable_count(recipe.cost_list), 2, "wood is the binding constraint")
 
@@ -166,14 +166,14 @@ func test_the_plank_is_available_from_the_first_frame() -> String:
 	# Three of the four pickaxes cost planks, so this one is load-bearing for the
 	# whole Industry branch.
 	return _T.assert_true(
-		recipes.is_unlocked(Types.Item.Plank, Types.Item.Sawmill),
+		recipes.is_unlocked(Types.Item.Plank, Types.Item.Workbench),
 		"the plank recipe is seeded on a clean save")
 
 
 func test_unlocking_the_same_recipe_twice_adds_one_entry() -> String:
-	var before: int = recipes.get_recipes(Types.Item.Sawmill).size()
-	recipes.add_recipe(Types.Item.Chest, Types.Item.Sawmill)
-	return _T.assert_eq(recipes.get_recipes(Types.Item.Sawmill).size(), before,
+	var before: int = recipes.get_recipes(Types.Item.Workbench).size()
+	recipes.add_recipe(Types.Item.Chest, Types.Item.Workbench)
+	return _T.assert_eq(recipes.get_recipes(Types.Item.Workbench).size(), before,
 		"re-unlocking an already-known recipe is a no-op")
 
 
@@ -196,9 +196,9 @@ func test_loading_keeps_the_array_every_station_is_holding() -> String:
 	# CraftingStation binds recipe_list = Recipes.get_recipes(type) by reference in
 	# _ready. Reassigning the list on load left every station on the map pointing at
 	# an orphaned array and blind to anything unlocked afterwards.
-	var held = recipes.get_recipes(Types.Item.Sawmill)
+	var held = recipes.get_recipes(Types.Item.Workbench)
 
-	recipes.add_recipe(Types.Item.WoodWall, Types.Item.Sawmill)
+	recipes.add_recipe(Types.Item.WoodWall, Types.Item.Workbench)
 	var saved: Dictionary = recipes.saveObject()
 	# saveObject calls get_path(), which prints an error on this out-of-tree Recipes.
 	# Asserting the payload first means an aborted save cannot reach the identity
@@ -206,23 +206,23 @@ func test_loading_keeps_the_array_every_station_is_holding() -> String:
 	# Station-keyed since gather-uaq: one "stations" object rather than a key per station,
 	# so a third station persists with no format change. JSON object keys are strings, hence
 	# the str() on the enum.
-	var sawmill_key := str(Types.Item.Sawmill)
+	var workbench_key := str(Types.Item.Workbench)
 	var err: String = _T.assert_true(
-		saved.has("stations") and saved["stations"].has(sawmill_key)
-			and not saved["stations"][sawmill_key].is_empty(),
-		"the save payload actually carries the unlocked sawmill recipes")
+		saved.has("stations") and saved["stations"].has(workbench_key)
+			and not saved["stations"][workbench_key].is_empty(),
+		"the save payload actually carries the unlocked workbench recipes")
 	if err != "":
 		return err
 
 	recipes.loadObject(saved)
 
 	err = _T.assert_true(
-		held == recipes.get_recipes(Types.Item.Sawmill),
+		held == recipes.get_recipes(Types.Item.Workbench),
 		"the station's array is the same object after a load")
 	if err != "":
 		return err
 
-	recipes.add_recipe(Types.Item.WoodDoor, Types.Item.Sawmill)
+	recipes.add_recipe(Types.Item.WoodDoor, Types.Item.Workbench)
 	for recipe in held:
 		if recipe.product == Types.Item.WoodDoor:
 			return ""
@@ -239,7 +239,7 @@ func test_loading_tops_up_the_day_one_set() -> String:
 	}
 	recipes.loadObject(legacy)
 	return _T.assert_true(
-		recipes.is_unlocked(Types.Item.Plank, Types.Item.Sawmill),
+		recipes.is_unlocked(Types.Item.Plank, Types.Item.Workbench),
 		"an old save still gets the plank")
 
 
@@ -266,8 +266,8 @@ func test_a_pre_station_keyed_save_still_restores_both_stations() -> String:
 	if err != "":
 		return err
 	return _T.assert_true(
-		recipes.is_unlocked(Types.Item.BoneTurret, Types.Item.Sawmill),
-		"the old payload's sawmill recipe came back")
+		recipes.is_unlocked(Types.Item.BoneTurret, Types.Item.Workbench),
+		"the old payload's workbench recipe came back")
 
 
 ## The Recipes entry out of a committed save fixture, or {} if the file has none.
@@ -349,11 +349,11 @@ func test_a_station_id_that_came_through_json_finds_the_same_list() -> String:
 	# nothing and never sees an unlock, silently.
 	#
 	# Found by asking the running game for get_recipes(7) over the devtools bus (which
-	# marshals arguments as JSON) while the sawmill on screen was holding three recipes; the
+	# marshals arguments as JSON) while the workbench on screen was holding three recipes; the
 	# call came back []. Nothing in the suite could see it, because the game itself only ever
 	# passes Types.Item ints.
-	var by_int: Array = recipes.get_recipes(Types.Item.Sawmill)
-	var by_float: Array = recipes.get_recipes(float(Types.Item.Sawmill))
+	var by_int: Array = recipes.get_recipes(Types.Item.Workbench)
+	var by_float: Array = recipes.get_recipes(float(Types.Item.Workbench))
 
 	var err: String = _T.assert_true(by_int == by_float, "a float station id finds the same array")
 	if err != "":

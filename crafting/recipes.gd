@@ -25,16 +25,22 @@ var unlocked: Dictionary = {}
 ## while no skill and no seed ever moved it across, which quietly made the copper,
 ## iron and gold pickaxes uncraftable on a clean save.
 const DAY_ONE_RECIPES := [
-	{"product": Types.Item.Plank, "station": Types.Item.Sawmill},
-	{"product": Types.Item.StonePickaxe, "station": Types.Item.Sawmill},
-	{"product": Types.Item.Chest, "station": Types.Item.Sawmill},
+	{"product": Types.Item.Plank, "station": Types.Item.Workbench},
+	{"product": Types.Item.StonePickaxe, "station": Types.Item.Workbench},
+	{"product": Types.Item.Chest, "station": Types.Item.Workbench},
 ]
 
 ## The save keys the two original stations were written under, before the payload became
 ## station-keyed. Read on load and never written again; see loadObject.
+##
+## "sawmill_recipes" is NOT a straggler of the Workbench rename (gather-mhwy) and must not be
+## renamed. It is a string that exists on disk in every pre-v4 save, including the committed
+## test/fixtures/demo_homestead_save_v1 and _v3 — which must never be regenerated. Renaming
+## the identifier that reads it does not rename the bytes it has to match, so a "tidy-up" here
+## silently drops the unlock list out of every old save with no error anywhere.
 const LEGACY_SAVE_KEYS := {
 	"furnace_recipes": Types.Item.Furnace,
-	"sawmill_recipes": Types.Item.Sawmill,
+	"sawmill_recipes": Types.Item.Workbench,
 }
 
 
@@ -42,7 +48,7 @@ const LEGACY_SAVE_KEYS := {
 func _ready():
 	add_to_group("SaveLoad")
 	furnace_recipes()
-	sawmill_recipes()
+	workbench_recipes()
 
 	_seed_day_one()
 
@@ -116,8 +122,8 @@ func get_recipe(station, product) -> CraftingRecipe:
 
 ## Kept because tests and crafting_station.gd's loader name them. Thin wrappers now — the
 ## station is an argument, not a function name.
-func get_sawmill_recipe(product) -> CraftingRecipe:
-	return get_recipe(Types.Item.Sawmill, product)
+func get_workbench_recipe(product) -> CraftingRecipe:
+	return get_recipe(Types.Item.Workbench, product)
 
 
 func get_furnace_recipe(product) -> CraftingRecipe:
@@ -201,7 +207,7 @@ func furnace_recipes():
 	stone_brick_costs[Types.Item.CoalOre] = 1
 	_register(Types.Item.Furnace, CraftingRecipe.new(Types.Item.StoneBrick, stone_brick_costs))
 
-func sawmill_recipes():
+func workbench_recipes():
 	# Two wood, not one. The plank is the neck every wooden thing in the game passes
 	# through, so this single number is most of the building set's reprice (`gather-7p4`)
 	# — a chest went from 4 wood to 16 without its own recipe changing at all. Wood is the
@@ -209,12 +215,12 @@ func sawmill_recipes():
 	# surplus never went anywhere.
 	var plank_costs = {}
 	plank_costs[Types.Item.Wood] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Plank, plank_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Plank, plank_costs))
 
 	# The building set is priced in planks rather than raw wood. Until the crafting
 	# panel started charging the quantities it displayed, every one of these was "1
 	# wood" and the plank was a step you could skip entirely; costing them in the
-	# sawmill's own output is what gives the first recipe in the list a reason to exist.
+	# workbench's own output is what gives the first recipe in the list a reason to exist.
 	#
 	# The plank counts below are deliberately UNCHANGED by `gather-7p4`. Doubling the plank
 	# already doubled every one of them in wood, and doubling both would have put a chest —
@@ -222,22 +228,22 @@ func sawmill_recipes():
 	# wood. One multiplier at the neck, not two in series.
 	var wood_floor_costs = {}
 	wood_floor_costs[Types.Item.Plank] = 1
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.WoodFloor, wood_floor_costs))
 
 	var wood_wall_costs = {}
 	wood_wall_costs[Types.Item.Plank] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodWall, wood_wall_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.WoodWall, wood_wall_costs))
 
 	var wood_door_costs = {}
 	wood_door_costs[Types.Item.Plank] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.WoodDoor, wood_door_costs))
 
 	var chest_costs = {}
 	chest_costs[Types.Item.Plank] = 4
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Chest, chest_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Chest, chest_costs))
 
 	# The stone building set. Priced in raw stone rather than in a worked intermediate
-	# because stone has no sawmill step of its own - the plank is what makes the wood
+	# because stone has no workbench step of its own - the plank is what makes the wood
 	# set cost two gathers, and here the second gather is simply more stone. Both sit
 	# a little above their wood twin (3 vs 2 planks for the wall, 2 vs 1 for the floor)
 	# so the tier reads as the sturdier, more expensive option rather than a reskin,
@@ -251,11 +257,11 @@ func sawmill_recipes():
 	# inverting the sentence above. 5 stone against the wood wall's 4 wood keeps it.
 	var stone_floor_costs = {}
 	stone_floor_costs[Types.Item.Stone] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.StoneFloor, stone_floor_costs))
 
 	var stone_wall_costs = {}
 	stone_wall_costs[Types.Item.Stone] = 5
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.StoneWall, stone_wall_costs))
 
 	# The first tool the player can build, and the first thing stone is for. Stone and
 	# scene-stone together are roughly half of everything that spawns (spawn_weight
@@ -269,16 +275,16 @@ func sawmill_recipes():
 	var stone_pickaxe_costs = {}
 	stone_pickaxe_costs[Types.Item.Stone] = 8
 	stone_pickaxe_costs[Types.Item.Wood] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StonePickaxe, stone_pickaxe_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.StonePickaxe, stone_pickaxe_costs))
 
-	# A second sawmill. A station makes one item per second, so another one is parallel
+	# A second workbench. A station makes one item per second, so another one is parallel
 	# throughput rather than a convenience — and the player has been handed exactly one
 	# since player.gd:66 with no way to ever build another. Priced in planks so it
 	# cannot be the first thing built with the wood off three trees.
-	var sawmill_costs = {}
-	sawmill_costs[Types.Item.Wood] = 12
-	sawmill_costs[Types.Item.Plank] = 6
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Sawmill, sawmill_costs))
+	var workbench_costs = {}
+	workbench_costs[Types.Item.Wood] = 12
+	workbench_costs[Types.Item.Plank] = 6
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Workbench, workbench_costs))
 
 	# Twine. String had no craftable source of any kind — it dropped from spiders and
 	# nowhere else, which left the Net and the Bone Turret (a whole Combat tier) hostage
@@ -291,7 +297,7 @@ func sawmill_recipes():
 	# guarantees nobody stalls, and leaves the drop worth having.
 	var string_costs = {}
 	string_costs[Types.Item.Wood] = 6
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.String, string_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.String, string_costs))
 
 	# Copper rather than iron on purpose. The turret is a Combat-branch unlock, and
 	# pricing it in iron bars made it secretly depend on Industry tier 2; copper bars
@@ -302,15 +308,15 @@ func sawmill_recipes():
 	bone_turret_costs[Types.Item.Wood] = 2
 	bone_turret_costs[Types.Item.CopperBar] = 3
 	bone_turret_costs[Types.Item.String] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.BoneTurret, bone_turret_costs))
 
 	# Was 5 wood + 5 string, i.e. five spider kills for one single-use item. With twine
 	# craftable the number can come down, and the wood half moves to planks so the
-	# sawmill's own output has somewhere to go.
+	# workbench's own output has somewhere to go.
 	var net_costs = {}
 	net_costs[Types.Item.Plank] = 2
 	net_costs[Types.Item.String] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Net, net_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Net, net_costs))
 
 	# The one thing on the list that removes the player from a loop rather than
 	# speeding it up, so it is priced as a middle-of-the-run project, not a purchase.
@@ -327,7 +333,7 @@ func sawmill_recipes():
 	bone_worker_costs[Types.Item.Bone] = 9
 	bone_worker_costs[Types.Item.IronBar] = 5
 	bone_worker_costs[Types.Item.Plank] = 6
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.BoneWorker, bone_worker_costs))
 
 	# The grey sibling, priced level with the blue one and deliberately not cheaper: it
 	# automates the OTHER day-one resource, and a player who has one wants the pair. Stone
@@ -337,11 +343,11 @@ func sawmill_recipes():
 	stone_worker_costs[Types.Item.Bone] = 9
 	stone_worker_costs[Types.Item.IronBar] = 5
 	stone_worker_costs[Types.Item.Stone] = 12
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.StoneWorker, stone_worker_costs))
 
 	var furnace_costs = {}
 	furnace_costs[Types.Item.Stone] = 14
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Furnace, furnace_costs))
 
 	# --- The pickaxe ladder, repriced ~1.5x by `gather-7p4`.
 	#
@@ -351,14 +357,14 @@ func sawmill_recipes():
 	# reasoning each recipe below already carried still holds.
 	var bone_pickaxe_costs = {}
 	bone_pickaxe_costs[Types.Item.Bone] = 14
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.BonePickaxe, bone_pickaxe_costs))
 
 	# Gated behind the furnace: iron bars are the whole point of unlocking iron, so the
 	# top-tier pickaxe should cost them rather than repeating the bone pickaxe's price.
 	var iron_pickaxe_costs = {}
 	iron_pickaxe_costs[Types.Item.IronBar] = 8
 	iron_pickaxe_costs[Types.Item.Plank] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.IronPickaxe, iron_pickaxe_costs))
 
 	# The tool copper exists for. Cheap on purpose — it arrives with the furnace, well
 	# before bone becomes affordable, so it is the bridge out of the wooden pickaxe
@@ -367,7 +373,7 @@ func sawmill_recipes():
 	var copper_pickaxe_costs = {}
 	copper_pickaxe_costs[Types.Item.CopperBar] = 4
 	copper_pickaxe_costs[Types.Item.Plank] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.CopperPickaxe, copper_pickaxe_costs))
 
 	# The top of the ladder, and it should read as an undertaking rather than one more
 	# rung. Same shape as the iron pickaxe (bars + planks) so the comparison is obvious,
@@ -377,7 +383,7 @@ func sawmill_recipes():
 	var gold_pickaxe_costs = {}
 	gold_pickaxe_costs[Types.Item.GoldBar] = 8
 	gold_pickaxe_costs[Types.Item.Plank] = 6
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.GoldPickaxe, gold_pickaxe_costs))
 
 	# --- The sword ladder (gather-cte). Combat had no craftable of its own: every one of its
 	# skills was a stat bump or a turret, so a player pushing that branch crafted nothing at
@@ -393,17 +399,17 @@ func sawmill_recipes():
 	var bone_sword_costs = {}
 	bone_sword_costs[Types.Item.Bone] = 9
 	bone_sword_costs[Types.Item.Plank] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.BoneSword, bone_sword_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.BoneSword, bone_sword_costs))
 
 	var iron_sword_costs = {}
 	iron_sword_costs[Types.Item.IronBar] = 6
 	iron_sword_costs[Types.Item.Plank] = 3
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.IronSword, iron_sword_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.IronSword, iron_sword_costs))
 
 	var gold_sword_costs = {}
 	gold_sword_costs[Types.Item.GoldBar] = 6
 	gold_sword_costs[Types.Item.Plank] = 4
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.GoldSword, gold_sword_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.GoldSword, gold_sword_costs))
 
 	# The Combat branch's sustain, and the second thing string is for. The string is what makes
 	# it Combat's own: spiders drop it, so the branch that fights is the branch that heals.
@@ -416,7 +422,7 @@ func sawmill_recipes():
 	var bandage_costs = {}
 	bandage_costs[Types.Item.String] = 2
 	bandage_costs[Types.Item.Berry] = 2
-	_register(Types.Item.Sawmill, CraftingRecipe.new(Types.Item.Bandage, bandage_costs))
+	_register(Types.Item.Workbench, CraftingRecipe.new(Types.Item.Bandage, bandage_costs))
 
 
 

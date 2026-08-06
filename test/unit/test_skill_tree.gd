@@ -50,7 +50,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 
 func test_every_prerequisite_names_a_real_skill() -> String:
@@ -298,7 +298,7 @@ func test_every_unlocked_recipe_exists() -> String:
 			if unlock["station"] == Types.Item.Furnace:
 				recipe = recipes.get_furnace_recipe(unlock["product"])
 			else:
-				recipe = recipes.get_sawmill_recipe(unlock["product"])
+				recipe = recipes.get_workbench_recipe(unlock["product"])
 
 			if recipe == null:
 				return _T.assert_true(false, "skill '%s' unlocks a recipe that does not exist" % id)

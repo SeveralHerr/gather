@@ -47,8 +47,20 @@ const RESPAWN_INVULNERABLE_TIME := 2.0
 
 var sound_player: AudioStreamPlayer
 var sound_player_mining: AudioStreamPlayer
+
+# Every body currently inside the Interact area, interactable or not. The name predates
+# crafting stations and is kept because it is threaded through four methods; what it actually
+# holds is "things in reach". Which of them can be OPENED is InteractPrompt.is_interactable's
+# answer, asked in _process — see there for why that predicate is duck-typed.
 var chests = []
 var nearest_chest = null
+
+## The world-space "F / Furnace" bubble over `nearest_chest` (`ui/interact_prompt.gd`).
+## Created here rather than authored into main.tscn for the same reason GatherProgress is
+## created by ResourceManager2: it belongs beside the thing it points at, it is one shared
+## instance reused for every interactable in the game, and nothing about it is saved.
+var interact_prompt: InteractPrompt
+
 var v = Vector2.ZERO
 
 # Where a death sends the player back to. main.gd overwrites this once the island
@@ -98,7 +110,7 @@ func _ready():
 	inventory_data = InventoryData.new()
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.WoodPickaxe), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sword), 1) as SlotData)
-	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Sawmill), 1) as SlotData)
+	inventory_data.inventory_slot_datas.append(SlotData.new(GameItems.get_item(Types.Item.Workbench), 1) as SlotData)
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
 	inventory_data.inventory_slot_datas.append(null)
@@ -135,6 +147,7 @@ func _ready():
 			node.sync_player_stats()
 	interact.body_entered.connect(on_interact)
 	interact.body_exited.connect(on_interact_exit)
+	_build_interact_prompt()
 
 	$AnimatedSprite2D.play("Idle")
 	input_manager.connect("move_down", Callable(self, "_move_down"))
@@ -241,11 +254,33 @@ func _on_resource_removing(_location: Vector2i, _resource):
 	pass
 	
 
+## Parented to the TileMap, exactly as ResourceManager2 parents GatherProgress: the bubble is
+## `top_level`, so the parent decides nothing about where it draws, and putting it under the
+## tilemap keeps every world-space indicator in one branch instead of scattering them across
+## the Player.
+##
+## Guarded rather than assumed. `tilemap` is an @export wired in main.tscn, and a Player stood
+## up outside it (a test, a scratch scene) has none — a raise here would abort `_ready()` after
+## the input connections and leave a player that cannot be controlled, which is a much worse
+## failure than going without a prompt.
+func _build_interact_prompt() -> void:
+	if tilemap == null or tilemap.tileMap == null:
+		push_warning("Player: no tilemap, the interact prompt was not created")
+		return
+	interact_prompt = InteractPrompt.new()
+	interact_prompt.name = "InteractPrompt"
+	tilemap.tileMap.add_child(interact_prompt)
+
+
+## Both handlers below stamp the highlight through the same `is_interactable` gate `_process`
+## uses. Without it they are a frame's worth of disagreement: the area reports a body, this
+## draws a highlight under it, and `_process` then decides it is not something that opens and
+## takes the highlight away again.
 func on_interact(body: Node2D):
 	if not chests.has(body):
 		chests.append(body)
-		
-	if nearest_chest:
+
+	if InteractPrompt.is_interactable(nearest_chest):
 		tilemap.set_interact_highlight(nearest_chest.position)
 	pass
 
@@ -258,7 +293,7 @@ func on_interact_exit(body: Node2D):
 		# which is also where the gather selector lives (gather-3zg.6).
 		tilemap.clear_interact_highlight()
 
-	if nearest_chest:
+	if InteractPrompt.is_interactable(nearest_chest):
 		tilemap.set_interact_highlight(nearest_chest.position)
 	pass
 	
@@ -505,16 +540,25 @@ func _process(_delta):
 	# bool test while no dip is running. See the hit-stop section of systems/juice.gd.
 	Juice.tick()
 
-	if Input.is_action_just_pressed("action"):
-		if not nearest_chest:
-			return
+	# Duck-typed, and gated on the SAME predicate the highlight and the prompt below are.
+	#
+	# This used to be `if nearest_chest is TestChest ... elif nearest_chest is CraftingStation`,
+	# which is why "every interactable" was false: anything else that walked into the Interact
+	# area became `nearest_chest`, got a highlight tile stamped under it and a prompt over it,
+	# and then did nothing at all when the key was pressed — with no error and nothing on screen
+	# admitting it. Adding an interactable also meant remembering to edit a chain in a file about
+	# the player, which is the sort of edit that is remembered late. Asking whether the thing can
+	# be interacted with is both the smaller rule and the honest one.
+	#
+	# The old shape also `return`ed out of _process on a press with nothing in range, skipping
+	# the prune and the nearest-search for that frame.
+	if Input.is_action_just_pressed("action") and InteractPrompt.is_interactable(nearest_chest):
+		nearest_chest.player_interact()
+		if interact_prompt != null:
+			# The bubble reacts to the press landing, so a press that registered is visibly
+			# different from one aimed a tile short.
+			interact_prompt.react()
 
-		if nearest_chest is TestChest:
-			nearest_chest.player_interact()
-
-		elif nearest_chest is CraftingStation:
-			nearest_chest.player_interact()
-			
 	# A chest freed while still inside the Interact area never fires body_exited, so `chests`
 	# can hold a freed object. Reading .position off one errors every frame; dropping them
 	# here is what keeps nearest_chest honest (gather-3zg.6).
@@ -524,22 +568,39 @@ func _process(_delta):
 			live_chests.append(chest)
 	if live_chests.size() != chests.size():
 		chests = live_chests
-		if not is_instance_valid(nearest_chest):
-			nearest_chest = null
-			tilemap.clear_interact_highlight()
 
+	# Recomputed from nothing every frame rather than left to decay: `nearest_chest` used to be
+	# written only when something beat the running best, so a target that was freed, or that
+	# stopped qualifying, stayed nearest until the area happened to empty.
+	var nearest = null
 	var nearestDistance = 1000000
-	for i in chests.size():
-		var tilePos = tilemap.tileMap.local_to_map(chests[i].position)
+	for chest in chests:
+		# The gate. A body in reach that cannot be opened is not a target, so it can neither
+		# take the highlight off the station standing next to it nor raise a prompt that lies.
+		if not InteractPrompt.is_interactable(chest):
+			continue
+		var tilePos = tilemap.tileMap.local_to_map(chest.position)
 		var direction = global_position - tilemap.tileMap.map_to_local(tilePos)
 		var distance = direction.length()
 		if distance < nearestDistance:
 			nearestDistance = distance
-			nearest_chest = chests[i]
+			nearest = chest
+	nearest_chest = nearest
+
 	if nearest_chest:
 		# set_interact_highlight is idempotent, so the common case — same chest, same cell —
 		# is a comparison rather than a wipe-and-restamp of the whole layer every frame.
+		# clear_interact_highlight touches only this system's own cell; remove_highlight() wipes
+		# the whole of layer 3, which is also where the gather selector lives (gather-3zg.6).
 		tilemap.set_interact_highlight(nearest_chest.position)
+	else:
+		tilemap.clear_interact_highlight()
+
+	if interact_prompt != null:
+		# Cheap to call every frame with the same target — only a CHANGE of target costs
+		# anything. Driven from the same `nearest_chest` the highlight is, so the two can never
+		# point at different things.
+		interact_prompt.point_at(nearest_chest)
 	pass
 	
 func get_drop_position() -> Vector2:

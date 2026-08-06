@@ -24,7 +24,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 
 func _stone_wall_type() -> Dictionary:
@@ -153,13 +153,13 @@ func test_stone_set_uses_the_same_layers_as_the_wood_set() -> String:
 	return ""
 
 
-## Both are craftable at the sawmill, and both cost something the player can actually
+## Both are craftable at the workbench, and both cost something the player can actually
 ## hold. A recipe naming an item that no station can produce and no node drops is the
 ## failure mode test_ore_chain guards for the ore tiers.
 func test_stone_set_is_craftable_from_stone() -> String:
 	for type in STONE_SET:
-		var recipe = recipes.get_sawmill_recipe(type)
-		var exists: String = _T.assert_true(recipe != null, "sawmill recipe for %d" % type)
+		var recipe = recipes.get_workbench_recipe(type)
+		var exists: String = _T.assert_true(recipe != null, "workbench recipe for %d" % type)
 		if exists != "":
 			return exists
 
@@ -182,7 +182,7 @@ func test_stone_set_is_craftable_from_stone() -> String:
 
 
 ## Neither is available on a clean save - they are a skill purchase, and the skill
-## that grants them has to name products the sawmill list actually contains, or
+## that grants them has to name products the workbench list actually contains, or
 ## Recipes.add_recipe pushes a warning and unlocks nothing.
 func test_a_skill_unlocks_the_stone_set() -> String:
 	var tree := SkillTree.new()
@@ -199,7 +199,7 @@ func test_a_skill_unlocks_the_stone_set() -> String:
 			return unlocked
 
 		var station: String = _T.assert_eq(
-			granted[type], Types.Item.Sawmill, "%d unlocks at the sawmill" % type
+			granted[type], Types.Item.Workbench, "%d unlocks at the workbench" % type
 		)
 		if station != "":
 			return station

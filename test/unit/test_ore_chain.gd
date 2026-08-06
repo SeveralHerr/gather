@@ -52,7 +52,7 @@ func setup() -> void:
 
 	recipes = load("res://crafting/recipes.gd").new()
 	recipes.furnace_recipes()
-	recipes.sawmill_recipes()
+	recipes.workbench_recipes()
 
 
 ## Every product any station can make, plus the cost of making it. Flattened out of the
@@ -121,9 +121,9 @@ func test_each_metal_tool_costs_its_own_bar() -> String:
 		if chain["tool"] == null:
 			continue
 
-		var recipe = recipes.get_sawmill_recipe(chain["tool"])
+		var recipe = recipes.get_workbench_recipe(chain["tool"])
 		if recipe == null:
-			return _T.assert_true(false, "no sawmill recipe for the %s tool" % chain["name"])
+			return _T.assert_true(false, "no workbench recipe for the %s tool" % chain["name"])
 
 		if not recipe.cost_list.has(chain["bar"]):
 			return _T.assert_true(false, "the %s tool does not cost %s bars" % [chain["name"], chain["name"]])
@@ -164,8 +164,8 @@ func test_the_gold_pickaxe_tops_the_ladder() -> String:
 func test_the_gold_pickaxe_outprices_the_iron_one() -> String:
 	# A strictly better tool that is not strictly dearer collapses the ladder into a
 	# single obvious purchase.
-	var iron = recipes.get_sawmill_recipe(Types.Item.IronPickaxe)
-	var gold = recipes.get_sawmill_recipe(Types.Item.GoldPickaxe)
+	var iron = recipes.get_workbench_recipe(Types.Item.IronPickaxe)
+	var gold = recipes.get_workbench_recipe(Types.Item.GoldPickaxe)
 
 	var err: String = _T.assert_gte(
 		gold.cost_list.get(Types.Item.GoldBar, 0),
@@ -376,9 +376,9 @@ func test_every_craftable_sword_costs_its_own_tier_of_bar() -> String:
 	}
 
 	for product in expected:
-		var recipe = recipes.get_recipe(Types.Item.Sawmill, product)
+		var recipe = recipes.get_recipe(Types.Item.Workbench, product)
 		if recipe == null:
-			return _T.assert_true(false, "%s has no sawmill recipe" % items.get_item(product).name)
+			return _T.assert_true(false, "%s has no workbench recipe" % items.get_item(product).name)
 		if recipe.cost_list.get(expected[product], 0) <= 0:
 			return _T.assert_true(false,
 				"%s does not cost any %s"
@@ -397,8 +397,8 @@ func test_a_sword_never_outprices_the_pickaxe_of_its_own_tier() -> String:
 	]
 
 	for pair in pairs:
-		var sword = recipes.get_recipe(Types.Item.Sawmill, pair["sword"])
-		var pickaxe = recipes.get_recipe(Types.Item.Sawmill, pair["pickaxe"])
+		var sword = recipes.get_recipe(Types.Item.Workbench, pair["sword"])
+		var pickaxe = recipes.get_recipe(Types.Item.Workbench, pair["pickaxe"])
 		if sword == null or pickaxe == null:
 			return _T.assert_true(false, "a tier is missing one of its two recipes")
 
@@ -438,7 +438,7 @@ func test_a_crafted_heal_beats_eating_its_own_ingredients() -> String:
 		if made == null:
 			return _T.assert_true(false, "a consumable is not registered")
 
-		var recipe = recipes.get_recipe(Types.Item.Sawmill, type)
+		var recipe = recipes.get_recipe(Types.Item.Workbench, type)
 		if recipe == null:
 			recipe = recipes.get_recipe(Types.Item.Furnace, type)
 		if recipe == null:

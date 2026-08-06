@@ -662,7 +662,7 @@ func clear_tile(location: Vector2i):
 ## atlas_location, NOT tile_atlas_location. The latter is the inventory ICON cell, which
 ## GameItem.get_atlas() prefers — and feeding it to a TileSetScenesCollectionSource writes a
 ## cell that instances nothing at all while set_cell() still reports success. A devtools verb
-## that copied the old body produced a sawmill that never appeared (gather-w41).
+## that copied the old body produced a workbench that never appeared (gather-w41).
 ## player_manager.place_tile:29 is the path the game itself uses, and it passes
 ## atlas_location; this now matches it.
 func set_tile_item(location: Vector2i, item: GameItem):
@@ -707,7 +707,7 @@ func play_audio(_location: Vector2i, tile_source_id: int, atlas_location: Vector
 		)
 	elif item and item.type in STONE_SOUNDED_BUILDS:
 		sound_manager.play_sound(sound_manager.SoundType.STONE)
-	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Sawmill or item.type == Types.Item.WoodFloor):
+	elif item and ( item.type == Types.Item.Chest or item.type == Types.Item.WoodDoor or item.type == Types.Item.Workbench or item.type == Types.Item.WoodFloor):
 			sound_manager.play_sound(sound_manager.SoundType.WOOD_PLACE)
 	
 ## Whether a cell refuses a build. `include_resources` widens the check to the floor

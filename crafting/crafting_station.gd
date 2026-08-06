@@ -1,7 +1,7 @@
 extends Node2D
 class_name CraftingStation
 
-## A placed sawmill or furnace. The station is a *producer*, not a menu: crafting pays
+## A placed workbench or furnace. The station is a *producer*, not a menu: crafting pays
 ## the cost up front and sets a work order, and the station then ticks one item per
 ## second into the world at its own feet. That is why crafting is station-bound and
 ## why building a second one is real throughput rather than decoration.
@@ -25,6 +25,18 @@ var starting_count: int = 0
 
 func player_interact() -> void:
 	toggle_crafting_station.emit(self)
+
+
+## What the world-space interact prompt calls this station (`ui/interact_prompt.gd`).
+##
+## Read out of the item registry rather than typed here, so the prompt says whatever
+## `items/items.gd` registered for this station type and a rename there needs no edit in this
+## file. The fallback is what a station whose type is not in the registry gets — nothing in the
+## game reaches it, but a station is placed from a save payload's `type` field and that field
+## comes off a file on disk.
+func interact_prompt_label() -> String:
+	return InteractPrompt.item_name(GameItems, type, "Station")
+
 
 func _ready():
 	add_to_group("CraftingStations")

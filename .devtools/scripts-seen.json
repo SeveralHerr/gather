@@ -1,7 +1,7 @@
 {
   "action": "scripts_seen",
   "data": {
-    "count": 63,
+    "count": 65,
     "scripts": [
       "res://addons/godot_selftest/dev_tools.gd",
       "res://addons/virtual_joystick/virtual_joystick.gd",
@@ -29,6 +29,7 @@
       "res://player/states/player_gather.gd",
       "res://player/states/player_idle.gd",
       "res://player/states/player_net.gd",
+      "res://player/states/player_roll.gd",
       "res://player/states/state_machine.gd",
       "res://systems/input_manager.gd",
       "res://systems/level_up_manager.gd",
@@ -45,6 +46,7 @@
       "res://ui/fps_label.gd",
       "res://ui/gather_progress.gd",
       "res://ui/hud_toolbar.gd",
+      "res://ui/interact_prompt.gd",
       "res://ui/inventory_interface.gd",
       "res://ui/island_compass.gd",
       "res://ui/land_purchase_ui.gd",
@@ -54,7 +56,6 @@
       "res://ui/raid_banner.gd",
       "res://ui/run_summary_ui.gd",
       "res://ui/save_slot_ui.gd",
-      "res://ui/screen_flash.gd",
       "res://ui/skill_node_button.gd",
       "res://ui/skill_tree_ui.gd",
       "res://world/camera.gd",
@@ -64,14 +65,15 @@
       "res://world/resource_manager2.gd",
       "res://world/resource_nodes/berry_bush.gd",
       "res://world/resource_spawn_timer.gd",
+      "res://world/tile_scenes/test_chest.gd",
       "res://world/vfx/rain_vfx.gd",
       "res://world/vfx/sky_lighting.gd"
     ]
   },
-  "id": "8af623f03276",
-  "message": "63 distinct scripts seen since launch",
-  "pid": 4240,
-  "start_unix": 1785874546.369,
+  "id": "16f5ce599c32",
+  "message": "65 distinct scripts seen since launch",
+  "pid": 20620,
+  "start_unix": 1785987080.246,
   "status": {
     "ambient_frozen": false,
     "day": 1,
@@ -96,5 +98,5 @@
     "xp": 0
   },
   "success": true,
-  "timestamp": 1785874749.676
+  "timestamp": 1785987165.061
 }
