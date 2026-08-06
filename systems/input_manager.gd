@@ -13,6 +13,7 @@ signal gather
 signal destroy_input_press
 signal destroy_input_release
 signal attack
+signal dodge
 signal toggle_inventory
 signal toggle_skills
 signal toggle_land
@@ -72,6 +73,23 @@ func _input(event):
 		gather_input_press.emit()
 	if event.is_action_pressed("attack") and not disable_input:
 		attack.emit()
+	# Gated on disable_input like the two gameplay presses above it, and unlike the panel
+	# toggles below: a dodge acts on the world, and rolling while dead or mid-respawn would
+	# mean rolling away from the spawn point the respawn is a half-second from teleporting the
+	# player back to.
+	#
+	# The `has_action` guard is the same load-bearing one the `saves` and `quests` bindings
+	# carry, for exactly the reason spelled out there: `dodge` is the newest binding in the
+	# InputMap, and is_action_pressed() on an action the map does not know pushes an error
+	# rather than returning false — from _input(), which runs several times a frame, so it
+	# floods the log and makes the game unplayable rather than merely noisy. A clone that has
+	# not re-imported since this binding landed is exactly that case.
+	#
+	# There is no release half, unlike gather and destroy. A roll is a one-shot that runs to
+	# its own timer, so no press can be left latched by a lift that never arrives — which is
+	# also why the touch overlay's ROLL button needs no `_latched_action` handling.
+	if InputMap.has_action("dodge") and event.is_action_pressed("dodge") and not disable_input:
+		dodge.emit()
 	# Releases are deliberately NOT gated on disable_input, while the presses above are.
 	# A release is the half that *stops* something, and swallowing it strands whatever the
 	# press started: hold MINE with one thumb, open a panel with the other (the panel

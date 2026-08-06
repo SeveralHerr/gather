@@ -51,3 +51,49 @@ func process(_delta: float) -> void:
 
 func physics_process(_delta: float) -> void:
 	pass
+
+
+## True while this state has a sword swing in its ACTIVE frames — the animation running and
+## the hitbox armed.
+##
+## This is the predicate that makes a swing atomic, and it is answered by the state rather
+## than by the player because the state is the only thing that knows where in the swing it
+## is. `player.gd` asks it in three places, and all three used to get the question wrong by
+## asking the AnimationPlayer instead:
+##
+##  * `_gather_input_release()` called `animation_player.stop()` unconditionally. On a phone
+##    the primary button sends `gather` OR `attack` from the same physical button
+##    (ui/mobile_controls.gd, `_action_for`), so lifting the finger that started a swing
+##    stopped the swing's own animation two frames in.
+##  * `_physics_process()` disarmed `$Attack` the moment `AnimationPlayer.is_playing()` went
+##    false, which is a consequence of the above rather than an independent fact — so one
+##    stray `stop()` both cut the animation short and silently took the damage off it.
+##  * `_destroy_input_press()` plays the Gather animation straight over whatever is running.
+##
+## A state that is merely *recovering* from a swing answers false: the blow has landed, the
+## hitbox is down, and there is nothing left to protect.
+func owns_swing() -> bool:
+	return false
+
+
+## True while this state has taken control of the player and refuses new actions until it
+## hands them back — the dodge roll, which is a commitment the moment it starts.
+##
+## Separate from `owns_swing()` because the two gate different things: a swing may not be
+## interrupted but does not stop the player rolling out of its recovery, and a roll may not
+## be interrupted at all. Collapsing them into one flag would mean either a roll that can be
+## cancelled by mashing attack, or a swing recovery the player is locked inside.
+func is_committed() -> bool:
+	return false
+
+
+## The velocity the player should actually move at this frame, given the `walk` vector the
+## input and the skill tree worked out.
+##
+## The hook exists because two states need to overrule ordinary walking in opposite
+## directions and neither can be expressed as a speed multiplier alone: PlayerAttack slows
+## the player without changing where they are going, and PlayerRoll ignores the input
+## entirely and drives a fixed burst. Returning the argument unchanged is what every other
+## state wants, so a new state costs nothing here.
+func movement_velocity(walk: Vector2) -> Vector2:
+	return walk

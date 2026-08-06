@@ -34,6 +34,9 @@ var health_manager: HealthManager
 @onready var hot_bar_inventory = $"../../UI/HotBarInventory"
 @onready var state_machine: StateMachine = $StateMachine
 @onready var gather_state = $StateMachine/PlayerGather
+## Typed, unlike `gather_state` above, because `_dodge()` asks it `can_roll()` before
+## transitioning rather than after — see PlayerRoll.can_roll() for why that ordering matters.
+@onready var roll_state: PlayerRoll = $StateMachine/PlayerRoll
 @onready var camera: Camera = $Camera2D
 @onready var area_2d: Area2D = $Area2D
 @onready var hp_bar: ProgressBar = $Camera2D/HUD/PlayerInfo/HpBar
@@ -60,6 +63,19 @@ var invulnerable := false
 # This one is only ever written by the debug panel and nothing in the game clears
 # it, which is what makes it a toggle rather than a timer.
 var god_mode := false
+
+# The dodge roll's i-frames, and separate from `invulnerable` for the reason stated
+# directly above rather than out of tidiness. Both directions of sharing that flag are
+# broken and neither looks like a roll bug: a respawn grace expiring mid-roll would clear
+# the roll's invulnerability, and a roll ending inside a respawn grace would clear the
+# RESPAWN's — killing a player who had just come back and is still standing where they
+# died. One owner each. Written only by PlayerRoll, which clears it in exit() as well as
+# on its own timer, so a death mid-roll cannot strand it true.
+var rolling_invulnerable := false
+
+# Instance ids of the enemies the swing currently running has already struck. See
+# _on_body_entered_attack(), which is where the double-hit actually comes from.
+var _swing_hits := {}
 
 # Get the gravity from the project settings to be synced with RigidBody nodes.
 var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
@@ -135,6 +151,7 @@ func _ready():
 	input_manager.connect("destroy_input_press", Callable(self, "_destroy_input_press"))
 	input_manager.connect("destroy_input_release", Callable(self, "_destroy_input_release"))
 	input_manager.connect("attack", Callable(self, "_attack"))
+	input_manager.connect("dodge", Callable(self, "_dodge"))
 
 	resourceManager.connect("resource_removing", Callable(self, "_on_resource_removing"))
 	resourceManager.connect("resource_removing_stop", Callable(self, "_on_resource_removing_stop"))
@@ -166,6 +183,13 @@ func _on_died():
 # kill you again while you are still standing in its lap.
 func respawn() -> void:
 	input_manager.disable_input = true
+	# Through the machine rather than only writing the three properties below, because a swing
+	# or a roll is now more than the properties: PlayerAttack holds a live active window and
+	# PlayerRoll holds `rolling_invulnerable`. Dying mid-roll used to be impossible to reach
+	# and is now one input away, and a roll whose exit() never ran leaves the player
+	# permanently invulnerable — the one bug in this file that nothing on screen would report.
+	# change_to() runs the outgoing state's exit(), which is exactly the teardown wanted here.
+	state_machine.change_to("PlayerIdle")
 	animation_player.stop()
 	gather.visible = false
 	$Attack.visible = false
@@ -254,6 +278,15 @@ func _destroy_input_release():
 	pass
 	
 func _destroy_input_press():
+	# The third way an outside system used to end a swing early, and the least obvious: this
+	# plays Gather straight over whatever the AnimationPlayer is running, so pressing the
+	# destroy key mid-swing replaced the swing's animation and `_physics_process` read the
+	# substitution as the swing having finished. Declining the press for the ~0.2s of a live
+	# swing costs the player nothing — the tile is still there afterwards — and is the same
+	# rule the gather release above follows, through the same predicate.
+	if not release_may_stop_animation(_state()):
+		return
+
 	$Gather.visible = true
 	#$AnimatedSprite2D.play("Gathering")
 	if not $AnimatedSprite2D.flip_h:
@@ -264,8 +297,62 @@ func _destroy_input_press():
 	destroy_manager.start_removing_resource()
 	pass	
 
+## Whether a hit gets through, given the four flags that can stop it.
+##
+## Static and taking every input as an argument for the same reason `build_payload()` below is
+## (see the header of the save-payload section): Player is scene-backed — half its @onready
+## fields reach up into ../../Systems and ../../UI — so a headless test cannot stand one up,
+## and this rule is exactly the part worth pinning. The dodge roll's whole value is that its
+## i-frames stop a hit, and there is no other way to assert that outside a running game.
+##
+## Four flags rather than one, each with exactly one owner: `is_dead` the death sequence,
+## `invulnerable` the respawn grace, `rolling_invulnerable` PlayerRoll, `god_mode` the debug
+## panel. The declarations say why merging any two of them is a bug.
+static func hit_lands(
+		dead: bool, respawn_grace: bool, rolling: bool, cheat: bool) -> bool:
+	return not (dead or respawn_grace or rolling or cheat)
+
+
+## Whether an input release from OUTSIDE the state machine may stop the AnimationPlayer.
+##
+## Static for the reason above, and this one is the rule that makes a swing atomic: false
+## while a swing is in its active frames, true for everything else — including a null state,
+## because a machine that has not readied yet must not leave a looping Gather animation
+## running forever.
+static func release_may_stop_animation(state: PlayerState) -> bool:
+	return state == null or not state.owns_swing()
+
+
+## Whether a dodge press may start a roll.
+##
+## Static for the reason above. Every refusal is gathered here rather than left as sequential
+## early returns in `_dodge()`, because the ORDER does not matter but the completeness does: a
+## missing one is a roll that cancels a committed swing, fires while the player is being
+## teleported back to spawn, or ignores its own cooldown — and the last of those is a free
+## second of invulnerability on tap.
+static func dodge_allowed(
+		state: PlayerState, roll_ready: bool, dead: bool, input_disabled: bool) -> bool:
+	if dead or input_disabled:
+		return false
+	if state != null and (state.owns_swing() or state.is_committed()):
+		return false
+	return roll_ready
+
+
+## Records `id` as struck by the swing currently running, and answers whether this is the
+## FIRST time it has been struck by it. `seen` is mutated.
+##
+## Static and taking the dictionary for the reason above — the double-hit is otherwise only
+## observable by standing an enemy in front of a live Player and watching a health bar.
+static func register_swing_hit(seen: Dictionary, id: int) -> bool:
+	if seen.has(id):
+		return false
+	seen[id] = true
+	return true
+
+
 func receive_hit(_force: Vector2, _damage: int):
-	if is_dead or invulnerable or god_mode:
+	if not hit_lands(is_dead, invulnerable, rolling_invulnerable, god_mode):
 		return
 
 	#velocity += force
@@ -292,23 +379,88 @@ func receive_hit(_force: Vector2, _damage: int):
 	animated_sprite_2d.material.set_shader_parameter("b", 1)
 	#sound_manager.play_sound(sound_manager.SoundType.HIT)
 
+## Clears the record of what the swing about to start has hit. Called by PlayerAttack, which
+## is the only thing that knows where a swing begins.
+func begin_swing() -> void:
+	_swing_hits.clear()
+
+
 func _on_body_entered_attack(body: Node2D):
-	if body is Enemy:
-		var direction = (body.global_position - global_position).normalized()
-		# The equipped sword sets `damage` (PlayerManager.show_slot_data); this used
-		# to pass a hardcoded 3, so neither the sword nor any skill reached the enemy.
-		body.receive_hit(direction * 100, damage + stats.damage_bonus)
+	if body is not Enemy:
+		return
+
+	# One swing, one hit per enemy. `body_entered` is not once-per-swing: the `Attack` area's
+	# POSITION AND ROTATION are both keyframed (main.tscn's Attack / Attack2 sweep it from
+	# roughly (-1, 1) to (3, 3) while rotating ~140 degrees), so the area genuinely leaves an
+	# enemy and arrives back on it inside one 0.2s animation, and Godot reports each arrival.
+	# Against a stationary skeleton that is two hits for one swing, and the second one is
+	# invisible in every reading except the health bar dropping twice as fast as the damage
+	# the sword claims. The buffered follow-up swing makes this easier to hit, not harder.
+	#
+	# Keyed on the instance id rather than on the node, so a freed enemy — a kill on the first
+	# hit is the common case — cannot keep a reference alive in here until the next swing.
+	if not register_swing_hit(_swing_hits, body.get_instance_id()):
+		return
+
+	var direction = (body.global_position - global_position).normalized()
+	# The equipped sword sets `damage` (PlayerManager.show_slot_data); this used
+	# to pass a hardcoded 3, so neither the sword nor any skill reached the enemy.
+	body.receive_hit(direction * 100, damage + stats.damage_bonus)
 	
+## The state currently running, or null. Every gate below goes through this rather than
+## reaching into `state_machine.state` directly, so a machine that has not readied yet is one
+## check rather than five.
+func _state() -> PlayerState:
+	return state_machine.state if state_machine != null else null
+
+
 func _attack():
 	if is_dead:
 		return
+	# A roll is a commitment. Letting an attack cut out of one would make the roll the cheapest
+	# way to reposition mid-fight with nothing charged for it, which is the opposite of what
+	# its recovery exists to do.
+	var current := _state()
+	if current != null and current.is_committed():
+		return
 	state_machine.change_to("PlayerAttack")
 
+
+## Shift, or the ROLL button on the touch overlay.
+##
+## All three refusals are gates in front of the transition rather than early exits inside the
+## state, and that ordering is the point: `change_to("PlayerRoll")` runs the OUTGOING state's
+## exit() before PlayerRoll's enter() gets to object, so a roll refused from inside enter()
+## would still have torn down a gather the player is holding — for a roll that never happened.
+## Not out of a live swing: the blow is mid-flight, and cancelling it would take the damage off
+## an attack the player has already committed to and will still pay the recovery for. Rolling
+## out of that swing's RECOVERY is fine and deliberate — `owns_swing()` is false by then, and a
+## combat system that will not let you leave after the hit has landed punishes attacking at all.
+func _dodge():
+	if not dodge_allowed(_state(), roll_state.can_roll(), is_dead, input_manager.disable_input):
+		return
+
+	state_machine.change_to("PlayerRoll")
+
+
+## Stops the mining work order, and hands the animation question to the state machine.
+##
+## The unconditional `animation_player.stop()` this replaces is what made a swing breakable.
+## It fires on any `gather` RELEASE, and on a phone `gather` and `attack` come off the SAME
+## physical button — `ui/mobile_controls.gd`'s one contextual primary resolves to either — so
+## lifting the finger that had just started a swing stopped the swing's own animation a couple
+## of frames in, and `_physics_process` then read the quiet AnimationPlayer as "the swing is
+## over" and disarmed the hitbox. A tap on HIT did no damage, with nothing anywhere reporting
+## why.
+##
+## The stop is still needed for its actual job — Gather and Gather_left are authored
+## `loop_mode = 1`, so they never end on their own — which is why this asks the state rather
+## than simply deleting the line.
 func _gather_input_release():
-	#$StateMachine.change_to("PlayerIdle")
 	resourceManager.stop_removing_resource()
-	#$AnimatedSprite2D.play("Idle")
-	#$Gather.visible=false
+
+	if not release_may_stop_animation(_state()):
+		return
 	animation_player.stop()
 
 func _move_down():
@@ -330,10 +482,20 @@ func _move_right():
 func _process_movement():
 	if v == Vector2.ZERO:
 		sound_player.stop()
-	
-	velocity = v * MOVE_SPEED * stats.move_speed_mult
+
+	# Annotated rather than inferred: `v` is an untyped field (it predates this file's typed
+	# style), so `:=` here fails to compile with "cannot infer the type of walk".
+	var walk: Vector2 = v * MOVE_SPEED * stats.move_speed_mult
 	v = Vector2.ZERO
-	
+
+	# The running state gets the last word. Two states need to overrule ordinary walking and
+	# they need it in opposite directions — PlayerAttack slows the player without steering
+	# them, PlayerRoll ignores the input entirely and drives its own burst — so this is a
+	# vector hook rather than a speed multiplier. Every other state returns the argument
+	# unchanged, which is why nothing else in the project had to learn about it.
+	var current := _state()
+	velocity = current.movement_velocity(walk) if current != null else walk
+
 	move_and_slide()
 	
 func _process(_delta):
@@ -388,8 +550,18 @@ func _physics_process(_delta):
 	#$AnimatedSprite2D.play("Idle")
 		
 	_process_movement()
-	
-	if not $AnimationPlayer.is_playing():
+
+	var current := _state()
+	var swinging := current != null and current.owns_swing()
+
+	if not $AnimationPlayer.is_playing() and not swinging:
+		# `swinging` is what makes the swing atomic on this side. This block used to read a
+		# quiet AnimationPlayer as "nothing is being swung", which is true of the net and false
+		# of the sword the moment anything else stops or replaces the animation — and three
+		# separate things did (see _gather_input_release, _destroy_input_press). PlayerAttack
+		# now owns its own active window and takes the hitbox down itself at the end of it;
+		# this stays as the backstop for every state that is NOT mid-swing, which is what it
+		# was always doing correctly for the net.
 		$Attack.visible = false
 		$Attack.monitoring = false
 		net.visible = false
@@ -407,7 +579,13 @@ func _physics_process(_delta):
 		net.monitoring = false
 		net.monitorable = false
 
-	if velocity.x != 0:
+	# Facing is frozen for the active frames of a swing. The `Attack` area is authored
+	# per-direction — main.tscn has a separate Attack_Left with its own keyframed positions —
+	# so flipping the sprite mid-swing points the sprite one way and leaves the hitbox sweeping
+	# the other. The player sees a sword swung to their left and an enemy on their left taking
+	# no damage, which reads as the hit detection being broken rather than as them having
+	# turned. Facing is free again the instant the blow has landed.
+	if velocity.x != 0 and not swinging:
 		$AnimatedSprite2D.flip_v = false
 		$AnimatedSprite2D.flip_h = velocity.x < 0
 

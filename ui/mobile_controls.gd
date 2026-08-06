@@ -130,6 +130,14 @@ const JOYSTICK_SCALE_MAX := 1.25
 ##   action    open a chest / crafting station; without it the crafting half of the
 ##             game is unreachable on a phone. One row up from the primary so a
 ##             thumb reaching for the big button cannot clip it.
+##   dodge     the dodge roll. It sits in the thumb cluster next to USE and NOT in
+##             the top-right corner with BREAK, because it is the one button on the
+##             overlay whose value is entirely in *when* it is pressed: the i-frames
+##             cover a window measured in tenths of a second, so a verb that costs a
+##             reach across the screen is a verb the player never gets to in time. It
+##             is also the opposite of destructive — a mis-tap costs a second of
+##             cooldown — so it is a safe neighbour for the button under the thumb, in
+##             a way BREAK explicitly is not.
 ##   destroy   removes a misplaced building. Held, same as gather. Moved out of the
 ##             thumb cluster and up to the top-right corner (see below).
 ##   inventory / quests / skills / land   the panels. They are the progression UI, and
@@ -179,6 +187,7 @@ const JOYSTICK_SCALE_MAX := 1.25
 const BUTTON_SPECS := [
 	{"name": "PrimaryButton", "action": PRIMARY_ACTION, "label": "MINE", "big": true, "primary": true, "corner": "br", "row": 0},
 	{"name": "ActionButton", "action": "action", "label": "USE", "big": false, "primary": false, "corner": "br", "row": 1},
+	{"name": "RollButton", "action": "dodge", "label": "ROLL", "big": false, "primary": false, "corner": "br", "row": 1},
 	{"name": "SkillsButton", "action": "skills", "label": "SKILL", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "InventoryButton", "action": "inventory", "label": "BAG", "big": false, "primary": false, "corner": "tr", "row": 0},
 	{"name": "LandButton", "action": "land", "label": "LAND", "big": false, "primary": false, "corner": "tr", "row": 0},

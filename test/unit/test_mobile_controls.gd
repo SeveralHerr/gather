@@ -123,7 +123,7 @@ func test_every_button_names_an_action_the_input_map_has() -> String:
 			return err
 
 	for required in [
-			"gather", "attack", "action", "destroy",
+			"gather", "attack", "action", "destroy", "dodge",
 			"inventory", "quests", "skills", "land", "saves"]:
 		var err: String = _T.assert_true(actions.has(required), "'%s' is reachable" % required)
 		if err != "":
@@ -147,13 +147,13 @@ func test_mine_and_hit_are_now_one_button() -> String:
 	if err != "":
 		return err
 
-	# Eight buttons: the primary, USE, the five panels and BREAK. This was six until the
-	# SAVES panel arrived and seven until QUEST did. The count is here to pin the MINE/HIT
-	# merge — the thing the bead was about — so it moves when a *panel* is added and must
-	# not move when someone re-splits the primary button into two world verbs. The
-	# world_actions check below is the half that actually guards that.
+	# Nine buttons: the primary, USE, ROLL, the five panels and BREAK. This was six until the
+	# SAVES panel arrived, seven until QUEST did and eight until the dodge roll did. The count
+	# is here to pin the MINE/HIT merge — the thing the bead was about — so it moves when a
+	# button is added and must not move when someone re-splits the primary button into two
+	# world verbs. The world_actions check below is the half that actually guards that.
 	err = _T.assert_eq(
-		MobileControls.BUTTON_SPECS.size(), 8, "the overlay draws eight buttons")
+		MobileControls.BUTTON_SPECS.size(), 9, "the overlay draws nine buttons")
 	if err != "":
 		return err
 
@@ -161,9 +161,12 @@ func test_mine_and_hit_are_now_one_button() -> String:
 	for spec in MobileControls.BUTTON_SPECS:
 		if str(spec["corner"]) == "br":
 			world_actions += 1
-	# Only the primary and USE sit under the thumb. BREAK moved to the far corner and
-	# ITEM is gone entirely.
-	return _T.assert_eq(world_actions, 2, "two buttons in the thumb cluster")
+	# The primary, USE and ROLL sit under the thumb. BREAK stayed in the far corner and ITEM
+	# is still gone. ROLL earns its place there rather than beside BREAK because its whole
+	# value is in *when* it is pressed — the i-frames last a third of a second — so a verb
+	# that costs a reach across the screen is a verb that arrives too late; and unlike BREAK,
+	# a mis-tap on it destroys nothing.
+	return _T.assert_eq(world_actions, 3, "three buttons in the thumb cluster")
 
 
 func test_break_is_out_of_the_thumbs_way_but_still_reachable() -> String:

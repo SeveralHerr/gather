@@ -78,6 +78,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("kill_enemy", _cmd_kill_enemy)
 	dev.register_command("quest_state", _cmd_quest_state)
 	dev.register_command("claim_quest", _cmd_claim_quest)
+	dev.register_command("combat_state", _cmd_combat_state)
+	dev.register_command("force_dodge", _cmd_force_dodge)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -3676,4 +3678,107 @@ func _cmd_claim_quest(args: Dictionary) -> Dictionary:
 		"success": true,
 		"message": "claimed '%s' for %d gold and %d xp" % [id, quest.reward_coins, quest.reward_xp],
 		"data": {"id": id, "coins": quest.reward_coins, "xp": quest.reward_xp},
+	}
+
+
+## The swing and the roll, in one read.
+##
+## Both are timelines rather than flags, and `get-state` cannot see either: the state nodes'
+## timers are plain floats on a script that answers to a name the bridge has no path to, and
+## the two things a caller actually wants to know — "is the hitbox live right now" and "are
+## the i-frames up right now" — are derived, not stored. A verb that reported only
+## `state: "PlayerAttack"` cannot tell an active window apart from its recovery, and those are
+## precisely the two halves the atomicity rule distinguishes.
+##
+## Reported together for the reason `world_clock` reads its tint back off all three canvases:
+## the swing and the roll gate each other (a roll is refused out of a live swing, an attack is
+## refused out of a roll), so a reading of one without the other cannot explain a refusal.
+## `hitbox_monitoring` is read off the Area2D itself rather than inferred from the phase for
+## the same reason — "the state thinks it is swinging" and "the hitbox is actually armed" live
+## in different objects, and a bug here is exactly the two disagreeing.
+func _cmd_combat_state(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player in the scene", "data": {}}
+
+	var machine := player.state_machine
+	var current: PlayerState = machine.state if machine != null else null
+	# Untyped on purpose: player_attack.gd declares no `class_name` (none of the player states
+	# except PlayerRoll do), so `can_swing()` is reachable only through a dynamic call. Typing
+	# this as PlayerState would compile the read of a method the base does not declare.
+	var attack_state = null
+	if machine != null:
+		attack_state = machine.get_node_or_null("PlayerAttack")
+	var roll: PlayerRoll = player.roll_state
+
+	return {
+		"success": true,
+		"message": "state %s, %s" % [
+			current.name if current != null else "<none>",
+			"mid-swing" if current != null and current.owns_swing() else "not swinging"],
+		"data": {
+			"state": current.name if current != null else "",
+			# The three predicates player.gd gates on, spelled out. Each one is a refusal the
+			# player experiences as "the button did nothing".
+			"owns_swing": current.owns_swing() if current != null else false,
+			"is_committed": current.is_committed() if current != null else false,
+			"hitbox_monitoring": player.attack.monitoring if player.attack != null else false,
+			"hitbox_visible": player.attack.visible if player.attack != null else false,
+			"swing_ready": attack_state.can_swing() if attack_state != null else false,
+			"swing_buffered": attack_state.get("_buffered") if attack_state != null else false,
+			"swing_cooldown_left": attack_state.get("_cooldown_left") if attack_state != null else 0.0,
+			"roll_ready": roll.can_roll() if roll != null else false,
+			"roll_cooldown_left": roll.get("_cooldown_left") if roll != null else 0.0,
+			# Both flags, never one. They are ORed in receive_hit and owned by different
+			# systems, so "why did that hit not land" is unanswerable from either alone.
+			"rolling_invulnerable": player.rolling_invulnerable,
+			"invulnerable": player.invulnerable,
+			"animation": player.animation_player.current_animation if player.animation_player != null else "",
+			"animation_playing": player.animation_player.is_playing() if player.animation_player != null else false,
+			"facing_left": player.is_facing_left(),
+			"velocity": _xy(player.velocity),
+		},
+	}
+
+
+## Rolls, through `Player._dodge()` rather than by entering the state.
+##
+## Going through the real entry point is the whole value: `_dodge()` is where the three
+## refusals live (dead, mid-swing, on cooldown), so a verb that called
+## `change_to("PlayerRoll")` would test a path the game itself never takes and would happily
+## roll out of a swing the player cannot. A refusal is reported honestly, with the reason,
+## because "on cooldown" and "mid-swing" are different answers and the state name alone does
+## not separate them.
+func _cmd_force_dodge(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {"success": false, "message": "no player in the scene", "data": {}}
+
+	var before: PlayerState = player.state_machine.state
+	var why := ""
+	if player.is_dead:
+		why = "the player is dead"
+	elif player.input_manager.disable_input:
+		why = "input is disabled (mid-respawn, or a panel is open)"
+	elif before != null and before.owns_swing():
+		why = "a swing is in its active frames"
+	elif before != null and before.is_committed():
+		why = "already rolling"
+	elif not player.roll_state.can_roll():
+		why = "on cooldown, %.2fs left" % float(player.roll_state.get("_cooldown_left"))
+
+	player._dodge()
+
+	var after: PlayerState = player.state_machine.state
+	var rolled := after != null and after.name == "PlayerRoll"
+	return {
+		"success": rolled,
+		"message": "rolled" if rolled else "no roll: %s" % (why if why != "" else "the state did not change"),
+		"data": {
+			"rolled": rolled,
+			"state": after.name if after != null else "",
+			"reason": why,
+			"rolling_invulnerable": player.rolling_invulnerable,
+			"roll_cooldown_left": player.roll_state.get("_cooldown_left"),
+		},
 	}

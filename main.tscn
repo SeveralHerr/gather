@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://b17r3anwi01ws" path="res://world/camera.gd" id="9_3scwu"]
 [ext_resource type="Script" uid="uid://cnryocio6tv5a" path="res://player/states/player_attack.gd" id="9_acc7j"]
 [ext_resource type="Script" uid="uid://b4fvt1w8c4i5x" path="res://player/states/player_net.gd" id="11_xxb2o"]
+[ext_resource type="Script" path="res://player/states/player_roll.gd" id="49_proll"]
 [ext_resource type="Script" uid="uid://db88ep045yu2k" path="res://ui/crafting_ui.gd" id="12_bqf2j"]
 [ext_resource type="Script" uid="uid://dggt1av586qyh" path="res://systems/level_up_manager.gd" id="12_hyjmf"]
 [ext_resource type="Script" uid="uid://dm5p7s0qvndo" path="res://ui/fps_label.gd" id="16_um00x"]
@@ -82,6 +83,7 @@ tracks/1/keys = {
 
 [sub_resource type="Animation" id="Animation_1fng2"]
 resource_name = "Attack2"
+length = 0.2
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -431,7 +433,7 @@ resourceManager = NodePath("../../Systems/ResourceManager")
 z_index = 1
 y_sort_enabled = true
 collision_layer = 1048577
-collision_mask = 1048577
+collision_mask = 1048705
 script = ExtResource("5_obuww")
 tilemap = NodePath("../..")
 resourceManager = NodePath("../../Systems/ResourceManager")
@@ -459,6 +461,9 @@ script = ExtResource("9_acc7j")
 
 [node name="PlayerNet" type="Node" parent="World/Player/StateMachine" unique_id=284193363]
 script = ExtResource("11_xxb2o")
+
+[node name="PlayerRoll" type="Node" parent="World/Player/StateMachine" unique_id=1041773055]
+script = ExtResource("49_proll")
 
 [node name="Interact" type="Area2D" parent="World/Player" unique_id=1300499698]
 collision_layer = 0
