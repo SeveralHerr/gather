@@ -5513,3 +5513,23 @@ Two concrete improvements to the skill:
   `dataviz` skill would be improved by saying plainly that plain-HTML bars are a first-class
   output and not a degraded one; the whole reference set reads as SVG-first, and for a
   report-shaped page the HTML bars were both more robust and more responsive.
+
+## 2026-08-05 — committed the balance tests and pushed main
+
+- Value: **overkill** — the gates were re-run before committing and told me exactly what the
+  subagent had already reported an hour earlier. No code changed between the two runs except
+  `tools/balance_model_impl.gd`, which no test loads.
+  - Expected: the same 594/592/2 and a clean lint, since the only edit since the last green run
+    was to a headless tool script outside the test path.
+  - Got: exactly that — `Total: 594 | Passed: 592 | Failed: 2`, `lint: 0 error(s), 0 warning(s)`,
+    no `SCRIPT ERROR`. The two failures are `test_no_loadout_wastes_extra_drop_chance` and
+    `test_the_foraging_capstone_still_does_something`, both red by design.
+  - Cheaper: trusting the subagent's report, which quoted the same totals line verbatim. Re-running
+    cost ~40s and bought only the confirmation that my own `_points_for` edit had not broken a
+    parse. Worth it as a pre-push habit, not because anything was in doubt.
+
+- Gap: **no gaps this turn.** The harness did what it says: two commands, two honest exit codes,
+  output redirected to files because the Windows build prints nothing to the console. Exit 1 from
+  a suite with deliberately-red gates is the one rough edge, and it is not a harness fault — it
+  means `/verify` can never be green on this repo until `roll_yield` is fixed. Noting it here so
+  the next person to see a red gate does not assume a regression.
