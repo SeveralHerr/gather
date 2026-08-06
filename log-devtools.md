@@ -5292,3 +5292,17 @@ Guidelines that make an entry useful later:
     instead of it shipping. It generalises past touch: the same read catches a button laid out
     off-screen, one under a full-rect `MOUSE_FILTER_STOP` sibling, and one whose whole strip is
     hidden behind a device check.
+
+## 2026-08-05 — advice-only: serverless multiplayer options
+
+- Value: **inconclusive** — no harness verbs were run; the question was architectural and
+  answered by reading `export_presets.cfg`, `player_manager.gd`, `input_manager.gd`,
+  `save_load.gd` and `run_stats.gd`. Nothing changed, so there was nothing to verify.
+  - Expected: that the answer would hinge on how player identity is threaded through the code.
+  - Got: static reads settled it — `PlayerManager` holds one `var player: Player` with 78
+    call sites across 42 files, `InputManager` emits global signals with no actor, and the
+    Web export preset rules out ENet. No running game could have said this better.
+  - Cheaper: nothing cheaper existed; grep + four file reads was the floor.
+
+- Gap: no gaps this turn — the harness was not the right tool for an advice-only response,
+  and its absence was not a limitation.
