@@ -883,7 +883,7 @@ At the end of **every** response, append an entry to `log-devtools.md` (create i
 missing). Two required halves: **was using the harness worth it**, and **what was
 missing from it**. If nothing was missing, write one explicit "no gaps this turn" line —
 that is what makes an absent gap distinguishable from a forgotten log. The `Value:`
-block is required either way.
+block is required either way. After running a skill or devtools, reflect on it's usage and suggest concrete imrpovements for it. 
 
 ```markdown
 ## YYYY-MM-DD — <what this response did>

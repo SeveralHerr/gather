@@ -5306,3 +5306,119 @@ Guidelines that make an entry useful later:
 
 - Gap: no gaps this turn — the harness was not the right tool for an advice-only response,
   and its absence was not a limitation.
+
+## 2026-08-05 — advised on multiplayer transport for the itch.io web build
+
+- Value: **inconclusive** — no code changed and the harness was not run; this was an
+  architecture question answered from `export_presets.cfg` and the browser sandbox's
+  constraints, neither of which a running game can tell you.
+  - Expected: nothing from runtime — the question is "what can a browser on static hosting
+    do", which is settled before the game boots.
+  - Got: two static reads instead. `export_presets.cfg:86-87` gives
+    `variant/extensions_support=false` and `variant/thread_support=false`, which is what
+    rules the GDExtension WebRTC path out of the web build and rules the itch
+    SharedArrayBuffer checkbox out of the discussion.
+  - Cheaper: nothing cheaper existed — two greps, ~3s, and launching the game would have
+    added nothing.
+
+- Gap: **no gaps this turn** — the harness was not exercised, so it had no opportunity to
+  fall short. Filing a gap here would be noise.
+
+## 2026-08-05 — staged a raid in the running game to screenshot an itch.io devlog draft
+
+- Value: **warranted** — the harness was the only way to reach the frame the post needed, and
+  it corrected the post's premise twice before a single pixel was captured.
+  - Expected: launch, `build_demo_world`, `start_raid`, screenshot — a dense night-raid frame
+    in three calls.
+  - Got: `start_raid` refused with `"night 1 is a quiet night (raids start on night 3)"`, which
+    is the feature's own gate telling me the demo world starts on day 1. Writing the day
+    straight onto `WorldClock` and re-running gave `"night 9 raid started: 7 raiders, 1.48x
+    health"`, and `raid_state` then read `live_raiders: 10, banner_showing: true` — ten, not
+    seven, because the ambient trickle keeps running underneath a raid. The screenshot shows
+    `RAID · NIGHT 9` with a counter of `10`, two skeletons on the player and a spider inbound;
+    a day-3 shot would have been one skeleton and a `3`.
+  - Cheaper: nothing. A stale screenshot or a fresh-boot grab would have shown daylight grass
+    with no banner, which is exactly the "generic title-screen grab" the devlog skill warns
+    reads as padding. `world_clock` also settled a question the image itself could not: the
+    grass looks bright green at night, and `hud_modulate: [2.38, 2.17, 1.47]` — the reciprocal
+    of the `0.42` floor — proved the tint *was* applied rather than the clock having stalled.
+
+- Gap: **no verb sets the day, so staging any day-gated feature means writing engine state raw**
+  — `python tools/devtools.py list-commands | grep -iE "day|time|clock"` returns
+  `set_time_of_day`, `step_time`, `world_clock`, and none of them moves `day`. `set_time_of_day`
+  takes a phase within one day; `step_time` is real-time-bounded (`--seconds 1200` for two days
+  is 20 minutes of wall clock). The workaround was
+  `set-state --node /root/Main/Systems/WorldClock --property day --value 9`, which is precisely
+  the raw-property write CLAUDE.md warns about: it bypasses setters and signals, so it cannot
+  fire `night_started`, and it only worked because `start_raid` re-reads `day` and moves the
+  clock itself. A feature gated on the day that listened for a *transition* would have been
+  unreachable this way.
+  - [G-014] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `set_day --args '{"day": 9}'` verb in `devtools_ext/commands.gd` that
+    advances the counter through `WorldClock`'s own path and emits the day/night signals a real
+    rollover emits — the "a setter verb must leave the game in a state the game itself can
+    reach" rule, applied to the one axis that currently has no setter. `set_time_of_day` growing
+    an optional `day` field would do equally well and adds no new verb.
+
+- Gap: **the first launch died silently and both logs were clean** — `ping` succeeded, three
+  verbs answered, then `list-commands` returned `game not running` with
+  `"Owner file devtools_owner.json says pid 12672 ... that process has likely exited"`.
+  `.devtools/launch_stderr.log` was **0 bytes** and `launch_stdout.log` ended at
+  `"Entering state: PlayerIdle"` — no error, no stack, nothing to distinguish a crash from a
+  clean shutdown. A relaunch worked and the session was fine, so this cost one relaunch rather
+  than an investigation, but there was no evidence available to investigate *with*.
+  - [G-015] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have the owner file record the exit — a `quit`-initiated shutdown stamping
+    `exit: clean` versus a `pid` that vanished without one. The client already reads the file to
+    produce "has likely exited"; distinguishing "exited cleanly" from "died" is one field, and
+    it is the difference between "relaunch and carry on" and "something in the diff kills the
+    game after ~30 seconds".
+
+### Skill note — `itch-devlog`
+
+The skill's framing did the real work here: **translate, don't transcribe**. `git log` for the
+session ran to 16 commits, of which 7 were docs/devtools/demo-clip commits and 3 were art and
+shader fixes to features shipping in the same session. Four bullets survived. The skill's own
+warning — that the failure mode is a wall of bullets including "refactored the state machine" —
+is what stopped the two flash-shader fixes (`db0843d`, `2eb8923`) from becoming bullets; they
+are real fixes but only to code that shipped hours later the same day, so no player ever saw the
+broken version.
+
+Two concrete improvements to the skill:
+
+1. **It should say to check the previous devlog before writing.** The prior post
+   ("Night falls, storms roll in, and berry bushes grow back") covered storms and lightning, and
+   this session's charged-skeleton work is a *second* lightning feature. Without reading the
+   previous post I could not tell whether "lightning charges skeletons blue" read as news or as
+   a repeat. Fetching the last post's body took one call and is the only way to know where the
+   last one stopped — especially when devlogs are daily and features land in related clusters.
+2. **The auto-attached build needs a sharper rule than "leave it if the user pushed a build
+   today".** itch had pre-attached `gather-html5.zip` v44 from "a day ago". Whether that build
+   contains the work being described is not answerable from the dashboard — and here it
+   provably does *not* contain all of it, since the last commit of the session sits on an
+   unmerged branch (`fix/mobile-quests-button`). The skill should say to compare the build's
+   upload time against the commits being written up and surface the mismatch to the user, rather
+   than making it a yes/no on the calendar date.
+
+## 2026-08-05 — answered whether the harness can stress-test game balance
+
+- Value: **inconclusive** — question-only turn, no code changed and nothing was run; the
+  answer is about what the harness *could* reach, which is settled by reading its verb list
+  and CLAUDE.md rather than by exercising it.
+  - Expected: nothing from runtime.
+  - Got: nothing from runtime. The three tiers described (headless math on the tuning
+    tables, seed/roll Monte Carlo, driving the live game) were derived from the existing
+    precedents `test_ore_chain.gd:CRAFTED_HEAL_MULTIPLE` and `test_island_manager.gd`'s
+    200-seed sweep, plus the single-bus constraint.
+  - Cheaper: nothing — answering from the repo's own docs was the cheapest path.
+
+- Gap: **no verb answers "what would this cost the player", so balance questions have no
+  runtime primitive at all.** Every tuning read is indirect: `gather_stats` reports a gather
+  in progress, `player_state` reports current totals, `run_summary` reports one finished run.
+  Asking "how long to the first furnace at each pickaxe tier" means reading five files and
+  recomputing by hand what the game already knows. Noting it rather than filing it as a
+  harness gap, since it is project-shaped (a `devtools_ext` verb) rather than generic.
+  - Improvement: a project verb `balance_table` returning the derived economy — per-resource
+    xp/sec and yield/sec at each pickaxe tier, recipe cost in gather-seconds, and the level
+    curve in nodes-per-level — so a balance claim is one read instead of a spreadsheet, and
+    so a tuning edit can be asserted against in a unit test rather than eyeballed.

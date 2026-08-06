@@ -1,0 +1,2980 @@
+{
+  "combat": {
+    "enemies": {
+      "Bone": {
+        "damage": 3,
+        "health": 10
+      },
+      "ChargedBone": {
+        "damage": 5,
+        "health": 30
+      },
+      "Elite": {
+        "damage": 6,
+        "health": 90
+      },
+      "Spider": {
+        "damage": 3,
+        "health": 10
+      }
+    },
+    "heals": {
+      "Bandage": 8,
+      "Berry": 1,
+      "Cooked Food": 10,
+      "Food": 4
+    },
+    "player_health": {
+      "base": 10,
+      "with_tough_hide": 15
+    },
+    "swords": [
+      {
+        "damage": 4,
+        "damage_bonus": 0,
+        "dps_mashing": 20.0,
+        "sword": "Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 3,
+            "seconds": 0.6
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 5,
+            "hits": 8,
+            "seconds": 1.6
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 24,
+            "hits": 23,
+            "seconds": 4.6
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 3,
+            "seconds": 0.6
+          }
+        }
+      },
+      {
+        "damage": 6,
+        "damage_bonus": 2,
+        "dps_mashing": 30.0,
+        "sword": "Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 5,
+            "hits": 5,
+            "seconds": 1.0
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 18,
+            "hits": 15,
+            "seconds": 3.0
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          }
+        }
+      },
+      {
+        "damage": 6,
+        "damage_bonus": 0,
+        "dps_mashing": 30.0,
+        "sword": "Bone Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 5,
+            "hits": 5,
+            "seconds": 1.0
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 18,
+            "hits": 15,
+            "seconds": 3.0
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          }
+        }
+      },
+      {
+        "damage": 8,
+        "damage_bonus": 2,
+        "dps_mashing": 40.0,
+        "sword": "Bone Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 4,
+            "seconds": 0.8
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 12,
+            "hits": 12,
+            "seconds": 2.4
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          }
+        }
+      },
+      {
+        "damage": 9,
+        "damage_bonus": 0,
+        "dps_mashing": 45.0,
+        "sword": "Iron Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 4,
+            "seconds": 0.8
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 12,
+            "hits": 10,
+            "seconds": 2.0
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          }
+        }
+      },
+      {
+        "damage": 11,
+        "damage_bonus": 2,
+        "dps_mashing": 55.0,
+        "sword": "Iron Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 3,
+            "seconds": 0.6
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 6,
+            "hits": 9,
+            "seconds": 1.8
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          }
+        }
+      },
+      {
+        "damage": 13,
+        "damage_bonus": 0,
+        "dps_mashing": 65.0,
+        "sword": "Gold Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 3,
+            "seconds": 0.6
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 6,
+            "hits": 7,
+            "seconds": 1.4
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          }
+        }
+      },
+      {
+        "damage": 15,
+        "damage_bonus": 2,
+        "dps_mashing": 75.0,
+        "sword": "Gold Sword",
+        "time_to_kill": {
+          "Bone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          },
+          "ChargedBone": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 2,
+            "seconds": 0.4
+          },
+          "Elite": {
+            "damage_taken_if_adjacent": 6,
+            "hits": 6,
+            "seconds": 1.2
+          },
+          "Spider": {
+            "damage_taken_if_adjacent": 0,
+            "hits": 1,
+            "seconds": 0.2
+          }
+        }
+      }
+    ]
+  },
+  "constants": {
+    "base_coin_drop": 1,
+    "day_length_seconds": 600.0,
+    "enemy_attack_interval": 1.0,
+    "land_base_cost": 20,
+    "land_cost_growth": 1.55,
+    "land_max_parcels": 12,
+    "min_gather_time": 0.1,
+    "night_fraction": 0.3,
+    "nodes_per_land_tile": 0.25,
+    "player_base_health": 10,
+    "player_walk_speed": 50.0,
+    "resource_respawn_seconds": 24.0,
+    "skill_tree_total_cost": 45,
+    "starting_sword_damage": 4,
+    "swing_seconds": 0.2,
+    "xp_craft": 2,
+    "xp_first_level": 40,
+    "xp_growth": 1.08,
+    "xp_kill": 3,
+    "xp_land_purchase": 15,
+    "xp_step_cap": 150
+  },
+  "findings": [
+    {
+      "detail": "Gold Pickaxe + [\"swift_hands\", \"bountiful\", \"scholar\", \"motherlode\"] = 1.25 extra-drop chance, of which 0.25 is discarded: roll_yield() spends it on one roll.",
+      "id": "bonus_saturation",
+      "severity": "high",
+      "subject": "Gold + Motherlode"
+    },
+    {
+      "detail": "reachable at level 2 (40 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Swift Hands"
+    },
+    {
+      "detail": "reachable at level 4 (129 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Bountiful Harvest"
+    },
+    {
+      "detail": "reachable at level 7 (291 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Scholar"
+    },
+    {
+      "detail": "reachable at level 11 (574 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Motherlode"
+    },
+    {
+      "detail": "reachable at level 2 (40 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Bone Pickaxe"
+    },
+    {
+      "detail": "reachable at level 4 (129 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Copper Age"
+    },
+    {
+      "detail": "reachable at level 7 (291 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Smelting"
+    },
+    {
+      "detail": "reachable at level 14 (850 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Gold Rush"
+    },
+    {
+      "detail": "reachable at level 19 (1479 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Minting"
+    },
+    {
+      "detail": "reachable at level 2 (40 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Bone Sword"
+    },
+    {
+      "detail": "reachable at level 4 (129 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Tough Hide"
+    },
+    {
+      "detail": "reachable at level 7 (291 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Bone Turret"
+    },
+    {
+      "detail": "reachable at level 11 (574 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Plunder"
+    },
+    {
+      "detail": "reachable at level 2 (40 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Wood Decor"
+    },
+    {
+      "detail": "reachable at level 4 (129 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Light Step"
+    },
+    {
+      "detail": "reachable at level 7 (291 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Magnetism"
+    },
+    {
+      "detail": "reachable at level 11 (574 xp)",
+      "id": "skill_level_gate",
+      "severity": "info",
+      "subject": "Surveyor"
+    },
+    {
+      "detail": "6955 coins == 6955 kills at one coin each, or 125 cleared raids at night 9 (56 coins).",
+      "id": "land_by_combat",
+      "severity": "info",
+      "subject": "All 12 parcels"
+    }
+  ],
+  "gather_rates": [
+    {
+      "label": "Opening",
+      "loadout": "opening",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.05324894176701,
+          "gather_seconds": 2.0,
+          "mean_yield": 1.5,
+          "seconds_per_unit_at_node": 1.33333333333333,
+          "seconds_per_unit_with_walk": 2.03549929451134,
+          "units_per_minute": 29.4767972466451,
+          "xp_per_minute": 19.6511981644301
+        },
+        "Coal": {
+          "approach_seconds": 1.25887326795111,
+          "gather_seconds": 2.0,
+          "mean_yield": 1.5,
+          "seconds_per_unit_at_node": 1.33333333333333,
+          "seconds_per_unit_with_walk": 2.17258217863407,
+          "units_per_minute": 27.6169070104969,
+          "xp_per_minute": 18.4112713403313
+        },
+        "Copper": {
+          "approach_seconds": 1.54179857865509,
+          "gather_seconds": 2.0,
+          "mean_yield": 1.5,
+          "seconds_per_unit_at_node": 1.33333333333333,
+          "seconds_per_unit_with_walk": 2.36119905243673,
+          "units_per_minute": 25.4108182612054,
+          "xp_per_minute": 16.9405455074703
+        },
+        "Stone": {
+          "approach_seconds": 0.644980619863884,
+          "gather_seconds": 2.0,
+          "mean_yield": 1.5,
+          "seconds_per_unit_at_node": 1.33333333333333,
+          "seconds_per_unit_with_walk": 1.76332041324259,
+          "units_per_minute": 34.0267143449359,
+          "xp_per_minute": 22.6844762299573
+        },
+        "Tree": {
+          "approach_seconds": 0.576888204074238,
+          "gather_seconds": 2.0,
+          "mean_yield": 1.5,
+          "seconds_per_unit_at_node": 1.33333333333333,
+          "seconds_per_unit_with_walk": 1.71792546938283,
+          "units_per_minute": 34.9258457769739,
+          "xp_per_minute": 23.2838971846492
+        }
+      },
+      "stage": "start"
+    },
+    {
+      "label": "First craft",
+      "loadout": "stone",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.05324894176701,
+          "gather_seconds": 1.8,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 1.16129032258065,
+          "seconds_per_unit_with_walk": 1.84080576888194,
+          "units_per_minute": 32.5944219723097,
+          "xp_per_minute": 21.028659336974
+        },
+        "Coal": {
+          "approach_seconds": 1.25887326795111,
+          "gather_seconds": 1.8,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 1.16129032258065,
+          "seconds_per_unit_with_walk": 1.97346662448459,
+          "units_per_minute": 30.4033517747838,
+          "xp_per_minute": 19.6150656611508
+        },
+        "Copper": {
+          "approach_seconds": 1.54179857865509,
+          "gather_seconds": 1.8,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 1.16129032258065,
+          "seconds_per_unit_with_walk": 2.15599908300328,
+          "units_per_minute": 27.8293253800556,
+          "xp_per_minute": 17.9544034710036
+        },
+        "Stone": {
+          "approach_seconds": 0.644980619863884,
+          "gather_seconds": 1.8,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 1.16129032258065,
+          "seconds_per_unit_with_walk": 1.57740685152509,
+          "units_per_minute": 38.0371113146809,
+          "xp_per_minute": 24.5400718159231
+        },
+        "Tree": {
+          "approach_seconds": 0.576888204074238,
+          "gather_seconds": 1.8,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 1.16129032258065,
+          "seconds_per_unit_with_walk": 1.53347626069306,
+          "units_per_minute": 39.1267876379664,
+          "xp_per_minute": 25.243088798688
+        }
+      },
+      "stage": "start"
+    },
+    {
+      "label": "Swift Hands",
+      "loadout": "swift",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.05324894176701,
+          "gather_seconds": 1.53,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 0.987096774193548,
+          "seconds_per_unit_with_walk": 1.66661222049485,
+          "units_per_minute": 36.001176075731,
+          "xp_per_minute": 23.226565210149
+        },
+        "Coal": {
+          "approach_seconds": 1.25887326795111,
+          "gather_seconds": 1.53,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 0.987096774193548,
+          "seconds_per_unit_with_walk": 1.79927307609749,
+          "units_per_minute": 33.3468003256828,
+          "xp_per_minute": 21.5140647262469
+        },
+        "Copper": {
+          "approach_seconds": 1.54179857865509,
+          "gather_seconds": 1.53,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 0.987096774193548,
+          "seconds_per_unit_with_walk": 1.98180553461619,
+          "units_per_minute": 30.2754225639097,
+          "xp_per_minute": 19.5325306863933
+        },
+        "Stone": {
+          "approach_seconds": 0.644980619863884,
+          "gather_seconds": 1.53,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 0.987096774193548,
+          "seconds_per_unit_with_walk": 1.40321330313799,
+          "units_per_minute": 42.7590016897807,
+          "xp_per_minute": 27.5864527030843
+        },
+        "Tree": {
+          "approach_seconds": 0.576888204074238,
+          "gather_seconds": 1.53,
+          "mean_yield": 1.55,
+          "seconds_per_unit_at_node": 0.987096774193548,
+          "seconds_per_unit_with_walk": 1.35928271230596,
+          "units_per_minute": 44.1409277531477,
+          "xp_per_minute": 28.4780179052566
+        }
+      },
+      "stage": "start"
+    },
+    {
+      "label": "Copper Age",
+      "loadout": "copper",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.05324894176701,
+          "gather_seconds": 1.36,
+          "mean_yield": 1.9,
+          "seconds_per_unit_at_node": 0.715789473684211,
+          "seconds_per_unit_with_walk": 1.27013102198264,
+          "units_per_minute": 47.2392209634733,
+          "xp_per_minute": 24.8627478755123
+        },
+        "Coal": {
+          "approach_seconds": 1.25887326795111,
+          "gather_seconds": 1.36,
+          "mean_yield": 1.9,
+          "seconds_per_unit_at_node": 0.715789473684211,
+          "seconds_per_unit_with_walk": 1.37835435155322,
+          "units_per_minute": 43.5301705489508,
+          "xp_per_minute": 22.9106160783952
+        },
+        "Copper": {
+          "approach_seconds": 1.54179857865509,
+          "gather_seconds": 1.36,
+          "mean_yield": 1.9,
+          "seconds_per_unit_at_node": 0.715789473684211,
+          "seconds_per_unit_with_walk": 1.52726240981847,
+          "units_per_minute": 39.2859796812073,
+          "xp_per_minute": 20.6768314111617
+        },
+        "Stone": {
+          "approach_seconds": 0.644980619863884,
+          "gather_seconds": 1.36,
+          "mean_yield": 1.9,
+          "seconds_per_unit_at_node": 0.715789473684211,
+          "seconds_per_unit_with_walk": 1.0552529578231,
+          "units_per_minute": 56.85840494944,
+          "xp_per_minute": 29.925476289179
+        },
+        "Tree": {
+          "approach_seconds": 0.576888204074238,
+          "gather_seconds": 1.36,
+          "mean_yield": 1.9,
+          "seconds_per_unit_at_node": 0.715789473684211,
+          "seconds_per_unit_with_walk": 1.0194148442496,
+          "units_per_minute": 58.8572947887242,
+          "xp_per_minute": 30.9775235730127
+        }
+      },
+      "stage": "start"
+    },
+    {
+      "label": "Bone tier",
+      "loadout": "bone",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.05324894176701,
+          "gather_seconds": 1.02,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.51,
+          "seconds_per_unit_with_walk": 1.03662447088351,
+          "units_per_minute": 57.8801694203326,
+          "xp_per_minute": 28.9400847101663
+        },
+        "Coal": {
+          "approach_seconds": 1.25887326795111,
+          "gather_seconds": 1.02,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.51,
+          "seconds_per_unit_with_walk": 1.13943663397555,
+          "units_per_minute": 52.65760131887,
+          "xp_per_minute": 26.328800659435
+        },
+        "Copper": {
+          "approach_seconds": 1.54179857865509,
+          "gather_seconds": 1.02,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.51,
+          "seconds_per_unit_with_walk": 1.28089928932755,
+          "units_per_minute": 46.842090162685,
+          "xp_per_minute": 23.4210450813425
+        },
+        "Stone": {
+          "approach_seconds": 0.644980619863884,
+          "gather_seconds": 1.02,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.51,
+          "seconds_per_unit_with_walk": 0.832490309931942,
+          "units_per_minute": 72.0729109806757,
+          "xp_per_minute": 36.0364554903379
+        },
+        "Tree": {
+          "approach_seconds": 0.576888204074238,
+          "gather_seconds": 1.02,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.51,
+          "seconds_per_unit_with_walk": 0.798444102037119,
+          "units_per_minute": 75.1461496765,
+          "xp_per_minute": 37.57307483825
+        }
+      },
+      "stage": "start"
+    },
+    {
+      "label": "Iron tier",
+      "loadout": "iron",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.07124351417718,
+          "gather_seconds": 0.595,
+          "mean_yield": 2.25,
+          "seconds_per_unit_at_node": 0.264444444444444,
+          "seconds_per_unit_with_walk": 0.740552672967634,
+          "units_per_minute": 81.0205704336473,
+          "xp_per_minute": 36.0091424149544
+        },
+        "Coal": {
+          "approach_seconds": 1.28038089570848,
+          "gather_seconds": 0.595,
+          "mean_yield": 2.25,
+          "seconds_per_unit_at_node": 0.264444444444444,
+          "seconds_per_unit_with_walk": 0.833502620314878,
+          "units_per_minute": 71.985376575461,
+          "xp_per_minute": 31.9935007002049
+        },
+        "Copper": {
+          "approach_seconds": 1.56813993544672,
+          "gather_seconds": 0.595,
+          "mean_yield": 2.25,
+          "seconds_per_unit_at_node": 0.264444444444444,
+          "seconds_per_unit_with_walk": 0.961395526865211,
+          "units_per_minute": 62.4092772676402,
+          "xp_per_minute": 27.7374565633957
+        },
+        "Iron": {
+          "approach_seconds": 1.7532337469455,
+          "gather_seconds": 0.595,
+          "mean_yield": 1.75,
+          "seconds_per_unit_at_node": 0.34,
+          "seconds_per_unit_with_walk": 1.34184785539743,
+          "units_per_minute": 44.7144583185469,
+          "xp_per_minute": 25.5511190391697
+        },
+        "Stone": {
+          "approach_seconds": 0.656,
+          "gather_seconds": 0.595,
+          "mean_yield": 2.25,
+          "seconds_per_unit_at_node": 0.264444444444444,
+          "seconds_per_unit_with_walk": 0.556,
+          "units_per_minute": 107.913669064748,
+          "xp_per_minute": 47.9616306954436
+        },
+        "Tree": {
+          "approach_seconds": 0.586744237295945,
+          "gather_seconds": 0.595,
+          "mean_yield": 2.25,
+          "seconds_per_unit_at_node": 0.264444444444444,
+          "seconds_per_unit_with_walk": 0.52521966102042,
+          "units_per_minute": 114.237916919236,
+          "xp_per_minute": 50.7724075196604
+        }
+      },
+      "stage": "smelting"
+    },
+    {
+      "label": "Iron + Motherlode",
+      "loadout": "iron_max",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.07124351417718,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.21,
+          "seconds_per_unit_with_walk": 0.638497405670871,
+          "units_per_minute": 93.9706245743597,
+          "xp_per_minute": 46.9853122871798
+        },
+        "Coal": {
+          "approach_seconds": 1.28038089570848,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.21,
+          "seconds_per_unit_with_walk": 0.72215235828339,
+          "units_per_minute": 83.084960274345,
+          "xp_per_minute": 41.5424801371725
+        },
+        "Copper": {
+          "approach_seconds": 1.56813993544672,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.21,
+          "seconds_per_unit_with_walk": 0.83725597417869,
+          "units_per_minute": 71.6626716923188,
+          "xp_per_minute": 35.8313358461594
+        },
+        "Iron": {
+          "approach_seconds": 1.7532337469455,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.2625,
+          "seconds_per_unit_with_walk": 1.13911687347275,
+          "units_per_minute": 52.6723827881523,
+          "xp_per_minute": 32.9202392425952
+        },
+        "Stone": {
+          "approach_seconds": 0.656,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.21,
+          "seconds_per_unit_with_walk": 0.4724,
+          "units_per_minute": 127.01100762066,
+          "xp_per_minute": 63.5055038103302
+        },
+        "Tree": {
+          "approach_seconds": 0.586744237295945,
+          "gather_seconds": 0.525,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.21,
+          "seconds_per_unit_with_walk": 0.444697694918378,
+          "units_per_minute": 134.923118976393,
+          "xp_per_minute": 67.4615594881965
+        }
+      },
+      "stage": "smelting"
+    },
+    {
+      "label": "Gold tier",
+      "loadout": "gold",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.08012838743056,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.153,
+          "seconds_per_unit_with_walk": 0.585051354972222,
+          "units_per_minute": 102.555099633687,
+          "xp_per_minute": 41.0220398534749
+        },
+        "Coal": {
+          "approach_seconds": 1.29100035041122,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.153,
+          "seconds_per_unit_with_walk": 0.66940014016449,
+          "units_per_minute": 89.6324879544488,
+          "xp_per_minute": 35.8529951817795
+        },
+        "Copper": {
+          "approach_seconds": 1.58114605813089,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.153,
+          "seconds_per_unit_with_walk": 0.785458423252357,
+          "units_per_minute": 76.3885117579583,
+          "xp_per_minute": 30.5554047031833
+        },
+        "Gold": {
+          "approach_seconds": 2.50001142854531,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.19125,
+          "seconds_per_unit_with_walk": 1.44125571427265,
+          "units_per_minute": 41.6303639984385,
+          "xp_per_minute": 20.8151819992192
+        },
+        "Iron": {
+          "approach_seconds": 1.76777503416825,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.19125,
+          "seconds_per_unit_with_walk": 1.07513751708413,
+          "units_per_minute": 55.8068145205514,
+          "xp_per_minute": 27.9034072602757
+        },
+        "Stone": {
+          "approach_seconds": 0.66144085147502,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.153,
+          "seconds_per_unit_with_walk": 0.417576340590008,
+          "units_per_minute": 143.686301563982,
+          "xp_per_minute": 57.4745206255928
+        },
+        "Tree": {
+          "approach_seconds": 0.591610682797395,
+          "gather_seconds": 0.3825,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.153,
+          "seconds_per_unit_with_walk": 0.389644273118958,
+          "units_per_minute": 153.986608143172,
+          "xp_per_minute": 61.5946432572687
+        }
+      },
+      "stage": "gold_rush"
+    },
+    {
+      "label": "Gold + Motherlode",
+      "loadout": "gold_max",
+      "per_resource": {
+        "Berry Bush": {
+          "approach_seconds": 1.08012838743056,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.135,
+          "seconds_per_unit_with_walk": 0.567051354972222,
+          "units_per_minute": 105.810522228519,
+          "xp_per_minute": 52.9052611142594
+        },
+        "Coal": {
+          "approach_seconds": 1.29100035041122,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.135,
+          "seconds_per_unit_with_walk": 0.65140014016449,
+          "units_per_minute": 92.1092832200634,
+          "xp_per_minute": 46.0546416100317
+        },
+        "Copper": {
+          "approach_seconds": 1.58114605813089,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.135,
+          "seconds_per_unit_with_walk": 0.767458423252357,
+          "units_per_minute": 78.1801309127996,
+          "xp_per_minute": 39.0900654563998
+        },
+        "Gold": {
+          "approach_seconds": 2.50001142854531,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.16875,
+          "seconds_per_unit_with_walk": 1.41875571427265,
+          "units_per_minute": 42.2905785657117,
+          "xp_per_minute": 26.4316116035698
+        },
+        "Iron": {
+          "approach_seconds": 1.76777503416825,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.0,
+          "seconds_per_unit_at_node": 0.16875,
+          "seconds_per_unit_with_walk": 1.05263751708413,
+          "units_per_minute": 56.9996784517085,
+          "xp_per_minute": 35.6247990323178
+        },
+        "Stone": {
+          "approach_seconds": 0.66144085147502,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.135,
+          "seconds_per_unit_with_walk": 0.399576340590008,
+          "units_per_minute": 150.159040726498,
+          "xp_per_minute": 75.0795203632489
+        },
+        "Tree": {
+          "approach_seconds": 0.591610682797395,
+          "gather_seconds": 0.3375,
+          "mean_yield": 2.5,
+          "seconds_per_unit_at_node": 0.135,
+          "seconds_per_unit_with_walk": 0.371644273118958,
+          "units_per_minute": 161.444704896058,
+          "xp_per_minute": 80.7223524480288
+        }
+      },
+      "stage": "gold_rush"
+    }
+  ],
+  "generated_by": "tools/balance_model.gd",
+  "land": [
+    {
+      "cost": 20,
+      "cost_with_surveyor": 15,
+      "cumulative": 20,
+      "cumulative_with_surveyor": 15,
+      "gold_veins_for_this_parcel": 40,
+      "kills_for_this_parcel": 20,
+      "parcel": 1,
+      "radius_after": 12
+    },
+    {
+      "cost": 31,
+      "cost_with_surveyor": 23,
+      "cumulative": 51,
+      "cumulative_with_surveyor": 38,
+      "gold_veins_for_this_parcel": 62,
+      "kills_for_this_parcel": 31,
+      "parcel": 2,
+      "radius_after": 14
+    },
+    {
+      "cost": 48,
+      "cost_with_surveyor": 36,
+      "cumulative": 99,
+      "cumulative_with_surveyor": 74,
+      "gold_veins_for_this_parcel": 96,
+      "kills_for_this_parcel": 48,
+      "parcel": 3,
+      "radius_after": 16
+    },
+    {
+      "cost": 74,
+      "cost_with_surveyor": 56,
+      "cumulative": 173,
+      "cumulative_with_surveyor": 130,
+      "gold_veins_for_this_parcel": 148,
+      "kills_for_this_parcel": 74,
+      "parcel": 4,
+      "radius_after": 18
+    },
+    {
+      "cost": 115,
+      "cost_with_surveyor": 87,
+      "cumulative": 288,
+      "cumulative_with_surveyor": 217,
+      "gold_veins_for_this_parcel": 230,
+      "kills_for_this_parcel": 115,
+      "parcel": 5,
+      "radius_after": 20
+    },
+    {
+      "cost": 179,
+      "cost_with_surveyor": 134,
+      "cumulative": 467,
+      "cumulative_with_surveyor": 351,
+      "gold_veins_for_this_parcel": 358,
+      "kills_for_this_parcel": 179,
+      "parcel": 6,
+      "radius_after": 22
+    },
+    {
+      "cost": 277,
+      "cost_with_surveyor": 208,
+      "cumulative": 744,
+      "cumulative_with_surveyor": 559,
+      "gold_veins_for_this_parcel": 554,
+      "kills_for_this_parcel": 277,
+      "parcel": 7,
+      "radius_after": 24
+    },
+    {
+      "cost": 430,
+      "cost_with_surveyor": 322,
+      "cumulative": 1174,
+      "cumulative_with_surveyor": 881,
+      "gold_veins_for_this_parcel": 860,
+      "kills_for_this_parcel": 430,
+      "parcel": 8,
+      "radius_after": 26
+    },
+    {
+      "cost": 666,
+      "cost_with_surveyor": 500,
+      "cumulative": 1840,
+      "cumulative_with_surveyor": 1381,
+      "gold_veins_for_this_parcel": 1332,
+      "kills_for_this_parcel": 666,
+      "parcel": 9,
+      "radius_after": 28
+    },
+    {
+      "cost": 1033,
+      "cost_with_surveyor": 775,
+      "cumulative": 2873,
+      "cumulative_with_surveyor": 2156,
+      "gold_veins_for_this_parcel": 2066,
+      "kills_for_this_parcel": 1033,
+      "parcel": 10,
+      "radius_after": 30
+    },
+    {
+      "cost": 1601,
+      "cost_with_surveyor": 1201,
+      "cumulative": 4474,
+      "cumulative_with_surveyor": 3357,
+      "gold_veins_for_this_parcel": 3202,
+      "kills_for_this_parcel": 1601,
+      "parcel": 11,
+      "radius_after": 32
+    },
+    {
+      "cost": 2481,
+      "cost_with_surveyor": 1861,
+      "cumulative": 6955,
+      "cumulative_with_surveyor": 5218,
+      "gold_veins_for_this_parcel": 4962,
+      "kills_for_this_parcel": 2481,
+      "parcel": 12,
+      "radius_after": 34
+    }
+  ],
+  "loadouts": [
+    {
+      "bonus_effective": 0.0,
+      "bonus_raw": 0.0,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 1.0,
+      "gather_time": 2.0,
+      "id": "opening",
+      "label": "Opening",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Wooden Pickaxe",
+      "pickaxe_bonus": 0.0,
+      "pickaxe_power": 2.0,
+      "skill_bonus": 0.0,
+      "skill_points": 0,
+      "skills": [],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 0.05,
+      "bonus_raw": 0.05,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 1.0,
+      "gather_time": 1.8,
+      "id": "stone",
+      "label": "First craft",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Stone Pickaxe",
+      "pickaxe_bonus": 0.05,
+      "pickaxe_power": 1.8,
+      "skill_bonus": 0.0,
+      "skill_points": 0,
+      "skills": [],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 0.05,
+      "bonus_raw": 0.05,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.85,
+      "gather_time": 1.53,
+      "id": "swift",
+      "label": "Swift Hands",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Stone Pickaxe",
+      "pickaxe_bonus": 0.05,
+      "pickaxe_power": 1.8,
+      "skill_bonus": 0.0,
+      "skill_points": 1,
+      "skills": [
+        "swift_hands"
+      ],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 0.4,
+      "bonus_raw": 0.4,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.85,
+      "gather_time": 1.36,
+      "id": "copper",
+      "label": "Copper Age",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Copper Pickaxe",
+      "pickaxe_bonus": 0.15,
+      "pickaxe_power": 1.6,
+      "skill_bonus": 0.25,
+      "skill_points": 3,
+      "skills": [
+        "swift_hands",
+        "bountiful"
+      ],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 0.5,
+      "bonus_raw": 0.5,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.85,
+      "gather_time": 1.02,
+      "id": "bone",
+      "label": "Bone tier",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Bone Pickaxe",
+      "pickaxe_bonus": 0.25,
+      "pickaxe_power": 1.2,
+      "skill_bonus": 0.25,
+      "skill_points": 3,
+      "skills": [
+        "swift_hands",
+        "bountiful"
+      ],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 0.75,
+      "bonus_raw": 0.75,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.85,
+      "gather_time": 0.595,
+      "id": "iron",
+      "label": "Iron tier",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Iron Pickaxe",
+      "pickaxe_bonus": 0.5,
+      "pickaxe_power": 0.7,
+      "skill_bonus": 0.25,
+      "skill_points": 3,
+      "skills": [
+        "swift_hands",
+        "bountiful"
+      ],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 1.0,
+      "bonus_raw": 1.0,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.75,
+      "gather_time": 0.525,
+      "id": "iron_max",
+      "label": "Iron + Motherlode",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Iron Pickaxe",
+      "pickaxe_bonus": 0.5,
+      "pickaxe_power": 0.7,
+      "skill_bonus": 0.5,
+      "skill_points": 10,
+      "skills": [
+        "swift_hands",
+        "bountiful",
+        "scholar",
+        "motherlode"
+      ],
+      "xp_mult": 1.25
+    },
+    {
+      "bonus_effective": 1.0,
+      "bonus_raw": 1.0,
+      "bonus_wasted": 0.0,
+      "gather_speed_mult": 0.85,
+      "gather_time": 0.3825,
+      "id": "gold",
+      "label": "Gold tier",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Gold Pickaxe",
+      "pickaxe_bonus": 0.75,
+      "pickaxe_power": 0.45,
+      "skill_bonus": 0.25,
+      "skill_points": 3,
+      "skills": [
+        "swift_hands",
+        "bountiful"
+      ],
+      "xp_mult": 1.0
+    },
+    {
+      "bonus_effective": 1.0,
+      "bonus_raw": 1.25,
+      "bonus_wasted": 0.25,
+      "gather_speed_mult": 0.75,
+      "gather_time": 0.3375,
+      "id": "gold_max",
+      "label": "Gold + Motherlode",
+      "move_speed_mult": 1.0,
+      "pickaxe": "Gold Pickaxe",
+      "pickaxe_bonus": 0.75,
+      "pickaxe_power": 0.45,
+      "skill_bonus": 0.5,
+      "skill_points": 10,
+      "skills": [
+        "swift_hands",
+        "bountiful",
+        "scholar",
+        "motherlode"
+      ],
+      "xp_mult": 1.25
+    }
+  ],
+  "quests": [
+    {
+      "amount": 10,
+      "cumulative_coins": 20,
+      "cumulative_xp": 10,
+      "id": "first_timber",
+      "item": "Wood",
+      "kind": "HAVE",
+      "name": "First Timber",
+      "requires": [],
+      "reward_coins": 20,
+      "reward_xp": 10
+    },
+    {
+      "amount": 10,
+      "cumulative_coins": 40,
+      "cumulative_xp": 20,
+      "id": "stonemason",
+      "item": "Stone",
+      "kind": "HAVE",
+      "name": "Stonemason",
+      "requires": [],
+      "reward_coins": 20,
+      "reward_xp": 10
+    },
+    {
+      "amount": 5,
+      "cumulative_coins": 70,
+      "cumulative_xp": 35,
+      "id": "kindling",
+      "item": "Coal Ore",
+      "kind": "HAVE",
+      "name": "Kindling",
+      "requires": [
+        "stonemason"
+      ],
+      "reward_coins": 30,
+      "reward_xp": 15
+    },
+    {
+      "amount": 10,
+      "cumulative_coins": 115,
+      "cumulative_xp": 60,
+      "id": "sawdust",
+      "item": "Plank",
+      "kind": "HAVE",
+      "name": "Sawdust",
+      "requires": [
+        "first_timber"
+      ],
+      "reward_coins": 45,
+      "reward_xp": 25
+    },
+    {
+      "amount": 3,
+      "cumulative_coins": 185,
+      "cumulative_xp": 100,
+      "id": "first_smelt",
+      "item": "Copper Bar",
+      "kind": "HAVE",
+      "name": "First Smelt",
+      "requires": [
+        "kindling"
+      ],
+      "reward_coins": 70,
+      "reward_xp": 40
+    },
+    {
+      "amount": 10,
+      "cumulative_coins": 215,
+      "cumulative_xp": 120,
+      "id": "pest_control",
+      "item": "",
+      "kind": "KILL",
+      "name": "Pest Control",
+      "requires": [],
+      "reward_coins": 30,
+      "reward_xp": 20
+    },
+    {
+      "amount": 60,
+      "cumulative_coins": 335,
+      "cumulative_xp": 210,
+      "id": "exterminator",
+      "item": "",
+      "kind": "KILL",
+      "name": "Exterminator",
+      "requires": [
+        "pest_control"
+      ],
+      "reward_coins": 120,
+      "reward_xp": 90
+    },
+    {
+      "amount": 1,
+      "cumulative_coins": 415,
+      "cumulative_xp": 260,
+      "id": "hold_the_line",
+      "item": "",
+      "kind": "RAID",
+      "name": "Hold the Line",
+      "requires": [],
+      "reward_coins": 80,
+      "reward_xp": 50
+    },
+    {
+      "amount": 5,
+      "cumulative_coins": 665,
+      "cumulative_xp": 410,
+      "id": "night_watch",
+      "item": "",
+      "kind": "RAID",
+      "name": "Night Watch",
+      "requires": [
+        "hold_the_line"
+      ],
+      "reward_coins": 250,
+      "reward_xp": 150
+    },
+    {
+      "amount": 7,
+      "cumulative_coins": 725,
+      "cumulative_xp": 450,
+      "id": "a_week_in",
+      "item": "",
+      "kind": "DAY",
+      "name": "A Week In",
+      "requires": [],
+      "reward_coins": 60,
+      "reward_xp": 40
+    },
+    {
+      "amount": 5,
+      "cumulative_coins": 775,
+      "cumulative_xp": 450,
+      "id": "apprentice",
+      "item": "",
+      "kind": "LEVEL",
+      "name": "Apprentice",
+      "requires": [],
+      "reward_coins": 50,
+      "reward_xp": 0
+    },
+    {
+      "amount": 12,
+      "cumulative_coins": 925,
+      "cumulative_xp": 450,
+      "id": "journeyman",
+      "item": "",
+      "kind": "LEVEL",
+      "name": "Journeyman",
+      "requires": [
+        "apprentice"
+      ],
+      "reward_coins": 150,
+      "reward_xp": 0
+    },
+    {
+      "amount": 3,
+      "cumulative_coins": 985,
+      "cumulative_xp": 490,
+      "id": "landowner",
+      "item": "",
+      "kind": "PARCEL",
+      "name": "Landowner",
+      "requires": [],
+      "reward_coins": 60,
+      "reward_xp": 40
+    },
+    {
+      "amount": 8,
+      "cumulative_coins": 1385,
+      "cumulative_xp": 690,
+      "id": "continental",
+      "item": "",
+      "kind": "PARCEL",
+      "name": "Continental",
+      "requires": [
+        "landowner"
+      ],
+      "reward_coins": 400,
+      "reward_xp": 200
+    }
+  ],
+  "raids": [
+    {
+      "arrival_seconds": 6.2,
+      "day": 3,
+      "health_mult": 1.0,
+      "health_per_raider": 10,
+      "incoming_dps_if_all_adjacent": 9,
+      "reward_coins": 24,
+      "reward_xp": 12,
+      "size": 3,
+      "total_health": 30
+    },
+    {
+      "arrival_seconds": 6.2,
+      "day": 4,
+      "health_mult": 1.08,
+      "health_per_raider": 11,
+      "incoming_dps_if_all_adjacent": 9,
+      "reward_coins": 24,
+      "reward_xp": 12,
+      "size": 3,
+      "total_health": 33
+    },
+    {
+      "arrival_seconds": 7.8,
+      "day": 5,
+      "health_mult": 1.16,
+      "health_per_raider": 12,
+      "incoming_dps_if_all_adjacent": 12,
+      "reward_coins": 32,
+      "reward_xp": 16,
+      "size": 4,
+      "total_health": 48
+    },
+    {
+      "arrival_seconds": 9.4,
+      "day": 6,
+      "health_mult": 1.24,
+      "health_per_raider": 12,
+      "incoming_dps_if_all_adjacent": 15,
+      "reward_coins": 40,
+      "reward_xp": 20,
+      "size": 5,
+      "total_health": 60
+    },
+    {
+      "arrival_seconds": 11.0,
+      "day": 7,
+      "health_mult": 1.32,
+      "health_per_raider": 13,
+      "incoming_dps_if_all_adjacent": 18,
+      "reward_coins": 48,
+      "reward_xp": 24,
+      "size": 6,
+      "total_health": 78
+    },
+    {
+      "arrival_seconds": 11.0,
+      "day": 8,
+      "health_mult": 1.4,
+      "health_per_raider": 14,
+      "incoming_dps_if_all_adjacent": 18,
+      "reward_coins": 48,
+      "reward_xp": 24,
+      "size": 6,
+      "total_health": 84
+    },
+    {
+      "arrival_seconds": 12.6,
+      "day": 9,
+      "health_mult": 1.48,
+      "health_per_raider": 15,
+      "incoming_dps_if_all_adjacent": 21,
+      "reward_coins": 56,
+      "reward_xp": 28,
+      "size": 7,
+      "total_health": 105
+    },
+    {
+      "arrival_seconds": 14.2,
+      "day": 10,
+      "health_mult": 1.56,
+      "health_per_raider": 16,
+      "incoming_dps_if_all_adjacent": 24,
+      "reward_coins": 64,
+      "reward_xp": 32,
+      "size": 8,
+      "total_health": 128
+    },
+    {
+      "arrival_seconds": 15.8,
+      "day": 11,
+      "health_mult": 1.64,
+      "health_per_raider": 16,
+      "incoming_dps_if_all_adjacent": 27,
+      "reward_coins": 72,
+      "reward_xp": 36,
+      "size": 9,
+      "total_health": 144
+    },
+    {
+      "arrival_seconds": 15.8,
+      "day": 12,
+      "health_mult": 1.72,
+      "health_per_raider": 17,
+      "incoming_dps_if_all_adjacent": 27,
+      "reward_coins": 72,
+      "reward_xp": 36,
+      "size": 9,
+      "total_health": 153
+    },
+    {
+      "arrival_seconds": 17.4,
+      "day": 13,
+      "health_mult": 1.8,
+      "health_per_raider": 18,
+      "incoming_dps_if_all_adjacent": 30,
+      "reward_coins": 80,
+      "reward_xp": 40,
+      "size": 10,
+      "total_health": 180
+    },
+    {
+      "arrival_seconds": 19.0,
+      "day": 14,
+      "health_mult": 1.88,
+      "health_per_raider": 19,
+      "incoming_dps_if_all_adjacent": 33,
+      "reward_coins": 88,
+      "reward_xp": 44,
+      "size": 11,
+      "total_health": 209
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 15,
+      "health_mult": 1.96,
+      "health_per_raider": 20,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 240
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 16,
+      "health_mult": 2.04,
+      "health_per_raider": 20,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 240
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 17,
+      "health_mult": 2.12,
+      "health_per_raider": 21,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 252
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 18,
+      "health_mult": 2.2,
+      "health_per_raider": 22,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 264
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 19,
+      "health_mult": 2.28,
+      "health_per_raider": 23,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 276
+    },
+    {
+      "arrival_seconds": 20.6,
+      "day": 20,
+      "health_mult": 2.36,
+      "health_per_raider": 24,
+      "incoming_dps_if_all_adjacent": 36,
+      "reward_coins": 96,
+      "reward_xp": 48,
+      "size": 12,
+      "total_health": 288
+    }
+  ],
+  "recipes": [
+    {
+      "direct_costs": {
+        "Bone": 14
+      },
+      "gather_seconds": 0.0,
+      "kills": 14.0,
+      "product": "Bone Pickaxe",
+      "product_type": 24,
+      "raw_costs": {
+        "Bone": 14.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "bone_pickaxe"
+    },
+    {
+      "direct_costs": {
+        "Bone": 9,
+        "Iron Bar": 5,
+        "Stone": 12
+      },
+      "gather_seconds": 17.6429155762455,
+      "kills": 9.0,
+      "product": "Stone Worker",
+      "product_type": 44,
+      "raw_costs": {
+        "Bone": 9.0,
+        "Coal Ore": 5.0,
+        "Iron Ore": 5.0,
+        "Stone": 12.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Bone": 9,
+        "Iron Bar": 5,
+        "Plank": 6
+      },
+      "gather_seconds": 17.2704880099648,
+      "kills": 9.0,
+      "product": "Bone Worker",
+      "product_type": 43,
+      "raw_costs": {
+        "Bone": 9.0,
+        "Coal Ore": 5.0,
+        "Iron Ore": 5.0,
+        "Wood": 12.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Bone": 9,
+        "Plank": 3
+      },
+      "gather_seconds": 3.16429515412639,
+      "kills": 9.0,
+      "product": "Bone Sword",
+      "product_type": 45,
+      "raw_costs": {
+        "Bone": 9.0,
+        "Wood": 6.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "bone_sword"
+    },
+    {
+      "direct_costs": {
+        "Gold Bar": 8,
+        "Plank": 6
+      },
+      "gather_seconds": 48.3319592593434,
+      "kills": 0.0,
+      "product": "Gold Pickaxe",
+      "product_type": 38,
+      "raw_costs": {
+        "Coal Ore": 24.0,
+        "Copper Ore": 8.0,
+        "Gold Ore": 8.0,
+        "Wood": 12.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "gold_rush"
+    },
+    {
+      "direct_costs": {
+        "Gold Bar": 6,
+        "Plank": 4
+      },
+      "gather_seconds": 35.7215869188198,
+      "kills": 0.0,
+      "product": "Gold Sword",
+      "product_type": 47,
+      "raw_costs": {
+        "Coal Ore": 18.0,
+        "Copper Ore": 6.0,
+        "Gold Ore": 6.0,
+        "Wood": 8.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "gold_rush"
+    },
+    {
+      "direct_costs": {
+        "Iron Bar": 8,
+        "Plank": 3
+      },
+      "gather_seconds": 20.6713314768656,
+      "kills": 0.0,
+      "product": "Iron Pickaxe",
+      "product_type": 23,
+      "raw_costs": {
+        "Coal Ore": 8.0,
+        "Iron Ore": 8.0,
+        "Wood": 6.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Iron Bar": 6,
+        "Plank": 3
+      },
+      "gather_seconds": 16.2945723961808,
+      "kills": 0.0,
+      "product": "Iron Sword",
+      "product_type": 46,
+      "raw_costs": {
+        "Coal Ore": 6.0,
+        "Iron Ore": 6.0,
+        "Wood": 6.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Copper Bar": 3,
+        "String": 2,
+        "Wood": 2
+      },
+      "gather_seconds": 12.7995505710177,
+      "kills": 0.0,
+      "product": "Bone Turret",
+      "product_type": 18,
+      "raw_costs": {
+        "Coal Ore": 3.0,
+        "Copper Ore": 3.0,
+        "Wood": 14.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "bone_turret"
+    },
+    {
+      "direct_costs": {
+        "Plank": 6,
+        "Wood": 12
+      },
+      "gather_seconds": 12.6571806165055,
+      "kills": 0.0,
+      "product": "Sawmill",
+      "product_type": 7,
+      "raw_costs": {
+        "Wood": 24.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "swift_hands"
+    },
+    {
+      "direct_costs": {
+        "Plank": 2,
+        "String": 3
+      },
+      "gather_seconds": 11.6024155651301,
+      "kills": 0.0,
+      "product": "Net",
+      "product_type": 20,
+      "raw_costs": {
+        "Wood": 22.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "bone_turret"
+    },
+    {
+      "direct_costs": {
+        "Copper Bar": 4,
+        "Plank": 2
+      },
+      "gather_seconds": 9.33112371793691,
+      "kills": 0.0,
+      "product": "Copper Pickaxe",
+      "product_type": 39,
+      "raw_costs": {
+        "Coal Ore": 4.0,
+        "Copper Ore": 4.0,
+        "Wood": 4.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "iron_age"
+    },
+    {
+      "direct_costs": {
+        "Stone": 14
+      },
+      "gather_seconds": 7.81785418695568,
+      "kills": 0.0,
+      "product": "Furnace",
+      "product_type": 12,
+      "raw_costs": {
+        "Stone": 14.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "iron_age"
+    },
+    {
+      "direct_costs": {
+        "Berries": 2,
+        "String": 2
+      },
+      "gather_seconds": 7.81759331930216,
+      "kills": 0.0,
+      "product": "Bandage",
+      "product_type": 48,
+      "raw_costs": {
+        "Berries": 2.0,
+        "Wood": 12.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "tough_hide"
+    },
+    {
+      "direct_costs": {
+        "Wood": 12
+      },
+      "gather_seconds": 6.32859030825277,
+      "kills": 0.0,
+      "product": "Coal Ore",
+      "product_type": 9,
+      "raw_costs": {
+        "Wood": 12.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Stone": 8,
+        "Wood": 2
+      },
+      "gather_seconds": 5.52211030106442,
+      "kills": 0.0,
+      "product": "Stone Pickaxe",
+      "product_type": 40,
+      "raw_costs": {
+        "Stone": 8.0,
+        "Wood": 2.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "day_one"
+    },
+    {
+      "direct_costs": {
+        "Coal Ore": 2,
+        "Copper Bar": 1,
+        "Gold Ore": 1
+      },
+      "gather_seconds": 5.25042111888633,
+      "kills": 0.0,
+      "product": "Gold Bar",
+      "product_type": 37,
+      "raw_costs": {
+        "Coal Ore": 3.0,
+        "Copper Ore": 1.0,
+        "Gold Ore": 1.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "gold_rush"
+    },
+    {
+      "direct_costs": {
+        "Plank": 4
+      },
+      "gather_seconds": 4.21906020550185,
+      "kills": 0.0,
+      "product": "Chest",
+      "product_type": 16,
+      "raw_costs": {
+        "Wood": 8.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "day_one"
+    },
+    {
+      "direct_costs": {
+        "Berries": 4,
+        "Coal Ore": 1
+      },
+      "gather_seconds": 3.81622840005931,
+      "kills": 0.0,
+      "product": "Cooked Food",
+      "product_type": 49,
+      "raw_costs": {
+        "Berries": 4.0,
+        "Coal Ore": 1.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "iron_age"
+    },
+    {
+      "direct_costs": {
+        "Wood": 6
+      },
+      "gather_seconds": 3.16429515412639,
+      "kills": 0.0,
+      "product": "String",
+      "product_type": 19,
+      "raw_costs": {
+        "Wood": 6.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "bountiful"
+    },
+    {
+      "direct_costs": {
+        "Plank": 3
+      },
+      "gather_seconds": 3.16429515412639,
+      "kills": 0.0,
+      "product": "Wood Door",
+      "product_type": 14,
+      "raw_costs": {
+        "Wood": 6.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "wood_decor"
+    },
+    {
+      "direct_costs": {
+        "Coal Ore": 1,
+        "Stone": 4
+      },
+      "gather_seconds": 3.07189500280502,
+      "kills": 0.0,
+      "product": "Stone Brick",
+      "product_type": 50,
+      "raw_costs": {
+        "Coal Ore": 1.0,
+        "Stone": 4.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Stone": 5
+      },
+      "gather_seconds": 2.7920907810556,
+      "kills": 0.0,
+      "product": "Stone Wall",
+      "product_type": 41,
+      "raw_costs": {
+        "Stone": 5.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "light_step"
+    },
+    {
+      "direct_costs": {
+        "Coal Ore": 1,
+        "Gold Ore": 1
+      },
+      "gather_seconds": 2.60680033712929,
+      "kills": 0.0,
+      "product": "Gold Coin",
+      "product_type": 31,
+      "raw_costs": {
+        "Coal Ore": 1.0,
+        "Gold Ore": 1.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "minting"
+    },
+    {
+      "direct_costs": {
+        "Coal Ore": 1,
+        "Iron Ore": 1
+      },
+      "gather_seconds": 2.1883795403424,
+      "kills": 0.0,
+      "product": "Iron Bar",
+      "product_type": 11,
+      "raw_costs": {
+        "Coal Ore": 1.0,
+        "Iron Ore": 1.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "smelting"
+    },
+    {
+      "direct_costs": {
+        "Plank": 2
+      },
+      "gather_seconds": 2.10953010275092,
+      "kills": 0.0,
+      "product": "Wood Wall",
+      "product_type": 13,
+      "raw_costs": {
+        "Wood": 4.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "wood_decor"
+    },
+    {
+      "direct_costs": {
+        "Coal Ore": 1,
+        "Copper Ore": 1
+      },
+      "gather_seconds": 1.8053984037965,
+      "kills": 0.0,
+      "product": "Copper Bar",
+      "product_type": 34,
+      "raw_costs": {
+        "Coal Ore": 1.0,
+        "Copper Ore": 1.0
+      },
+      "station": "Furnace",
+      "unlocked_by": "iron_age"
+    },
+    {
+      "direct_costs": {
+        "Stone": 3
+      },
+      "gather_seconds": 1.67525446863336,
+      "kills": 0.0,
+      "product": "Stone Floor",
+      "product_type": 42,
+      "raw_costs": {
+        "Stone": 3.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "light_step"
+    },
+    {
+      "direct_costs": {
+        "Plank": 1
+      },
+      "gather_seconds": 1.05476505137546,
+      "kills": 0.0,
+      "product": "Wood Floor",
+      "product_type": 8,
+      "raw_costs": {
+        "Wood": 2.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "wood_decor"
+    },
+    {
+      "direct_costs": {
+        "Wood": 2
+      },
+      "gather_seconds": 1.05476505137546,
+      "kills": 0.0,
+      "product": "Plank",
+      "product_type": 6,
+      "raw_costs": {
+        "Wood": 2.0
+      },
+      "station": "Sawmill",
+      "unlocked_by": "day_one"
+    }
+  ],
+  "resources": [
+    {
+      "drop": "Wood",
+      "is_scene_tile": false,
+      "mean_yield": 1.5,
+      "name": "Tree",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.292568753657109,
+      "share_start": 0.307692307692308,
+      "spawn_weight": 5.0,
+      "type": 3,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Stone",
+      "is_scene_tile": false,
+      "mean_yield": 1.5,
+      "name": "Stone",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.234055002925688,
+      "share_start": 0.246153846153846,
+      "spawn_weight": 4.0,
+      "type": 0,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Stone",
+      "is_scene_tile": true,
+      "mean_yield": 1.5,
+      "name": "Stone",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.234055002925688,
+      "share_start": 0.246153846153846,
+      "spawn_weight": 4.0,
+      "type": 30,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Berries",
+      "is_scene_tile": true,
+      "mean_yield": 1.5,
+      "name": "Berry Bush",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.0877706260971328,
+      "share_start": 0.0923076923076923,
+      "spawn_weight": 1.5,
+      "type": 51,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Coal Ore",
+      "is_scene_tile": false,
+      "mean_yield": 1.5,
+      "name": "Coal",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.061439438267993,
+      "share_start": 0.0646153846153846,
+      "spawn_weight": 1.05,
+      "type": 1,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Copper Ore",
+      "is_scene_tile": false,
+      "mean_yield": 1.5,
+      "name": "Copper",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.0409596255119953,
+      "share_start": 0.0430769230769231,
+      "spawn_weight": 0.7,
+      "type": 32,
+      "unlocked_at_start": true,
+      "xp": 1,
+      "yield_max": 2,
+      "yield_min": 1
+    },
+    {
+      "drop": "Iron Ore",
+      "is_scene_tile": false,
+      "mean_yield": 1.0,
+      "name": "Iron",
+      "secondary_chance": 0.0,
+      "secondary_drop": "",
+      "share_endgame": 0.0327677004095963,
+      "share_start": 0.0,
+      "spawn_weight": 0.56,
+      "type": 2,
+      "unlocked_at_start": false,
+      "xp": 1,
+      "yield_max": 1,
+      "yield_min": 1
+    },
+    {
+      "drop": "Gold Ore",
+      "is_scene_tile": false,
+      "mean_yield": 1.0,
+      "name": "Gold",
+      "secondary_chance": 0.5,
+      "secondary_drop": "Gold Coin",
+      "share_endgame": 0.0163838502047981,
+      "share_start": 0.0,
+      "spawn_weight": 0.28,
+      "type": 35,
+      "unlocked_at_start": false,
+      "xp": 1,
+      "yield_max": 1,
+      "yield_min": 1
+    }
+  ],
+  "skills": [
+    {
+      "branch": "Foraging",
+      "cost": 1,
+      "cost_to_reach": 1,
+      "effects": {
+        "gather_speed_mult": -0.15
+      },
+      "id": "swift_hands",
+      "level_required": 2,
+      "name": "Swift Hands",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 0,
+      "xp_required": 40
+    },
+    {
+      "branch": "Foraging",
+      "cost": 2,
+      "cost_to_reach": 3,
+      "effects": {
+        "bonus_yield_chance": 0.25
+      },
+      "id": "bountiful",
+      "level_required": 4,
+      "name": "Bountiful Harvest",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 1,
+      "xp_required": 129
+    },
+    {
+      "branch": "Foraging",
+      "cost": 3,
+      "cost_to_reach": 6,
+      "effects": {
+        "xp_mult": 0.25
+      },
+      "id": "scholar",
+      "level_required": 7,
+      "name": "Scholar",
+      "recipe_count": 0,
+      "resource_count": 0,
+      "tier": 2,
+      "xp_required": 291
+    },
+    {
+      "branch": "Foraging",
+      "cost": 4,
+      "cost_to_reach": 10,
+      "effects": {
+        "bonus_yield_chance": 0.25,
+        "gather_speed_mult": -0.1
+      },
+      "id": "motherlode",
+      "level_required": 11,
+      "name": "Motherlode",
+      "recipe_count": 0,
+      "resource_count": 0,
+      "tier": 3,
+      "xp_required": 574
+    },
+    {
+      "branch": "Industry",
+      "cost": 1,
+      "cost_to_reach": 1,
+      "effects": {},
+      "id": "bone_pickaxe",
+      "level_required": 2,
+      "name": "Bone Pickaxe",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 0,
+      "xp_required": 40
+    },
+    {
+      "branch": "Industry",
+      "cost": 2,
+      "cost_to_reach": 3,
+      "effects": {},
+      "id": "iron_age",
+      "level_required": 4,
+      "name": "Copper Age",
+      "recipe_count": 4,
+      "resource_count": 0,
+      "tier": 1,
+      "xp_required": 129
+    },
+    {
+      "branch": "Industry",
+      "cost": 3,
+      "cost_to_reach": 6,
+      "effects": {},
+      "id": "smelting",
+      "level_required": 7,
+      "name": "Smelting",
+      "recipe_count": 7,
+      "resource_count": 1,
+      "tier": 2,
+      "xp_required": 291
+    },
+    {
+      "branch": "Industry",
+      "cost": 4,
+      "cost_to_reach": 13,
+      "effects": {},
+      "id": "gold_rush",
+      "level_required": 14,
+      "name": "Gold Rush",
+      "recipe_count": 3,
+      "resource_count": 1,
+      "tier": 3,
+      "xp_required": 850
+    },
+    {
+      "branch": "Industry",
+      "cost": 5,
+      "cost_to_reach": 18,
+      "effects": {},
+      "id": "minting",
+      "level_required": 19,
+      "name": "Minting",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 4,
+      "xp_required": 1479
+    },
+    {
+      "branch": "Combat",
+      "cost": 1,
+      "cost_to_reach": 1,
+      "effects": {
+        "damage_bonus": 2
+      },
+      "id": "bone_sword",
+      "level_required": 2,
+      "name": "Bone Sword",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 0,
+      "xp_required": 40
+    },
+    {
+      "branch": "Combat",
+      "cost": 2,
+      "cost_to_reach": 3,
+      "effects": {
+        "max_health_bonus": 5
+      },
+      "id": "tough_hide",
+      "level_required": 4,
+      "name": "Tough Hide",
+      "recipe_count": 1,
+      "resource_count": 0,
+      "tier": 1,
+      "xp_required": 129
+    },
+    {
+      "branch": "Combat",
+      "cost": 3,
+      "cost_to_reach": 6,
+      "effects": {},
+      "id": "bone_turret",
+      "level_required": 7,
+      "name": "Bone Turret",
+      "recipe_count": 2,
+      "resource_count": 0,
+      "tier": 2,
+      "xp_required": 291
+    },
+    {
+      "branch": "Combat",
+      "cost": 4,
+      "cost_to_reach": 10,
+      "effects": {
+        "coin_find_bonus": 0.25
+      },
+      "id": "plunder",
+      "level_required": 11,
+      "name": "Plunder",
+      "recipe_count": 0,
+      "resource_count": 0,
+      "tier": 3,
+      "xp_required": 574
+    },
+    {
+      "branch": "Building",
+      "cost": 1,
+      "cost_to_reach": 1,
+      "effects": {},
+      "id": "wood_decor",
+      "level_required": 2,
+      "name": "Wood Decor",
+      "recipe_count": 3,
+      "resource_count": 0,
+      "tier": 0,
+      "xp_required": 40
+    },
+    {
+      "branch": "Building",
+      "cost": 2,
+      "cost_to_reach": 3,
+      "effects": {
+        "move_speed_mult": 0.15
+      },
+      "id": "light_step",
+      "level_required": 4,
+      "name": "Light Step",
+      "recipe_count": 2,
+      "resource_count": 0,
+      "tier": 1,
+      "xp_required": 129
+    },
+    {
+      "branch": "Building",
+      "cost": 3,
+      "cost_to_reach": 6,
+      "effects": {
+        "pickup_radius_mult": 0.6
+      },
+      "id": "magnetism",
+      "level_required": 7,
+      "name": "Magnetism",
+      "recipe_count": 0,
+      "resource_count": 0,
+      "tier": 2,
+      "xp_required": 291
+    },
+    {
+      "branch": "Building",
+      "cost": 4,
+      "cost_to_reach": 10,
+      "effects": {
+        "land_cost_mult": -0.25
+      },
+      "id": "surveyor",
+      "level_required": 11,
+      "name": "Surveyor",
+      "recipe_count": 0,
+      "resource_count": 0,
+      "tier": 3,
+      "xp_required": 574
+    }
+  ],
+  "world_flow": {
+    "cap_at_max": 572,
+    "cap_at_start": 49,
+    "home_tiles_at_max": 2289,
+    "home_tiles_at_start": 197,
+    "nodes_per_hour_total": 150.0,
+    "per_stage": {
+      "gold_rush": {
+        "Berry Bush": {
+          "items_per_hour": 32.9139847864248,
+          "nodes_per_hour": 13.1655939145699,
+          "seconds_between_spawns": 273.44,
+          "share": 0.0877706260971328,
+          "standing_stock_at_max": 35.158718548859,
+          "standing_stock_at_start": 3.02589233469865
+        },
+        "Coal": {
+          "items_per_hour": 23.0397893504974,
+          "nodes_per_hour": 9.21591574019895,
+          "seconds_between_spawns": 390.628571428571,
+          "share": 0.061439438267993,
+          "standing_stock_at_max": 24.6111029842013,
+          "standing_stock_at_start": 2.11812463428906
+        },
+        "Copper": {
+          "items_per_hour": 15.3598595669982,
+          "nodes_per_hour": 6.1439438267993,
+          "seconds_between_spawns": 585.942857142857,
+          "share": 0.0409596255119953,
+          "standing_stock_at_max": 16.4074019894675,
+          "standing_stock_at_start": 1.41208308952604
+        },
+        "Gold": {
+          "items_per_hour": 4.91515506143944,
+          "nodes_per_hour": 2.45757753071972,
+          "seconds_between_spawns": 1464.85714285714,
+          "share": 0.0163838502047981,
+          "standing_stock_at_max": 6.56296079578701,
+          "standing_stock_at_start": 0.564833235810415
+        },
+        "Iron": {
+          "items_per_hour": 9.83031012287888,
+          "nodes_per_hour": 4.91515506143944,
+          "seconds_between_spawns": 732.428571428571,
+          "share": 0.0327677004095963,
+          "standing_stock_at_max": 13.125921591574,
+          "standing_stock_at_start": 1.12966647162083
+        },
+        "Stone": {
+          "items_per_hour": 87.7706260971328,
+          "nodes_per_hour": 35.1082504388531,
+          "seconds_between_spawns": 102.54,
+          "share": 0.234055002925688,
+          "standing_stock_at_max": 93.7565827969573,
+          "standing_stock_at_start": 8.06904622586308
+        },
+        "Tree": {
+          "items_per_hour": 109.713282621416,
+          "nodes_per_hour": 43.8853130485664,
+          "seconds_between_spawns": 82.032,
+          "share": 0.292568753657109,
+          "standing_stock_at_max": 117.195728496197,
+          "standing_stock_at_start": 10.0863077823288
+        }
+      },
+      "smelting": {
+        "Berry Bush": {
+          "items_per_hour": 33.4622248661511,
+          "nodes_per_hour": 13.3848899464604,
+          "seconds_between_spawns": 268.96,
+          "share": 0.0892325996430696,
+          "standing_stock_at_max": 35.7443486020226,
+          "standing_stock_at_start": 3.07629387269482
+        },
+        "Coal": {
+          "items_per_hour": 23.4235574063058,
+          "nodes_per_hour": 9.36942296252231,
+          "seconds_between_spawns": 384.228571428571,
+          "share": 0.0624628197501487,
+          "standing_stock_at_max": 25.0210440214158,
+          "standing_stock_at_start": 2.15340571088638
+        },
+        "Copper": {
+          "items_per_hour": 15.6157049375372,
+          "nodes_per_hour": 6.24628197501487,
+          "seconds_between_spawns": 576.342857142857,
+          "share": 0.0416418798334325,
+          "standing_stock_at_max": 16.6806960142772,
+          "standing_stock_at_start": 1.43560380725758
+        },
+        "Iron": {
+          "items_per_hour": 9.9940511600238,
+          "nodes_per_hour": 4.9970255800119,
+          "seconds_between_spawns": 720.428571428571,
+          "share": 0.033313503866746,
+          "standing_stock_at_max": 13.3445568114218,
+          "standing_stock_at_start": 1.14848304580607
+        },
+        "Stone": {
+          "items_per_hour": 89.2325996430696,
+          "nodes_per_hour": 35.6930398572278,
+          "seconds_between_spawns": 100.86,
+          "share": 0.237953599048186,
+          "standing_stock_at_max": 95.3182629387269,
+          "standing_stock_at_start": 8.2034503271862
+        },
+        "Tree": {
+          "items_per_hour": 111.540749553837,
+          "nodes_per_hour": 44.6162998215348,
+          "seconds_between_spawns": 80.688,
+          "share": 0.297441998810232,
+          "standing_stock_at_max": 119.147828673409,
+          "standing_stock_at_start": 10.2543129089827
+        }
+      },
+      "start": {
+        "Berry Bush": {
+          "items_per_hour": 34.6153846153846,
+          "nodes_per_hour": 13.8461538461538,
+          "seconds_between_spawns": 260.0,
+          "share": 0.0923076923076923,
+          "standing_stock_at_max": 36.9761538461538,
+          "standing_stock_at_start": 3.18230769230769
+        },
+        "Coal": {
+          "items_per_hour": 24.2307692307692,
+          "nodes_per_hour": 9.69230769230769,
+          "seconds_between_spawns": 371.428571428571,
+          "share": 0.0646153846153846,
+          "standing_stock_at_max": 25.8833076923077,
+          "standing_stock_at_start": 2.22761538461538
+        },
+        "Copper": {
+          "items_per_hour": 16.1538461538462,
+          "nodes_per_hour": 6.46153846153846,
+          "seconds_between_spawns": 557.142857142857,
+          "share": 0.0430769230769231,
+          "standing_stock_at_max": 17.2555384615385,
+          "standing_stock_at_start": 1.48507692307692
+        },
+        "Stone": {
+          "items_per_hour": 92.3076923076923,
+          "nodes_per_hour": 36.9230769230769,
+          "seconds_between_spawns": 97.5,
+          "share": 0.246153846153846,
+          "standing_stock_at_max": 98.6030769230769,
+          "standing_stock_at_start": 8.48615384615385
+        },
+        "Tree": {
+          "items_per_hour": 115.384615384615,
+          "nodes_per_hour": 46.1538461538462,
+          "seconds_between_spawns": 78.0,
+          "share": 0.307692307692308,
+          "standing_stock_at_max": 123.253846153846,
+          "standing_stock_at_start": 10.6076923076923
+        }
+      }
+    },
+    "respawn_interval": 24.0,
+    "respawn_interval_in_rain": 13.2,
+    "seeded_at_start": 34
+  },
+  "xp_curve": [
+    {
+      "kills_for_this_level": 14,
+      "level": 2,
+      "nodes_for_this_level": 40,
+      "nodes_with_scholar": 32,
+      "step": 40,
+      "threshold": 40
+    },
+    {
+      "kills_for_this_level": 15,
+      "level": 3,
+      "nodes_for_this_level": 43,
+      "nodes_with_scholar": 35,
+      "step": 43,
+      "threshold": 83
+    },
+    {
+      "kills_for_this_level": 16,
+      "level": 4,
+      "nodes_for_this_level": 46,
+      "nodes_with_scholar": 37,
+      "step": 46,
+      "threshold": 129
+    },
+    {
+      "kills_for_this_level": 17,
+      "level": 5,
+      "nodes_for_this_level": 50,
+      "nodes_with_scholar": 40,
+      "step": 50,
+      "threshold": 179
+    },
+    {
+      "kills_for_this_level": 18,
+      "level": 6,
+      "nodes_for_this_level": 54,
+      "nodes_with_scholar": 44,
+      "step": 54,
+      "threshold": 233
+    },
+    {
+      "kills_for_this_level": 20,
+      "level": 7,
+      "nodes_for_this_level": 58,
+      "nodes_with_scholar": 47,
+      "step": 58,
+      "threshold": 291
+    },
+    {
+      "kills_for_this_level": 21,
+      "level": 8,
+      "nodes_for_this_level": 63,
+      "nodes_with_scholar": 51,
+      "step": 63,
+      "threshold": 354
+    },
+    {
+      "kills_for_this_level": 23,
+      "level": 9,
+      "nodes_for_this_level": 68,
+      "nodes_with_scholar": 55,
+      "step": 68,
+      "threshold": 422
+    },
+    {
+      "kills_for_this_level": 25,
+      "level": 10,
+      "nodes_for_this_level": 73,
+      "nodes_with_scholar": 59,
+      "step": 73,
+      "threshold": 495
+    },
+    {
+      "kills_for_this_level": 27,
+      "level": 11,
+      "nodes_for_this_level": 79,
+      "nodes_with_scholar": 64,
+      "step": 79,
+      "threshold": 574
+    },
+    {
+      "kills_for_this_level": 29,
+      "level": 12,
+      "nodes_for_this_level": 85,
+      "nodes_with_scholar": 68,
+      "step": 85,
+      "threshold": 659
+    },
+    {
+      "kills_for_this_level": 31,
+      "level": 13,
+      "nodes_for_this_level": 92,
+      "nodes_with_scholar": 74,
+      "step": 92,
+      "threshold": 751
+    },
+    {
+      "kills_for_this_level": 33,
+      "level": 14,
+      "nodes_for_this_level": 99,
+      "nodes_with_scholar": 80,
+      "step": 99,
+      "threshold": 850
+    },
+    {
+      "kills_for_this_level": 36,
+      "level": 15,
+      "nodes_for_this_level": 107,
+      "nodes_with_scholar": 86,
+      "step": 107,
+      "threshold": 957
+    },
+    {
+      "kills_for_this_level": 39,
+      "level": 16,
+      "nodes_for_this_level": 116,
+      "nodes_with_scholar": 93,
+      "step": 116,
+      "threshold": 1073
+    },
+    {
+      "kills_for_this_level": 42,
+      "level": 17,
+      "nodes_for_this_level": 125,
+      "nodes_with_scholar": 100,
+      "step": 125,
+      "threshold": 1198
+    },
+    {
+      "kills_for_this_level": 45,
+      "level": 18,
+      "nodes_for_this_level": 135,
+      "nodes_with_scholar": 108,
+      "step": 135,
+      "threshold": 1333
+    },
+    {
+      "kills_for_this_level": 49,
+      "level": 19,
+      "nodes_for_this_level": 146,
+      "nodes_with_scholar": 117,
+      "step": 146,
+      "threshold": 1479
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 20,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 1629
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 21,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 1779
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 22,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 1929
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 23,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2079
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 24,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2229
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 25,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2379
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 26,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2529
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 27,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2679
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 28,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2829
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 29,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 2979
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 30,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3129
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 31,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3279
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 32,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3429
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 33,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3579
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 34,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3729
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 35,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 3879
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 36,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4029
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 37,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4179
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 38,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4329
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 39,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4479
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 40,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4629
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 41,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4779
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 42,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 4929
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 43,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 5079
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 44,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 5229
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 45,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 5379
+    },
+    {
+      "kills_for_this_level": 50,
+      "level": 46,
+      "nodes_for_this_level": 150,
+      "nodes_with_scholar": 120,
+      "step": 150,
+      "threshold": 5529
+    }
+  ]
+}
