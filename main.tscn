@@ -373,7 +373,7 @@ bg_color = Color(0.105882, 0.0627451, 0.137255, 1)
 anti_aliasing = false
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k26bf"]
-bg_color = Color(0, 0.6, 0.858824, 1)
+bg_color = Color(0.172549, 0.909804, 0.960784, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -602,6 +602,9 @@ offset_top = 2.6535
 offset_right = 41.7173
 offset_bottom = 25.6535
 scale = Vector2(0.275, 0.275)
+theme_override_colors/font_color = Color(0.956863, 0.956863, 0.956863, 1)
+theme_override_colors/font_outline_color = Color(0.105882, 0.0627451, 0.137255, 1)
+theme_override_constants/outline_size = 12
 text = "HP
 "
 
@@ -612,6 +615,9 @@ offset_top = 7.6535
 offset_right = 41.7173
 offset_bottom = 30.6535
 scale = Vector2(0.275, 0.275)
+theme_override_colors/font_color = Color(0.956863, 0.956863, 0.956863, 1)
+theme_override_colors/font_outline_color = Color(0.105882, 0.0627451, 0.137255, 1)
+theme_override_constants/outline_size = 12
 text = "XP
 "
 
