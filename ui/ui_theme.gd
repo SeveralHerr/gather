@@ -41,34 +41,52 @@ class_name UiTheme
 ## Taking the factor directly makes that round trip unrepresentable.
 
 # --- palette -----------------------------------------------------------------
+#
+# Endesga 64. The world tiles are drawn from the same ramp (see
+# `assets/art/endesga_64_palette.png`), which is the whole reason this palette was
+# chosen over inventing one: the UI and the grass are guaranteed to belong to each
+# other rather than merely not clashing.
+#
+# The load-bearing colour is COLOR_INK. In this style every element is separated
+# from the world by a thick near-black outline, not by a tint or a shadow gradient
+# — lose the outline and saturated chrome over saturated grass turns to mush. That
+# is why COLOR_BORDER is now the *same* near-black rather than a mid grey: a
+# "border" in this UI is an outline, and the two concepts had no reason to differ.
 
-## Full-screen dim behind an open panel.
-const COLOR_BACKDROP := Color(0.02, 0.03, 0.05, 0.78)
+## The outline every element is drawn with, and the only near-black in the palette.
+const COLOR_INK := Color("1b1023")
+
+## Full-screen dim behind an open panel. Deeper and more opaque than the old
+## slate one — the panel it sits behind is now light enough to need it.
+const COLOR_BACKDROP := Color(0.106, 0.063, 0.137, 0.82)
 ## The panel body itself.
-const COLOR_FRAME := Color("161a21")
+const COLOR_FRAME := Color("3a4466")
 ## Recessed areas inside a panel (list backgrounds, detail panes).
-const COLOR_INSET := Color("11141a")
-## Panel borders and separators.
-const COLOR_BORDER := Color("2c3340")
+const COLOR_INSET := Color("262b44")
+## Panel borders and separators — the outline. See COLOR_INK above.
+const COLOR_BORDER := COLOR_INK
 ## Primary and secondary body text.
-const COLOR_TEXT := Color("f2f4f8")
-const COLOR_TEXT_DIM := Color("7d8494")
+const COLOR_TEXT := Color("f4f4f4")
+const COLOR_TEXT_DIM := Color("8b9bb4")
 ## Currency, skill points, and the "this one matters" accent.
-const COLOR_GOLD := Color("ffd166")
+const COLOR_GOLD := Color("fee761")
 ## Costs the player cannot afford, and destructive actions.
-const COLOR_BAD := Color("e2725b")
+const COLOR_BAD := Color("e43b44")
 ## Affordable / available / unlocked.
-const COLOR_GOOD := Color("6fcf6a")
+const COLOR_GOOD := Color("63c74d")
 ## Neutral highlight — selected hotbar slot, hovered card.
-const COLOR_ACCENT := Color("58a8e0")
+const COLOR_ACCENT := Color("0099db")
 
-## Translucent chrome for controls that sit over the world rather than over a
-## backdrop (the touch buttons, the hotbar).
-const COLOR_OVERLAY_BG := Color(0.086, 0.102, 0.129, 0.86)
-const COLOR_OVERLAY_BORDER := Color(0.49, 0.52, 0.58, 0.55)
+## Chrome for controls that sit over the world rather than over a backdrop (the
+## touch buttons, the hotbar). Near-opaque on purpose: a translucent fill lets the
+## tilemap show through and reads as a bug once everything else is flat colour.
+const COLOR_OVERLAY_BG := Color(0.149, 0.169, 0.267, 0.94)
+const COLOR_OVERLAY_BORDER := COLOR_INK
 
-## Multiplied into a control while a finger or cursor is holding it down.
-const PRESSED_MODULATE := Color(0.62, 0.72, 0.85, 1.0)
+## Multiplied into a control while a finger or cursor is holding it down. The
+## press *also* moves the control into its own shadow (see SHADOW_SIZE); this only
+## has to darken it enough to read as depressed under a finger that is covering it.
+const PRESSED_MODULATE := Color(0.74, 0.76, 0.86, 1.0)
 
 # --- metrics -----------------------------------------------------------------
 
@@ -97,15 +115,50 @@ const FONT_SMALL := 12
 ## works out to. Below roughly this the pixel font stops being readable at all.
 const FONT_MIN := 10
 
-## Corner radius and border width for panels and for the smaller controls inside
-## them, so every rounded rectangle in the game shares two numbers.
-const RADIUS_PANEL := 8
-const RADIUS_CONTROL := 6
-const BORDER_WIDTH := 2
+## Corner radius for panels and for the smaller controls inside them.
+##
+## **Both are zero and should stay zero.** Pixel art has no arcs: a rounded corner
+## is drawn by rasterising a curve, which anti-aliases against whatever is behind
+## it and puts soft grey pixels on an edge that every other edge on screen keeps
+## hard. They are kept as named constants rather than deleted because six files
+## pass them to `set_corner_radius_all()`, and a single non-zero value here is the
+## one-line way to evaluate going back.
+const RADIUS_PANEL := 0
+const RADIUS_CONTROL := 0
+
+## The outline width. Every element is separated from the world by this much
+## near-black; see the palette note on COLOR_INK.
+const BORDER_WIDTH := 3
+
+## Content margin inside a Button, per side.
+##
+## Named rather than inlined because `test_hud_toolbar.gd` reasons about it
+## explicitly: the toolbar is an HFlowContainer, so this number times two times the
+## button count is the difference between the strip fitting a 390px phone and
+## wrapping onto a second row. It came down from 8 alongside PAD_PANEL, for the
+## same reason.
+const BUTTON_PAD := 6
+
+## How far the hard drop shadow falls, before scaling.
+##
+## `StyleBoxFlat` grows its shadow by `shadow_size` on all four sides and *then*
+## displaces it by `shadow_offset`, so setting both to the same number lands the
+## shadow flush with the top and left edges and `2 * SHADOW_SIZE` proud of the
+## bottom and right ones. That asymmetry is the effect — an offset shadow with no
+## blur and no halo. Setting only `shadow_offset` draws nothing: the engine gates
+## the whole shadow pass on `shadow_size > 0`.
+const SHADOW_SIZE := 3
 
 ## Padding inside a panel frame, and the gap between stacked children, pre-scale.
-const PAD_PANEL := 18
-const GAP := 8
+##
+## Both came down when the outline went on (18 and 8 before). A 3px ink outline
+## already separates two elements from each other; padding that also separated
+## them was doing the job twice, and the second copy cost real screen height. It
+## is not free budget — `inset_style()` gained an outline on all four sides, so
+## every well in a panel grew by `2 * BORDER_WIDTH`, and on a 390x844 phone the
+## save-slot panel overflowed until this came back down to pay for it.
+const PAD_PANEL := 12
+const GAP := 6
 
 
 ## The factor every size below is multiplied by, derived from the viewport's
@@ -193,58 +246,106 @@ static func apply_typography(entries: Array, factor: float) -> void:
 
 # --- style factories ---------------------------------------------------------
 
-## The outer body of a panel: solid fill, hairline border, rounded.
-static func frame_style() -> StyleBoxFlat:
+## The one place a StyleBoxFlat is configured, so no caller has to remember the
+## two settings that make a box read as pixel art rather than as a web widget:
+## square corners, and `anti_aliased = false`.
+##
+## That second one is the easy thing to leave out and the hard thing to see. It
+## defaults to `true`, and on a square-cornered box the softening it applies is a
+## single row of blended pixels around the outline — invisible in a screenshot
+## viewed at 100%, obvious the moment the window is scaled or the shot is zoomed,
+## and inconsistent with every hard-edged sprite behind it.
+##
+## The property is `anti_aliasing`, not `anti_aliased`. Getting that wrong does not
+## fail to compile and does not fail lint: the assignment raises at runtime, which
+## aborts `_flat()` and returns **null**, so every factory below silently hands back
+## nothing and every control in the game falls back to Godot's default theme. The
+## only thing that caught it was `test_save_slot_ui.gd` noticing a button had
+## stopped clearing the touch floor.
+static func _flat(fill: Color, outline: Color = COLOR_INK,
+		width: int = BORDER_WIDTH, radius: int = RADIUS_CONTROL) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_FRAME
-	style.border_color = COLOR_BORDER
-	style.set_border_width_all(BORDER_WIDTH)
-	style.set_corner_radius_all(RADIUS_PANEL)
+	style.bg_color = fill
+	style.border_color = outline
+	style.set_border_width_all(width)
+	style.set_corner_radius_all(radius)
+	style.anti_aliasing = false
 	return style
+
+
+## Adds the hard offset drop shadow. See SHADOW_SIZE for why both fields are set
+## to the same number.
+static func _with_shadow(style: StyleBoxFlat, size: int = SHADOW_SIZE) -> StyleBoxFlat:
+	style.shadow_color = COLOR_INK
+	style.shadow_size = size
+	style.shadow_offset = Vector2(size, size)
+	return style
+
+
+## The outer body of a panel: solid fill, thick outline, square, and casting.
+static func frame_style() -> StyleBoxFlat:
+	return _with_shadow(_flat(COLOR_FRAME, COLOR_INK, BORDER_WIDTH, RADIUS_PANEL), SHADOW_SIZE * 2)
 
 
 ## A recessed area inside a panel — list backgrounds, detail panes, slot wells.
+##
+## Deliberately the one element with no shadow of its own: it is *below* the panel
+## surface, not floating above it, and a well that casts is a well that reads as a
+## card. The outline alone carries it.
 static func inset_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_INSET
-	style.set_corner_radius_all(RADIUS_CONTROL)
-	return style
+	return _flat(COLOR_INSET)
 
 
 ## Chrome for a control sitting directly over the world, with no backdrop behind
-## it to separate it from the tilemap. `accent` draws the brighter border the
+## it to separate it from the tilemap. `accent` draws the brighter outline the
 ## touch overlay uses for its primary button and the hotbar uses for the selected
 ## slot.
+##
+## The accent variant keeps the ink outline and adds the gold *outside* it as the
+## shadow colour, so a selected slot gains a highlight without losing the
+## separation from the world that the ink provides.
 static func overlay_style(accent: bool = false) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_OVERLAY_BG
-	style.border_color = COLOR_GOLD if accent else COLOR_OVERLAY_BORDER
-	style.set_border_width_all(BORDER_WIDTH + (1 if accent else 0))
-	style.set_corner_radius_all(RADIUS_CONTROL)
+	var style := _flat(COLOR_OVERLAY_BG)
+	_with_shadow(style)
+	if accent:
+		style.shadow_color = COLOR_GOLD
 	return style
 
 
 ## Applies the four StyleBoxes a Button draws itself with, so buttons in
 ## different panels stop looking like they came from different games. `danger`
 ## tints the destructive variant.
+##
+## The press is a *movement*, not just a recolour: `pressed` drops the shadow and
+## shifts the box down-right by the same amount, so the button visibly travels
+## into the hole it was casting into. Content margins move with it, which is what
+## carries the label along — a button that changed colour but held still read as
+## disabled rather than held.
 static func style_button(button: Button, danger: bool = false) -> void:
-	var tint := COLOR_BAD if danger else COLOR_ACCENT
+	# A destructive action is the one thing loud enough to be filled; everything
+	# else takes the neutral panel face. Filling every button with the accent puts
+	# four saturated blues next to the gold skill-point chip and nothing wins.
+	var fill := COLOR_BAD if danger else COLOR_FRAME
 
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = COLOR_INSET
-	normal.border_color = tint
-	normal.set_border_width_all(BORDER_WIDTH)
-	normal.set_corner_radius_all(RADIUS_CONTROL)
-	normal.set_content_margin_all(8)
+	var normal := _flat(fill)
+	_with_shadow(normal)
+	normal.set_content_margin_all(BUTTON_PAD)
 
 	var hover := normal.duplicate() as StyleBoxFlat
-	hover.bg_color = tint.darkened(0.55)
+	hover.bg_color = fill.lightened(0.18)
 
 	var pressed := normal.duplicate() as StyleBoxFlat
-	pressed.bg_color = tint.darkened(0.35)
+	pressed.bg_color = fill.darkened(0.22)
+	pressed.shadow_size = 0
+	pressed.shadow_offset = Vector2.ZERO
+	pressed.content_margin_left = 8 + SHADOW_SIZE
+	pressed.content_margin_top = 8 + SHADOW_SIZE
+	pressed.content_margin_right = maxf(0.0, 8 - SHADOW_SIZE)
+	pressed.content_margin_bottom = maxf(0.0, 8 - SHADOW_SIZE)
 
 	var disabled := normal.duplicate() as StyleBoxFlat
-	disabled.border_color = COLOR_BORDER
+	disabled.bg_color = COLOR_INSET
+	disabled.shadow_color = Color(COLOR_INK, 0.4)
 
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
