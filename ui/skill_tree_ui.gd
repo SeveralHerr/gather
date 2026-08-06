@@ -452,9 +452,20 @@ func _scale_badge(factor: float) -> void:
 	if _hud_badge == null:
 		return
 
-	_hud_badge_style.set_content_margin_all(UiTheme.scaled(BADGE_PAD, factor))
+	var pad := UiTheme.scaled(BADGE_PAD, factor)
+	_hud_badge_style.set_content_margin_all(pad)
 
-	var width := BADGE_WIDTH * factor
+	# The width follows the text, floored at the authored one rather than fixed to
+	# it. BADGE_WIDTH alone was a bet that "68 skill points  [K]" would fit in 170
+	# units at every scale, and the bitmap font's wider glyphs called it: the badge
+	# grew past its own right edge and hung 45px off the side of a 1920 screen,
+	# where `validate-ui` found it as a `ui_overflow`. Measuring the label instead
+	# means the count can reach three digits without anyone re-tuning a constant.
+	#
+	# `apply_typography()` runs before this in `_apply_scale()`, so the size read
+	# here is the one the label is about to draw at, not the previous frame's.
+	var content := _hud_badge_label.get_combined_minimum_size().x + pad * 2.0
+	var width := maxf(BADGE_WIDTH * factor, content)
 	var margin := UiTheme.scaled(BADGE_MARGIN, factor)
 	var top := margin + _toolbar_height()
 	_hud_badge.custom_minimum_size = Vector2(width, 0)
@@ -562,6 +573,11 @@ func _refresh_header() -> void:
 	var points := level_up_manager.points
 	_hud_badge.visible = points > 0
 	_hud_badge_label.text = "%d skill point%s  [K]" % [points, "" if points == 1 else "s"]
+
+	# The badge is now as wide as its text, so changing the text has to re-derive
+	# the width. Levelling from 9 to 10 points adds a digit, and without this the
+	# badge would keep the width it was built with until the next window resize.
+	_scale_badge(UiTheme.scale_for_node(self))
 
 	if _level_label == null:
 		return

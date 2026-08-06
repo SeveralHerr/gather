@@ -23,7 +23,14 @@ enum State { READY, BLOCKED, LOCKED }
 
 ## Base metrics, pre-scale, chosen against UiTheme.REFERENCE_EDGE. CARD_SIZE stays
 ## public because the panel divides the browser width by it to pick a column count.
-const CARD_SIZE := Vector2(96, 112)
+##
+## The width is set by the longest *single word* any recipe name contains, not by
+## the longest name. `AUTOWRAP_WORD_SMART` breaks between words happily — "Stone
+## Pickaxe" over two lines is fine — but when one word alone will not fit it breaks
+## inside it, and "Workbench" rendering as "Workben / ch" is the result. At 96 that
+## is exactly what happened once the bitmap font landed: its glyphs are wider than
+## the vector face this number was chosen against.
+const CARD_SIZE := Vector2(120, 112)
 const CARD_PAD := 6.0
 const CARD_GAP := 2.0
 const ICON_HEIGHT := 46.0

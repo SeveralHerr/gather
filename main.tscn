@@ -565,7 +565,7 @@ offset_left = 1.7173
 offset_top = 12.6535
 offset_right = 41.7173
 offset_bottom = 35.6535
-scale = Vector2(0.275, 0.275)
+scale = Vector2(0.25, 0.25)
 text = "fps 
 "
 script = ExtResource("16_um00x")
@@ -601,10 +601,11 @@ offset_left = 1.7173
 offset_top = 2.6535
 offset_right = 41.7173
 offset_bottom = 25.6535
-scale = Vector2(0.275, 0.275)
+scale = Vector2(0.25, 0.25)
 theme_override_colors/font_color = Color(0.956863, 0.956863, 0.956863, 1)
 theme_override_colors/font_outline_color = Color(0.105882, 0.0627451, 0.137255, 1)
-theme_override_constants/outline_size = 12
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 20
 text = "HP
 "
 
@@ -614,10 +615,11 @@ offset_left = 1.7173
 offset_top = 7.6535
 offset_right = 41.7173
 offset_bottom = 30.6535
-scale = Vector2(0.275, 0.275)
+scale = Vector2(0.25, 0.25)
 theme_override_colors/font_color = Color(0.956863, 0.956863, 0.956863, 1)
 theme_override_colors/font_outline_color = Color(0.105882, 0.0627451, 0.137255, 1)
-theme_override_constants/outline_size = 12
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 20
 text = "XP
 "
 

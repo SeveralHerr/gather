@@ -41,6 +41,22 @@ project/assembly_name="Gather"
 
 enabled=PackedStringArray("res://addons/virtual_joystick/plugin.cfg")
 
+[gui]
+
+; The project-wide default font. Set here rather than through per-node
+; add_theme_font_override calls because the game ships no Theme resource, so
+; every Control that nobody styled explicitly — and there are a lot of them —
+; falls through to this one. Changing it here repaints all of them at once.
+;
+; It is a 5x7 bitmap face on a 100-unit pixel grid (see tools/make_pixel_font.py),
+; so it is only crisp at font sizes that are whole multiples of 10. That is what
+; UiTheme.scaled_font() exists to guarantee.
+; NOTE the key is `theme/custom_font`, not `gui/theme/custom_font` — the section
+; header supplies the `gui/` prefix. Writing the full name here parses fine, sets
+; `gui/gui/theme/custom_font`, and leaves the real setting empty, so the whole game
+; silently keeps rendering in Open Sans and nothing anywhere reports a problem.
+theme/custom_font="res://assets/fonts/gather_arcade.ttf"
+
 [input]
 
 move_left={

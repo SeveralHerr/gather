@@ -118,14 +118,31 @@ const SCALE_MAX := 1.6
 ## guidelines; the hotbar slots and every close button clear it.
 const TOUCH_MIN := 48.0
 
+## The bitmap font's native size, and the only quantum the type scale has.
+##
+## `assets/fonts/gather_arcade.ttf` draws each of its pixels as a 100-unit square
+## in a 1000-unit em, so a `font_size` of `10 * N` puts each font pixel on exactly
+## N screen pixels. Every other size lands glyph edges between screen pixels, and
+## the face goes soft in a way that is not obviously a *font* problem when you look
+## at it — it reads as a blurry screenshot. Every size below is a multiple of this,
+## and `scaled_font()` snaps to it. See `tools/make_pixel_font.py`.
+const FONT_PIXEL := 10
+
 ## Base type sizes, pre-scale. `TITLE` is a panel heading, `BODY` ordinary copy,
 ## `SMALL` the dim supporting line under it.
-const FONT_TITLE := 22
-const FONT_BODY := 15
-const FONT_SMALL := 12
-## No text in the game may render below this many pixels, whatever the scale
-## works out to. Below roughly this the pixel font stops being readable at all.
-const FONT_MIN := 10
+##
+## Three sizes, three whole multiples: 1x, 2x, 3x. That is the entire scale a
+## bitmap face can offer, and it is why the hierarchy here is coarser than the old
+## 12/15/22 — there is no 1.5x. `SMALL` staying at 1x is deliberate and
+## load-bearing: `hud_toolbar.gd` sizes the desktop button strip with it, and that
+## strip has to fit five buttons across a 390px phone (`test_hud_toolbar.gd`).
+const FONT_TITLE := 30
+const FONT_BODY := 20
+const FONT_SMALL := 10
+## No text in the game may render below this many pixels, whatever the scale works
+## out to. It is one font pixel per screen pixel — the floor is not a legibility
+## preference, it is the smallest the face physically has.
+const FONT_MIN := FONT_PIXEL
 
 ## Corner radius for panels and for the smaller controls inside them.
 ##
@@ -195,12 +212,25 @@ static func scale_for_node(node: Node) -> float:
 	return scale_for(vp.get_visible_rect().size)
 
 
-## A base font size at this scale factor, never below FONT_MIN.
+## A base font size at this scale factor, snapped to a whole multiple of
+## FONT_PIXEL and never below FONT_MIN.
 ##
 ## `factor` comes from `scale_for()` or `scale_for_node()` — those clamp, this does
 ## not, so hand it one of theirs rather than a ratio worked out on the spot.
+##
+## **The snap is the point.** This used to return `round(base * factor)`, which for
+## a viewport ratio of 0.85 or 1.6 produces sizes like 17 and 23 — fine for the
+## vector face the game used to use, and mush for a bitmap one. Rounding to the
+## nearest step rather than flooring is deliberate: flooring sends a phone's 0.85
+## factor down a whole step, and one step down from body text is the size the
+## hotbar counts use.
+##
+## A consequence worth knowing: the type scale is now coarse enough that a phone
+## and a desktop often land on the *same* size. That is correct — a bitmap font has
+## no fractional sizes to give them, and the alternative is a blurry phone.
 static func scaled_font(base: int, factor: float) -> int:
-	return maxi(FONT_MIN, int(round(float(base) * factor)))
+	var steps := maxi(1, int(round(float(base) * factor / float(FONT_PIXEL))))
+	return maxi(FONT_MIN, steps * FONT_PIXEL)
 
 
 ## A base length at this scale factor. Use for padding, gaps and icon sizes —

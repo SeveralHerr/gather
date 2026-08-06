@@ -10,17 +10,30 @@ extends Label
 ## The ink outline is what the whole UI uses to separate itself from the world
 ## (see `ui/ui_theme.gd`'s note on COLOR_INK), and it is applied here in code
 ## rather than in `main.tscn` because this Control has no other authored
-## appearance to sit alongside. The size is large because the HUD is scaled down
-## to 0.275 before it reaches the screen: an outline of 1 would be a quarter of a
-## pixel and would not survive the downscale.
+## appearance to sit alongside.
+##
+## ## Why the size and the node's scale are a matched pair
+##
+## This label is scaled down inside a camera zoomed to 8, so the number of screen
+## pixels one font pixel covers is `font_size / 10 * scale * 8`. The bitmap face
+## only stays crisp when that product is a whole number, and the node's authored
+## scale used to be `0.275` — which multiplied to 2.2 and could not be made whole
+## by *any* font size below 50. The scale is `0.25` in `main.tscn` now, so the
+## product is exactly 2.0 and a FONT_SIZE of 20 puts each font pixel on four
+## screen pixels.
+##
+## Change either number and the other has to move with it, or the readout goes
+## soft — which does not look like a font bug, it looks like a blurry screenshot.
 
 
-## Outline width in the HUD's own unscaled space. See the note above on why it is
-## not a small number.
-const OUTLINE_SIZE := 12
+## Both on the pixel grid described above. OUTLINE_SIZE is expressed against
+## FONT_SIZE, so 2 of 20 is exactly one font pixel of ink.
+const FONT_SIZE := 20
+const OUTLINE_SIZE := 2
 
 
 func _ready() -> void:
+	add_theme_font_size_override("font_size", FONT_SIZE)
 	add_theme_color_override("font_color", UiTheme.COLOR_TEXT)
 	add_theme_color_override("font_outline_color", UiTheme.COLOR_INK)
 	add_theme_constant_override("outline_size", OUTLINE_SIZE)
