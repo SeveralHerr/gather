@@ -46,6 +46,109 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity")
 ## `EnemyRegistry.CHARGED` documents at length.
 @export var hunt_range := 30.0
 
+## Whether this enemy starts a chase it cannot see the start of.
+##
+## Default false, so every enemy authored today respects walls without a single .tscn being
+## touched — which is deliberate: the flag exists so a future scene CAN opt out without a code
+## change, not so that every scene has to opt in. Raiders are exempt through
+## `hunts_through_walls()` below rather than through this export, for the reason stated there.
+@export var ignores_line_of_sight := false
+
+## The tileset physics layer carrying a duplicate collision polygon for every player-built wall
+## and door tile, and nothing else — bit 7, value 64.
+##
+## It exists SOLELY so line-of-sight can be asked as one raycast. Layer 1 is no use for the
+## question: it carries terrain, water and (until props moved to bit 8) trees and rocks, so a ray
+## masked against it answers "is anything at all in the way", and an enemy that refuses to chase
+## past a sapling reads as broken rather than as blind. Do not widen this mask to catch "things
+## that block movement" — a wall is the only thing in this game the player builds to be seen
+## through, and the whole feature is about what the player built.
+const STRUCTURE_COLLISION_LAYER := 64
+
+## How often an enemy re-asks whether it can see the player, in seconds.
+##
+## `EnemyIdle.physics_update` runs every physics tick on every live enemy and a night raid puts
+## dozens on the map, so an unconditional raycast per enemy per frame is 60x more physics queries
+## than this question is worth. 0.3s is well under human reaction time for "it noticed me", and
+## the checks are spread across frames by `los_stagger_offset` below rather than all landing on
+## the tick the raid spawned.
+const LOS_RECHECK_SECONDS := 0.3
+
+
+## A deterministic 0..period offset from an instance id, so a clump of enemies re-checks line of
+## sight on different frames instead of all on the same one.
+##
+## Derived from the id rather than rolled, so it costs no randf() and — more usefully — an enemy
+## keeps the same phase across its whole life, which means the checks stay spread instead of
+## re-clustering every time a group re-enters range together. `period <= 0` answers 0 rather than
+## dividing by it: a caller that has disabled the throttle wants every frame, not a crash.
+static func los_stagger_offset(instance_id: int, period: float) -> float:
+	if period <= 0.0:
+		return 0.0
+	return float(absi(instance_id) % 1000) / 1000.0 * period
+
+
+## Whether `type` hunts regardless of what is in the way, given its scene's opt-out flag.
+##
+## Static and pure so a test can ask it without a SceneTree; `hunts_through_walls()` is the
+## instance-shaped wrapper the states actually call.
+##
+## ## Why raiders are exempt, and why that is not an inconsistency
+##
+## A raid is a thing that ARRIVES. `RaidDirector.live_raiders()` counts the raiders still
+## standing and the night clears only when that reaches zero, so a raider that shrugged and
+## wandered off because the player stepped behind a wall is a raid the player can never clear:
+## the banner counts enemies that are standing still somewhere across the island until dawn, and
+## the clear bonus is never paid. That is the exact failure the raid feature already fought once
+## (see the `_pick_spawn_cell` comment in raid_director.gd — raiders that spawned across water
+## and never arrived), and a line-of-sight gate would reintroduce it through a different door.
+##
+## It also happens to be the better game. What a wall is FOR is that a raider walks up to it and
+## stops — physically, against the collider, where the player can see it and shoot it. Making the
+## raider lose interest instead means the wall's reward is that the threat goes away offscreen,
+## which is nothing to watch and nothing to defend. Ambient wanderers are the opposite case: they
+## are scenery the player walks past, and a skeleton pressed against the outside of a house
+## pathing at someone it cannot see forever is the bug this whole gate exists to fix.
+##
+## Derived from `type` rather than set on the raider scenes, because `enemies/*.tscn` is not
+## this change's to edit and — better — because it cannot then disagree with
+## `EnemyRegistry.RAIDER_TYPES`. A raider type added later is exempt for free; a fourth copy of
+## "which types are raiders" would have to be remembered.
+static func hunts_through_walls_for(type: String, ignores_los: bool) -> bool:
+	return ignores_los or EnemyRegistry.is_raider(type)
+
+
+func hunts_through_walls() -> bool:
+	return hunts_through_walls_for(type, ignores_line_of_sight)
+
+
+## Whether an unobstructed line runs from this enemy to `world_position`, counting walls and
+## doors only.
+##
+## Fails OPEN — a missing world or space state answers true. Every caller uses this to *refuse*
+## a chase, so failing closed would freeze every enemy in the game the moment this is called
+## outside a live physics world (a unit test, a node mid-teardown, the frame a scene reloads),
+## and a whole island of enemies standing still looks like a much bigger bug than the one this
+## guards against.
+func has_line_of_sight_to(world_position: Vector2) -> bool:
+	if not is_inside_tree():
+		return true
+	var world := get_world_2d()
+	if world == null:
+		return true
+	var space := world.direct_space_state
+	if space == null:
+		return true
+
+	var query := PhysicsRayQueryParameters2D.create(
+		global_position, world_position, STRUCTURE_COLLISION_LAYER)
+	# Areas are never structures, and asking for them would catch every LineOfSight and
+	# AttackRange node the ray happens to cross.
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	return space.intersect_ray(query).is_empty()
+
+
 var level_up_manager: LevelUpManager
 
 var detection_range = 100
