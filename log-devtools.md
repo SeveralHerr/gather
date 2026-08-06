@@ -5683,3 +5683,35 @@ Two concrete improvements to the skill:
   independently hit a *transient* lint failure caused by a third agent's mid-save
   (`player.gd:446 Cannot infer the type of "walk"`), and each spent a re-run establishing it
   was not theirs.
+
+## 2026-08-05 — shipped the supply and land-cost retunes
+
+- Value: **warranted** — the runtime run is what turned "the code now loops over regions" into
+  "the mainland actually receives one node per tick", and those are different claims.
+  - Expected: written before the run. Home starts at 28 of a cap of 40 (12 headroom); ~240
+    game-seconds is ~10 ticks; under the new per-region tick home should gain ~10 where the old
+    global tick would have given it ~4 (its 41.6% land share).
+  - Got: over 262.7 game-seconds (t 0.122 -> 0.5598, ~10.9 ticks) home went **28 -> 39, +11**,
+    i.e. 1.0 node per tick, while forest went 18 -> 26 and ore 19 -> 28, both to their caps. 28
+    nodes placed in 11 ticks against a hard ceiling of 11 under the old behaviour. The three
+    regions now fill concurrently instead of competing for one node.
+  - Cheaper: the two new unit tests (`test_a_full_region_does_not_eat_another_regions_respawn_tick`,
+    `test_the_respawn_tick_never_offers_a_node_to_a_region_that_opted_out`) prove the eligibility
+    filter and the no-starvation property headlessly, and the agent verified both go red against
+    the old one-liner. What they cannot show is the RATE against wall-clock game time, which is
+    the number the whole retune exists to move — that needed the running game and a bracketed
+    clock read.
+
+- Gap: **[G-130] status: open | seen: 2 | harness: 0.8.0** — same gap as last session, hit again
+  and in exactly the predicted way. Measuring a regrowth rate still takes launch -> census ->
+  `world_clock` -> `set-game-speed` -> sleep -> `set-game-speed` -> `world_clock` -> census, seven
+  calls, of which two exist purely to establish how much game time passed. The improvement filed
+  last time (put `game_time` in the status provider merged into every reply) would have cut this
+  to three calls and removed the only step that can silently invalidate the result.
+
+- Note on subagents: fanning out two authors over disjoint files worked, but the ONE file both
+  touched (`test/unit/test_balance_curves.gd`) is what nearly broke the iterative-commit property
+  — agent B lowered `KILLS_FOR_THE_WHOLE_MAP` to a value that only passes against agent A's
+  sibling change, so committing A alone would have shipped a red gate. Splitting it took a
+  hand-revert of two lines, a stash, and two verification runs. Next time: give each agent its own
+  test FILE, not just its own source files, or accept a single combined commit.
