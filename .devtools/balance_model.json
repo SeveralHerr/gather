@@ -1050,9 +1050,11 @@
       "gather_time": 2.0,
       "id": "opening",
       "label": "Opening",
+      "level_required": 1,
       "move_speed_mult": 1.0,
       "pickaxe": "Wooden Pickaxe",
       "pickaxe_bonus": 0.0,
+      "pickaxe_gated_by": "",
       "pickaxe_power": 2.0,
       "skill_bonus": 0.0,
       "skill_points": 0,
@@ -1067,9 +1069,11 @@
       "gather_time": 1.8,
       "id": "stone",
       "label": "First craft",
+      "level_required": 1,
       "move_speed_mult": 1.0,
       "pickaxe": "Stone Pickaxe",
       "pickaxe_bonus": 0.05,
+      "pickaxe_gated_by": "",
       "pickaxe_power": 1.8,
       "skill_bonus": 0.0,
       "skill_points": 0,
@@ -1084,9 +1088,11 @@
       "gather_time": 1.53,
       "id": "swift",
       "label": "Swift Hands",
+      "level_required": 2,
       "move_speed_mult": 1.0,
       "pickaxe": "Stone Pickaxe",
       "pickaxe_bonus": 0.05,
+      "pickaxe_gated_by": "",
       "pickaxe_power": 1.8,
       "skill_bonus": 0.0,
       "skill_points": 1,
@@ -1103,12 +1109,14 @@
       "gather_time": 1.36,
       "id": "copper",
       "label": "Copper Age",
+      "level_required": 7,
       "move_speed_mult": 1.0,
       "pickaxe": "Copper Pickaxe",
       "pickaxe_bonus": 0.15,
+      "pickaxe_gated_by": "iron_age",
       "pickaxe_power": 1.6,
       "skill_bonus": 0.25,
-      "skill_points": 3,
+      "skill_points": 6,
       "skills": [
         "swift_hands",
         "bountiful"
@@ -1123,12 +1131,14 @@
       "gather_time": 1.02,
       "id": "bone",
       "label": "Bone tier",
+      "level_required": 5,
       "move_speed_mult": 1.0,
       "pickaxe": "Bone Pickaxe",
       "pickaxe_bonus": 0.25,
+      "pickaxe_gated_by": "bone_pickaxe",
       "pickaxe_power": 1.2,
       "skill_bonus": 0.25,
-      "skill_points": 3,
+      "skill_points": 4,
       "skills": [
         "swift_hands",
         "bountiful"
@@ -1143,12 +1153,14 @@
       "gather_time": 0.595,
       "id": "iron",
       "label": "Iron tier",
+      "level_required": 10,
       "move_speed_mult": 1.0,
       "pickaxe": "Iron Pickaxe",
       "pickaxe_bonus": 0.5,
+      "pickaxe_gated_by": "smelting",
       "pickaxe_power": 0.7,
       "skill_bonus": 0.25,
-      "skill_points": 3,
+      "skill_points": 9,
       "skills": [
         "swift_hands",
         "bountiful"
@@ -1163,12 +1175,14 @@
       "gather_time": 0.525,
       "id": "iron_max",
       "label": "Iron + Motherlode",
+      "level_required": 17,
       "move_speed_mult": 1.0,
       "pickaxe": "Iron Pickaxe",
       "pickaxe_bonus": 0.5,
+      "pickaxe_gated_by": "smelting",
       "pickaxe_power": 0.7,
       "skill_bonus": 0.5,
-      "skill_points": 10,
+      "skill_points": 16,
       "skills": [
         "swift_hands",
         "bountiful",
@@ -1185,12 +1199,14 @@
       "gather_time": 0.3825,
       "id": "gold",
       "label": "Gold tier",
+      "level_required": 17,
       "move_speed_mult": 1.0,
       "pickaxe": "Gold Pickaxe",
       "pickaxe_bonus": 0.75,
+      "pickaxe_gated_by": "gold_rush",
       "pickaxe_power": 0.45,
       "skill_bonus": 0.25,
-      "skill_points": 3,
+      "skill_points": 16,
       "skills": [
         "swift_hands",
         "bountiful"
@@ -1205,12 +1221,14 @@
       "gather_time": 0.3375,
       "id": "gold_max",
       "label": "Gold + Motherlode",
+      "level_required": 24,
       "move_speed_mult": 1.0,
       "pickaxe": "Gold Pickaxe",
       "pickaxe_bonus": 0.75,
+      "pickaxe_gated_by": "gold_rush",
       "pickaxe_power": 0.45,
       "skill_bonus": 0.5,
-      "skill_points": 10,
+      "skill_points": 23,
       "skills": [
         "swift_hands",
         "bountiful",
@@ -1218,6 +1236,318 @@
         "motherlode"
       ],
       "xp_mult": 1.25
+    }
+  ],
+  "milestones": [
+    {
+      "binding": "respawn",
+      "binding_raw": "Gold Ore",
+      "item": "Gold Pickaxe",
+      "kills": 0.0,
+      "ratio": 154.733259555494,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 10.6666666666667,
+          "qty": 24.0,
+          "respawn_minutes": 77.5554535974974,
+          "source": "Coal",
+          "swing_minutes": 0.335288951184218
+        },
+        "Copper Ore": {
+          "nodes_needed": 3.55555555555556,
+          "qty": 8.0,
+          "respawn_minutes": 38.7777267987487,
+          "source": "Copper",
+          "swing_minutes": 0.128956803444794
+        },
+        "Gold Ore": {
+          "nodes_needed": 4.57142857142857,
+          "qty": 8.0,
+          "respawn_minutes": 124.642693281692,
+          "source": "Gold",
+          "swing_minutes": 0.235810394555833
+        },
+        "Wood": {
+          "nodes_needed": 5.33333333333333,
+          "qty": 12.0,
+          "respawn_minutes": 8.14332262773723,
+          "source": "Tree",
+          "swing_minutes": 0.105476505137546
+        }
+      },
+      "respawn_minutes": 124.642693281692,
+      "sweeps_of_standing_stock": 0.969831102409681,
+      "swing_minutes": 0.80553265432239
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Gold Ore",
+      "item": "Gold Sword",
+      "kills": 0.0,
+      "ratio": 157.017693822586,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 8.0,
+          "qty": 18.0,
+          "respawn_minutes": 58.166590198123,
+          "source": "Coal",
+          "swing_minutes": 0.251466713388163
+        },
+        "Copper Ore": {
+          "nodes_needed": 2.66666666666667,
+          "qty": 6.0,
+          "respawn_minutes": 29.0832950990615,
+          "source": "Copper",
+          "swing_minutes": 0.0967176025835952
+        },
+        "Gold Ore": {
+          "nodes_needed": 3.42857142857143,
+          "qty": 6.0,
+          "respawn_minutes": 93.4820199612692,
+          "source": "Gold",
+          "swing_minutes": 0.176857795916875
+        },
+        "Wood": {
+          "nodes_needed": 3.55555555555556,
+          "qty": 8.0,
+          "respawn_minutes": 5.42888175182482,
+          "source": "Tree",
+          "swing_minutes": 0.0703176700916975
+        }
+      },
+      "respawn_minutes": 93.4820199612692,
+      "sweeps_of_standing_stock": 0.727373326807261,
+      "swing_minutes": 0.595359781980331
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Iron Ore",
+      "item": "Iron Pickaxe",
+      "kills": 0.0,
+      "ratio": 180.89211150407,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 3.55555555555556,
+          "qty": 8.0,
+          "respawn_minutes": 25.8518178658325,
+          "source": "Coal",
+          "swing_minutes": 0.111762983728073
+        },
+        "Iron Ore": {
+          "nodes_needed": 4.57142857142857,
+          "qty": 8.0,
+          "respawn_minutes": 62.3213466408461,
+          "source": "Iron",
+          "swing_minutes": 0.180020954984248
+        },
+        "Wood": {
+          "nodes_needed": 2.66666666666667,
+          "qty": 6.0,
+          "respawn_minutes": 4.07166131386861,
+          "source": "Tree",
+          "swing_minutes": 0.0527382525687731
+        }
+      },
+      "respawn_minutes": 62.3213466408461,
+      "sweeps_of_standing_stock": 0.484915551204841,
+      "swing_minutes": 0.344522191281094
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Iron Ore",
+      "item": "Iron Sword",
+      "kills": 0.0,
+      "ratio": 172.11010701302,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 2.66666666666667,
+          "qty": 6.0,
+          "respawn_minutes": 19.3888633993743,
+          "source": "Coal",
+          "swing_minutes": 0.0838222377960544
+        },
+        "Iron Ore": {
+          "nodes_needed": 3.42857142857143,
+          "qty": 6.0,
+          "respawn_minutes": 46.7410099806346,
+          "source": "Iron",
+          "swing_minutes": 0.135015716238186
+        },
+        "Wood": {
+          "nodes_needed": 2.66666666666667,
+          "qty": 6.0,
+          "respawn_minutes": 4.07166131386861,
+          "source": "Tree",
+          "swing_minutes": 0.0527382525687731
+        }
+      },
+      "respawn_minutes": 46.7410099806346,
+      "sweeps_of_standing_stock": 0.36368666340363,
+      "swing_minutes": 0.271576206603013
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Iron Ore",
+      "item": "Bone Worker",
+      "kills": 9.0,
+      "ratio": 135.320466780284,
+      "raw_costs": {
+        "Bone": {
+          "qty": 9.0,
+          "source": "kills"
+        },
+        "Coal Ore": {
+          "nodes_needed": 2.22222222222222,
+          "qty": 5.0,
+          "respawn_minutes": 16.1573861661453,
+          "source": "Coal",
+          "swing_minutes": 0.0698518648300454
+        },
+        "Iron Ore": {
+          "nodes_needed": 2.85714285714286,
+          "qty": 5.0,
+          "respawn_minutes": 38.9508416505288,
+          "source": "Iron",
+          "swing_minutes": 0.112513096865155
+        },
+        "Wood": {
+          "nodes_needed": 5.33333333333333,
+          "qty": 12.0,
+          "respawn_minutes": 8.14332262773723,
+          "source": "Tree",
+          "swing_minutes": 0.105476505137546
+        }
+      },
+      "respawn_minutes": 38.9508416505288,
+      "sweeps_of_standing_stock": 0.303072219503025,
+      "swing_minutes": 0.287841466832747
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Copper Ore",
+      "item": "Copper Pickaxe",
+      "kills": 0.0,
+      "ratio": 124.672208742258,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 1.77777777777778,
+          "qty": 4.0,
+          "respawn_minutes": 12.9259089329162,
+          "source": "Coal",
+          "swing_minutes": 0.0558814918640363
+        },
+        "Copper Ore": {
+          "nodes_needed": 1.77777777777778,
+          "qty": 4.0,
+          "respawn_minutes": 19.3888633993743,
+          "source": "Copper",
+          "swing_minutes": 0.0644784017223968
+        },
+        "Wood": {
+          "nodes_needed": 1.77777777777778,
+          "qty": 4.0,
+          "respawn_minutes": 2.71444087591241,
+          "source": "Tree",
+          "swing_minutes": 0.0351588350458487
+        }
+      },
+      "respawn_minutes": 19.3888633993743,
+      "sweeps_of_standing_stock": 0.150862615930395,
+      "swing_minutes": 0.155518728632282
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Copper Ore",
+      "item": "Bone Turret",
+      "kills": 0.0,
+      "ratio": 68.166366321288,
+      "raw_costs": {
+        "Coal Ore": {
+          "nodes_needed": 1.33333333333333,
+          "qty": 3.0,
+          "respawn_minutes": 9.69443169968717,
+          "source": "Coal",
+          "swing_minutes": 0.0419111188980272
+        },
+        "Copper Ore": {
+          "nodes_needed": 1.33333333333333,
+          "qty": 3.0,
+          "respawn_minutes": 14.5416475495308,
+          "source": "Copper",
+          "swing_minutes": 0.0483588012917976
+        },
+        "Wood": {
+          "nodes_needed": 6.22222222222222,
+          "qty": 14.0,
+          "respawn_minutes": 9.50054306569343,
+          "source": "Tree",
+          "swing_minutes": 0.123055922660471
+        }
+      },
+      "respawn_minutes": 14.5416475495308,
+      "sweeps_of_standing_stock": 0.113146961947796,
+      "swing_minutes": 0.213325842850295
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Stone",
+      "item": "Furnace",
+      "kills": 0.0,
+      "ratio": 91.142750029273,
+      "raw_costs": {
+        "Stone": {
+          "nodes_needed": 6.22222222222222,
+          "qty": 14.0,
+          "respawn_minutes": 11.8756788321168,
+          "source": "Stone",
+          "swing_minutes": 0.130297569782595
+        }
+      },
+      "respawn_minutes": 11.8756788321168,
+      "sweeps_of_standing_stock": 0.0924033522573669,
+      "swing_minutes": 0.130297569782595
+    },
+    {
+      "binding": "respawn",
+      "binding_raw": "Stone",
+      "item": "Stone Pickaxe",
+      "kills": 0.0,
+      "ratio": 73.7337918274427,
+      "raw_costs": {
+        "Stone": {
+          "nodes_needed": 3.55555555555556,
+          "qty": 8.0,
+          "respawn_minutes": 6.78610218978102,
+          "source": "Stone",
+          "swing_minutes": 0.0744557541614827
+        },
+        "Wood": {
+          "nodes_needed": 0.888888888888889,
+          "qty": 2.0,
+          "respawn_minutes": 1.3572204379562,
+          "source": "Tree",
+          "swing_minutes": 0.0175794175229244
+        }
+      },
+      "respawn_minutes": 6.78610218978102,
+      "sweeps_of_standing_stock": 0.0528019155756382,
+      "swing_minutes": 0.092035171684407
+    },
+    {
+      "binding": "swinging",
+      "binding_raw": "",
+      "item": "Bone Pickaxe",
+      "kills": 14.0,
+      "ratio": 0.0,
+      "raw_costs": {
+        "Bone": {
+          "qty": 14.0,
+          "source": "kills"
+        }
+      },
+      "respawn_minutes": 0.0,
+      "sweeps_of_standing_stock": 0.0,
+      "swing_minutes": 0.0
     }
   ],
   "quests": [
@@ -2454,166 +2784,208 @@
     }
   ],
   "world_flow": {
-    "cap_at_max": 572,
-    "cap_at_start": 49,
-    "home_tiles_at_max": 2289,
-    "home_tiles_at_start": 197,
+    "ambient_tiles_at_max": 1836,
+    "ambient_tiles_at_start": 226,
+    "cap_at_max": 411,
+    "cap_at_start": 40,
+    "home_share_at_max": 0.895424836601307,
+    "home_share_at_start": 0.415929203539823,
+    "home_tiles_at_max": 1644,
+    "home_tiles_at_start": 94,
+    "mainland_seconds_per_node_at_max": 26.8029197080292,
+    "mainland_seconds_per_node_at_start": 57.7021276595745,
     "nodes_per_hour_total": 150.0,
     "per_stage": {
       "gold_rush": {
         "Berry Bush": {
           "items_per_hour": 32.9139847864248,
+          "mainland_seconds_between_spawns_at_max": 305.374598540146,
+          "mainland_seconds_between_spawns_at_start": 657.419574468085,
           "nodes_per_hour": 13.1655939145699,
           "seconds_between_spawns": 273.44,
           "share": 0.0877706260971328,
-          "standing_stock_at_max": 35.158718548859,
-          "standing_stock_at_start": 3.02589233469865
+          "standing_stock_at_max": 25.2516091281451,
+          "standing_stock_at_start": 2.45757753071972
         },
         "Coal": {
           "items_per_hour": 23.0397893504974,
+          "mainland_seconds_between_spawns_at_max": 436.249426485923,
+          "mainland_seconds_between_spawns_at_start": 939.170820668693,
           "nodes_per_hour": 9.21591574019895,
           "seconds_between_spawns": 390.628571428571,
           "share": 0.061439438267993,
-          "standing_stock_at_max": 24.6111029842013,
-          "standing_stock_at_start": 2.11812463428906
+          "standing_stock_at_max": 17.6761263897016,
+          "standing_stock_at_start": 1.7203042715038
         },
         "Copper": {
           "items_per_hour": 15.3598595669982,
+          "mainland_seconds_between_spawns_at_max": 654.374139728884,
+          "mainland_seconds_between_spawns_at_start": 1408.75623100304,
           "nodes_per_hour": 6.1439438267993,
           "seconds_between_spawns": 585.942857142857,
           "share": 0.0409596255119953,
-          "standing_stock_at_max": 16.4074019894675,
-          "standing_stock_at_start": 1.41208308952604
+          "standing_stock_at_max": 11.7840842598011,
+          "standing_stock_at_start": 1.14686951433587
         },
         "Gold": {
           "items_per_hour": 4.91515506143944,
+          "mainland_seconds_between_spawns_at_max": 1635.93534932221,
+          "mainland_seconds_between_spawns_at_start": 3521.8905775076,
           "nodes_per_hour": 2.45757753071972,
           "seconds_between_spawns": 1464.85714285714,
           "share": 0.0163838502047981,
-          "standing_stock_at_max": 6.56296079578701,
-          "standing_stock_at_start": 0.564833235810415
+          "standing_stock_at_max": 4.71363370392042,
+          "standing_stock_at_start": 0.458747805734348
         },
         "Iron": {
           "items_per_hour": 9.83031012287888,
+          "mainland_seconds_between_spawns_at_max": 817.967674661105,
+          "mainland_seconds_between_spawns_at_start": 1760.9452887538,
           "nodes_per_hour": 4.91515506143944,
           "seconds_between_spawns": 732.428571428571,
           "share": 0.0327677004095963,
-          "standing_stock_at_max": 13.125921591574,
-          "standing_stock_at_start": 1.12966647162083
+          "standing_stock_at_max": 9.42726740784084,
+          "standing_stock_at_start": 0.917495611468695
         },
         "Stone": {
           "items_per_hour": 87.7706260971328,
+          "mainland_seconds_between_spawns_at_max": 114.515474452555,
+          "mainland_seconds_between_spawns_at_start": 246.532340425532,
           "nodes_per_hour": 35.1082504388531,
           "seconds_between_spawns": 102.54,
           "share": 0.234055002925688,
-          "standing_stock_at_max": 93.7565827969573,
-          "standing_stock_at_start": 8.06904622586308
+          "standing_stock_at_max": 67.3376243417203,
+          "standing_stock_at_start": 6.55354008191925
         },
         "Tree": {
           "items_per_hour": 109.713282621416,
+          "mainland_seconds_between_spawns_at_max": 91.6123795620438,
+          "mainland_seconds_between_spawns_at_start": 197.225872340426,
           "nodes_per_hour": 43.8853130485664,
           "seconds_between_spawns": 82.032,
           "share": 0.292568753657109,
-          "standing_stock_at_max": 117.195728496197,
-          "standing_stock_at_start": 10.0863077823288
+          "standing_stock_at_max": 84.1720304271504,
+          "standing_stock_at_start": 8.19192510239906
         }
       },
       "smelting": {
         "Berry Bush": {
           "items_per_hour": 33.4622248661511,
+          "mainland_seconds_between_spawns_at_max": 300.371386861314,
+          "mainland_seconds_between_spawns_at_start": 646.648510638298,
           "nodes_per_hour": 13.3848899464604,
           "seconds_between_spawns": 268.96,
           "share": 0.0892325996430696,
-          "standing_stock_at_max": 35.7443486020226,
-          "standing_stock_at_start": 3.07629387269482
+          "standing_stock_at_max": 25.6722189173111,
+          "standing_stock_at_start": 2.49851279000595
         },
         "Coal": {
           "items_per_hour": 23.4235574063058,
+          "mainland_seconds_between_spawns_at_max": 429.101981230448,
+          "mainland_seconds_between_spawns_at_start": 923.78358662614,
           "nodes_per_hour": 9.36942296252231,
           "seconds_between_spawns": 384.228571428571,
           "share": 0.0624628197501487,
-          "standing_stock_at_max": 25.0210440214158,
-          "standing_stock_at_start": 2.15340571088638
+          "standing_stock_at_max": 17.9705532421178,
+          "standing_stock_at_start": 1.74895895300416
         },
         "Copper": {
           "items_per_hour": 15.6157049375372,
+          "mainland_seconds_between_spawns_at_max": 643.652971845673,
+          "mainland_seconds_between_spawns_at_start": 1385.67537993921,
           "nodes_per_hour": 6.24628197501487,
           "seconds_between_spawns": 576.342857142857,
           "share": 0.0416418798334325,
-          "standing_stock_at_max": 16.6806960142772,
-          "standing_stock_at_start": 1.43560380725758
+          "standing_stock_at_max": 11.9803688280785,
+          "standing_stock_at_start": 1.16597263533611
         },
         "Iron": {
           "items_per_hour": 9.9940511600238,
+          "mainland_seconds_between_spawns_at_max": 804.566214807091,
+          "mainland_seconds_between_spawns_at_start": 1732.09422492401,
           "nodes_per_hour": 4.9970255800119,
           "seconds_between_spawns": 720.428571428571,
           "share": 0.033313503866746,
-          "standing_stock_at_max": 13.3445568114218,
-          "standing_stock_at_start": 1.14848304580607
+          "standing_stock_at_max": 9.58429506246282,
+          "standing_stock_at_start": 0.932778108268888
         },
         "Stone": {
           "items_per_hour": 89.2325996430696,
+          "mainland_seconds_between_spawns_at_max": 112.639270072993,
+          "mainland_seconds_between_spawns_at_start": 242.493191489362,
           "nodes_per_hour": 35.6930398572278,
           "seconds_between_spawns": 100.86,
           "share": 0.237953599048186,
-          "standing_stock_at_max": 95.3182629387269,
-          "standing_stock_at_start": 8.2034503271862
+          "standing_stock_at_max": 68.459250446163,
+          "standing_stock_at_start": 6.6627007733492
         },
         "Tree": {
           "items_per_hour": 111.540749553837,
+          "mainland_seconds_between_spawns_at_max": 90.1114160583941,
+          "mainland_seconds_between_spawns_at_start": 193.994553191489,
           "nodes_per_hour": 44.6162998215348,
           "seconds_between_spawns": 80.688,
           "share": 0.297441998810232,
-          "standing_stock_at_max": 119.147828673409,
-          "standing_stock_at_start": 10.2543129089827
+          "standing_stock_at_max": 85.5740630577038,
+          "standing_stock_at_start": 8.3283759666865
         }
       },
       "start": {
         "Berry Bush": {
           "items_per_hour": 34.6153846153846,
+          "mainland_seconds_between_spawns_at_max": 290.36496350365,
+          "mainland_seconds_between_spawns_at_start": 625.106382978723,
           "nodes_per_hour": 13.8461538461538,
           "seconds_between_spawns": 260.0,
           "share": 0.0923076923076923,
-          "standing_stock_at_max": 36.9761538461538,
-          "standing_stock_at_start": 3.18230769230769
+          "standing_stock_at_max": 26.5569230769231,
+          "standing_stock_at_start": 2.58461538461538
         },
         "Coal": {
           "items_per_hour": 24.2307692307692,
+          "mainland_seconds_between_spawns_at_max": 414.807090719499,
+          "mainland_seconds_between_spawns_at_start": 893.009118541034,
           "nodes_per_hour": 9.69230769230769,
           "seconds_between_spawns": 371.428571428571,
           "share": 0.0646153846153846,
-          "standing_stock_at_max": 25.8833076923077,
-          "standing_stock_at_start": 2.22761538461538
+          "standing_stock_at_max": 18.5898461538462,
+          "standing_stock_at_start": 1.80923076923077
         },
         "Copper": {
           "items_per_hour": 16.1538461538462,
+          "mainland_seconds_between_spawns_at_max": 622.210636079249,
+          "mainland_seconds_between_spawns_at_start": 1339.51367781155,
           "nodes_per_hour": 6.46153846153846,
           "seconds_between_spawns": 557.142857142857,
           "share": 0.0430769230769231,
-          "standing_stock_at_max": 17.2555384615385,
-          "standing_stock_at_start": 1.48507692307692
+          "standing_stock_at_max": 12.3932307692308,
+          "standing_stock_at_start": 1.20615384615385
         },
         "Stone": {
           "items_per_hour": 92.3076923076923,
+          "mainland_seconds_between_spawns_at_max": 108.886861313869,
+          "mainland_seconds_between_spawns_at_start": 234.414893617021,
           "nodes_per_hour": 36.9230769230769,
           "seconds_between_spawns": 97.5,
           "share": 0.246153846153846,
-          "standing_stock_at_max": 98.6030769230769,
-          "standing_stock_at_start": 8.48615384615385
+          "standing_stock_at_max": 70.8184615384615,
+          "standing_stock_at_start": 6.89230769230769
         },
         "Tree": {
           "items_per_hour": 115.384615384615,
+          "mainland_seconds_between_spawns_at_max": 87.1094890510949,
+          "mainland_seconds_between_spawns_at_start": 187.531914893617,
           "nodes_per_hour": 46.1538461538462,
           "seconds_between_spawns": 78.0,
           "share": 0.307692307692308,
-          "standing_stock_at_max": 123.253846153846,
-          "standing_stock_at_start": 10.6076923076923
+          "standing_stock_at_max": 88.5230769230769,
+          "standing_stock_at_start": 8.61538461538462
         }
       }
     },
     "respawn_interval": 24.0,
     "respawn_interval_in_rain": 13.2,
-    "seeded_at_start": 34
+    "seeded_at_start": 28
   },
   "xp_curve": [
     {

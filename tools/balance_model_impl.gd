@@ -73,6 +73,7 @@ func run() -> int:
 		"gather_rates": _gather_rates(),
 		"world_flow": _world_flow(),
 		"recipes": _recipes_table(),
+		"milestones": _milestones(),
 		"xp_curve": _xp_curve(),
 		"land": _land_curve(),
 		"combat": _combat(),
@@ -97,7 +98,7 @@ func run() -> int:
 	# empty table looks exactly like a clean run (the gather-1t9 trap, one layer up). Every
 	# section is checked for content before this reports success.
 	var empty: Array = []
-	for key in ["loadouts", "resources", "gather_rates", "recipes", "xp_curve", "land", "raids", "quests", "skills"]:
+	for key in ["loadouts", "resources", "gather_rates", "recipes", "milestones", "xp_curve", "land", "raids", "quests", "skills"]:
 		if out[key] == null or out[key].size() == 0:
 			empty.append(key)
 	if not empty.is_empty():
@@ -226,7 +227,9 @@ func _loadouts() -> Array:
 			"label": def["label"],
 			"pickaxe": pickaxe.name,
 			"skills": def["skills"],
-			"skill_points": _points_for(def["skills"]),
+			"skill_points": _points_for(def["skills"], int(def["pickaxe"])),
+			"level_required": 1 + _points_for(def["skills"], int(def["pickaxe"])),
+			"pickaxe_gated_by": _skill_unlocking(int(def["pickaxe"])),
 			"pickaxe_power": pickaxe.power,
 			"gather_speed_mult": stats.gather_speed_mult,
 			"gather_time": gather_time,
@@ -241,13 +244,47 @@ func _loadouts() -> Array:
 	return out
 
 
-func _points_for(skill_ids: Array) -> int:
-	var total := 0
+## What a loadout really costs in skill points: the union of the prerequisite closures of the
+## skills it names AND of the skill that unlocks its pickaxe.
+##
+## Summing the named skills alone understates it badly and silently. An "iron tier + the two
+## cheap Foraging nodes" loadout reads as 3 points, but the iron pickaxe's recipe is gated
+## behind Industry's `smelting`, which is 6 points on its own — so the real ask is 9, and for
+## the gold loadouts it is 13 more again. A points column that ignores the tool's own gate
+## makes every ore-tier loadout look like an opening-hour purchase.
+func _points_for(skill_ids: Array, pickaxe_type: int = -1) -> int:
+	var needed := {}
 	for id in skill_ids:
-		var skill := tree_def.get_skill(id)
-		if skill != null:
-			total += skill.cost()
+		_closure(id, needed)
+
+	var gate := _skill_unlocking(pickaxe_type)
+	if gate != "":
+		_closure(gate, needed)
+
+	var total := 0
+	for id in needed:
+		total += tree_def.get_skill(id).cost()
 	return total
+
+
+func _closure(id: String, into: Dictionary) -> void:
+	var skill := tree_def.get_skill(id)
+	if skill == null or into.has(id):
+		return
+	into[id] = true
+	for requirement in skill.requires:
+		_closure(requirement, into)
+
+
+## The skill whose `recipes` list unlocks `product`, or "" for a day-one or ungated item.
+func _skill_unlocking(product: int) -> String:
+	if product < 0:
+		return ""
+	for id in tree_def.order:
+		for unlock in tree_def.get_skill(id).recipes:
+			if int(unlock["product"]) == product:
+				return id
+	return ""
 
 
 # --- resources ----------------------------------------------------------------
@@ -374,11 +411,19 @@ func _gather_rates() -> Array:
 # verb and passed in, and it defaults to the measured home-island figure.
 
 
-## Measured on the running game at radius 10 (a fresh save) and at radius 34 (maxed), with
-## `python tools/devtools.py cmd island_census`. Noise-thresholded land is roughly two
-## thirds of the disc, so these are not pi*r^2.
-const HOME_TILES_AT_START := 197
-const HOME_TILES_AT_MAX := 2289
+## Measured on the running game with `python tools/devtools.py cmd island_census`, at
+## radius 10 (a fresh save) and at radius 34 (all 12 parcels bought). Noise-thresholded land
+## is well under the disc area, so these are not pi*r^2 and cannot be derived here.
+##
+## AMBIENT_TILES is the denominator that actually matters: `ResourceManager2.pick_ambient_region`
+## rolls the one respawning node against every region that accepts ambient resources, weighted
+## by land tiles — so the mainland's share of the world's whole respawn budget is
+## HOME_TILES / AMBIENT_TILES, and the rest is spent on the two small islands. The boss arena
+## opts out and is excluded from both.
+const HOME_TILES_AT_START := 94
+const AMBIENT_TILES_AT_START := 226
+const HOME_TILES_AT_MAX := 1644
+const AMBIENT_TILES_AT_MAX := 1836
 
 
 func _world_flow() -> Dictionary:
@@ -396,23 +441,43 @@ func _world_flow() -> Dictionary:
 			rows[res.name] = {
 				"share": share,
 				"seconds_between_spawns": seconds_between,
+				# The same figure once the mainland's share of the respawn budget is applied,
+				# i.e. what a player standing on their own island actually sees arrive.
+				"mainland_seconds_between_spawns_at_start": seconds_between / (float(HOME_TILES_AT_START) / float(AMBIENT_TILES_AT_START)),
+				"mainland_seconds_between_spawns_at_max": seconds_between / (float(HOME_TILES_AT_MAX) / float(AMBIENT_TILES_AT_MAX)),
 				"nodes_per_hour": 3600.0 / seconds_between,
 				# What a node is worth once broken, at the gold-tier bonus.
 				"items_per_hour": 3600.0 / seconds_between * ((float(res.yield_min) + float(res.yield_max)) / 2.0 + 1.0),
-				"standing_stock_at_start": HOME_TILES_AT_START * NODES_PER_TILE * 0.7 * share,
-				"standing_stock_at_max": HOME_TILES_AT_MAX * NODES_PER_TILE * 0.7 * share,
+				# Capped by LandRegion.min_resources (40), which BINDS at the starting radius:
+				# 94 tiles * 0.25 is 23, so a fresh island is stocked to 28 nodes, not 16.
+				"standing_stock_at_start": maxf(40.0, HOME_TILES_AT_START * NODES_PER_TILE) * 0.7 * share,
+				"standing_stock_at_max": maxf(40.0, HOME_TILES_AT_MAX * NODES_PER_TILE) * 0.7 * share,
 			}
 		per_stage[stage] = rows
 
+	var home_share_start: float = float(HOME_TILES_AT_START) / float(AMBIENT_TILES_AT_START)
+	var home_share_max: float = float(HOME_TILES_AT_MAX) / float(AMBIENT_TILES_AT_MAX)
+
 	return {
 		"respawn_interval": RESOURCE_RESPAWN_SECONDS,
+		# The two numbers the rest of this section is really about. A region already at its
+		# node cap DISCARDS its tick rather than passing it on, so once the two small islands
+		# have filled — which they do within the first ten minutes and stay that way while the
+		# player is anywhere else — the share below is also the fraction of the world's
+		# respawn budget that is not simply thrown away.
+		"home_share_at_start": home_share_start,
+		"home_share_at_max": home_share_max,
+		"mainland_seconds_per_node_at_start": RESOURCE_RESPAWN_SECONDS / home_share_start,
+		"mainland_seconds_per_node_at_max": RESOURCE_RESPAWN_SECONDS / home_share_max,
 		"respawn_interval_in_rain": RESOURCE_RESPAWN_SECONDS * 0.55,
 		"nodes_per_hour_total": 3600.0 / RESOURCE_RESPAWN_SECONDS,
 		"home_tiles_at_start": HOME_TILES_AT_START,
+		"ambient_tiles_at_start": AMBIENT_TILES_AT_START,
+		"ambient_tiles_at_max": AMBIENT_TILES_AT_MAX,
 		"home_tiles_at_max": HOME_TILES_AT_MAX,
-		"cap_at_start": int(HOME_TILES_AT_START * NODES_PER_TILE),
-		"cap_at_max": int(HOME_TILES_AT_MAX * NODES_PER_TILE),
-		"seeded_at_start": int(HOME_TILES_AT_START * NODES_PER_TILE * 0.7),
+		"cap_at_start": int(maxf(40.0, HOME_TILES_AT_START * NODES_PER_TILE)),
+		"cap_at_max": int(maxf(40.0, HOME_TILES_AT_MAX * NODES_PER_TILE)),
+		"seeded_at_start": int(maxf(40.0, HOME_TILES_AT_START * NODES_PER_TILE) * 0.7),
 		"per_stage": per_stage,
 	}
 
@@ -525,6 +590,123 @@ func Recipes_day_one() -> Array:
 	for entry in load("res://crafting/recipes.gd").DAY_ONE_RECIPES:
 		out.append(entry["product"])
 	return out
+
+
+# --- milestones ---------------------------------------------------------------
+#
+# What a headline item actually costs in wall-clock minutes, under BOTH ceilings: the time
+# spent swinging at nodes, and the time the world takes to grow the nodes in the first
+# place. The second is almost always the binding one for anything made of ore, and it is
+# invisible in every other table here — a recipe that reads as "48 seconds of gathering" is
+# two hours of waiting if its inputs are 1.6% of the spawn roll.
+
+
+const MILESTONE_ITEMS := [
+	Types.Item.StonePickaxe,
+	Types.Item.Furnace,
+	Types.Item.CopperPickaxe,
+	Types.Item.BonePickaxe,
+	Types.Item.IronPickaxe,
+	Types.Item.GoldPickaxe,
+	Types.Item.IronSword,
+	Types.Item.GoldSword,
+	Types.Item.BoneWorker,
+	Types.Item.BoneTurret,
+]
+
+
+func _milestones() -> Array:
+	var sets := _unlocked_sets()
+	var shares := _spawn_shares(sets["gold_rush"])
+	var stats := _stats_for(["swift_hands", "bountiful"])
+	var pickaxe := items.get_item(Types.Item.IronPickaxe) as GameItemPickaxe
+	var gather_time: float = maxf(ResourceManager2.MIN_GATHER_TIME, pickaxe.power * stats.gather_speed_mult)
+	var bonus: float = minf(pickaxe.bonus_yield_chance + stats.bonus_yield_chance, 1.0)
+	var home_share: float = float(HOME_TILES_AT_MAX) / float(AMBIENT_TILES_AT_MAX)
+
+	var out := []
+	for product in MILESTONE_ITEMS:
+		if not recipe_index.has(int(product)):
+			continue
+		var raws := {}
+		for input in recipe_index[int(product)]["cost_list"]:
+			_raw_costs(int(input), float(recipe_index[int(product)]["cost_list"][input]), raws)
+
+		var swing_seconds := 0.0
+		# The MAXIMUM over the inputs, not the sum. Every type respawns concurrently out of
+		# the one global stream — waiting for gold produces coal and wood along the way — so
+		# what the player waits for is the single scarcest input, not all of them in series.
+		# Summing here overstated the gold pickaxe by a factor of two.
+		var respawn_seconds := 0.0
+		var binding_raw := ""
+		var kills := 0.0
+		var per_raw := {}
+		for raw in raws:
+			if typeof(raw) == TYPE_STRING:
+				continue
+			var qty: float = raws[raw]
+			if not node_for_drop.has(int(raw)):
+				kills += qty
+				per_raw[item_name(int(raw))] = {"qty": qty, "source": "kills"}
+				continue
+			var node_type: int = node_for_drop[int(raw)]
+			var res: GameResource = resources.resources[node_type]
+			var per_node: float = (float(res.yield_min) + float(res.yield_max)) / 2.0 + bonus
+			var nodes_needed: float = qty / per_node
+			# Swinging: gather time plus the walk to the next one of that type.
+			var swing: float = nodes_needed * (gather_time + _approach_seconds(shares.get(node_type, 0.0), stats.move_speed_mult))
+			# Waiting: how long the world takes to grow that many of this node ON THE MAINLAND.
+			var wait: float = nodes_needed * (RESOURCE_RESPAWN_SECONDS / shares.get(node_type, 1.0)) / home_share
+			swing_seconds += swing
+			if wait > respawn_seconds:
+				respawn_seconds = wait
+				binding_raw = item_name(int(raw))
+			per_raw[item_name(int(raw))] = {
+				"qty": qty,
+				"source": res.name,
+				"nodes_needed": nodes_needed,
+				"swing_minutes": swing / 60.0,
+				"respawn_minutes": wait / 60.0,
+			}
+
+		out.append({
+			"item": item_name(int(product)),
+			"raw_costs": per_raw,
+			"swing_minutes": swing_seconds / 60.0,
+			"respawn_minutes": respawn_seconds / 60.0,
+			"kills": kills,
+			"binding": "respawn" if respawn_seconds > swing_seconds else "swinging",
+			"binding_raw": binding_raw,
+			"ratio": (respawn_seconds / swing_seconds) if swing_seconds > 0.0 else 0.0,
+			# The far more forgiving reading, and the one a FIRST build of the item actually
+			# gets: the island is already stocked when the player arrives, so the opening ask
+			# is "how many sweeps of the standing stock is this" rather than "how long until
+			# it grows". Anything at or under 1.0 sweep is affordable by clearing the map
+			# once; the respawn figure is what the SECOND one costs.
+			"sweeps_of_standing_stock": _sweeps_for(raws, bonus, shares),
+		})
+
+	out.sort_custom(func(a, b): return a["respawn_minutes"] > b["respawn_minutes"])
+	return out
+
+
+## How many full clearances of the mainland's standing stock a recipe's rarest input costs.
+## 1.0 means "exactly one sweep of the island"; above 1.0 means the player must wait for
+## regrowth however fast they swing.
+func _sweeps_for(raws: Dictionary, bonus: float, shares: Dictionary) -> float:
+	var worst := 0.0
+	for raw in raws:
+		if typeof(raw) == TYPE_STRING or not node_for_drop.has(int(raw)):
+			continue
+		var node_type: int = node_for_drop[int(raw)]
+		var res: GameResource = resources.resources[node_type]
+		var per_node: float = (float(res.yield_min) + float(res.yield_max)) / 2.0 + bonus
+		var nodes_needed: float = float(raws[raw]) / per_node
+		var standing: float = maxf(40.0, HOME_TILES_AT_MAX * NODES_PER_TILE) * 0.7 * shares.get(node_type, 0.0)
+		if standing <= 0.0:
+			continue
+		worst = maxf(worst, nodes_needed / standing)
+	return worst
 
 
 # --- progression --------------------------------------------------------------

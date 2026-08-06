@@ -5464,3 +5464,52 @@ Two concrete improvements to the skill:
   verified branches is a *composition* check, not a behaviour change, and the honest gate is lint
   plus the suite. Worth stating the exception in the rule rather than leaving each session to
   decide it silently — the current wording makes the correct cheap choice look like a skipped gate.
+
+## 2026-08-05 — stress-tested the balance and reported it
+
+- Value: **warranted** — runtime produced the number the whole audit turned on, and it was not
+  the number the code reads like.
+  - Expected: that the mainland refills at one node per `ResourceTimer.wait_time` (24s), since
+    that is the only cadence anywhere in `resource_spawn_timer.gd`. Predicted before the run
+    that ~600 game-seconds would add ~19 nodes to a home island with 24 nodes of headroom.
+  - Got: `island_census` twice around a timed `set-game-speed 20` window: home 195 -> 218
+    (+23), forest +3, ore +1, over 611 game-seconds — **23 of 27 placements to home against a
+    predicted 84.9% tile share**. The 24s tick is GLOBAL and `pick_ambient_region()` splits it
+    by land tiles, so a fresh mainland gets one node per 57.7s, not per 24s. The first model
+    was wrong by 2.4x at the start of the run, and every milestone derived from it was wrong
+    with it.
+  - Cheaper: nothing. `island_census` alone gives tile counts but not flow; the flow needed two
+    reads separated by known game-time, which is the one thing no static read produces.
+
+- Gap: **nothing reports resource FLOW, only the instantaneous census, so "is the player
+  supply-bound?" takes two timed reads and hand arithmetic.** Both analysis subagents
+  independently hit this and neither could answer it from the bridge. Worse, the first attempt
+  produced a contaminated measurement — home gained 1 node where 19 was predicted — and there
+  was no way to tell whether `set-game-speed` had applied for the whole window, because no reply
+  carries elapsed game time. It took re-running with `world_clock` reads bracketing the sleep to
+  get a trustworthy number.
+  - [G-130] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: two things, both small. (a) Put `game_time` (or the frame count and
+    `time_scale`) in the status provider merged into every reply, so any two replies can be
+    differenced into a known elapsed interval — this is exactly the liveness argument the
+    harness already makes for `status`, applied to time. (b) A generic `watch <verb> --for N`
+    that samples a verb twice around a timed advance and returns both readings plus the delta,
+    so "what changed over N game-seconds" is one call instead of a five-call ritual whose
+    failure mode is a silently wrong denominator.
+
+- Gap: **`run-method` replies in plain text, not the JSON envelope every other verb uses.**
+  `python tools/devtools.py run-method --node ... --method add_random_resource --args "[]"`
+  prints `Result: True`, so piping it to a JSON parser — which works for every `cmd` verb —
+  dies with `JSONDecodeError: Expecting value: line 1 column 1`. Five parallel calls produced
+  five stack traces and no data before I noticed the verb itself had worked fine.
+  - [G-131] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: give `run-method` the same `{action, success, message, data}` envelope as the
+    registered verbs, with the return value under `data.result`, or accept `--json` on it. A
+    client that has to special-case one verb's output format cannot be scripted uniformly.
+
+- Note on skills: `artifact-design` and `dataviz` both earned their load — the latter's
+  `validate_palette.js` turned a guess into a check (the three-series set passes in both modes;
+  one light-mode slot is sub-3:1 and needs the direct labels the charts already carry). The
+  `dataviz` skill would be improved by saying plainly that plain-HTML bars are a first-class
+  output and not a degraded one; the whole reference set reads as SVG-first, and for a
+  report-shaped page the HTML bars were both more robust and more responsive.
