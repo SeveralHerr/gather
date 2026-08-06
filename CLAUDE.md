@@ -460,6 +460,47 @@ compatibility. Resources flagged `is_scene_tile` are instead instanced as
 `GameSceneResource` children of the TileMap, so any code that enumerates resources must
 handle both representations (`main.gd:resource_node_census` does).
 
+**Physics layers, and why "solid" is three different things.** Tilemap *layers* (above) are
+about drawing order. Collision layers are a separate axis, named in `project.godot`'s
+`[layer_names]`, and the split between them is what stops enemies getting stuck on rocks
+(`gather-eqrl`):
+
+| Bit | Value | Name | Carries | Blocks |
+|---|---|---|---|---|
+| 1 | `1` | World | terrain and coastline, **and** walls and doors | everything |
+| 7 | `64` | Structure | a **duplicate** of wall and door collision | nothing — it is a raycast target |
+| 8 | `128` | Prop | trees, rocks, ore, bushes, stations, chests, turrets | the player and nothing else |
+
+Four things about this are load-bearing:
+
+- **Structure blocks nothing, and that is the point.** Those tiles keep their layer-1
+  polygon; the layer-7 copy exists so `Enemy.has_line_of_sight_to()` can ask "is there a
+  WALL between me and the player" without terrain, water or a tree answering. Delete the
+  duplicate and the ray passes through everything: every enemy hunts through every wall,
+  and *nothing reports it* — a vacuous gate and a working gate read identically from every
+  other tool. `enemy_vision`'s `structure_polygons` is the one number that tells them apart,
+  and it counts off the TileSet the running game loaded, not the file on disk.
+- **Terrain stays on layer 1 and must.** Enemies mask bit 0, so the coastline is what stops
+  them walking into the sea. Move terrain to Prop "for consistency" and raiders swim.
+- **Prop is off layer 1, so enemies simply do not feel it.** There is no baked navigation
+  here (see `enemies/states/enemy_follow.gd`), so a blocked enemy does not path around
+  anything — `move_and_slide()` cancels the velocity and it stands there pushing. Not
+  colliding at all is the fix; the sidestep in `EnemyFollow` is the fallback for walls.
+- **Seven props are scene tiles and are not in the tileset at all.** `stone_node.tscn`,
+  `berry_bush.tscn`, `chest.tscn`, `bone_turret.tscn`, `sawmill.tscn`, `furnace.tscn`,
+  `test_chest.tscn`. None of them authored a `collision_layer` before this change — an
+  absent line defaults to `1`. So the tileset can be perfectly split while a home island
+  full of stone nodes and bushes goes on catching every skeleton, which is the original bug
+  surviving in the one place the player spends all their time. Stations and chests keep the
+  Interactable bit (`4`); it is what the player's `Interact` area masks and what puts the
+  OPEN prompt on them.
+
+`test/unit/test_collision_layers.gd` pins all of it, deriving from the registries and
+resolving layer indices *by bit* rather than hardcoding index `0` — a resource added later is
+covered the day it is registered, and renumbering the layers in the editor cannot make the
+test pass vacuously. That matters more than the change itself: this is a split that one save
+from the Godot tileset editor can silently undo.
+
 **The berry bush is the one resource a gather does not destroy** (`gather-j2n`,
 `world/resource_nodes/berry_bush.gd`). Every other node is a single event — hold the
 pickaxe, it pays out, the cell is cleared. A bush has two states and two gathers:
