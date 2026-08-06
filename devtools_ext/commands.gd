@@ -80,6 +80,8 @@ func register_commands(dev: Node) -> void:
 	dev.register_command("claim_quest", _cmd_claim_quest)
 	dev.register_command("combat_state", _cmd_combat_state)
 	dev.register_command("force_dodge", _cmd_force_dodge)
+	dev.register_command("los_probe", _cmd_los_probe)
+	dev.register_command("enemy_vision", _cmd_enemy_vision)
 
 	# Merged into every reply. Without it, a session whose player has died or whose
 	# island never generated keeps answering with well-formed zeros, which reads
@@ -3782,3 +3784,158 @@ func _cmd_force_dodge(_args: Dictionary) -> Dictionary:
 			"roll_cooldown_left": player.roll_state.get("_cooldown_left"),
 		},
 	}
+
+
+## ================================ enemy vision ================================
+##
+## Both of these exist because the line-of-sight contract spans two files that cannot see each
+## other's failures. `enemies/enemy.gd` casts a ray at collision layer 7; the polygons that ray
+## is supposed to hit live in `assets/tilesets/world_tile_set.tres`. If that layer is empty --
+## a tileset re-saved from the editor is enough to do it -- every ray passes, every enemy hunts
+## through every wall, and *nothing anywhere reports it*. The gate working and the gate being
+## vacuous produce identical output from every other read in the harness.
+
+
+## Does a wall or a door stand between these two points?
+##
+## Takes world coordinates rather than node paths so it can be aimed at a specific wall without
+## first walking an enemy behind it, which is the slow way to answer the same question and
+## conflates "the ray is blocked" with "the enemy noticed".
+##
+## `mask` defaults to Enemy.STRUCTURE_COLLISION_LAYER so the common call needs no arguments
+## beyond the endpoints, but is settable: probing the SAME segment against layer 1 and against
+## 64 is how you tell "there is no wall there" apart from "the wall is not on the Structure
+## layer", which are the two ways this contract breaks and they look alike from one probe.
+func _cmd_los_probe(args: Dictionary) -> Dictionary:
+	var player := _player()
+	if player == null or not player.is_inside_tree():
+		return {"success": false, "message": "no player in the scene to borrow a world from", "data": {}}
+
+	var space := player.get_world_2d().direct_space_state
+	if space == null:
+		return {"success": false, "message": "no direct space state", "data": {}}
+
+	# Defaulting `from` to the player is what makes the one-argument call ("can anything at X see
+	# me?") the easy one, since that is the question being asked nine times out of ten.
+	var from := _to_vector2(args.get("from"), player.global_position)
+	var to := _to_vector2(args.get("to"), player.global_position)
+	var mask: int = int(args.get("mask", Enemy.STRUCTURE_COLLISION_LAYER))
+
+	var query := PhysicsRayQueryParameters2D.create(from, to, mask)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var hit := space.intersect_ray(query)
+
+	var collider_name := ""
+	if not hit.is_empty() and hit.get("collider") != null and is_instance_valid(hit["collider"]):
+		collider_name = str(hit["collider"].get_path())
+
+	return {
+		"success": true,
+		"message": "blocked by %s" % collider_name if not hit.is_empty() else "clear",
+		"data": {
+			"clear": hit.is_empty(),
+			"mask": mask,
+			"from": {"x": from.x, "y": from.y},
+			"to": {"x": to.x, "y": to.y},
+			"distance": from.distance_to(to),
+			"hit_collider": collider_name,
+			"hit_position": {"x": hit["position"].x, "y": hit["position"].y} if not hit.is_empty() else null,
+		},
+	}
+
+
+## Every live enemy's side of the same contract, plus the one number that says whether the
+## contract has any teeth at all.
+##
+## `structure_polygons` counts collision polygons declared on the Structure layer across the
+## whole tileset. It is here rather than in a test because the test reads the file on disk and
+## this reads what the RUNNING game loaded, which is the thing the rays are actually hitting.
+## A zero here means every `has_los` below is true for free.
+##
+## `has_los_now` is cast fresh and reported NEXT TO the throttled `cached_los` on purpose. They
+## are allowed to differ -- that is what the throttle is -- but a cached value that never catches
+## up to a fresh one that has been stable for seconds is a stuck cooldown, and side by side is
+## the only way to see it.
+func _cmd_enemy_vision(_args: Dictionary) -> Dictionary:
+	var player := _player()
+	var enemies: Array = []
+
+	for node in _dev.get_tree().get_nodes_in_group("Enemy"):
+		if not (node is Enemy) or not node.is_inside_tree():
+			continue
+		var e: Enemy = node
+		var state_name := ""
+		# "StateMachine", not "EnemyStateMachine": the node is named for its slot in the enemy
+		# scene, the SCRIPT is named for the state machine flavour it runs. The player's machine
+		# is a different, incompatible one under the same node name (see CLAUDE.md).
+		# Plain `var`, and `get()` rather than a property read: enemy_state_machine.gd declares no
+		# class_name, so there is no type to annotate with and a direct `.current_state` would be
+		# an unchecked access on an untyped node.
+		var machine = e.get_node_or_null("StateMachine")
+		if machine != null and machine.get("current_state") != null:
+			state_name = str(machine.get("current_state").name)
+
+		var entry := {
+			"path": str(e.get_path()),
+			"type": e.type,
+			"position": {"x": e.global_position.x, "y": e.global_position.y},
+			"state": state_name,
+			"hunt_range": e.hunt_range,
+			"hunts_through_walls": e.hunts_through_walls(),
+		}
+		if player != null:
+			entry["distance_to_player"] = e.global_position.distance_to(player.global_position)
+			entry["has_los_now"] = e.has_line_of_sight_to(player.global_position)
+		enemies.append(entry)
+
+	return {
+		"success": true,
+		"message": "%d live enemies" % enemies.size(),
+		"data": {
+			"structure_polygons": _structure_polygon_count(),
+			"structure_layer": Enemy.STRUCTURE_COLLISION_LAYER,
+			"enemies": enemies,
+		},
+	}
+
+
+## Collision polygons on the Structure layer, over every tile of every atlas source in the
+## tileset the running game loaded. Zero means the LOS gate is inert.
+func _structure_polygon_count() -> int:
+	var handler := _tile_map_handler()
+	if handler == null or handler.tileMap == null:
+		return -1
+	var tile_set: TileSet = handler.tileMap.tile_set
+	if tile_set == null:
+		return -1
+
+	var layer_index := -1
+	for i in tile_set.get_physics_layers_count():
+		if tile_set.get_physics_layer_collision_layer(i) == Enemy.STRUCTURE_COLLISION_LAYER:
+			layer_index = i
+			break
+	if layer_index < 0:
+		return 0
+
+	var total := 0
+	for s in tile_set.get_source_count():
+		var source := tile_set.get_source(tile_set.get_source_id(s)) as TileSetAtlasSource
+		if source == null:
+			continue
+		for t in source.get_tiles_count():
+			var coords := source.get_tile_id(t)
+			var data := source.get_tile_data(coords, 0)
+			if data != null:
+				total += data.get_collision_polygons_count(layer_index)
+	return total
+
+
+## JSON hands back an Array for a point; `run-method` cannot coerce a Vector2 at all
+## (gather-6sp), which is the whole reason these two verbs exist as verbs.
+func _to_vector2(raw: Variant, fallback: Vector2) -> Vector2:
+	if raw is Array and raw.size() >= 2:
+		return Vector2(float(raw[0]), float(raw[1]))
+	if raw is Dictionary and raw.has("x") and raw.has("y"):
+		return Vector2(float(raw["x"]), float(raw["y"]))
+	return fallback

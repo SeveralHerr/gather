@@ -5533,3 +5533,153 @@ Two concrete improvements to the skill:
   a suite with deliberately-red gates is the one rough edge, and it is not a harness fault — it
   means `/verify` can never be green on this repo until `roll_yield` is fixed. Noting it here so
   the next person to see a red gate does not assume a regression.
+
+## 2026-08-05 — split tileset collision onto Structure/Prop layers; gave the door a collider
+
+- Value: **insufficient** — headless lint and the unit suite were the only gates available to me
+  (the orchestrator owns the shared devtools bridge this session), and neither can reach the thing
+  the change is actually about: whether a skeleton now walks past a tree and stops at a wall.
+  - Expected: `--import` would reject the hand-edited `.tres` if `physics_layer_2/3` entries inside
+    a `sub_resource` were unparseable before the `[resource]` block declares those layers, and that
+    a new test loading the TileSet as a resource would tell me the split landed on the right tiles.
+  - Got: import exit 0, `lint: 0 error(s), 0 warning(s) -> exit 0`, and 14/14 on the new file —
+    `Selected: 14 of 623 discovered  (file 'test_collision_layers')`. The assertion that earned its
+    keep was `test_every_wall_tile_is_solid_and_a_structure`: it sweeps both wall sources for tiles
+    carrying the terrain index `main.gd:WALL_TYPES` names and requires **47** of them per wall, which
+    is what proves the rewrite caught every blob state rather than only the base cell. The full suite
+    is exit 1 with 3 failures, all pre-existing or another agent's: two in the untracked
+    `test_balance_curves.gd` (red by design) and `test_mine_and_hit_are_now_one_button` (`Expected 8
+    but got 9`) from concurrent mobile-controls work.
+  - Cheaper: nothing cheaper would have done. What is *missing* is more expensive, not less — a
+    running game with an enemy walked into a tree and then into a wall. Every assertion I could write
+    headlessly is about the data file; none of them is about a body being stopped.
+
+- Gap: **no headless way to assert that a collision layer/mask pair actually blocks a body** — the
+  suite can read `collision_layer`, `collision_mask` and `TileData.get_collision_polygons_count()`
+  and infer the intersection by hand (which is exactly what `_layers_matching(ENEMY_MASK)` in
+  `test/unit/test_collision_layers.gd` does), but "would this body be stopped by this tile" is a
+  physics-server question and there is no primitive for it. The workaround is a test that restates
+  the bitmask arithmetic, which passes if the arithmetic and the data agree *and I got the
+  arithmetic right*.
+  - [G-132] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a `collides(--node PATH --against PATH)` style helper, or headlessly a
+    `PhysicsServer2D`-backed assertion in the runner — `_T.assert_blocked(body_scene, tile_source,
+    coords)` that builds a one-tile TileMapLayer in the hosted SubViewport, does a
+    `move_and_collide` toward the cell and reports whether it was stopped. That turns the whole
+    Structure/Prop contract from arithmetic into an observation.
+
+- Gap: **`--import` reports exit 0 while printing another agent's parse error**, so an import that
+  "succeeded" left `res://items/items.gd` unloadable. Output was `import exit=0` alongside
+  `SCRIPT ERROR: Parse Error: Cannot infer the type of "walk" variable ... at: GDScript::reload
+  (res://player/player.gd:446)` and `ERROR: Failed to load script "res://items/items.gd" with error
+  "Parse error"`. In a single-agent session that is a broken game reported as a clean import; here
+  it was a concurrent edit mid-save, and only re-reading the log distinguished the two.
+  - [G-133] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: have the harness wrap `--import` the way it wraps lint — a `tools/import.py`
+    (or a lint phase flag) that greps the import log for `SCRIPT ERROR` / `Failed to load script`
+    and exits 1, so "the class cache was regenerated" and "the project still parses" stop being the
+    same exit code.
+
+## 2026-08-05 — atomic sword swings, an input buffer, and a dodge roll
+
+- Value: **warranted** — headless lint caught a real compile break the diff read as fine, and the
+  new pure seams turned four "you would have to play it" claims into assertions.
+  - Expected: lint would be clean (this is all new script plus one scene node) and the only test
+    fallout would be `test_mobile_controls.gd`'s hardcoded button count.
+  - Got: `--import` refused the whole project on `Parse Error: Cannot infer the type of "walk"
+    variable because the value doesn't have a set type` — `Player.v` is an untyped field, so
+    `var walk := v * MOVE_SPEED * ...` does not compile. That cascaded into `Failed to load script
+    "res://items/items.gd"`, i.e. a game that would not boot, from a one-character annotation. The
+    test fallout was as predicted (`the overlay draws eight buttons: Expected 8 but got 9`), and
+    38 new assertions in `test/unit/test_player_combat.gd` pass, including
+    `rolling on repeat travels at 1.000x walking` and `a shorter recovery really would outrun
+    walking` — the negative case that stops the first one passing by trivial arithmetic.
+  - Cheaper: nothing. Lint alone (4s, no game) was the whole win here, and I was barred from the
+    bridge this turn anyway — the orchestrator owns runtime.
+
+- Gap: **no headless way to assert that a state's active window survives an external
+  `AnimationPlayer.stop()`** — the entire bug being fixed is "something outside the state machine
+  ended a swing early", and the closest a headless test can get is asserting the *predicate*
+  (`Player.release_may_stop_animation(state)` is false mid-swing) rather than the *behaviour* (the
+  animation is still playing and `$Attack.monitoring` is still true after the stop). I had to
+  factor four static predicates out of `player.gd` purely so the rules were reachable at all,
+  because `Player` is scene-backed and `_T.instantiate_ui` cannot stand one up — its `@onready`
+  fields resolve `../../Systems` and `../../UI`.
+  - [G-134] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a runner helper that hosts an arbitrary *scene fragment* with stubbed external
+    node paths — `_T.instantiate_fragment("res://main.tscn", "World/Player", {"../../Systems": ...})`
+    — so a scene-backed node with upward `@onready` paths can be brought up headlessly. Today the
+    only way to test one is to extract statics from it, which is a real design tax: `player.gd` now
+    carries four static predicates that exist for the test harness rather than for the game.
+
+- Gap: **`run_tests.gd` prints no `Selected: N of M` line on an unfiltered run**, so a full-suite
+  run cannot be distinguished from one whose discovery silently found fewer files than it should.
+  `--file test_player_combat` reports `Selected: 38 of 662 discovered`; the bare run reports only
+  `Total: 662 | Passed: 660 | Failed: 2`. The two numbers are the same fact, but only the filtered
+  form states the denominator explicitly, which is the form worth quoting in a handoff.
+  - [G-135] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: always emit the `Selected:` line, with `(no selector)` where the filter would go.
+
+## 2026-08-05 — combat pass: full swings, dodge roll, and only walls block enemies
+
+- Value: **warranted** — runtime produced the one claim no diff and no headless test could:
+  that the LOS gate has teeth rather than being vacuous, and that the prop split moved
+  collision to exactly the right side of two different masks.
+  - Expected: three agents each reported "not verifiable headlessly" for the same reason —
+    the bug is defined by a wall, and headless stands up no physics world. I expected to be
+    confirming feel (does the roll look right) and instead expected the collision work to be
+    settled by its unit test.
+  - Got: the unit test reads the tileset *file*; it cannot see what the running game loaded,
+    and it cannot see the seven scene-tile props whose colliders live in unrelated `.tscn`s.
+    Probing the live space state with the game's own masks is what actually closed it:
+    `mask=3145729` (the enemy's real `collision_mask`) across a stone node → `clear`;
+    `mask=1048705` (the player's real mask) across the same stone → `blocked by TileMap`;
+    `mask=3145729` across a closed door → `blocked by Door/Blocker`. Three reads, three
+    different subsystems, one segment. And `structure_polygons: 94` off the loaded TileSet is
+    the number that says the whole LOS feature is not a no-op.
+  - Cheaper: nothing. The unit test was already written and already green while two genuine
+    holes were open — the scene-tile props, and "is layer 7 populated in the build that is
+    running". Both are invisible to every static read.
+
+- Gap: **no generic verb for a space-state query, so "what would collide along this segment"
+  had to be added as a project verb before the contract could be checked at all.** The harness
+  has `tilemap-cells` and `tilemap-region`, which answer what tiles are *where*, and
+  `node-bounds`, which answers where a node is — but nothing answers what a given
+  `collision_mask` would actually hit, which is the only form the question takes once a project
+  has more than one physics layer. I wrote `los_probe` (segment + mask → clear/blocked + hit
+  path + hit position) and it immediately did work I had not planned for: reading `hit_position`
+  back from two opposite-facing probes located a wall's faces at x=-256 and x=-240 exactly,
+  after five short bisecting probes had all returned `clear` because a Godot ray originating
+  inside a shape reports nothing.
+  - [G-136] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: a generic `raycast --from X,Y --to X,Y [--mask N] [--areas]` verb, reporting
+    `clear`, the collider's node path, and the hit position. It is ~20 lines against
+    `direct_space_state`, needs nothing project-specific, and is the direct read for any
+    question about layers, masks, walls, sight lines or reachability. Pair it with a
+    `--mask-names` flag that resolves `[layer_names]` from `project.godot`, since the whole
+    class of bug here is a number nobody can read.
+
+- Gap: **`set-state --value` takes no Vector2 in the form the error message asks for.**
+  `--value "-200,-296"` fails argparse (reads as two args), `--value "(-200,-296)"` fails with
+  `cannot convert String ("(-200,-296)") to Vector2`, and `--value '[-200,-296]'` works. The
+  error names the type it wanted and not the syntax that produces it, so the working form is
+  found by guessing. This is the same coercion hole as `run-method`'s documented `gather-6sp`,
+  one layer up.
+  - [G-137] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: accept `x,y` and `(x,y)` as well as the JSON array, and on failure print the
+    accepted forms rather than only the rejected type.
+
+- Gap: **`harness-version` reports `game not running`**, so the `harness:` field on every gap
+  above is copied from the previous entry rather than read. The client half of the version is
+  knowable with no game at all — it is the installed revision on disk.
+  - [G-138] status: open | seen: 1 | harness: 0.8.0
+  - Improvement: print the client revision unconditionally and mark the game half `unknown`
+    when the bridge is cold, instead of failing the whole verb.
+
+- Note on the three-agent fan-out: the one-instance rule for the bridge held, because the
+  orchestrator owned every launch and the subagents were restricted to `--import`, lint and
+  `run_tests.gd`. That restriction is worth making a first-class thing rather than prose in
+  three prompts — see G-134's neighbourhood. The concrete cost of not having it: two agents
+  independently hit a *transient* lint failure caused by a third agent's mid-save
+  (`player.gd:446 Cannot infer the type of "walk"`), and each spent a re-run establishing it
+  was not theirs.
