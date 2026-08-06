@@ -5893,3 +5893,51 @@ Two concrete improvements to the skill:
     them. The drift check already computes exactly this bearing; it just runs as a separate
     block whose result nothing downstream consumes. Failing that, `import_check.py` missing
     should exit with its own code, not 2.
+
+## 2026-08-06 — Refreshed the harness 0.8.0 -> 0.10.0 via `/scaffold-godot-harness`
+
+- Value: **warranted** — the headless smoke check separated "the refresh broke something"
+  from "these two were already red", which the diff alone could not have settled.
+  - Expected: lint clean (only harness files changed, no game code), and the unit suite
+    green as it was at `4907ff6`.
+  - Got: lint `0 error(s), 0 warning(s)`, `Scripts: 169 compiled OK`, `UIDs: OK`. But the
+    suite came back `Total: 686 | Passed: 684 | Failed: 2` —
+    `test_no_loadout_wastes_extra_drop_chance` and
+    `test_the_foraging_capstone_still_does_something` in `test_balance_curves.gd`. Restoring
+    `main`'s pre-refresh `run_tests.gd` and re-running `--file test_balance_curves` gave the
+    identical `Passed: 7 | Failed: 2`, so the 0.10.0 runner did not surface them and did not
+    cause them — they are pre-existing balance debt (Gold Pickaxe 0.75 + full Foraging branch
+    puts extra-drop chance past 1.00, and `roll_yield` spends it on one `randf()`).
+  - Cheaper: nothing. `git diff` shows zero game files touched, which *argues* the failures
+    are unrelated but cannot demonstrate it; only running the old runner against the same
+    file did, and that took one 40s invocation.
+
+- Gap: **`scaffold_install.py config` silently reset `godot_bin` to `""`** — step 7's merge
+  is `--set` driven, and any scaffold-owned key not passed reverts to the shipped default.
+  `godot_bin` is scaffold-owned, so `config --set main_scene=... --set hud_layer_name=...`
+  printed `^ godot_bin: "C:/Users/gotmi/Documents/Godot_v4.7.1-stable_win64.exe" -> ""` while
+  the two keys I *did* pass were correctly kept as project-owned. Step 11 re-detects it
+  afterwards, which hides the reset — except its Windows glob
+  `~/Documents/Godot_v*_win64.exe` returned `Godot_v4.5.1-stable_win64.exe` on this machine,
+  the wrong engine for a `4.7` project. Workaround: re-ran step 11's `--set godot_bin=` with
+  the 4.7.1 path read out of the config *before* the merge clobbered it.
+  - [G-142] status: open | seen: 1 | harness: 0.10.0
+  - Improvement: two independent fixes, either sufficient. (a) Treat an owned key that is
+    absent from this invocation's `--set` list as "not being re-detected" and carry the
+    existing value forward, rather than reverting it to the shipped default — a merge should
+    only move keys it was actually given. (b) Have step 11's glob sort matches by version
+    descending and cross-check the winner against `config/features` in `project.godot`, so a
+    stale 4.5 binary next to a 4.7 one is never the one recorded.
+
+- Gap: **`log-devtools.md` seeded before 0.8.0 can never receive a format refresh** — 9a
+  reported `= log-devtools.md has no format markers (seeded before 0.8.0) - left untouched`,
+  which is the correct conservative call but means this project's Format section is frozen at
+  whatever 0.7.x wrote, permanently. Every future verdict or status field the harness adds
+  will reach new installs and skip this one. Workaround: none applied; the section is still
+  accurate enough to follow.
+  - [G-143] status: open | seen: 1 | harness: 0.10.0
+  - Improvement: give `format-block` a `--adopt` mode that locates the legacy section by its
+    `## Format` heading and the first `## <date>` heading after it, wraps that span in the
+    markers *without changing its content*, and reports the span it claimed. That is a
+    one-time, reviewable diff the user can reject, and it converts every pre-0.8.0 log into
+    one that tracks the format from then on.
