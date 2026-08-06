@@ -192,29 +192,29 @@ time and bonus yield, consumable heal values), `crafting/recipes.gd` (recipe cos
 `systems/skill_tree.gd` (every skill's effect, prerequisite and unlock) and
 `LevelUpManager.XP_FIRST_LEVEL` / `XP_GROWTH` (the level curve).
 
-**Skill tree** (Forager-style, replaced the five hardcoded upgrade buttons):
+### Subsystem notes live with their code
 
-- `systems/skill_tree.gd` is the registry — four branches (Foraging, Industry,
-  Combat, Building), three tiers each, built imperatively like `items.gd`. A skill
-  carries `effects` (stat deltas), `recipes` and `resources` (unlocks), so adding
-  one is a data edit, not a new `_apply_*` method.
-- `systems/player_stats.gd` sums the taken set into the totals the game reads:
-  gather time (`resource_manager2.gd`), bonus yield, xp, damage / max health /
-  move speed (`player.gd`) and pickup radius (`items/pick_up.gd`). It **recomputes
-  from scratch** on every change — never apply a delta incrementally, or load and
-  repurchase will double it.
-- `systems/level_up_manager.gd` owns xp, level and banked points. It no longer
-  draws anything and no longer seizes the screen on level-up; points bank and the
-  player opens the panel with `K` when they choose to.
-- `ui/skill_tree_ui.gd` builds the panel in code from the registry and lives in the
-  `UI` CanvasLayer. Do not put full-screen menus under `Player/Camera2D/HUD` —
-  that Control is world-space at `0.23` scale for the diegetic HUD.
-- Unlocks are applied on purchase only, never on load: `Recipes` and
-  `ResourceManager2` persist their own unlocked lists, so replaying them would
-  append every recipe twice.
-- The devtools verbs `skill_panel` and `learn_skill` drive it from the CLI, and
-  `player_state` spells out the stat totals (`PlayerStats` is a RefCounted, so
-  `get-state` shows only an opaque object id).
+Each subsystem below is documented in full in the `##` doc header of the file named —
+the rationale, the traps, and what breaks if you undo it. **Read that header before
+changing that subsystem.** They are listed here so you know the note exists; they are not
+repeated here, because a second copy of a fact is a copy that can disagree with the first.
+
+| Subsystem | Read the doc header of |
+|---|---|
+| Skill tree, stat totals, unlock-on-purchase-only | `systems/skill_tree.gd`, `systems/player_stats.gd` |
+| Day/night lighting, weather, the three canvases | `world/vfx/sky_lighting.gd`, `systems/world_clock.gd` |
+| Lightning, thunder, why there is no flash→bang delay | `systems/world_clock.gd`, `systems/sound_manager.gd` |
+| Charged skeletons (bolt → capture → loaded machine) | `enemies/enemy_registry.gd`, `enemies/enemy_spawner.gd`, `turrets/bone_turret.gd` |
+| Night raids, and enemy pathing without baked navigation | `systems/raid_director.gd`, `enemies/states/enemy_follow.gd` |
+| Berry bush — the one gather that does not destroy | `world/resource_nodes/berry_bush.gd` |
+| Islands, isthmuses, seeded placement | `world/island_manager.gd`, `world/land_region.gd` |
+| Land economy — and `grant_parcels()`, not `_expand()` | `world/land_manager.gd` |
+| Run scoring and the ending | `systems/run_stats.gd` |
+| Quest board (progress is derived, never counted) | `systems/quest_board.gd` |
+| Toolbar / mobile button parity | `ui/hud_toolbar.gd`, `ui/mobile_controls.gd` |
+| The World / Structure / Prop collision split | `test/unit/test_collision_layers.gd` |
+| Crafted food must beat its own raw inputs | `test/unit/test_ore_chain.gd` |
+| Project-specific devtools verbs | `devtools_ext/commands.gd`, or `list-commands` |
 
 **Window size and UI layout.** The window is `1920x1080` with `window/stretch/mode`
 explicitly `"disabled"` (`[display]` in `project.godot`), so growing the window shows
@@ -239,214 +239,11 @@ camera's `8` zoom. Nothing may hardcode a viewport dimension:
   screen the moment the window grew. If you see a raw `-115` or a `470` in a layout,
   it is a leftover of that and is a bug at any other size.
 
-**Day/night lighting, and the three canvases.** `Systems/WorldClock`
-(`systems/world_clock.gd`) owns the time of day and the weather and draws nothing;
-`SkyLighting` (`world/vfx/sky_lighting.gd`) draws what it says. The split is the
-`LevelUpManager` / `SkillTreeUi` one, for the same reasons.
-
-The thing to know before touching any of it: **a `CanvasModulate` tints exactly one
-canvas — the one it is a child of — and this game has three.**
-
-| Canvas | Holds | Under a `CanvasModulate` in `World`? |
-|---|---|---|
-| root (no CanvasLayer) | `World`, TileMap, Player, Camera2D, **and the diegetic HUD** | tinted |
-| `Ocean`, layer `-100` | the sea (`main.gd:_setup_ocean_backdrop`) | **not** tinted |
-| `UI`, layer `1` | hotbar, panels, screen flash | **not** tinted |
-
-Two of those three rows are wrong by default, so `SkyLighting` makes three writes, not one:
-
-- The **sea** is missed. Left alone it stays daylight blue at midnight while the land it
-  surrounds goes dark, which reads as a rendering bug rather than as night. It gets the
-  same tint multiplied into `OCEAN_COLOR` by hand — against a *captured base colour*, never
-  against the current one, or the multiply compounds to black in about a second.
-- The **HUD** is hit when it should not be: it hangs off `Camera2D`, so it is in the root
-  canvas, and the HP and XP bars dim exactly when the player most needs to read them. It is
-  cancelled with the reciprocal tint in `modulate` — a per-item multiply against a
-  whole-canvas multiply, which is exact. That is deliberately cheaper than moving the HUD
-  into the `UI` layer: it is world-space by design and `camera_hud.gd`, the anchor rules
-  above and the save paths all depend on it staying there.
-- The **`UI` layer is left alone on purpose.** Screen-space UI is not in the world and does
-  not take the world's weather.
-
-`NIGHT_TINT`'s `0.42` floor is a *readability* floor, not an aesthetic one — below roughly
-`0.35` the 16px art stops being identifiable. Turn the blue up, not the floor down.
-`test_world_clock.gd` pins the floor, and pins that the tint curve is continuous across
-every phase boundary *and across the wrap at midnight* — a seam no single screenshot can
-show you.
-
-**Lightning is those same three writes with a brighter number going into them.** A storm
-fires bolts on a countdown — `WorldClock.lightning_time_left`, re-rolled between
-`LIGHTNING_MIN_GAP` and `LIGHTNING_MAX_GAP` after every strike — and fires them *only* while
-`weather` is `RAIN`. Starting rain arms the countdown, going clear disarms it to `0.0`. An
-armed countdown under a clear sky is a bolt waiting to flash out of nothing, and it is the one
-way those two fields can contradict each other, which is why `world_clock` reports both rather
-than deriving one from the other.
-
-`distance` — `0.0` overhead to `1.0` on the horizon — is the single number `lightning_struck`
-carries, and every consumer derives from it instead of rolling its own: the flash brightness
-(`SkyLighting.flash_peak_for`) and the thunder's volume *and pitch*
-(`GameSoundManager.play_thunder`). Two independent "how close was it" rolls would disagree on
-every strike, and a bolt that looks overhead while sounding far off does not read as two
-randomisations — it reads as broken audio.
-
-**There is deliberately no delay between the flash and the thunder**, and the absence is the
-decision. `play_thunder` used to model light outrunning sound, so a horizon bolt cracked 4.5
-seconds after its flash; in a game whose whole day is ten minutes that read as broken audio
-rather than as distance, because the flash was long gone and the bang arrived attached to
-nothing. Distance carries in volume and pitch instead, which reads as distance without cutting
-the sound loose from what the player just saw. If you come here looking for
-`WorldClock.thunder_delay` or `THUNDER_DELAY_MAX`, this paragraph is what replaced them.
-
-**The flash is folded into the tint *before* the three canvas writes, and that placement is
-load-bearing.** `SkyLighting` multiplies the envelope into the colour it is about to hand out,
-so the sea brightens with the land on the write that already keeps those two agreeing, and the
-HUD's reciprocal cancels the flash for free — the health bar does not strobe, and nobody had to
-add a second rule saying it must not. Both are consequences of the ordering rather than
-features anyone wrote. Tidying this into a separate white overlay on the `UI` layer
-reintroduces both problems at once and neither of them looks like the edit that caused it: a
-flat dark sea sitting under land that goes white, and an HP bar blowing out every few seconds
-during a storm — which is precisely when the player is fighting in the dark and reading it.
-
-At most one bolt fires per tick, however large the delta. A `step-time --seconds 300`, a frame
-stalled behind an import, or a load that fast-forwards can cover a dozen gaps; looping until
-the countdown went positive would emit a dozen `lightning_struck` into a single frame, and the
-player would still see one flash and hear one thunder because every consumer draws into the
-same screen and the same audio bus. The re-arm is a full fresh gap and not the remainder, so a
-long step visibly *eats* the bolts it skipped instead of banking them into a burst on the far
-side. A later reader who reads the `if` as a missed `while` should read this paragraph instead.
-
-`lightning_time_left` is progress, not configuration, so it is saved — the `time_left` versus
-`wait_time` distinction the save-fidelity section below already spells out. Re-rolling it on
-load takes a bolt off the player who saved eighteen seconds into a nineteen-second gap, and
-nothing reports that.
-
-**Rarely, a near bolt lands on a skeleton and what gets up is a different enemy** (`gather-8ft`).
-That is the one place the weather reaches into the combat loop, and the chain it starts is the
-reason the storm is worth standing out in:
-
-```
-WorldClock.lightning_struck(distance)
-  -> EnemySpawner.should_charge(distance, randf())   # CHARGE_CHANCE 0.08, near bolts only
-  -> the struck Bone is REPLACED by an EnemyRegistry.CHARGED ("ChargedBone")
-                                                     # charged_bone_enemy.tscn, same spot, full health
-  -> the player NETS it                              # -> Types.Item.ChargedBoneEnemy
-  -> GameItemChargedBoneEnemy.use()                  # set_loaded() + make_charged(), one EMPTY machine
-  -> BoneWorker: 20s chop -> 10s      BoneTurret: 1.0s fire -> 0.55s, +2 bullet damage
-```
-
-Six things here are load-bearing and easy to undo:
-
-- **Lightning is that type's only source, because `CHARGED` is `ambient: false`.** Letting the
-  spawn timer trickle one in puts the rare reward on the ordinary cadence, and a player who can
-  simply wait for one has no reason to be outside in a storm. The sky would still flash and
-  rumble; it would just stop meaning anything.
-- **Only `EnemyRegistry.BONE` is replaced.** Not spiders — what the capture loads is a *bone*
-  machine — and not the elite, which is a bone enemy underneath but is the boss island's placed
-  guard. `charged_bone_enemy.tscn` is an inherited scene over `bone_enemy.tscn`, the way
-  `elite_enemy.tscn` is, and overrides it to 30 health and 5 damage: netting one is a real fight
-  rather than a free pickup that happens to be blue.
-- **It is collected with the Net, exactly like an ordinary skeleton, and killing one is a loss.**
-  `player_net.on_hit()` is entirely registry-driven (`EnemyRegistry.is_nettable` /
-  `capture_item`), so this needed no change to the net at all — the type just names its own
-  capture item. Its loot table is deliberately barely better than a plain skeleton's and has to
-  stay that way: a rich one makes killing competitive with catching, which inverts the point of
-  hunting it. The reward is the capture.
-- **The blue and the sparks are baked into the `.tscn`, not applied by code.** That is the point
-  of a scene rather than a flag: the look comes back from a load because the scene is what gets
-  instantiated, with no load path involved. The flag design had to split `_apply_charged_tint()`
-  out of `make_charged()` purely so the load could re-apply the colour past the idempotence
-  guard, and a miss there brought the enemy back grey while it still paid out — the worst
-  version, the reward intact and the warning that earns it gone. That hazard is now gone for the
-  enemy. The machines keep their own `charged` flag and `_apply_charged_look()` split, and must:
-  a skull is fitted to a turret at runtime, so for them it genuinely is per-node state.
-- **The blue goes on the Sprite2D's `modulate`, never the root's.** The root's modulate carries
-  the hit flash and the death fade; something that stopped flashing white when struck would read
-  as invulnerable. Per-item modulate multiplies, so the flash still lands on top of the blue.
-- **Making this a real type made the save format simpler, not more complex.** `type` is already
-  persisted and `scene_for_type()` already rebuilds from it, so being blue, being tougher and
-  netting into a different item all survive a load for free, and the `charged` key — with its
-  `typeof(...) == TYPE_BOOL` normalize guard and its re-application after `add_child` — was
-  deleted rather than added to. A flag would have been a second copy of a fact the save already
-  carried, and two copies can disagree.
-
-The capture **loads an empty machine only**: `find_closest_loadable()` skips any `BoneTurret` or
-`BoneWorker` whose `loaded` is true. It is a loading item, not a retrofit for one already
-working, and without the skip a player standing beside a running turret has the skull ranked
-toward it while an empty worker a step further out goes without.
-
-`BoneTurret` captures `_base_fire_interval` in `_ready` and always multiplies *that*, never the
-live `wait_time`. `Timer.start()` assigns `wait_time`, so deriving the charged interval from
-the current one compounds on every call — the `gather-9x0` furnace bug in a new place, and the
-reason `make_charged` is idempotent in effect as well as in its guard. Measured: still `0.55`
-after four calls, not `0.55^4`.
-
-The devtools verbs are `charge_skeleton` (forces the replacement on a live skeleton, bypassing
-both the roll and the distance gate, and reporting honestly when there was no skeleton to hit)
-and `charged_state`, which counts enemies by type — `EnemyRegistry.CHARGED` against `BONE` —
-alongside charged workers and turrets in one read, and lists `ground_drops` by item name. That
-last field exists because a `PickUp`'s `slot_data` is a Resource and `get-state` reports it as
-an opaque object id, so what a kill actually left on the ground is otherwise unanswerable
-without walking the player over it — which conflates the drop with the pickup radius.
-
-**From night three, the dark comes to you** (`gather-0ez`). `Systems/RaidDirector`
-(`systems/raid_director.gd`) is the model and `ui/raid_banner.gd` is the view — the same split
-as `WorldClock`/`SkyLighting`, for the same three reasons. On `night_started` it opens a raid
-whose size and toughness grow with the day, spawns it in a stagger, and pays a clear bonus when
-the last raider goes down. Before it, night was `NIGHT_CAP_MULT` and `NIGHT_INTERVAL_MULT` — a
-few more wanderers, somewhere else — and walls, doors and turrets were decoration, because
-nothing was ever coming for anything.
-
-Six things here are load-bearing:
-
-- **Raiders are their own registry types, not a flag on a skeleton.** `EnemyRegistry.RAIDER_BONE`
-  and `RAIDER_SPIDER` are inherited scenes over the ordinary ones, exactly as `CHARGED` is, and
-  for the reason that note already gives: `type` is persisted and `scene_for_type()` rebuilds
-  from it, so the ember tint and the wide `hunt_range` come back from a load with no code on the
-  load path. It is also what makes **"how many raiders are left" a live count rather than a
-  counter** — `RaidDirector.live_raiders()` walks the spawner's children. A counter decremented
-  from each raider's `died` signal is wrong the instant the player quicksaves mid-raid: the
-  enemies come back through `EnemySpawner.loadObject`, which connects nothing, so every later
-  kill is invisible and the raid never clears.
-- **`Enemy.hunt_range` is the dial that makes a raid arrive.** `EnemyIdle` used to hardcode 30px
-  — two tiles — so a raider spawned across the island simply wandered where it landed. Ambient
-  enemies still get 30 from the export's default; only the raider scenes widen it, so the
-  ordinary island is unchanged.
-- **Raiders spawn in the player's OWN region, and `accepts_ambient_enemies` is deliberately not
-  consulted.** The first implementation picked any far-enough land and got this exactly
-  backwards: a fresh home island is 160px across, so *no* home cell cleared the 200px minimum
-  and every candidate that did was on a pregenerated island. Those raiders pathed at the player,
-  walked into the sea and stopped — right type, right toughness, velocity set, position
-  unchanged. A raid that never arrives is worse than none: the banner counts seven enemies the
-  player cannot find. Nothing headless sees this and no screenshot shows it; it took reading one
-  raider's position twice, eight seconds apart, to find it had moved 0.13 pixels.
-- **There is no baked navigation in this game**, and `EnemyFollow` now compensates. The tileset
-  declares navigation source groups but nothing in `main.tscn` is a `NavigationRegion2D`, so
-  `get_next_path_position()` returns a point on the straight line to the target — walk it into a
-  tree and `move_and_slide()` cancels the velocity and the enemy stands there pushing. That was
-  invisible while chasing was a two-tile affair; a raid is the first thing that asks an enemy to
-  cross an island. `EnemyFollow` measures actual displacement (never `velocity`, which is what
-  was *written* and stays nonzero against a wall) and sidesteps along the obstacle after
-  `STUCK_AFTER`. Baking navigation is the real fix and is a change to the tilemap, the save
-  format's terrain replay and every scene tile that writes a cell.
-- **Raiders are spawned outside `EnemySpawner`'s population cap, on purpose**, so `MAX_SIZE` is a
-  frame-rate bound before it is a difficulty one. A raid that counted against the ambient
-  ceiling would simply stop the trickle and feel like nothing had changed.
-- **Health scales with the night; damage deliberately does not.** The game has no armour, so a
-  raider that hits harder every night is a difficulty setting the player has no dial to answer.
-  More health is answered by every dial they *do* have: a better sword, the Combat branch, a
-  turret, a wall to fight behind.
-
-Dawn ends a raid without paying and **leaves the surviving raiders alive** — a wave evaporating
-at sunrise reads as the game tidying up after itself and cancels the night's tension in one
-frame. `raid_survived` and `raid_cleared` are separate signals because surviving until morning
-and clearing the field are different things, and only the second is a clear.
-
-The devtools verbs are `raid_state` (the director's state *and* the banner's, for the reason
-`world_clock` reads the tint back off all three canvases), `start_raid` — which **moves the
-clock to night first if it is daylight**, the same way `strike_lightning` starts a storm,
-because `_process` ends any raid it finds running outside the dark and the verb otherwise
-reported a cheerful success for a raid that was over one frame later — and `end_raid`, which is
-the dawn path rather than a clear, so it can never be used as a coin faucet.
+**Weather, night and raids are three linked subsystems** — see the index above for the
+files. The one rule that spans all of them and is easy to undo from outside: `WorldClock`
+owns the numbers and draws nothing, `SkyLighting` and `RaidBanner` draw and own nothing.
+Adding rendering to the model, or state to a view, is the change those headers are
+written to prevent.
 
 Note also that `project.godot` runs `gl_compatibility` on mobile, which caps `Light2D`s per
 canvas item. The player lantern is deliberately one light; anything added later (a torch, a
@@ -471,81 +268,17 @@ about drawing order. Collision layers are a separate axis, named in `project.god
 | 7 | `64` | Structure | a **duplicate** of wall and door collision | nothing — it is a raycast target |
 | 8 | `128` | Prop | trees, rocks, ore, bushes, stations, chests, turrets | the player and nothing else |
 
-Four things about this are load-bearing:
+Why each bit carries what it does — why Structure blocks nothing, why terrain must stay on
+layer 1, and which seven scene tiles silently default to `1` by not declaring a layer at
+all — is in the doc header of `test/unit/test_collision_layers.gd`, which pins it by
+deriving from the registries and resolving layer indices *by bit* rather than hardcoding
+index `0`. Read it before touching the tileset: this is a split that one save from the
+Godot tileset editor can silently undo.
 
-- **Structure blocks nothing, and that is the point.** Those tiles keep their layer-1
-  polygon; the layer-7 copy exists so `Enemy.has_line_of_sight_to()` can ask "is there a
-  WALL between me and the player" without terrain, water or a tree answering. Delete the
-  duplicate and the ray passes through everything: every enemy hunts through every wall,
-  and *nothing reports it* — a vacuous gate and a working gate read identically from every
-  other tool. `enemy_vision`'s `structure_polygons` is the one number that tells them apart,
-  and it counts off the TileSet the running game loaded, not the file on disk.
-- **Terrain stays on layer 1 and must.** Enemies mask bit 0, so the coastline is what stops
-  them walking into the sea. Move terrain to Prop "for consistency" and raiders swim.
-- **Prop is off layer 1, so enemies simply do not feel it.** There is no baked navigation
-  here (see `enemies/states/enemy_follow.gd`), so a blocked enemy does not path around
-  anything — `move_and_slide()` cancels the velocity and it stands there pushing. Not
-  colliding at all is the fix; the sidestep in `EnemyFollow` is the fallback for walls.
-- **Seven props are scene tiles and are not in the tileset at all.** `stone_node.tscn`,
-  `berry_bush.tscn`, `chest.tscn`, `bone_turret.tscn`, `sawmill.tscn`, `furnace.tscn`,
-  `test_chest.tscn`. None of them authored a `collision_layer` before this change — an
-  absent line defaults to `1`. So the tileset can be perfectly split while a home island
-  full of stone nodes and bushes goes on catching every skeleton, which is the original bug
-  surviving in the one place the player spends all their time. Stations and chests keep the
-  Interactable bit (`4`); it is what the player's `Interact` area masks and what puts the
-  OPEN prompt on them.
-
-`test/unit/test_collision_layers.gd` pins all of it, deriving from the registries and
-resolving layer indices *by bit* rather than hardcoding index `0` — a resource added later is
-covered the day it is registered, and renumbering the layers in the editor cannot make the
-test pass vacuously. That matters more than the change itself: this is a split that one save
-from the Godot tileset editor can silently undo.
-
-**The berry bush is the one resource a gather does not destroy** (`gather-j2n`,
-`world/resource_nodes/berry_bush.gd`). Every other node is a single event — hold the
-pickaxe, it pays out, the cell is cleared. A bush has two states and two gathers:
-
-| State | Gathering it | Result |
-|---|---|---|
-| fruiting | *picks* it | Berries drop (heal 1 each), **the bush stays**, a 900s regrow starts |
-| picked | *uproots* it | Exactly one placeable `BerryBush` item, cell cleared |
-
-Four things about this are load-bearing:
-
-- **The order is the anti-duplication rule.** A bush can only be uprooted once it is
-  already picked, and a *replanted* bush comes up picked with a full regrow — otherwise
-  pick / uproot / replant / pick is an infinite berry faucet. A planted bush knows it was
-  planted through `BerryBush._planted_cells`: `GameItemBerryBush.use()` marks the cell, the
-  node claims the mark in `_ready()` a frame later. They have no reference to each other —
-  the item is a RefCounted outside the tree and the node does not exist yet — which is why
-  that hand-off is a static with a TTL rather than a signal.
-- **The uproot deliberately bypasses `remove_resource`.** That function rolls yield against
-  the pickaxe's bonus chance, and a bonus roll on a bush hands back two bushes for one: an
-  item duplicator built out of the code that makes a gold pickaxe worth buying.
-- **Picking emits `resource_removing_stop`, never `resource_removed`.** The second is what
-  makes `main.gd` clear the cell; the first only takes the layer-3 selector back off. Emit
-  the wrong one and the bush vanishes on its first harvest.
-- **It is a scene tile because a cell has nowhere to keep a clock.** `regrow_left` is
-  persisted as `time_left`, not `wait_time`, and `_restart_regrow` puts the interval back
-  after `Timer.start()` assigns over it — the `gather-9x0` furnace bug in a new place.
-
-The reason `ResourceManager2` now branches on `resource.is_scene_tile` rather than naming
-`StoneResourceTest`, and the reason `main.gd` grew `scene_tile_at(cell)` next to
-`get_nearest_scene_tile()`, are both this: with two scene-backed resources, "the node on the
-cell the player is working" and "the nearest scene node" are no longer the same node, and the
-old code answered the second while meaning the first.
-
-Food no longer drops from trees. It is a 4% drop off every enemy type
-(`EnemyRegistry.FOOD_DROP`), so the biggest early heal is bought with a fight, and berries are
-what the forager gets instead.
-
-**Food is now an input to nothing** (`gather-as9`). `CookedFood` and `Bandage` were priced
-against the old 0.2 tree drop and both moved onto berries — 4 Berries + coal, and 2 String +
-2 Berries. The rule that broke is worth knowing because a bare "the crafted thing heals more"
-does not catch it: Cooked Food cost 2 Food, which heal 4 each where they stand, and healed 10.
-It was an *improvement*, by two points, for a station, fuel, a walk and ~50 kills' worth of
-input. `test_ore_chain.gd:CRAFTED_HEAL_MULTIPLE` now requires a station recipe to pay at least
-2x what its own edible inputs are worth eaten raw, which is the version of the rule with teeth.
+Food no longer drops from trees: it is a 4% drop off every enemy type
+(`EnemyRegistry.FOOD_DROP`), so the biggest early heal is bought with a fight, and berries
+are what the forager gets instead. Berry bushes and the crafted-vs-raw heal rule are in the
+index above.
 
 **Gather loop**, the most-touched path and the one that spans the most files:
 
@@ -588,133 +321,24 @@ Health and damage are `@export`s on `Enemy` and must be set **before** `add_chil
 rebuilt through `EnemySpawner.scene_for_type()`; a type missing from that match falls
 back to a bone enemy, which is how a saved elite would silently come back a skeleton.
 
-**Islands.** `world/island_manager.gd` draws three pregenerated islands — forest, ore and
-a boss arena — at fixed distances from the home island on a ring inside its maximum
-radius (`LandManager.radius_for(MAX_PARCELS)`, currently 34). There is no boat and no
-bridge: they are reached by buying land until the home coastline grows out to meet them.
+**Islands.** Three pregenerated islands — forest, ore and a boss arena — sit at fixed
+distances from the home island. There is no boat and no bridge: they are reached by buying
+land until the home coastline grows out to meet them. Placement is *seeded*, so do not
+judge it from one run — `test/unit/test_island_manager.gd` sweeps 200 seeds. Each island is
+a `LandRegion` with its own spawn rules, and `LandRegion.connected` gates ambient **enemies
+only**, never resources. Growing the island outside a purchase goes through
+`LandManager.grant_parcels()` — writing `parcels_bought` / `radius` / `_expand()` directly
+skips the `land_purchased` signal that stocks the new land and opens islands (`gather-3m9`).
 
-Two things about that are not obvious and are easy to undo:
+**The boss ends the run, and the run has a score** — see `systems/run_stats.gd`. **The quest
+board** asks the player for things — see `systems/quest_board.gd`. Both are model/view
+splits like `WorldClock`/`SkyLighting`.
 
-- The *distance* is fixed but the *angle* is chosen at generation. `land_cells_for_radius`
-  thresholds noise at the default 0.01 frequency, so across ±34 tiles the field is sampled
-  over ±0.34 — a smooth gradient, not an archipelago, and the maxed home island is
-  routinely a lopsided crescent. A hardcoded angle strands an island for a good fraction
-  of seeds. Islands claim directions furthest-first, and anything still unreachable gets a
-  carved isthmus.
-- Placement anchors to `IslandManager.main_body()`, not to the raw land set. Thresholding
-  leaves detached islets, and an isthmus anchored to one joins the island to a rock in the
-  sea. This stranded 6% of seeds and is invisible in any single playthrough —
-  `test/unit/test_island_manager.gd` sweeps 200 seeds, which is the only reason it
-  surfaced. Do not judge island placement from one run.
-
-Each island is a `LandRegion` (`world/land_region.gd`) with its own spawn-weight override
-and `ambient_resources` / `ambient_enemies` flags. Regions are what stop the global
-respawn timer eroding a themed island back into a generic one, and a region that opts out
-of ambient spawning is also excluded from the ceilings those systems scale against —
-otherwise the boss arena's grass buys extra enemies for the mainland. `region_for_cell`
-resolves islands before home, so an island absorbed by the growing mainland keeps its
-identity. A region states its cells outright rather than using its radius: an isthmus
-trails well outside the disc.
-
-**`LandRegion.connected` gates enemies, and only enemies.** An island is stocked with
-resources at world generation and stays stocked by the respawn timer whether or not the
-player can walk to it — that is what makes the ore island across the water read as an ore
-island and worth saving the parcels up for. What waits for the coastline to arrive is the
-ambient enemies and the boss, so unreachable ground is never threatening ground. The two
-halves are one word apart at every call site (`accepts_ambient_resources` vs
-`accepts_ambient_enemies`) and `test/unit/test_island_gating.gd` asserts the split as a
-transition, precisely because a refactor that reunites them reads as a tidy-up.
-
-**Growing the island outside a purchase goes through `LandManager.grant_parcels()`.**
-`land_purchased` is what stocks the newly revealed mainland and opens any island the
-coastline now reaches (`main.gd:_on_land_purchased`), and `parcels_bought` / `radius` /
-`_expand()` are merely what the node *persists*. The devtools demo builder wrote those
-three directly and skipped the signal, so `build_demo_world` produced a radius-34 island
-still carrying the starting island's 28 nodes, ringed by three walkable islands nobody had
-opened — for long enough to be baked into two committed fixtures (`gather-3m9`). If you
-need land without charging for it, call `grant_parcels`; do not re-derive it.
-
-**The boss ends the run, and the run has a score** (`gather-1zv`). `Systems/RunStats`
-(`systems/run_stats.gd`) is the model and `ui/run_summary_ui.gd` is the card — the same
-model/view split again. `IslandManager.boss_killed` is the hook; `RunStats.end_run()` freezes the
-score and emits it. Before this, killing the boss changed nothing and the world carried on
-identically forever, so there was nothing to be good at.
-
-- **RunStats owns only what nothing else counts** — kills, nodes gathered, deaths, time — and
-  reads level, gold, land, raids and skills from their owners when the card is built. A counter
-  here shadowing `LevelUpManager.level` would be a second copy of a fact, and it *would* diverge:
-  a load restores theirs and would have to remember to restore this one too.
-- **Three fields are the deliberate exception and are frozen at `end_run`**: day, level and gold.
-  The player may choose KEEP PLAYING and earn another thousand gold, and a card rebuilt from live
-  values afterwards would quietly rewrite what the run scored.
-- **`end_run` is idempotent, and `loadObject` deliberately does not emit `run_ended`.** Loading a
-  finished run must not throw the epitaph in the player's face; what they asked for by loading is
-  the world. The restored flag is what stops the boss ending the run a second time.
-- **`Enemy._on_died` records the kill BEFORE its two awaits**, and that ordering is load-bearing.
-  The method suspends for 0.2s of particles, so anything after the first `await` runs after every
-  other listener on the same `died` signal has finished — including the one that ends the run and
-  builds the card. Recorded further down, the boss's own death showed on the card as
-  "Enemies slain: 0".
-- **NEW RUN is `reload_current_scene()`**, which is a decision rather than a shortcut: every save
-  entry is keyed on `get_path()` and nothing anywhere unwinds world generation. Reloading is the
-  only path guaranteed to produce what a fresh boot produces, because it is one. It asks twice
-  before acting, and Escape / the X / the backdrop all mean KEEP PLAYING — the destructive option
-  is never on a route taken by reflex.
-
-The devtools verbs are `run_summary` (the model's tally *and* whether the card is open, for the
-reason `world_clock` reads its tints back), `end_run`, and `kill_enemy` — which exists because
-`clear-nodes --group Enemy` is not a death: `queue_free()` skips `HealthManager.died`, so nothing
-drops, no xp is paid and the boss chain never fires. `kill_enemy --args '{"type":"Elite"}'` drives
-`take_damage` instead, so a test of the ending exercises the ending.
-
-**The quest board asks the player for things** (`gather-dj2`). `systems/quest_board.gd` is the
-registry (built imperatively like `SkillTree`), `Systems/QuestLog` owns claiming and persistence,
-`ui/quest_ui.gd` is the panel on `J` / the QUESTS button. Nothing in the game had ever asked the
-player for anything, so a new player had no idea what it wanted from them and an experienced one
-had no short-term goal between the long ones.
-
-**Every quest is a question about state something else already owns, and that is what keeps the
-whole feature small.** A quest is not accepted, subscribes to nothing, and accumulates no counter
-— its progress is derived on every read from the inventory, `RunStats.enemies_killed`,
-`RaidDirector.raids_cleared`, `WorldClock.day`, `LevelUpManager.level` or
-`LandManager.parcels_bought`. So `QuestLog` persists exactly one thing, the set of claimed ids,
-and there is no per-quest progress to save, migrate or lose. A per-quest counter fed by a signal
-is the same shape as the raid's "how many raiders are left" problem: right until the first
-quicksave, silently wrong after. It also means a quest added later works retroactively, which
-would otherwise take a migration.
-
-Two smaller rules: **rewards are coins and xp only**, never recipe or resource unlocks — an
-unlock must be applied exactly once and never on load (`Recipes` and `ResourceManager2` persist
-their own lists), and coins carry no such rule. And **a `HAVE` quest spends the items, so its
-button says HAND IN rather than CLAIM** before it is pressed; the spend happens *before* the
-quest is marked claimed, or a failed spend leaves it done and the items still in the bag.
-
-**The toolbar row is an `HFlowContainer` now**, because the quest button was the fifth. It used
-to be an `HBoxContainer` anchored top-right growing leftwards, so an over-wide row neither
-clipped nor wrapped — the leftmost button ended up off the edge, reachable by nothing and
-announced by nothing. Four buttons cleared a 390px portrait phone by about two pixels, which was
-a coincidence rather than a budget. It cannot be fixed by narrowing the buttons either: what
-sets a Button's minimum width is its *text* plus `style_button`'s margins, and the widest face in
-the game is `"SKILLS +99  [K]"`. `occupied_top_height()` measures the buttons as well as the
-container, because `HFlowContainer.get_combined_minimum_size()` is width-dependent and answers
-for whatever width it had when asked — the one-line height, for a strip about to wrap.
-
-**A panel needs a button in TWO tables, and the second one is silent when you forget it.**
-`hud_toolbar.gd` hides its whole strip the moment `DisplayServer` reports a touchscreen, so
-`ui/mobile_controls.gd`'s `BUTTON_SPECS` is the *only* route into a panel on a phone — and its
-`MENU_ACTIONS` list is what keeps that button alive while the player is dead or mid-respawn. The
-quest board shipped in the toolbar alone: a key, a desktop button, and no way into the board at
-all on the device the web build is played on. Nothing errored, no button looked missing, and
-every test passed. `test_mobile_controls.gd` now walks `HudToolbar.BUTTON_SPECS` and asserts each
-action is reachable from the overlay and present in `MENU_ACTIONS`, so the next one added to one
-table cannot go missing from the other in silence. The faces differ on purpose (`QUESTS  [J]` on
-the strip, a square `QUEST` on the overlay) — the overlay's buttons are sized from the screen's
-shortest edge, so the label is fitted to the button.
-
-Devtools: `quest_state` (every offered quest with live progress, plus whether the panel is open)
-and `claim_quest`, which goes through the real `claim()` so the spend, the payout and the signals
-all happen — and reports *why* a refusal happened, since "already claimed", "not complete" and
-"not offered yet" are three different answers.
+**A new panel needs a button in TWO tables.** `ui/hud_toolbar.gd`'s `BUTTON_SPECS` is the
+desktop strip and is hidden outright on a touchscreen, so `ui/mobile_controls.gd`'s
+`BUTTON_SPECS` + `MENU_ACTIONS` are the *only* route into a panel on a phone — which is the
+device the web build is played on. Miss the second and nothing errors, nothing looks
+missing, and every test passes. `test_mobile_controls.gd` now walks both tables.
 
 **Saving.** Nodes add themselves to the `SaveLoad` group (`systems/save_load.gd`) and implement
 `saveObject() -> Dictionary` / `loadObject(dict)`; entries are JSON-stringified
@@ -794,38 +418,18 @@ world resources live in `items/resources.gd`), and every load path that calls it
 *already cleared* the container it is about to refill. An unguarded raise there does not
 lose one slot, it empties the whole container permanently.
 
-**DevTools extension.** `devtools_ext/commands.gd` registers project verbs —
-`player_state`, `revive_player`, `damage_player`, `give_item`, `add_xp`,
-`gather_stats`, `spawn_stats`, `goto_resource`, `island_census`, `world_clock`,
-`set_time_of_day`, `set_weather`, `strike_lightning` — plus a status provider merged into every response. Use `goto_resource` before any gather test: gathering only
-engages with a node in reach, so otherwise the test stands in empty grass and proves
-nothing.
+**DevTools extension.** `devtools_ext/commands.gd` registers this project's verbs and a
+status provider merged into every reply. The catalogue changes often, so read it from the
+game rather than from here: `python tools/devtools.py list-commands` (add `--offline` when
+nothing is running). Each verb's own comment says what it is for. Three worth knowing
+before you need them:
 
-`world_clock` is the one to reach for on anything touching lighting or weather. It reports
-the hour *and* reads the tint back off all three canvases (`world_tint`, `ocean_color`,
-`hud_modulate`), which is the only way to tell "the clock never advanced" apart from "the
-clock advanced and SkyLighting did not follow" — a `get-state` on the CanvasModulate alone
-cannot. `set_time_of_day` takes `{"phase": "night"}` as well as a raw `t`, and every setter
-here repaints before replying so the answer describes a world you could screenshot. The same
-reply carries the lightning model — `lightning_time_left` and the `lightning_gap` range it is
-rolled from — next to `flash`, the strength `SkyLighting` is drawing *right now*, read back off
-the node for exactly the reason the tints are: a verb that echoed only the countdown cannot
-tell "the bolt never fired" apart from "the bolt fired and the lighting never heard it", and
-those two live in different files. `strike_lightning` forces a bolt immediately, at an optional
-`{"distance": 0.0..1.0}` and otherwise at a rolled one, and **it starts a storm first if the
-sky is clear** — lightning under clear weather is a state the game itself cannot reach, so the
-verb reaches the state rather than faking one frame of it, and its message names which of the
-two happened so nothing about the returned `weather` is a surprise. The status provider carries
-`phase`, `weather`, `day` and `lightning_in` on every reply, because `live_enemies` above the
-daytime cap is correct at 3am and a bug at noon, and a storm that is quiet reads identically to
-a storm whose countdown never armed.
-
-`island_census` is the one to reach for on anything touching land, resources or spawning.
-It reports every region's tile and node counts, the per-region resource census, the boss
-and its chest, and — via a flood fill — whether each island is walkable now and whether it
-will be once all the land is bought. `count_land_tiles` is a single scalar that reads the
-same whether the world is one landmass or four, and a screenshot only shows the ~15x8
-tiles around the player, which is less than the distance to the nearest island.
+- `goto_resource` — run it before ANY gather test. Gathering only engages a node in reach,
+  so without it the test stands in empty grass and proves nothing.
+- `world_clock` — reads the tint back off all three canvases, which is the only way to tell
+  "the clock never advanced" from "the clock advanced and SkyLighting did not follow".
+- `island_census` — one read for land, regions, per-region resources and walkability. A
+  screenshot shows ~15x8 tiles, less than the distance to the nearest island.
 
 ## Conventions & Patterns
 

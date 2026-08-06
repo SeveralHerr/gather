@@ -1121,8 +1121,8 @@ func _walk_to(handler: TileMapHandler, player: Player, cell: Vector2i,
 # Two properties of the feature decide almost every number below.
 #
 # **A CanvasModulate tints exactly one canvas and this game has three**, so SkyLighting writes
-# the world, the sea and the HUD separately (the canvas table in CLAUDE.md, and the header of
-# world/vfx/sky_lighting.gd). The one of those three writes a viewer can actually check is the
+# the world, the sea and the HUD separately (the canvas table and the full rationale are in the
+# header of world/vfx/sky_lighting.gd). The one of those three writes a viewer can check is the
 # SEA: land going dark while the water stays daylight blue is precisely the failure that write
 # exists to prevent, and it is what "night" looks like when it is broken. So this clip is
 # staged on a coastline and candidates are scored on how much open water the frame holds — a
@@ -2793,9 +2793,10 @@ const RAID_ARRIVAL_TIMEOUT := 20.0
 ## part: five raiders that all arrive are dealt with in about twelve seconds. What costs is the one
 ## raider that wedges on the far side of the base — measured at 319px in one dry run and 344px in a
 ## recording, both at full health, meaning it had never reached the player at all. There is no
-## baked navigation in this game (see CLAUDE.md), so neither the raider nor the player can route
-## around a house; what actually resolves it is `EnemyFollow`'s sidestep freeing the raider while
-## the player walks toward it, and that needs room to happen in. Twenty-one tiles at the player's
+## baked navigation in this game (see enemies/states/enemy_follow.gd), so neither the raider nor
+## the player can route around a house; what actually resolves it is `EnemyFollow`'s sidestep
+## freeing the raider while the player walks toward it, and that needs room to happen in.
+## Twenty-one tiles at the player's
 ## 50px/s is seven seconds of walking before a swing is even possible.
 const RAID_FIGHT_TIMEOUT := 55.0
 const RAID_CHASE_TIMEOUT := 16.0

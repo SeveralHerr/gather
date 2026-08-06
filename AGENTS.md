@@ -134,3 +134,9 @@ project-specific gotchas (the `--import` step required after adding a `class_nam
 the root node being in every group, the single-instance DevTools bridge) are
 documented in **CLAUDE.md**. Keep substantive changes to those sections in that file
 so there is one source of truth.
+
+**Per-subsystem notes are NOT in CLAUDE.md.** Lighting, weather, raids, quests, islands,
+the berry bush, run scoring and the collision split are each documented in the `##` doc
+header of the file that implements them; CLAUDE.md carries only an index of which file to
+read. Add new subsystem rationale to the file, not to CLAUDE.md — the index exists so a
+fact has exactly one home.

@@ -5715,3 +5715,49 @@ Two concrete improvements to the skill:
   sibling change, so committing A alone would have shipped a red gate. Splitting it took a
   hand-revert of two lines, a stash, and two verification runs. Next time: give each agent its own
   test FILE, not just its own source files, or accept a single combined commit.
+
+## 2026-08-05 — Reviewed CLAUDE.md size and where its weight actually sits
+
+- Value: **inconclusive** — no harness verb was run this turn; the question was about the
+  instruction file, not about game behaviour, and nothing in the answer needed a live game.
+  - Expected: that the devtools/harness block was the bulk of the file, since that is the part
+    the user was worried about losing.
+  - Got: the opposite, from `wc -l` and a heading scan. Harness + devtools is 196 of 1080 lines
+    (18%); Architecture Overview is 715 (66%), and the weather/night cluster alone
+    (lighting, lightning, charged skeleton, raids) is ~210 lines — larger than the whole harness
+    section it was being defended against.
+  - Cheaper: nothing cheaper existed; `wc -l` plus one `grep -n '^## '` was the whole
+    investigation, ~2s.
+
+- Gap: **no gaps this turn** — the harness was not exercised, so it had no opportunity to fall
+  short. Recording the entry anyway, because the rule requiring it is itself the example the
+  answer turned on: an unconditional per-response obligation only fires if it is in the file that
+  is always loaded. Moved into a skill, this entry would not exist.
+
+## 2026-08-05 — Split the subsystem essays out of CLAUDE.md into the files they describe
+
+- Value: **overkill** — for verifying *this* diff, which is markdown plus three comment-only
+  lines in `demo_director.gd`. Nothing I touched can change runtime behaviour, and lint alone
+  settles the only real risk (a malformed comment block breaking a parse).
+  - Expected: lint green, tests green, and the run tells me nothing the diff did not.
+  - Got: lint `0 error(s), 0 warning(s) -> exit 0` as predicted. The suite came back
+    `Total: 664 | Passed: 662 | Failed: 2` — `test_the_foraging_capstone_still_does_something`
+    and `test_no_loadout_wastes_extra_drop_chance`, both red at HEAD and neither caused by this
+    change. Real find, but an accidental one: it is the balance retune in cda710c/30f9f92
+    landing on a saturated extra-drop roll, filed as `gather-54ze`. Attribution took a
+    `git stash` + `--filter` re-run against clean HEAD, which is the one genuinely necessary
+    runtime step here and only necessary because the full suite had been run at all.
+  - Cheaper: `lint_project.gd` alone, ~20s, would have given the same confidence in the diff.
+
+- Gap: **no gaps this turn** — nothing was missing from the harness; it did exactly what it
+  claims and the only surprise was a pre-existing red gate, which is the harness working.
+
+- Note on the change itself: the premise going in was that ~700 lines of subsystem rationale had
+  to be *moved* out of CLAUDE.md. It did not — a grep of 20 distinctive facts against the source
+  found 19 already documented verbatim in the `##` doc header of the file that implements them.
+  CLAUDE.md was carrying a second copy, which is the anti-pattern the file itself preaches about
+  save state and quest counters. The twentieth ("the charged skeleton's blue is `Sprite2D.modulate`
+  and the hit flash is the root's") was **stale**: `charged_bone_enemy.tscn` sets no modulate at
+  all — it swaps the atlas region and adds a sparks emitter — and the hit flash is a shader
+  parameter at `enemy.gd:370`. A duplicated fact drifted from its original and nothing reported
+  it, which is the concrete argument for the index-plus-one-home shape this change leaves behind.

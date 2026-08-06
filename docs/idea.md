@@ -4,7 +4,9 @@ Design ideas, not commitments. Nothing here is scheduled. When one gets approved
 beads issue and this entry gets a line pointing at the id.
 
 **All of section B is built and shipped** (2026-08-04): B1 `gather-0ez`, B2 `gather-1zv`,
-B3 `gather-dj2`. See CLAUDE.md for how each works and what is load-bearing in it. B3 shipped as
+B3 `gather-dj2`. How each works and what is load-bearing in it is in the doc header of its own
+file (`systems/raid_director.gd`, `systems/run_stats.gd`, `systems/quest_board.gd`); CLAUDE.md's
+subsystem index lists them. B3 shipped as
 a panel rather than as the buildable signpost the entry describes — that half is `gather-3vv`.
 The size estimates below turned out roughly right except B1, which was worse than "medium" for
 exactly the reason flagged: enemies had nowhere to walk to, and it also turned out this game has
