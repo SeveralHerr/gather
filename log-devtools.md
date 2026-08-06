@@ -5941,3 +5941,96 @@ Two concrete improvements to the skill:
     markers *without changing its content*, and reports the span it claimed. That is a
     one-time, reviewable diff the user can reject, and it converts every pre-0.8.0 log into
     one that tracks the format from then on.
+
+## 2026-08-06 — Four pixel-art UI direction mockups (HTML pitch board, no game code touched)
+
+- Value: **overkill** — deliberately ran nothing; the deliverable is an HTML page and the diff
+  contains no `res://` code, so there was nothing for the runtime to reach.
+  - Expected: predicted before starting that the harness had no role here — the inputs are
+    `ui/ui_theme.gd`, `ui/panel_frame.gd`, the PNGs under `assets/art/`, and the committed
+    screenshots in `itch/`, all of which are static reads.
+  - Got: n/a — no bridge command issued, no runner invoked.
+  - Found: nothing in the game. (Two authoring defects in my own output, both caught without
+    the harness: a corrupted CSS declaration `color: #4d5costs` in the slate block, and a
+    generated pixel font that needed rasterizing to prove its descenders and punctuation were
+    right — checked with a PIL render rather than by eye on the glyph tables.)
+  - Cheaper: what I did. Reading `ui_theme.gd` (255 lines) plus the four committed
+    `itch/screenshot_*.png` gave the entire current-UI picture in two tool calls; launching the
+    game to screenshot the skills panel would have reproduced `itch/screenshot_2_skills.png`
+    exactly and cost a launch, a `goto_resource`, a panel open and a 0.5s settle.
+
+- Gap: **no gaps this turn** — no harness command was run, so there is no evidence to file one
+  from. Noting for the next turn that the read this task *would* have wanted, had the restyle
+  been implemented rather than pitched, is the flat, effective style values a Control is
+  actually drawing with (`bg_color`/`border_width`/`corner_radius` off the resolved StyleBox,
+  not the `theme_override_styles/panel` object reference). That will be filed with real output
+  the first time it actually blocks something.
+
+## 2026-08-06 — Endesga Arcade UI repaint: palette, geometry, and a generated bitmap font
+
+- Value: **overkill** — for *this* `/verify` run only. It confirmed the last commit's
+  three-line change and caught nothing; the runs earlier in the same session were a
+  different story (see Found).
+  - Expected: the running game will show whether `NewSlot._ready()`'s stylebox override
+    actually survives to the bag/chest grids — an override set in `_ready()` can be
+    silently replaced by the scene's authored theme or by a later `apply_metrics()`, and
+    the diff cannot tell me which.
+  - Got: it survives. `get-state --property theme_override_styles/panel.bg_color` on the
+    live `GrabbedSlot` returned `{r:0.149, g:0.169, b:0.267}` (#262b44 = COLOR_INSET),
+    `border_width_left: 3`, `border_color` #1b1023, `corner_radius_top_left: 0`,
+    `anti_aliasing: false`. The guard held too: the hotbar slot kept its own overlay fill
+    at alpha 0.94 and its gold `shadow_color` #fee761, so the new `_ready()` override does
+    not clobber the per-slot styling the hotbar applies afterwards.
+  - Found: nothing in this run. Earlier runs this session found four things the diff could
+    not have, all of which are why the session is worth logging at all:
+    (1) `StyleBoxFlat.anti_aliased` does not exist — the property is `anti_aliasing`. The
+    wrong name compiles AND passes lint, then raises at runtime, aborting `_flat()` so it
+    returns **null**; every style factory silently produced nothing and the whole game fell
+    back to Godot's default theme. Only `test_save_slot_ui.gd` caught it, and only
+    indirectly, by noticing a button had stopped clearing the 48px touch floor.
+    (2) `project.godot`'s `[gui]` section takes `theme/custom_font`, not
+    `gui/theme/custom_font` — the section header supplies the prefix. The long form parses,
+    sets `gui/gui/theme/custom_font`, and leaves the real setting empty. A **completely
+    green 686-test run** told me the font was in when the game was still rendering Open
+    Sans. Caught by loading the setting and printing `get_font_name()`.
+    (3) `validate-ui` found the skill-point badge hanging 45px off a 1920 screen
+    (`ui_overflow: PanelContainer 'PointsBadge' ... -> 1965,135`) once the wider glyphs
+    outgrew its hardcoded BADGE_WIDTH.
+    (4) `sample-pixels`-style pixel reads showed the XP bar's fill (#0099db) was within
+    three points of `main.gd`'s OCEAN_COLOR (#0098dc) — the bar vanished over water. By eye
+    it read as "washed out", which looks like a tint bug, not a collision.
+  - Cheaper: nothing cheaper existed for this run — no test in the suite asserts a StyleBox,
+    so a runtime property read was the only way to settle it. For (2) specifically, the
+    cheapest sufficient check was the six-line `SceneTree` script that printed
+    `get_font_name()`; a screenshot was NOT sufficient and actively misled me, because
+    Open Sans at a small size reads as "pixelly" in a 1920-wide screenshot.
+
+- Gap: **`validate-ui`'s `button_text_overflow` fires when the text exactly fits** —
+  reported `text 'QUESTS  [J]' (116px) exceeds button width (128px)` three times. 116 is
+  *less* than 128; the difference is exactly `2 * UiTheme.BUTTON_PAD` (6). So the check is
+  comparing `text + content_margins` against the width with a `>=` where it wants `>`, and
+  a button sized precisely to its own content — which is what an HFlowContainer of Buttons
+  produces by construction — is reported as overflowing forever. Workaround: cropped a
+  screenshot of the toolbar and confirmed by eye that nothing is clipped, then ignored all
+  three. That is exactly the manual step the verb exists to remove, and it makes a real
+  overflow indistinguishable from the permanent noise.
+  - [G-144] status: open | seen: 1 | harness: 0.10.0
+  - Improvement: make the comparison strict (`text_width > content_width`), or subtract the
+    stylebox's content margins from the button width before comparing and report the slack
+    (`text 116px, content box 116px, slack 0px`) so "exactly fits" is visibly distinct from
+    "overflows by 12px".
+
+- Gap: **reach counts a `RefCounted` constants class as unreached with no way to say why** —
+  `ui/ui_theme.gd` is the file this entire session was about, and the ledger reports it in
+  `NOT reached` because `UiTheme` extends `RefCounted`, is never instantiated, and therefore
+  owns no node any `scene-tree` snapshot can see. Every one of its colours was verified at
+  runtime, through the nodes that consume it. `reach_aliases` in `devtools_config.json`
+  exists for exactly this and I did not use it, because an alias is recorded as a project
+  *declaration* rather than an observation — which is the right call for a helper nobody
+  looked at, and the wrong one here, where a live node's `theme_override_styles/panel`
+  literally carries the class's constants.
+  - [G-145] status: open | seen: 1 | harness: 0.10.0
+  - Improvement: let `scripts-seen` credit a script whose *constants or statics* were
+    observed through a property read, or add a `--reached-via` flag to `verify_ledger.py
+    record` that takes `script=node_path,property` and records the observation that vouches
+    for it — so the credit is evidence from this run rather than a standing config claim.

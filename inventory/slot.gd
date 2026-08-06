@@ -39,6 +39,12 @@ var _side := 0.0
 
 func _ready():
 	gui_input.connect(_on_gui_input)
+	# Every slot draws its own ink-outlined well. The hotbar already overrode this
+	# per slot (`hot_bar_inventory.gd`), but the bag and chest grids never did, so
+	# their slots fell through to Godot's default panel — a soft grey rectangle
+	# inside an outlined container, which reads as an unfinished grid rather than as
+	# a row of sockets once everything around it has a hard edge.
+	add_theme_stylebox_override("panel", UiTheme.inset_style())
 	if _side > 0.0:
 		_apply_metrics()
 
